@@ -119,6 +119,7 @@ class Runner(object):
 
                     server_hello = msg
                     record_layer.version = server_hello.server_version
+                    self.conversation.record_version = server_hello.server_version
                 elif isinstance(msg, litemessages.Certificate):
                     print("got Certificate")
 
