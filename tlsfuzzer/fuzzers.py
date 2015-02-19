@@ -4,7 +4,7 @@
 from .generators import Conversation
 from .messages import Connect, Close, ClientHelloGenerator,\
         ClientKeyExchangeGenerator, FinishedGenerator,\
-        ChangeCipherSpecGenerator, AlertGenerator
+        ChangeCipherSpecGenerator, AlertGenerator, ApplicationDataGenerator
 
 from tlslite.constants import ContentType, CipherSuite
 
@@ -61,6 +61,10 @@ class Fuzzer(object):
                     conv.messages.append((side, msg))
                 elif isinstance(message, AlertGenerator):
                     msg = FuzzedMessage((3, 1), ContentType.alert, \
+                            message)
+                    conv.messages.append((side, msg))
+                elif isinstance(message, ApplicationDataGenerator):
+                    msg = FuzzedMessage((3, 1), ContentType.application_data, \
                             message)
                     conv.messages.append((side, msg))
                 else:

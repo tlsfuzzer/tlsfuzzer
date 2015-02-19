@@ -2,7 +2,7 @@
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
-        Finished, Alert
+        Finished, Alert, ApplicationData
 from tlslite.constants import AlertLevel, AlertDescription
 
 # control messages
@@ -65,3 +65,10 @@ class AlertGenerator(MessageGenerator):
         a = Alert().create(self.description, self.level)
         return a
 
+class ApplicationDataGenerator(MessageGenerator):
+    def __init__(self, payload):
+        self.payload = payload
+
+    def generate(self):
+        app_data = ApplicationData().create(self.payload)
+        return app_data
