@@ -1,0 +1,60 @@
+language: python
+
+python:
+  - 2.6
+  - 2.7
+  - 3.2
+  - 3.3
+  - 3.4
+
+branches:
+  only:
+    - master
+
+before_install:
+  - |
+       # workaround https://github.com/travis-ci/travis-ci/issues/2666
+       if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then
+         PR_FIRST=$(curl -s https://github.com/${TRAVIS_REPO_SLUG}/pull/${TRAVIS_PULL_REQUEST}.patch | head -1 | grep -o -E '\b[0-9a-f]{40}\b' | tr -d '\n')
+         TRAVIS_COMMIT_RANGE=$PR_FIRST^..$TRAVIS_COMMIT
+       fi
+  - git fetch origin master:refs/remotes/origin/master
+
+install:
+  - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then travis_retry pip install unittest2; fi
+  - travis_retry pip install -r requirements.txt
+  - travis_retry pip install -r build-requirements.txt
+
+script:
+  - |
+      if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then
+          coverage run --branch --source tlsfuzzer -m unittest2 discover;
+      else
+          coverage run --branch --source tlsfuzzer -m unittest discover;
+      fi
+  - coverage report -m
+  # pylint doesn't work on 2.6: https://bitbucket.org/logilab/pylint/issue/390/py26-compatiblity-broken
+  # diff-quality doesn't work on 3.2: https://github.com/edx/diff-cover/issues/94
+  - |
+      if [[ $TRAVIS_PYTHON_VERSION != '2.6' ]] && [[ $TRAVIS_PYTHON_VERSION != '3.2' ]]; then
+        pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" tlslite > pylint_report.txt || :
+        diff-quality --violations=pylint --fail-under=90 pylint_report.txt
+      fi
+  - echo "Will test commits between $TRAVIS_COMMIT_RANGE:"
+  - git log --oneline --reverse $TRAVIS_COMMIT_RANGE
+  - | 
+      for i in $(git log --pretty=format:%H --reverse $TRAVIS_COMMIT_RANGE); do
+        git checkout $i
+        make clean
+        if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then
+          unit2 discover || exit 1
+        else
+          python -m unittest discover || exit 1
+        fi
+        cd $TRAVIS_BUILD_DIR
+      done
+
+after_success:
+  - coveralls
+
+sudo: false
