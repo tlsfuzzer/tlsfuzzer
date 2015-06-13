@@ -13,11 +13,22 @@ branches:
 
 before_install:
   - |
+       echo -e "TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST\n" \
+               "TRAVIS_REPO_SLUG=$TRAVIS_REPO_SLUG\n" \
+               "TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST\n" \
+               "TRAVIS_COMMIT=$TRAVIS_COMMIT\n" \
+               "TRAVIS_PYTHON_VERSION=$TRAVIS_PYTHON_VERSION"
+  - |
        # workaround https://github.com/travis-ci/travis-ci/issues/2666
        if [ "$TRAVIS_PULL_REQUEST" != "false" ]; then
-         PR_FIRST=$(curl -s https://github.com/${TRAVIS_REPO_SLUG}/pull/${TRAVIS_PULL_REQUEST}.patch | head -1 | grep -o -E '\b[0-9a-f]{40}\b' | tr -d '\n')
+         URL="https://github.com/${TRAVIS_REPO_SLUG}/pull/${TRAVIS_PULL_REQUEST}.patch"
+         # `--location` makes curl follow redirects
+         PR_FIRST=$(curl --silent --show-error --location $URL | head -1 | grep -o -E '\b[0-9a-f]{40}\b' | tr -d '\n')
          TRAVIS_COMMIT_RANGE=$PR_FIRST^..$TRAVIS_COMMIT
        fi
+  # sanity check current commit
+  - git rev-parse HEAD
+  - echo "TRAVIS_COMMIT_RANGE=$TRAVIS_COMMIT_RANGE"
   - git fetch origin master:refs/remotes/origin/master
 
 install:
@@ -40,21 +51,24 @@ script:
         pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" tlslite > pylint_report.txt || :
         diff-quality --violations=pylint --fail-under=90 pylint_report.txt
       fi
-  - echo "Will test commits between $TRAVIS_COMMIT_RANGE:"
-  - git log --oneline --reverse $TRAVIS_COMMIT_RANGE
-  - | 
-      for i in $(git log --pretty=format:%H --reverse $TRAVIS_COMMIT_RANGE); do
-        git checkout $i
-        make clean
-        if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then
-          unit2 discover || exit 1
-        else
-          python -m unittest discover || exit 1
-        fi
-        cd $TRAVIS_BUILD_DIR
-      done
+  - |
+      if [[ $TRAVIS_PULL_REQUEST != "false" ]]; then
+        echo "Will test commits between $TRAVIS_COMMIT_RANGE:"
+        git log --oneline --reverse $TRAVIS_COMMIT_RANGE
 
-after_success:
-  - coveralls
+        for i in $(git log --pretty=format:%H --reverse $TRAVIS_COMMIT_RANGE); do
+          git checkout $i
+          make clean
+          if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then
+            unit2 discover || exit 1
+          else
+            python -m unittest discover || exit 1
+          fi
+          cd $TRAVIS_BUILD_DIR
+        done
+      fi
 
 sudo: false
+
+after_success:
+ - coveralls
