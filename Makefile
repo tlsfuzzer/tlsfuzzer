@@ -1,10 +1,15 @@
 .PHONY : default
 default:
 	@echo "To install run \"./setup.py install\" or \"make install\""
+	@echo "To test sanity of code run \"make test\""
 
 clean:
 	rm -f *.pyc */*.pyc
 	rm -rf */__pycache__/
+	rm -rf pylint_report.txt
+	rm -rf coverage.xml
+	rm -rf dist/ build/
+	rm -rf htmlcov/
 
 .PHONY : install
 install:
