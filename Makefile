@@ -11,5 +11,13 @@ install:
 	./setup.py install
 
 test:
-	python2 -m unittest discover -v
-	python3 -m unittest discover -v
+	epydoc --check --fail-on-error -v tlsfuzzer
+	coverage2 run --branch --source tlsfuzzer -m unittest discover -v
+	coverage2 report -m
+	coverage3 run --branch --source tlsfuzzer -m unittest discover -v
+	coverage3 report -m
+	coverage3 xml
+	coverage3 html
+	pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" tlsfuzzer > pylint_report.txt || :
+	diff-quality --violations=pylint --fail-under=90 pylint_report.txt
+	diff-cover --fail-under=90 coverage.xml
