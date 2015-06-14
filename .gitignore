@@ -39,6 +39,7 @@ htmlcov/
 .cache
 nosetests.xml
 coverage.xml
+pylint_report.txt
 
 # Translations
 *.mo
@@ -49,6 +50,7 @@ coverage.xml
 
 # Sphinx documentation
 docs/_build/
+epydoc/
 
 # PyBuilder
 target/

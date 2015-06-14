@@ -15,6 +15,9 @@ clean:
 install:
 	./setup.py install
 
+epydoc:
+	epydoc --html -v -o epydoc --graph all tlsfuzzer
+
 test:
 	epydoc --check --fail-on-error -v tlsfuzzer
 	coverage2 run --branch --source tlsfuzzer -m unittest discover -v
