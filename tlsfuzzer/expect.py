@@ -1,78 +1,208 @@
 # Author: Hubert Kario, (c) 2015
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
+"""Parsing and processing of received TLS messages"""
+
 from tlslite.constants import ContentType, HandshakeType, CertificateType
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished
+from tlslite.utils.codec import Parser
+from tlsfuzzer.runner import TreeNode
 
-class Expect(object):
-    pass
+class Expect(TreeNode):
 
-class ExpectServerHello(Expect):
+    """Base class for objects handling message readers"""
+
+    def __init__(self, content_type):
+        """Prepare the class for handling tree graph"""
+        super(Expect, self).__init__()
+        self.content_type = content_type
+
+    def is_expect(self):
+        """Flag to tell if the object is a message processor"""
+        return True
+
+    def is_command(self):
+        """Flag to tell that the object is a message processor"""
+        return False
+
+    def is_generator(self):
+        """Flag to tell that the object is not a message generator"""
+        return False
+
+    def is_match(self, msg):
+        """
+        Checks if the object can handle message
+
+        Note that the msg is a raw, unparsed message of indicated type that
+        requires calling write() to get a raw bytearray() representation of it
+
+        @type msg: L{tlslite.messages.Message}
+        @param msg: raw message to check
+        """
+        if msg.contentType == self.content_type:
+            return True
+
+        return False
+
+    def process(self, state, msg):
+        """
+        Process the message and update the state accordingly.
+
+        @type state: L{tlsfuzzer.runner.ConnectionState}
+        @param state: current connection state, needs to be updated after
+        parsing the message
+        @type msg: L{tlslite.messages.Message}
+        @param msg: raw message to parse
+        """
+        raise NotImplementedError("Subclasses need to implement this!")
+
+class ExpectHandshake(Expect):
+
+    """Common methods for handling TLS Handshake protocol messages"""
+
+    def __init__(self, content_type, handshake_type):
+        """
+        Set the type of message
+        @type content_type: int
+        @type handshake_type: int
+        """
+        super(ExpectHandshake, self).__init__(content_type)
+        self.handshake_type = handshake_type
+
+    def is_match(self, msg):
+        """Check if message is a given type of handshake protocol message"""
+        if not super(ExpectHandshake, self).is_match(msg):
+            return False
+
+        hs_type = Parser(msg.write()).get(1)
+        if hs_type != self.handshake_type:
+            return False
+
+        return True
+
+    def process(self, state, msg):
+        raise NotImplementedError("Subclass need to implement this!")
+
+class ExpectServerHello(ExpectHandshake):
+
+    """Parsing TLS Handshake protocol Server Hello messages"""
+
     def __init__(self):
-        self.contentType = ContentType.handshake
+        """Initialize the object"""
+        super(ExpectServerHello, self).__init__(ContentType.handshake,
+                                                HandshakeType.server_hello)
 
-    def parse(self, parser):
+    def process(self, state, msg):
         """
-        @type parser: Parser
-        """
-        t = parser.get(1)
-        if t != HandshakeType.server_hello:
-            raise Exception("Unexpected handshake message type: {0}".format(t))
-        sh = ServerHello()
-        return sh.parse(parser)
+        Process the message and update state accordingly
 
-class ExpectCertificate(Expect):
+        @type state: ConnectionState
+        @param state: overall state of TLS connection
+
+        @type msg: Message
+        @param msg: TLS Message read from socket
+        """
+        assert msg.contentType == ContentType.handshake
+
+        parser = Parser(msg.write())
+        hs_type = parser.get(1)
+        assert hs_type == HandshakeType.server_hello
+
+        srv_hello = ServerHello()
+        srv_hello.parse(parser)
+
+        state.cipher = srv_hello.cipher_suite
+        state.handshake_messages.append(srv_hello)
+
+class ExpectCertificate(ExpectHandshake):
+
+    """Processing TLS Handshake protocol Certificate messages"""
+
     def __init__(self, certType=CertificateType.x509):
-        self.contentType = ContentType.handshake
+        super(ExpectCertificate, self).__init__(ContentType.handshake,
+                                                HandshakeType.certificate)
         self.certType = certType
 
-    def parse(self, parser):
+    def process(self, state, msg):
         """
-        @type parser: Parser
+        @type state: ConnectionState
         """
-        t = parser.get(1)
-        if t != HandshakeType.certificate:
-            raise Exception("Unexpected handshake message type: {0}".format(t))
-        c = Certificate(self.certType)
-        return c.parse(parser)
+        assert msg.ContentType == ContentType.handshake
 
-class ExpectServerHelloDone(Expect):
+        parser = Parser(msg.write())
+        hs_type = parser.get(1)
+        assert hs_type == HandshakeType.certificate
+
+        cert = Certificate(self.certType)
+        cert.parse(parser)
+
+        state.handshake_messages.append(cert)
+
+class ExpectServerHelloDone(ExpectHandshake):
+
+    """Processing TLS Handshake protocol ServerHelloDone messages"""
+
     def __init__(self):
-        self.contentType = ContentType.handshake
+        super(ExpectServerHelloDone,
+              self).__init__(ContentType.handshake,
+                             HandshakeType.server_hello_done)
 
-    def parse(self, parser):
+    def process(self, state, msg):
         """
-        @type parser: Parser
+        @type state: ConnectionState
+        @type msg: Message
         """
-        t = parser.get(1)
-        if t != HandshakeType.server_hello_done:
-            raise Exception("Unexpected handhsake message type: {0}".format(t))
-        d = ServerHelloDone()
-        return d.parse(parser)
+        assert msg.ContentType == ContentType.handshake
+
+        parser = Parser(msg.write())
+        hs_type = parser.get(1)
+        assert hs_type == HandshakeType.server_hello_done
+
+        srv_hello_done = ServerHelloDone()
+        srv_hello_done.parse(parser)
+
+        state.handshake_messages.append(srv_hello_done)
 
 class ExpectChangeCipherSpec(Expect):
+
+    """Processing TLS Change Cipher Spec messages"""
+
     def __init__(self):
-        self.contentType = ContentType.change_cipher_spec
+        super(ExpectChangeCipherSpec,
+              self).__init__(ContentType.change_cipher_spec)
 
-    def parse(self, parser):
+    def process(self, state, msg):
         """
-        @type parser: Parser
+        @type state: ConnectionState
+        @type msg: Message
         """
-        return ChangeCipherSpec().parse(parser)
+        assert msg.contentType == ContentType.change_cipher_spec
+        parser = Parser(msg.write())
+        ccs = ChangeCipherSpec().parse(parser)
 
-class ExpectFinished(Expect):
+        state.handshake_messages.append(ccs)
+
+class ExpectFinished(ExpectHandshake):
+
+    """Processing TLS handshake protocol Finished message"""
+
     def __init__(self, version=(3, 3)):
-        self.contentType = ContentType.handshake
+        super(ExpectFinished, self).__init__(ContentType.handshake,
+                                             HandshakeType.finished)
         self.version = version
 
-    def parse(self, parser):
+    def process(self, state, msg):
         """
-        @type parser: Parser
+        @type state: ConnectionState
+        @type msg: Message
         """
-        t = parser.get(1)
-        if t != HandshakeType.finished:
-            raise Exception("Unexpected handshake message type: {0}".format(t))
-        f = Finished(self.version)
-        return f.parse(parser)
+        assert msg.contentType == ContentType.handshake
+        parser = Parser(msg.write())
+        hs_type = parser.get(1)
+        assert hs_type == HandshakeType.finished
 
+        finished = Finished(self.version)
+        finished.parse(parser)
+
+        state.handshake_messages.append(finished)

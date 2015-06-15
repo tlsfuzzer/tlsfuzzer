@@ -2,145 +2,118 @@
 # Released under Gnu GPL v2.0, see LICENSE file for details
 from __future__ import print_function
 
-from .messages import Connect, Close
-from .expect import ExpectFinished
-import socket
+from tlslite.messages import Message
 
-import tlslite.messages as litemessages
-from tlslite.tlsrecordlayer import TLSRecordLayer
-from tlslite.constants import ContentType
-from tlslite.utils.compat import compat26Str
-from tlslite.mathtls import calcMasterSecret, PRF_1_2
+class ConnectionState(object):
 
+    """
+    Keeps the TLS connection state for sending of messages
+
+    @type msg_sock: L{tlslite.messagesocket.MessageSocket}
+    @ivar msg_sock: message level abstraction for TLS Record Socket
+
+    @ivar handshake_hashes: all handhsake messages hashed
+
+    @ivar handshake_messages: all hadshake messages exchanged between peers
+    """
+
+    def __init__(self):
+        """Prepare object for keeping connection state"""
+        self.msg_sock = None
+        self.cipher = 0
+        self.handshake_hashes = None
+        self.handshake_messages = []
+
+class TreeNode(object):
+
+    """
+    Base class for decision tree objects
+    """
+
+    def __init__(self):
+        """Prepare internode dependencies"""
+        self.child = None
+        self.next_sibling = None
+
+    def get_all_siblings(self):
+        """
+        Return iterator with all siblings of node
+
+        @rtype: iterator
+        """
+        node = self
+        while node is not None:
+            yield node.next_sibling
+            node = node.next_sibling
+
+    def is_command(self):
+        """
+        Checks if the object is a standalone state modifier
+
+        @rtype: bool
+        """
+        raise NotImplementedError("Subclasses need to implement this!")
+
+    def is_expect(self):
+        """
+        Checks if the object is a node which processes messages
+
+        @rtype: bool
+        """
+        raise NotImplementedError("Subclasses need to implement this!")
+
+    def is_generator(self):
+        """
+        Checks if the object is a generator for messages to send
+
+        @rtype: bool
+        """
+        raise NotImplementedError("Subclasses need to implement this!")
 
 class Runner(object):
+
+    """
+    Test if sending a set of commands returns expected values
+    """
+
     def __init__(self, conversation):
+        """Link conversation with runner"""
         self.conversation = conversation
+        self.state = ConnectionState()
 
     def run(self):
-        client_hello = None
-        server_hello = None
-        # server certificate message
-        certificate = None
-        for side, message in self.conversation.messages:
-            if side == 'clnt':
-                if isinstance(message, Connect):
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    sock.connect((message.ip, message.port))
+        """Execute conversation"""
+        node = self.conversation
+        while node is not None:
+            if node.is_command():
+                # update connection state
+                node.process(self.state)
 
-                    record_layer = TLSRecordLayer(sock)
-                    if record_layer is None:
-                        return False
-                elif isinstance(message, Close):
-                    record_layer = None
-                    return True
-                else:
-                    msg = message.generate()
+                node = node.child
+                continue
+            elif node.is_expect():
+                # check peer response
+                header, parser = self.state.msg_sock.recvMessageBlocking()
+                msg = Message(header.type, parser.bytes)
 
-                    if isinstance(msg, litemessages.ClientHello):
-                        print("sending ClientHello")
-                        record_layer._handshakeStart(client=True)
-                        record_layer.version = self.conversation.record_version
-                        client_hello = msg
-                    elif isinstance(msg, litemessages.ClientKeyExchange):
-                        print("sending ClientKeyExchange")
-                        # generate 48 random bytes
-                        premasterSecret = bytearray(48)
-                        premasterSecret[0] = client_hello.client_version[0]
-                        premasterSecret[1] = client_hello.client_version[1]
+                node = next((proc for proc in node.get_all_siblings()
+                             if proc.is_match(msg)), None)
+                if node is None:
+                    raise AssertionError("Unexpected message from peer")
 
-                        public_key = \
-                                certificate.certChain.getEndEntityPublicKey()
-                        # TODO insert a pre-encrypt callback here
-                        encryptedPremasterSecret =\
-                                public_key.encrypt(premasterSecret)
-                        msg.createRSA(encryptedPremasterSecret)
-                    elif isinstance(msg, litemessages.ChangeCipherSpec):
-                        print("sending ChangeCipherSpec")
-                        master_secret = calcMasterSecret(
-                                server_hello.server_version,
-                                premasterSecret,
-                                client_hello.random,
-                                server_hello.random)
-                        record_layer._calcPendingStates(
-                                server_hello.cipher_suite,
-                                master_secret,
-                                client_hello.random,
-                                server_hello.random,
-                                None)
-                    elif isinstance(msg, litemessages.Finished):
-                        handshake_hashes =\
-                                record_layer._handshake_sha256.digest()
-                        verify_data = PRF_1_2(master_secret, b'client finished',
-                                                handshake_hashes, 12)
-                        msg.create(verify_data)
-                        print("sending Finished")
+                node.process(self.state, msg)
 
-                    print("message: {0!r}".format(message))
-                    print("msg: {0!r}".format(msg))
-                    for fuzz_message in message.serialise(msg):
-                        for result in record_layer._sendMsg(fuzz_message):
-                            if result in (0, 1):
-                                raise Exception("blocked write")
+                node = node.child
+                assert node is not None
+                continue
+            elif node.is_generator():
+                # send message to peer
+                msg = node.generate(self.state)
+                self.state.msg_sock.sendMessageBlocking(msg)
+                node.post_send(self.state)
 
-                    if isinstance(msg, litemessages.ChangeCipherSpec):
-                        record_layer._changeWriteState()
-
-            elif side == 'srv':
-                print("Waiting for {0}...".format(type(message)))
-
-                if isinstance(message, ExpectFinished):
-                    # TODO depend on cipher and TLS version negotiated
-                    handshake_hashes =\
-                            record_layer._handshake_sha256.digest()
-
-                for result in record_layer._getNextRecord():
-                    if result in (0, 1):
-                        raise Exception("blocking read")
-                    else: break
-                header, parser = result
-
-                if header.type != message.contentType:
-                    return False
-
-                # parse message and compare to expected values
-                msg = message.parse(parser)
-                print("msg: {0!r}".format(msg))
-
-                if header.type == ContentType.handshake:
-                    print("updating handshake hashes")
-                    compat_bytes = compat26Str(parser.bytes)
-                    record_layer._handshake_md5.update(compat_bytes)
-                    record_layer._handshake_sha.update(compat_bytes)
-                    record_layer._handshake_sha256.update(compat_bytes)
-
-                if isinstance(msg, litemessages.ServerHello):
-                    print("got ServerHello")
-
-                    server_hello = msg
-                    record_layer.version = server_hello.server_version
-                    self.conversation.record_version = server_hello.server_version
-                elif isinstance(msg, litemessages.Certificate):
-                    print("got Certificate")
-
-                    certificate = msg
-                elif isinstance(msg, litemessages.ServerHelloDone):
-                    print("got ServerHelloDone")
-                elif isinstance(msg, litemessages.ChangeCipherSpec):
-                    print("got ChangeCipherSpec")
-                    record_layer._changeReadState()
-                elif isinstance(msg, litemessages.Finished):
-                    print("got Finished")
-
-                    verify_data = PRF_1_2(master_secret, b'server finished',
-                                            handshake_hashes, 12)
-
-                    # TODO: raise better exception
-                    assert(verify_data == msg.verify_data)
-                    record_layer._handshakeDone(resumed=False)
-                else:
-                    assert(False)
-
-        return True
-
-
+                node = node.child
+                assert node is not None
+                continue
+            else:
+                raise AssertionError("Unknown decision tree node")

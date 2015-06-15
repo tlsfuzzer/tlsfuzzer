@@ -28,8 +28,8 @@ class TestClientHelloGenerator(unittest.TestCase):
 
         with mock.patch.object(tlslite.messages.ClientHello, 'create',
                 return_value=-33) as mock_method:
-            ch = chg.generate()
+            ch = chg.generate(None)
 
         self.assertEqual(ch, -33)
         mock_method.assert_called_once_with((3, 3), bytearray(32), bytearray(0),
-                                            [], None, None, False, False, None)
+                                            [])
