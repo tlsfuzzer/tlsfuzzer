@@ -38,23 +38,29 @@ class Connect(Command):
 
     """Object used to connect to a TCP server"""
 
-    def __init__(self, ip, port):
+    def __init__(self, hostname, port):
+        """Provide minimal settings needed to connect to other peer"""
         super(Connect, self).__init__()
-        self.ip = ip
+        self.hostname = hostname
         self.port = port
+        # note that this is just the default record layer message,
+        # changed to version from server hello as soon as it is received
+        self.version = (3, 0)
 
     def process(self, state):
         """Connect to a server"""
-        sock = socket.socket((self.ip, self.port))
-        sock.set_timeout(5)
-        sock.connect()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(5)
+        sock.connect((self.hostname, self.port))
 
         defragmenter = Defragmenter()
         defragmenter.addStaticSize(ContentType.alert, 2)
         defragmenter.addStaticSize(ContentType.change_cipher_spec, 1)
-        defragmenter.addDynamicSize(ContentType.handshake, 1, 2)
+        defragmenter.addDynamicSize(ContentType.handshake, 1, 3)
 
         state.msg_sock = MessageSocket(sock, defragmenter)
+
+        state.msg_sock.version = self.version
 
 class Close(Command):
 
@@ -75,15 +81,15 @@ class MessageGenerator(TreeNode):
         super(MessageGenerator, self).__init__()
 
     def is_command(self):
-        """Define object as a command node"""
+        """Define object as a generator node"""
         return False
 
     def is_expect(self):
-        """Define object as a command node"""
+        """Define object as a generator node"""
         return False
 
     def is_generator(self):
-        """Define object as a command node"""
+        """Define object as a generator node"""
         return True
 
     def generate(self, state):
@@ -105,25 +111,43 @@ class ClientHelloGenerator(MessageGenerator):
         if ciphers is None:
             ciphers = []
         self.ciphers = ciphers
+        self.version = (3, 3)
 
-    def generate(self, status):
-        clnt_hello = ClientHello().create((3, 3),
+    def generate(self, state):
+        clnt_hello = ClientHello().create(self.version,
                                           bytearray(32),
                                           bytearray(0),
                                           self.ciphers)
+
+        state.handshake_hashes.update(clnt_hello.write())
+        state.handshake_messages.append(clnt_hello)
+
         return clnt_hello
 
 class ClientKeyExchangeGenerator(MessageGenerator):
 
     """Generator for TLS handshake protocol Client Key Exchange messages"""
 
-    def __init__(self, cipher=None, protocol=None):
+    def __init__(self, cipher=None, version=None):
         super(ClientKeyExchangeGenerator, self).__init__()
         self.cipher = cipher
-        self.protocol = protocol
+        self.version = version
+        self.premaster_secret = bytearray(48)
 
     def generate(self, status):
-        cke = ClientKeyExchange(self.cipher, self.protocol)
+        if self.version is None:
+            self.version = status.version
+
+        cke = ClientKeyExchange(status.cipher, self.version)
+        premaster_secret = self.premaster_secret
+        assert len(premaster_secret) > 1
+
+        premaster_secret[0] = self.version[0]
+        premaster_secret[1] = self.version[1]
+
+        # TODO encrypt with server cert
+        cke.createRSA(premaster_secret)
+
         return cke
 
 class ChangeCipherSpecGenerator(MessageGenerator):

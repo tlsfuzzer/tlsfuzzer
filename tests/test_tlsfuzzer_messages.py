@@ -14,6 +14,7 @@ except ImportError:
     from unittest.mock import call
 
 from tlsfuzzer.messages import ClientHelloGenerator
+from tlsfuzzer.runner import ConnectionState
 import tlslite.messages
 
 class TestClientHelloGenerator(unittest.TestCase):
@@ -24,12 +25,15 @@ class TestClientHelloGenerator(unittest.TestCase):
         self.assertEqual(chg.ciphers, [])
 
     def test_generate(self):
+        state = ConnectionState()
         chg = ClientHelloGenerator()
 
+        return_val = mock.MagicMock()
+        return_val.write = mock.MagicMock(return_value=bytearray(10))
         with mock.patch.object(tlslite.messages.ClientHello, 'create',
-                return_value=-33) as mock_method:
-            ch = chg.generate(None)
+                return_value=return_val) as mock_method:
+            ch = chg.generate(state)
 
-        self.assertEqual(ch, -33)
+        self.assertEqual(ch, return_val)
         mock_method.assert_called_once_with((3, 3), bytearray(32), bytearray(0),
                                             [])

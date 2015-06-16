@@ -5,7 +5,7 @@
 
 from tlslite.constants import ContentType, HandshakeType, CertificateType
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
-        ChangeCipherSpec, Finished
+        ChangeCipherSpec, Finished, Alert
 from tlslite.utils.codec import Parser
 from tlsfuzzer.runner import TreeNode
 
@@ -112,32 +112,41 @@ class ExpectServerHello(ExpectHandshake):
         srv_hello = ServerHello()
         srv_hello.parse(parser)
 
+        # extract important info
         state.cipher = srv_hello.cipher_suite
+        state.version = srv_hello.server_version
+        state.server_random = srv_hello.random
+
+        # update the state of connection
+        state.msg_sock.version = srv_hello.server_version
+
         state.handshake_messages.append(srv_hello)
+        state.handshake_hashes.update(msg.write())
 
 class ExpectCertificate(ExpectHandshake):
 
     """Processing TLS Handshake protocol Certificate messages"""
 
-    def __init__(self, certType=CertificateType.x509):
+    def __init__(self, cert_type=CertificateType.x509):
         super(ExpectCertificate, self).__init__(ContentType.handshake,
                                                 HandshakeType.certificate)
-        self.certType = certType
+        self.cert_type = cert_type
 
     def process(self, state, msg):
         """
         @type state: ConnectionState
         """
-        assert msg.ContentType == ContentType.handshake
+        assert msg.contentType == ContentType.handshake
 
         parser = Parser(msg.write())
         hs_type = parser.get(1)
         assert hs_type == HandshakeType.certificate
 
-        cert = Certificate(self.certType)
+        cert = Certificate(self.cert_type)
         cert.parse(parser)
 
         state.handshake_messages.append(cert)
+        state.handshake_hashes.update(msg.write())
 
 class ExpectServerHelloDone(ExpectHandshake):
 
@@ -153,7 +162,7 @@ class ExpectServerHelloDone(ExpectHandshake):
         @type state: ConnectionState
         @type msg: Message
         """
-        assert msg.ContentType == ContentType.handshake
+        assert msg.contentType == ContentType.handshake
 
         parser = Parser(msg.write())
         hs_type = parser.get(1)
@@ -163,6 +172,7 @@ class ExpectServerHelloDone(ExpectHandshake):
         srv_hello_done.parse(parser)
 
         state.handshake_messages.append(srv_hello_done)
+        state.handshake_hashes.update(msg.write())
 
 class ExpectChangeCipherSpec(Expect):
 
@@ -181,7 +191,10 @@ class ExpectChangeCipherSpec(Expect):
         parser = Parser(msg.write())
         ccs = ChangeCipherSpec().parse(parser)
 
-        state.handshake_messages.append(ccs)
+    def post_write(self, satate):
+        """Change encryption method"""
+        #TODO
+        pass
 
 class ExpectFinished(ExpectHandshake):
 
@@ -206,3 +219,17 @@ class ExpectFinished(ExpectHandshake):
         finished.parse(parser)
 
         state.handshake_messages.append(finished)
+
+class ExpectAlert(Expect):
+
+    """Processing TLS Alert message"""
+
+    def __init__(self):
+        super(ExpectAlert, self).__init__(ContentType.alert)
+
+    def process(self, state, msg):
+        assert msg.contentType == ContentType.alert
+        parser = Parser(msg.write())
+
+        alert = Alert()
+        alert.parse(Parser(msg.write()))

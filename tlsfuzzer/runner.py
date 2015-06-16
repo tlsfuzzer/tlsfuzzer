@@ -1,8 +1,11 @@
 # Author: Hubert Kario, (c) 2015
 # Released under Gnu GPL v2.0, see LICENSE file for details
+"""Main event loop for running test cases"""
+
 from __future__ import print_function
 
 from tlslite.messages import Message
+from tlslite.handshakehashes import HandshakeHashes
 
 class ConnectionState(object):
 
@@ -20,9 +23,27 @@ class ConnectionState(object):
     def __init__(self):
         """Prepare object for keeping connection state"""
         self.msg_sock = None
+
+        # cipher negotiated in connection
         self.cipher = 0
-        self.handshake_hashes = None
+        # version proposed in client hello, and later negotiated in connection
+        self.version = (3, 3)
+
+        # hashes of all handshake messages exchanged so far
+        self.handshake_hashes = HandshakeHashes()
+        # all handshake messages exchanged so far
         self.handshake_messages = []
+
+        # are we a client or server side of connection (influences just the
+        # way encryption and MAC keys are calculated)
+        self.client = True
+
+        # calculated value for premaster secret
+        self.premaster_secret = bytearray(0)
+
+        # random values shared by peers
+        self.server_random = bytearray(0)
+        self.client_random = bytearray(0)
 
 class TreeNode(object):
 
@@ -35,14 +56,24 @@ class TreeNode(object):
         self.child = None
         self.next_sibling = None
 
+    def add_child(self, child):
+        """
+        Sets the parameter as the child of the node
+
+        @return: the child node
+        """
+        self.child = child
+        return self.child
+
     def get_all_siblings(self):
         """
         Return iterator with all siblings of node
 
         @rtype: iterator
         """
+        yield self
         node = self
-        while node is not None:
+        while node.next_sibling is not None:
             yield node.next_sibling
             node = node.next_sibling
 
@@ -72,9 +103,7 @@ class TreeNode(object):
 
 class Runner(object):
 
-    """
-    Test if sending a set of commands returns expected values
-    """
+    """Test if sending a set of commands returns expected values"""
 
     def __init__(self, conversation):
         """Link conversation with runner"""
@@ -84,36 +113,42 @@ class Runner(object):
     def run(self):
         """Execute conversation"""
         node = self.conversation
-        while node is not None:
-            if node.is_command():
-                # update connection state
-                node.process(self.state)
+        msg = None
+        try:
+            while node is not None:
+                if node.is_command():
+                    # update connection state
+                    node.process(self.state)
 
-                node = node.child
-                continue
-            elif node.is_expect():
-                # check peer response
-                header, parser = self.state.msg_sock.recvMessageBlocking()
-                msg = Message(header.type, parser.bytes)
+                    node = node.child
+                    continue
+                elif node.is_expect():
+                    # check peer response
+                    header, parser = self.state.msg_sock.recvMessageBlocking()
+                    msg = Message(header.type, parser.bytes)
 
-                node = next((proc for proc in node.get_all_siblings()
-                             if proc.is_match(msg)), None)
-                if node is None:
-                    raise AssertionError("Unexpected message from peer")
+                    node = next((proc for proc in node.get_all_siblings()
+                                 if proc.is_match(msg)), None)
+                    if node is None:
+                        raise AssertionError("Unexpected message from peer: " +
+                                             str(msg.contentType) + ", " +
+                                             str(msg.write()[0]))
 
-                node.process(self.state, msg)
+                    node.process(self.state, msg)
 
-                node = node.child
-                assert node is not None
-                continue
-            elif node.is_generator():
-                # send message to peer
-                msg = node.generate(self.state)
-                self.state.msg_sock.sendMessageBlocking(msg)
-                node.post_send(self.state)
+                    node = node.child
+                    continue
+                elif node.is_generator():
+                    # send message to peer
+                    msg = node.generate(self.state)
+                    self.state.msg_sock.sendMessageBlocking(msg)
+                    node.post_send(self.state)
 
-                node = node.child
-                assert node is not None
-                continue
-            else:
-                raise AssertionError("Unknown decision tree node")
+                    node = node.child
+                    continue
+                else:
+                    raise AssertionError("Unknown decision tree node")
+        except:
+            print("Error encountered while processing node " + str(node) +
+                  " with last message being: " + repr(msg))
+            raise
