@@ -8,7 +8,7 @@ from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
 from tlslite.constants import AlertLevel, AlertDescription, ContentType
 from tlslite.messagesocket import MessageSocket
 from tlslite.defragmenter import Defragmenter
-from tlsfuzzer.runner import TreeNode
+from .tree import TreeNode
 import socket
 
 class Command(TreeNode):

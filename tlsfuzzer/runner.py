@@ -6,6 +6,8 @@ from __future__ import print_function
 
 from tlslite.messages import Message
 from tlslite.handshakehashes import HandshakeHashes
+from tlslite.errors import TLSAbruptCloseError
+from .expect import ExpectClose
 
 class ConnectionState(object):
 
@@ -45,62 +47,6 @@ class ConnectionState(object):
         self.server_random = bytearray(0)
         self.client_random = bytearray(0)
 
-class TreeNode(object):
-
-    """
-    Base class for decision tree objects
-    """
-
-    def __init__(self):
-        """Prepare internode dependencies"""
-        self.child = None
-        self.next_sibling = None
-
-    def add_child(self, child):
-        """
-        Sets the parameter as the child of the node
-
-        @return: the child node
-        """
-        self.child = child
-        return self.child
-
-    def get_all_siblings(self):
-        """
-        Return iterator with all siblings of node
-
-        @rtype: iterator
-        """
-        yield self
-        node = self
-        while node.next_sibling is not None:
-            yield node.next_sibling
-            node = node.next_sibling
-
-    def is_command(self):
-        """
-        Checks if the object is a standalone state modifier
-
-        @rtype: bool
-        """
-        raise NotImplementedError("Subclasses need to implement this!")
-
-    def is_expect(self):
-        """
-        Checks if the object is a node which processes messages
-
-        @rtype: bool
-        """
-        raise NotImplementedError("Subclasses need to implement this!")
-
-    def is_generator(self):
-        """
-        Checks if the object is a generator for messages to send
-
-        @rtype: bool
-        """
-        raise NotImplementedError("Subclasses need to implement this!")
-
 class Runner(object):
 
     """Test if sending a set of commands returns expected values"""
@@ -113,9 +59,9 @@ class Runner(object):
     def run(self):
         """Execute conversation"""
         node = self.conversation
-        msg = None
         try:
             while node is not None:
+                msg = None
                 if node.is_command():
                     # update connection state
                     node.process(self.state)
@@ -124,7 +70,14 @@ class Runner(object):
                     continue
                 elif node.is_expect():
                     # check peer response
-                    header, parser = self.state.msg_sock.recvMessageBlocking()
+                    try:
+                        header, parser = self.state.msg_sock.recvMessageBlocking()
+                    except TLSAbruptCloseError:
+                        if type(node) is ExpectClose:
+                            node = node.child
+                            continue
+                        else:
+                            raise AssertionError("Unexpected closure from peer")
                     msg = Message(header.type, parser.bytes)
 
                     node = next((proc for proc in node.get_all_siblings()

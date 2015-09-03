@@ -7,7 +7,7 @@ from tlslite.constants import ContentType, HandshakeType, CertificateType
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert
 from tlslite.utils.codec import Parser
-from tlsfuzzer.runner import TreeNode
+from .tree import TreeNode
 
 class Expect(TreeNode):
 
@@ -233,3 +233,23 @@ class ExpectAlert(Expect):
 
         alert = Alert()
         alert.parse(Parser(msg.write()))
+
+class ExpectApplicationData(Expect):
+
+    """Processing Application Data message"""
+
+    def __init__(self, data=None):
+        super(ExpectApplicationData, self).\
+                __init__(ContentType.application_data)
+        self.data = data
+
+    def process(self, state, msg):
+        assert msg.content_type == ContentType.application_data
+        parser = Parser(msg.write())
+
+class ExpectClose(Expect):
+
+    """Virtual message signifying closing of TCP connection"""
+
+    def __init__(self):
+        super(ExpectClose, self).__init__(None)

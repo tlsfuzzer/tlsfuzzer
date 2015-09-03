@@ -11,7 +11,7 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         FinishedGenerator, ApplicationDataGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert
+        ExpectAlert, ExpectApplicationData
 
 from tlslite.constants import CipherSuite
 
@@ -27,9 +27,10 @@ def main():
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ExpectAlert())
-    #node = node.add_child(ExpectChangeCipherSpec())
-    #node = node.add_child(ExpectFinished())
-    #node = node.add_child(ApplicationDataGenerator("hello server!"))
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(b"hello server!"))
+    node = node.add_child(ExpectApplicationData(b"hello client!"))
 
     # run the conversation
     good = 0
