@@ -153,7 +153,10 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
         if self.version is None:
             self.version = status.version
 
-        cke = ClientKeyExchange(status.cipher, self.version)
+        if self.cipher is None:
+            self.cipher = status.cipher
+
+        cke = ClientKeyExchange(self.cipher, self.version)
         premaster_secret = self.premaster_secret
         assert len(premaster_secret) > 1
 
@@ -181,7 +184,7 @@ class ChangeCipherSpecGenerator(MessageGenerator):
         return ccs
 
     def post_send(self, status):
-        cipher_suite = status.get_server_cipher_suite()
+        cipher_suite = status.cipher
 
         master_secret = calcMasterSecret(status.version,
                                          cipher_suite,

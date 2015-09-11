@@ -4,7 +4,7 @@
 
 from __future__ import print_function
 
-from tlslite.messages import Message, Certificate, ServerHello
+from tlslite.messages import Message, Certificate
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.errors import TLSAbruptCloseError
 from .expect import ExpectClose
@@ -57,13 +57,6 @@ class ConnectionState(object):
         cert_message = next(certificates)
         return cert_message.certChain.getEndEntityPublicKey()
 
-    def get_server_cipher_suite(self):
-        """Extract the server selected ciphersuite from Server Hello"""
-        server_hello = (msg for msg in self.handshake_messages if \
-                        isinstance(msg, ServerHello))
-        server_hello_message = next(server_hello)
-        return server_hello_message.cipher_suite
-
 class Runner(object):
 
     """Test if sending a set of commands returns expected values"""
@@ -90,7 +83,7 @@ class Runner(object):
                     try:
                         header, parser = self.state.msg_sock.recvMessageBlocking()
                     except TLSAbruptCloseError:
-                        if type(node) is ExpectClose:
+                        if isinstance(node, ExpectClose):
                             node = node.child
                             continue
                         else:
@@ -119,6 +112,7 @@ class Runner(object):
                 else:
                     raise AssertionError("Unknown decision tree node")
         except:
+            # TODO put into a log
             print("Error encountered while processing node " + str(node) +
                   " with last message being: " + repr(msg))
             raise
