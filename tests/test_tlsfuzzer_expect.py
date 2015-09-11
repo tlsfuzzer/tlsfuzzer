@@ -15,10 +15,11 @@ except ImportError:
 
 from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         ExpectCertificate, ExpectServerHelloDone, ExpectChangeCipherSpec, \
-        ExpectFinished
+        ExpectFinished, ExpectAlert, ExpectApplicationData
 
 from tlslite.constants import ContentType, HandshakeType
 from tlslite.messages import Message
+from tlsfuzzer.runner import ConnectionState
 
 class TestExpect(unittest.TestCase):
     def test___init__(self):
@@ -180,6 +181,18 @@ class TestExpectChangeCipherSpec(unittest.TestCase):
 
         self.assertTrue(exp.is_match(msg))
 
+    def test_process(self):
+        exp = ExpectChangeCipherSpec()
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        msg = Message(ContentType.change_cipher_spec, bytearray(1))
+
+        exp.process(state, msg)
+
+        state.msg_sock.changeReadState.assert_called_once_with()
+
 class TestExpectFinished(unittest.TestCase):
     def test___init__(self):
         exp = ExpectFinished()
@@ -214,3 +227,75 @@ class TestExpectFinished(unittest.TestCase):
 
         self.assertFalse(exp.is_match(msg))
 
+    def test_process(self):
+        exp = ExpectFinished()
+        # this probably should use mock objects to check if calcFinished
+        # is called with them
+        state = ConnectionState()
+        msg = Message(ContentType.handshake,
+                      bytearray([HandshakeType.finished, 0, 0, 12]) + 
+                      bytearray(b"\xa3;\x9c\xc9\'E\xbc\xf6\xc7\x96\xaf\x7f"))
+
+        exp.process(state, msg)
+
+class TestExpectAlert(unittest.TestCase):
+    def test___init__(self):
+        exp = ExpectAlert()
+
+        self.assertTrue(exp.is_expect())
+        self.assertFalse(exp.is_command())
+        self.assertFalse(exp.is_generator())
+
+    def test_is_match(self):
+        exp = ExpectAlert()
+
+        msg = Message(ContentType.alert,
+                      bytearray(2))
+
+        self.assertTrue(exp.is_match(msg))
+
+    def test_process(self):
+        exp = ExpectAlert()
+
+        state = ConnectionState()
+        msg = Message(ContentType.alert,
+                      bytearray(2))
+
+        exp.process(state, msg)
+
+class TestExpectApplicationData(unittest.TestCase):
+    def test___init__(self):
+        exp = ExpectApplicationData()
+
+        self.assertTrue(exp.is_expect())
+        self.assertFalse(exp.is_command())
+        self.assertFalse(exp.is_generator())
+
+    def test_is_match(self):
+        exp = ExpectApplicationData()
+
+        msg = Message(ContentType.application_data,
+                      bytearray(0))
+
+        self.assertTrue(exp.is_match(msg))
+
+    def test_process(self):
+        exp = ExpectApplicationData()
+
+        state = ConnectionState()
+        msg = Message(ContentType.application_data,
+                      bytearray(0))
+
+        exp.process(state, msg)
+
+    def test_process_with_non_matching_data(self):
+        exp = ExpectApplicationData(bytearray(b"hello"))
+
+        state = ConnectionState()
+        msg = Message(ContentType.application_data,
+                      bytearray(b"bye"))
+
+        self.assertTrue(exp.is_match(msg))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)

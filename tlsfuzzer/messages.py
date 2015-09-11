@@ -8,7 +8,8 @@ from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
 from tlslite.constants import AlertLevel, AlertDescription, ContentType
 from tlslite.messagesocket import MessageSocket
 from tlslite.defragmenter import Defragmenter
-from tlsfuzzer.runner import TreeNode
+from tlslite.mathtls import calcMasterSecret, calcFinished
+from .tree import TreeNode
 import socket
 
 class Command(TreeNode):
@@ -79,6 +80,7 @@ class MessageGenerator(TreeNode):
 
     def __init__(self):
         super(MessageGenerator, self).__init__()
+        self.msg = None
 
     def is_command(self):
         """Define object as a generator node"""
@@ -102,7 +104,18 @@ class MessageGenerator(TreeNode):
         # create a no-op default action
         pass
 
-class ClientHelloGenerator(MessageGenerator):
+class HandshakeProtocolMessageGenerator(MessageGenerator):
+
+    """Message generator for TLS Handshake protocol messages"""
+
+    def post_send(self, state):
+        """Update handshake hashes after sending"""
+        super(HandshakeProtocolMessageGenerator, self).post_send(state)
+
+        state.handshake_hashes.update(self.msg.write())
+        state.handshake_messages.append(self.msg)
+
+class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
 
     """Generator for TLS handshake protocol Client Hello messages"""
 
@@ -114,17 +127,19 @@ class ClientHelloGenerator(MessageGenerator):
         self.version = (3, 3)
 
     def generate(self, state):
+        if not state.client_random:
+            state.client_random = bytearray(32)
+
         clnt_hello = ClientHello().create(self.version,
-                                          bytearray(32),
+                                          state.client_random,
                                           bytearray(0),
                                           self.ciphers)
 
-        state.handshake_hashes.update(clnt_hello.write())
-        state.handshake_messages.append(clnt_hello)
+        self.msg = clnt_hello
 
         return clnt_hello
 
-class ClientKeyExchangeGenerator(MessageGenerator):
+class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
 
     """Generator for TLS handshake protocol Client Key Exchange messages"""
 
@@ -138,15 +153,25 @@ class ClientKeyExchangeGenerator(MessageGenerator):
         if self.version is None:
             self.version = status.version
 
-        cke = ClientKeyExchange(status.cipher, self.version)
+        if self.cipher is None:
+            self.cipher = status.cipher
+
+        cke = ClientKeyExchange(self.cipher, self.version)
         premaster_secret = self.premaster_secret
         assert len(premaster_secret) > 1
 
         premaster_secret[0] = self.version[0]
         premaster_secret[1] = self.version[1]
 
-        # TODO encrypt with server cert
+        status.premaster_secret = premaster_secret
+
+        public_key = status.get_server_public_key()
+
+        premaster_secret = public_key.encrypt(premaster_secret)
+
         cke.createRSA(premaster_secret)
+
+        self.msg = cke
 
         return cke
 
@@ -158,7 +183,26 @@ class ChangeCipherSpecGenerator(MessageGenerator):
         ccs = ChangeCipherSpec()
         return ccs
 
-class FinishedGenerator(MessageGenerator):
+    def post_send(self, status):
+        cipher_suite = status.cipher
+
+        master_secret = calcMasterSecret(status.version,
+                                         cipher_suite,
+                                         status.premaster_secret,
+                                         status.client_random,
+                                         status.server_random)
+
+        status.master_secret = master_secret
+
+        status.msg_sock.calcPendingStates(cipher_suite,
+                                          master_secret,
+                                          status.client_random,
+                                          status.server_random,
+                                          None)
+
+        status.msg_sock.changeWriteState()
+
+class FinishedGenerator(HandshakeProtocolMessageGenerator):
 
     """Generator for TLS handshake protocol Finished messages"""
 
@@ -168,6 +212,17 @@ class FinishedGenerator(MessageGenerator):
 
     def generate(self, status):
         finished = Finished(self.protocol)
+
+        verify_data = calcFinished(status.version,
+                                   status.master_secret,
+                                   status.cipher,
+                                   status.handshake_hashes,
+                                   status.client)
+
+        finished.create(verify_data)
+
+        self.msg = finished
+
         return finished
 
 class AlertGenerator(MessageGenerator):
