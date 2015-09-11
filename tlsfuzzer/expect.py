@@ -7,6 +7,7 @@ from tlslite.constants import ContentType, HandshakeType, CertificateType
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert
 from tlslite.utils.codec import Parser
+from tlslite.mathtls import calcFinished
 from .tree import TreeNode
 
 class Expect(TreeNode):
@@ -191,10 +192,9 @@ class ExpectChangeCipherSpec(Expect):
         parser = Parser(msg.write())
         ccs = ChangeCipherSpec().parse(parser)
 
-    def post_write(self, satate):
-        """Change encryption method"""
-        #TODO
-        pass
+        # TOOD: check if it's correct
+
+        state.msg_sock.changeReadState()
 
 class ExpectFinished(ExpectHandshake):
 
@@ -218,6 +218,14 @@ class ExpectFinished(ExpectHandshake):
         finished = Finished(self.version)
         finished.parse(parser)
 
+        verify_expected = calcFinished(state.version,
+                                       state.master_secret,
+                                       state.cipher,
+                                       state.handshake_hashes,
+                                       not state.client)
+
+        assert finished.verify_data == verify_expected
+
         state.handshake_messages.append(finished)
 
 class ExpectAlert(Expect):
@@ -232,7 +240,7 @@ class ExpectAlert(Expect):
         parser = Parser(msg.write())
 
         alert = Alert()
-        alert.parse(Parser(msg.write()))
+        alert.parse(parser)
 
 class ExpectApplicationData(Expect):
 
@@ -244,8 +252,11 @@ class ExpectApplicationData(Expect):
         self.data = data
 
     def process(self, state, msg):
-        assert msg.content_type == ContentType.application_data
-        parser = Parser(msg.write())
+        assert msg.contentType == ContentType.application_data
+        data = msg.write()
+
+        if self.data:
+            assert self.data == data
 
 class ExpectClose(Expect):
 

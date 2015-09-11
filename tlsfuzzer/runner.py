@@ -4,7 +4,7 @@
 
 from __future__ import print_function
 
-from tlslite.messages import Message
+from tlslite.messages import Message, Certificate, ServerHello
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.errors import TLSAbruptCloseError
 from .expect import ExpectClose
@@ -43,9 +43,26 @@ class ConnectionState(object):
         # calculated value for premaster secret
         self.premaster_secret = bytearray(0)
 
+        # negotiated value for master secret
+        self.master_secret = bytearray(0)
+
         # random values shared by peers
         self.server_random = bytearray(0)
         self.client_random = bytearray(0)
+
+    def get_server_public_key(self):
+        """Extract server public key from server Certificate message"""
+        certificates = (msg for msg in self.handshake_messages if\
+                        isinstance(msg, Certificate))
+        cert_message = next(certificates)
+        return cert_message.certChain.getEndEntityPublicKey()
+
+    def get_server_cipher_suite(self):
+        """Extract the server selected ciphersuite from Server Hello"""
+        server_hello = (msg for msg in self.handshake_messages if \
+                        isinstance(msg, ServerHello))
+        server_hello_message = next(server_hello)
+        return server_hello_message.cipher_suite
 
 class Runner(object):
 

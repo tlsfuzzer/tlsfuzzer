@@ -26,11 +26,10 @@ def main():
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectAlert())
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
-    node = node.add_child(ApplicationDataGenerator(b"hello server!"))
-    node = node.add_child(ExpectApplicationData(b"hello client!"))
+    node = node.add_child(ApplicationDataGenerator(bytearray(b"hello server!\n")))
+    node = node.add_child(ExpectApplicationData(bytearray(b"hello client!\n")))
 
     # run the conversation
     good = 0
