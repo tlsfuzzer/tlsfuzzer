@@ -11,6 +11,11 @@ branches:
   only:
     - master
 
+matrix:
+  allow_failures:
+    # there are some syntax errors in coverage itself when run on 3.2...
+    - python: 3.2
+
 before_install:
   - |
        echo -e "TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST\n" \
