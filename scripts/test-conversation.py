@@ -8,18 +8,20 @@ import sys
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator
+        FinishedGenerator, ApplicationDataGenerator, AlertGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData
+        ExpectAlert, ExpectApplicationData, ExpectClose
 
-from tlslite.constants import CipherSuite
+from tlslite.constants import CipherSuite, AlertLevel, AlertDescription
 
 def main():
 
     conversation = Connect("localhost", 4433)
     node = conversation
-    node = node.add_child(ClientHelloGenerator([CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]))
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
@@ -29,7 +31,11 @@ def main():
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
     node = node.add_child(ApplicationDataGenerator(bytearray(b"hello server!\n")))
-    node = node.add_child(ExpectApplicationData(bytearray(b"hello client!\n")))
+    #node = node.add_child(ExpectApplicationData(bytearray(b"hello client!\n")))
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
 
     # run the conversation
     good = 0

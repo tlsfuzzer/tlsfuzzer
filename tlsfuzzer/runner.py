@@ -83,8 +83,10 @@ class Runner(object):
                     try:
                         header, parser = self.state.msg_sock.recvMessageBlocking()
                     except TLSAbruptCloseError:
-                        if isinstance(node, ExpectClose):
-                            node = node.child
+                        close_node = next((n for n in node.get_all_siblings() \
+                                           if isinstance(n, ExpectClose)), None)
+                        if close_node:
+                            node = close_node.child
                             continue
                         else:
                             raise AssertionError("Unexpected closure from peer")
