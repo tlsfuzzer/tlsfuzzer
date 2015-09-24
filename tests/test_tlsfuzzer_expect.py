@@ -17,9 +17,10 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         ExpectCertificate, ExpectServerHelloDone, ExpectChangeCipherSpec, \
         ExpectFinished, ExpectAlert, ExpectApplicationData
 
-from tlslite.constants import ContentType, HandshakeType
-from tlslite.messages import Message
+from tlslite.constants import ContentType, HandshakeType, ExtensionType
+from tlslite.messages import Message, ServerHello
 from tlsfuzzer.runner import ConnectionState
+from tlsfuzzer.messages import RenegotiationInfoExtension
 
 class TestExpect(unittest.TestCase):
     def test___init__(self):
@@ -78,6 +79,28 @@ class TestExpectServerHello(unittest.TestCase):
                       bytearray([HandshakeType.client_hello]))
 
         self.assertFalse(exp.is_match(msg))
+
+    def test_process_with_extensions(self):
+        extension_process = mock.MagicMock()
+        exp = ExpectServerHello(extensions={ExtensionType.renegotiation_info:
+                                            extension_process})
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        ext = RenegotiationInfoExtension().create()
+
+        msg = ServerHello().create(version=(3, 3),
+                                   random=bytearray(32),
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=[ext])
+
+        self.assertTrue(exp.is_match(msg))
+
+        exp.process(state, msg)
+
+        extension_process.assert_called_once_with(state, ext)
 
 class TestExpectCertificate(unittest.TestCase):
     def test___init__(self):

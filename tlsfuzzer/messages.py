@@ -5,12 +5,54 @@
 
 from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         Finished, Alert, ApplicationData
-from tlslite.constants import AlertLevel, AlertDescription, ContentType
+from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
+        ExtensionType
+from tlslite.extensions import TLSExtension
 from tlslite.messagesocket import MessageSocket
 from tlslite.defragmenter import Defragmenter
 from tlslite.mathtls import calcMasterSecret, calcFinished
+from tlslite.handshakehashes import HandshakeHashes
+from tlslite.utils.codec import Writer
 from .tree import TreeNode
 import socket
+
+# TODO move the following to tlslite proper
+class RenegotiationInfoExtension(TLSExtension):
+
+    """Implementation of the Renegotiation Info extension
+
+    Handling of the Secure Renegotiation extension from RFC 5746
+    """
+
+    def __init__(self):
+        self.renegotiated_connection = None
+        self.serverType = False
+
+    @property
+    def extType(self):
+        """Return the extension type, 0xff01"""
+        return ExtensionType.renegotiation_info
+
+    @property
+    def extData(self):
+        """Return the extension payload"""
+        if self.renegotiated_connection is None:
+            return bytearray(0)
+
+        writer = Writer()
+        writer.addVarSeq(self.renegotiated_connection, 1, 1)
+
+        return writer.bytes
+
+    def create(self, renegotiated_connection=None):
+        """Set the payload of the extension"""
+        self.renegotiated_connection = renegotiated_connection
+        return self
+
+    def parse(self, parser):
+        """Parse the extension from on the wire data"""
+        self.renegotiated_connection = parser.getVarBytes(1)
+        return self
 
 class Command(TreeNode):
 
@@ -74,6 +116,17 @@ class Close(Command):
         """Close currently open connection"""
         state.msg_sock.close()
 
+class ResetHandshakeHashes(Command):
+
+    """Object used to reset current state of handshake hashes to zero"""
+
+    def __init__(self):
+        super(ResetHandshakeHashes, self).__init__()
+
+    def process(self, state):
+        """Reset current running handshake protocol hashes"""
+        state.handshake_hashes = HandshakeHashes()
+
 class MessageGenerator(TreeNode):
 
     """Message generator objects"""
@@ -119,21 +172,43 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
 
     """Generator for TLS handshake protocol Client Hello messages"""
 
-    def __init__(self, ciphers=None):
+    def __init__(self, ciphers=None, extensions=None):
         super(ClientHelloGenerator, self).__init__()
         if ciphers is None:
             ciphers = []
         self.ciphers = ciphers
         self.version = (3, 3)
+        self.extensions = extensions
+
+    def _generate_extensions(self, state):
+        """Convert extension generators to extension objects"""
+        extensions = []
+        for ext_id in self.extensions:
+            if self.extensions[ext_id] is not None:
+                extensions.append(self.extensions[ext_id](state))
+                continue
+
+            if ext_id == ExtensionType.renegotiation_info:
+                ext = RenegotiationInfoExtension().create(state.client_verify_data)
+                extensions.append(ext)
+            else:
+                extensions.append(TLSExtension().create(ext_id, bytearray(0)))
+
+        return extensions
 
     def generate(self, state):
         if not state.client_random:
             state.client_random = bytearray(32)
 
+        extensions = None
+        if self.extensions is not None:
+            extensions = self._generate_extensions(state)
+
         clnt_hello = ClientHello().create(self.version,
                                           state.client_random,
                                           bytearray(0),
-                                          self.ciphers)
+                                          self.ciphers,
+                                          extensions=extensions)
 
         self.msg = clnt_hello
 
@@ -218,6 +293,8 @@ class FinishedGenerator(HandshakeProtocolMessageGenerator):
                                    status.cipher,
                                    status.handshake_hashes,
                                    status.client)
+
+        status.client_verify_data = verify_data
 
         finished.create(verify_data)
 

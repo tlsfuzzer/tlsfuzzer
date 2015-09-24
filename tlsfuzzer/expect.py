@@ -89,10 +89,11 @@ class ExpectServerHello(ExpectHandshake):
 
     """Parsing TLS Handshake protocol Server Hello messages"""
 
-    def __init__(self):
+    def __init__(self, extensions=None):
         """Initialize the object"""
         super(ExpectServerHello, self).__init__(ContentType.handshake,
                                                 HandshakeType.server_hello)
+        self.extensions = extensions
 
     def process(self, state, msg):
         """
@@ -123,6 +124,17 @@ class ExpectServerHello(ExpectHandshake):
 
         state.handshake_messages.append(srv_hello)
         state.handshake_hashes.update(msg.write())
+
+        # TODO: check if server didn't send extensions we didn't advertise
+
+        # check if the message has expected values
+        if self.extensions is not None:
+            for ext_id in self.extensions:
+                ext = srv_hello.getExtension(ext_id)
+                assert ext is not None
+                # run extension-specific checker if present
+                if self.extensions[ext_id] is not None:
+                    self.extensions[ext_id](state, ext)
 
 class ExpectCertificate(ExpectHandshake):
 
@@ -227,6 +239,7 @@ class ExpectFinished(ExpectHandshake):
         assert finished.verify_data == verify_expected
 
         state.handshake_messages.append(finished)
+        state.server_verify_data = finished.verify_data
 
 class ExpectAlert(Expect):
 

@@ -14,11 +14,14 @@ except ImportError:
     from unittest.mock import call
 
 from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,\
-        ChangeCipherSpecGenerator, FinishedGenerator
+        ChangeCipherSpecGenerator, FinishedGenerator, \
+        RenegotiationInfoExtension, ResetHandshakeHashes
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
+import tlslite.extensions as extensions
 import tlslite.utils.keyfactory as keyfactory
 import tlslite.constants as constants
+from tlslite.utils.codec import Parser
 
 class TestClientHelloGenerator(unittest.TestCase):
     def test___init__(self):
@@ -39,7 +42,60 @@ class TestClientHelloGenerator(unittest.TestCase):
 
         self.assertEqual(ch, return_val)
         mock_method.assert_called_once_with((3, 3), bytearray(32), bytearray(0),
-                                            [])
+                                            [], extensions=None)
+
+    def test_generate_extensions_with_empty_extensions(self):
+        state = ConnectionState()
+        chg = ClientHelloGenerator(extensions={0x1234:None})
+
+        return_val = mock.MagicMock()
+        return_val.write = mock.MagicMock(return_value=bytearray(10))
+        with mock.patch.object(messages.ClientHello, 'create',
+                return_value=return_val) as mock_method:
+            ch = chg.generate(state)
+
+        self.assertEqual(ch, return_val)
+        ext = extensions.TLSExtension().create(0x1234, bytearray(0))
+        mock_method.assert_called_once_with((3, 3), bytearray(32), bytearray(0),
+                                            [],
+                                            extensions=[ext])
+
+    def test_generate_extensions_with_ext_generator(self):
+        state = ConnectionState()
+        ext_gen = mock.MagicMock()
+        chg = ClientHelloGenerator(extensions={0x1234:ext_gen})
+
+        return_val = mock.MagicMock()
+        return_val.write = mock.MagicMock(return_value=bytearray(10))
+        with mock.patch.object(messages.ClientHello, 'create',
+                return_value=return_val) as mock_method:
+            ch = chg.generate(state)
+
+        self.assertEqual(ch, return_val)
+
+        ext_gen.assert_called_once_with(state)
+        mock_method.assert_called_once_with((3, 3), bytearray(32), bytearray(0),
+                                            [],
+                                            extensions=[ext_gen()])
+
+    def test_generate_extensions_with_renego_info_default_generator(self):
+        state = ConnectionState()
+        state.client_verify_data = bytearray(b'\xab\xcd')
+        chg = ClientHelloGenerator(extensions={constants.ExtensionType.renegotiation_info:
+                                               None})
+
+        return_val = mock.MagicMock()
+        return_val.write = mock.MagicMock(return_value=bytearray(10))
+        with mock.patch.object(messages.ClientHello, 'create',
+                return_value=return_val) as mock_method:
+            ch = chg.generate(state)
+
+        self.assertEqual(ch, return_val)
+
+        ext = RenegotiationInfoExtension().create(bytearray(b'\xab\xcd'))
+        mock_method.assert_called_once_with((3, 3), bytearray(32), bytearray(0),
+                                            [],
+                                            extensions=[ext])
 
 class TestClientKeyExchangeGenerator(unittest.TestCase):
 
@@ -111,3 +167,53 @@ class TestFinishedGenerator(unittest.TestCase):
         ret = fg.generate(state)
 
         self.assertIsInstance(ret, messages.Finished)
+
+class TestResetHandshakeHashes(unittest.TestCase):
+    def test___init__(self):
+        node = ResetHandshakeHashes()
+
+        self.assertIsNotNone(node)
+
+    def test_process(self):
+        node = ResetHandshakeHashes()
+
+        state = ConnectionState()
+        hashes = state.handshake_hashes
+
+        self.assertIs(hashes, state.handshake_hashes)
+
+        node.process(state)
+
+        self.assertIsNot(hashes, state.handshake_hashes)
+
+class TestRenegotiationInfoExtension(unittest.TestCase):
+    def test___init__(self):
+        ext = RenegotiationInfoExtension()
+        self.assertIsNotNone(ext)
+
+    def test_write(self):
+        ext = RenegotiationInfoExtension()
+
+        self.assertEqual(ext.write(), bytearray(
+            b'\xff\x01' +       # extension type
+            b'\x00\x00'         # overall extension length
+            ))
+
+    def test_write_with_data(self):
+        ext = RenegotiationInfoExtension()
+        ext.create(bytearray(b'\xab\xcd'))
+
+        self.assertEqual(ext.write(), bytearray(
+            b'\xff\x01' +       # extension type
+            b'\x00\x03' +       # overall extension length
+            b'\x02' +           # payload length
+            b'\xab\xcd'         # payload
+            ))
+
+    def test_parse(self):
+        parser = Parser(bytearray(b'\x02\xab\xcd'))
+
+        ext = RenegotiationInfoExtension()
+        ext.parse(parser)
+
+        self.assertEqual(bytearray(b'\xab\xcd'), ext.renegotiated_connection)

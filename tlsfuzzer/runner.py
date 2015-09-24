@@ -50,6 +50,10 @@ class ConnectionState(object):
         self.server_random = bytearray(0)
         self.client_random = bytearray(0)
 
+        # Finished message data for secure renegotiation
+        self.client_verify_data = bytearray(0)
+        self.server_verify_data = bytearray(0)
+
     def get_server_public_key(self):
         """Extract server public key from server Certificate message"""
         certificates = (msg for msg in self.handshake_messages if\
