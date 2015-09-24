@@ -19,12 +19,18 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
 
 def main():
 
+    #
+    # Test interleaving of Application Data with handshake messages,
+    # requires server to support client initiated renegotiation
+    #
+
     conversation = Connect("localhost", 4433)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    #ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    node = node.add_child(ClientHelloGenerator(ciphers))
+    #ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+    #           CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
@@ -52,6 +58,7 @@ def main():
                                          AlertDescription.close_notify))
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
+    node.next_sibling.next_sibling = ExpectApplicationData()
 
     # run the conversation
     good = 0
