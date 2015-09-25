@@ -127,6 +127,23 @@ class ResetHandshakeHashes(Command):
         """Reset current running handshake protocol hashes"""
         state.handshake_hashes = HandshakeHashes()
 
+class SetMaxRecordSize(Command):
+
+    """Change the Record Layer to send records of non standard size"""
+
+    def __init__(self, max_size=None):
+        """Set the maximum record layer message size, no option for default"""
+        super(SetMaxRecordSize, self).__init__()
+        self.max_size = max_size
+
+    def process(self, state):
+        """Change the size of messages in record layer"""
+        if self.max_size is None:
+            # the maximum for SSLv3, TLS1.0, TLS1.1 and TLS1.2
+            state.msg_sock.recordSize = 2**14
+        else:
+            state.msg_sock.recordSize = self.max_size
+
 class MessageGenerator(TreeNode):
 
     """Message generator objects"""

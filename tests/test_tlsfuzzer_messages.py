@@ -15,7 +15,7 @@ except ImportError:
 
 from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,\
         ChangeCipherSpecGenerator, FinishedGenerator, \
-        RenegotiationInfoExtension, ResetHandshakeHashes
+        RenegotiationInfoExtension, ResetHandshakeHashes, SetMaxRecordSize
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.extensions as extensions
@@ -185,6 +185,32 @@ class TestResetHandshakeHashes(unittest.TestCase):
         node.process(state)
 
         self.assertIsNot(hashes, state.handshake_hashes)
+
+class TestSetMaxRecordSize(unittest.TestCase):
+    def test___init__(self):
+        node = SetMaxRecordSize()
+        self.assertIsNotNone(node)
+
+    def test_process(self):
+        node = SetMaxRecordSize()
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        state.msg_sock.recordSize = 1024
+
+        node.process(state)
+
+        self.assertEqual(2**14, state.msg_sock.recordSize)
+
+    def test_process_with_size(self):
+        node = SetMaxRecordSize(2048)
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        node.process(state)
+
+        self.assertEqual(2048, state.msg_sock.recordSize)
 
 class TestRenegotiationInfoExtension(unittest.TestCase):
     def test___init__(self):
