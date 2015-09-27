@@ -344,3 +344,38 @@ class ApplicationDataGenerator(MessageGenerator):
     def generate(self, status):
         app_data = ApplicationData().create(self.payload)
         return app_data
+
+def pad_handshake(generator, size=0, pad_byte=0, pad=None):
+    """Pad or truncate handshake messages
+
+    Pad or truncate a handshake message by given amount of bytes, use negative
+    to size to truncate"""
+
+    def new_generate(state, old_generate=generator.generate):
+        """Monkey patch for the generate method of the Handshake generators"""
+        msg = old_generate(state)
+
+        def post_write(writer, self=msg, size=size, pad_byte=pad_byte, pad=pad):
+            """Monkey patch for the postWrite of handshake messages"""
+            if pad is not None:
+                size = len(pad)
+            header_writer = Writer()
+            header_writer.add(self.handshakeType, 1)
+            header_writer.add(len(writer.bytes) + size, 3)
+            if pad is not None:
+                return header_writer.bytes + writer.bytes + pad
+            elif size < 0:
+                return header_writer.bytes + writer.bytes[:size]
+            else:
+                return header_writer.bytes + writer.bytes + \
+                       bytearray([pad_byte]*size)
+
+        msg.postWrite = post_write
+        return msg
+
+    generator.generate = new_generate
+    return generator
+
+def truncate_handshake(generator, size=0, pad_byte=0):
+    """Truncate a handshake message"""
+    return pad_handshake(generator, -size, pad_byte)

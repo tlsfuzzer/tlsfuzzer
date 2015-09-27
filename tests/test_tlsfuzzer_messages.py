@@ -15,7 +15,8 @@ except ImportError:
 
 from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,\
         ChangeCipherSpecGenerator, FinishedGenerator, \
-        RenegotiationInfoExtension, ResetHandshakeHashes, SetMaxRecordSize
+        RenegotiationInfoExtension, ResetHandshakeHashes, SetMaxRecordSize, \
+        pad_handshake, truncate_handshake
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.extensions as extensions
@@ -243,3 +244,67 @@ class TestRenegotiationInfoExtension(unittest.TestCase):
         ext.parse(parser)
 
         self.assertEqual(bytearray(b'\xab\xcd'), ext.renegotiated_connection)
+
+class TestHandshakePadding(unittest.TestCase):
+    def setUp(self):
+        self.state = ConnectionState()
+        self.hello_gen = ClientHelloGenerator()
+
+        self.vanilla_hello = self.hello_gen.generate(self.state).write()
+
+    def test_no_option(self):
+        self.assertEqual(len(self.vanilla_hello), 43)
+
+        hello_gen = pad_handshake(ClientHelloGenerator())
+
+        unmodified_hello = hello_gen.generate(self.state).write()
+        self.assertEqual(len(unmodified_hello), 43)
+
+        self.assertEqual(self.vanilla_hello, unmodified_hello)
+
+    def test_add_padding(self):
+        hello_gen = pad_handshake(ClientHelloGenerator(), 1)
+
+        padded_hello = hello_gen.generate(self.state).write()
+
+        self.assertEqual(len(padded_hello), 44)
+
+        # skip the first 4 bytes as they have different length
+        self.assertEqual(self.vanilla_hello[4:] + bytearray(1),
+                         padded_hello[4:])
+
+    def test_add_specific_padding(self):
+        hello_gen = pad_handshake(ClientHelloGenerator(), 2, 0xab)
+
+        padded_hello = hello_gen.generate(self.state).write()
+
+        self.assertEqual(len(padded_hello), 45)
+
+        # skip the first 4 bytes as they have different length
+        self.assertEqual(self.vanilla_hello[4:] + bytearray(b'\xab\xab'),
+                         padded_hello[4:])
+
+    def test_pad_with_data(self):
+        pad = bytearray(b'\xff\x01\x00\x01\x00')
+        hello_gen = pad_handshake(ClientHelloGenerator(),
+                                  pad=pad)
+
+        padded_hello = hello_gen.generate(self.state).write()
+
+        self.assertEqual(len(padded_hello), len(self.vanilla_hello) + len(pad))
+
+        self.assertEqual(self.vanilla_hello[4:] + pad,
+                         padded_hello[4:])
+        self.assertNotEqual(self.vanilla_hello[:4],
+                            padded_hello[:4])
+
+    def test_truncate(self):
+        hello_gen = truncate_handshake(ClientHelloGenerator(), 1)
+
+        padded_hello = hello_gen.generate(self.state).write()
+
+        self.assertEqual(len(padded_hello), 42)
+
+        # skip the first 4 bytes as they have different length
+        self.assertEqual(self.vanilla_hello[4:-1],
+                         padded_hello[4:])
