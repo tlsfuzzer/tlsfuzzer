@@ -136,3 +136,23 @@ class TestRunner(unittest.TestCase):
 
         with self.assertRaises(AssertionError):
             runner.run()
+
+    def test_run_with_expect_node_and_unexpected_message(self):
+        node = mock.MagicMock()
+        node.is_command = mock.Mock(return_value=False)
+        node.is_expect = mock.Mock(return_value=True)
+        node.is_generator = mock.Mock(return_value=False)
+        node.get_all_siblings = mock.Mock(return_value=[node])
+        node.is_match = mock.Mock(return_value=False)
+        node.child = None
+
+        runner = Runner(node)
+        runner.state.msg_sock = mock.MagicMock()
+        msg = (mock.MagicMock(name="header"), mock.MagicMock(name="parsser"))
+        runner.state.msg_sock.recvMessageBlocking = \
+                mock.MagicMock(return_value=msg)
+
+        with self.assertRaises(AssertionError):
+            runner.run()
+
+        runner.state.msg_sock.sock.close.called_once_with()

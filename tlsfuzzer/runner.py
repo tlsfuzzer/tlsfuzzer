@@ -99,6 +99,8 @@ class Runner(object):
                     node = next((proc for proc in node.get_all_siblings()
                                  if proc.is_match(msg)), None)
                     if node is None:
+                        # since we're aborting, the user can't clean up
+                        self.state.msg_sock.sock.close()
                         raise AssertionError("Unexpected message from peer: " +
                                              str(msg.contentType) + ", " +
                                              str(msg.write()[0]))
