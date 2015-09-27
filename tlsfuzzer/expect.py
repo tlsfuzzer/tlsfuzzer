@@ -125,8 +125,6 @@ class ExpectServerHello(ExpectHandshake):
         state.handshake_messages.append(srv_hello)
         state.handshake_hashes.update(msg.write())
 
-        # TODO: check if server didn't send extensions we didn't advertise
-
         # check if the message has expected values
         if self.extensions is not None:
             for ext_id in self.extensions:
@@ -135,6 +133,10 @@ class ExpectServerHello(ExpectHandshake):
                 # run extension-specific checker if present
                 if self.extensions[ext_id] is not None:
                     self.extensions[ext_id](state, ext)
+            # not supporting any extensions is valid
+            if srv_hello.extensions is not None:
+                for ext_id in (ext.extType for ext in srv_hello.extensions):
+                    assert ext_id in self.extensions
 
 class ExpectCertificate(ExpectHandshake):
 

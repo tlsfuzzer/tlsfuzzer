@@ -19,6 +19,7 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType
 from tlslite.messages import Message, ServerHello
+from tlslite.extensions import SNIExtension
 from tlsfuzzer.runner import ConnectionState
 from tlsfuzzer.messages import RenegotiationInfoExtension
 
@@ -101,6 +102,27 @@ class TestExpectServerHello(unittest.TestCase):
         exp.process(state, msg)
 
         extension_process.assert_called_once_with(state, ext)
+
+    def test_process_with_unexpected_extensions(self):
+        exp = ExpectServerHello(extensions={ExtensionType.renegotiation_info:
+                                           None})
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        exts = []
+        exts.append(RenegotiationInfoExtension().create())
+        exts.append(SNIExtension().create())
+        msg = ServerHello().create(version=(3, 3),
+                                   random=bytearray(32),
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=exts)
+
+        self.assertTrue(exp.is_match(msg))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
 
 class TestExpectCertificate(unittest.TestCase):
     def test___init__(self):
