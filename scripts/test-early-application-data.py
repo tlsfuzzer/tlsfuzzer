@@ -37,6 +37,7 @@ def main():
     node = node.add_child(ApplicationDataGenerator(bytearray(b"hello server!\n")))
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
 
     conversations["before Client Key Exchange"] = conversation
 
@@ -52,6 +53,7 @@ def main():
     node = node.add_child(ApplicationDataGenerator(bytearray(b"hello server!\n")))
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
 
     conversations["before Change Cipher Spec"] = conversation
 
@@ -68,6 +70,7 @@ def main():
     node = node.add_child(ApplicationDataGenerator(bytearray(b"hello server!\n")))
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
 
     conversations["before Finished"] = conversation
 

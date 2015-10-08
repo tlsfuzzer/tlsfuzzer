@@ -75,8 +75,10 @@ def main():
         node = node.add_child(pad_handshake(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info: None}),
                                             pad_len, pad_byte))
+        # we expect Alert and Close or just Close
         node = node.add_child(ExpectAlert())
         node.next_sibling = ExpectClose()
+        node.add_child(ExpectClose())
 
         if "pad" in name:
             conversations[name + ": " + str(pad_len) + " of \"" + str(pad_byte) +
