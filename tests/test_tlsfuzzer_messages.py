@@ -98,6 +98,35 @@ class TestClientHelloGenerator(unittest.TestCase):
                                             [],
                                             extensions=[ext])
 
+    def test_generate_with_random(self):
+        state = ConnectionState()
+        chg = ClientHelloGenerator(random=bytearray(b'\x33'*32))
+
+        return_val = mock.MagicMock()
+        return_val.write = mock.MagicMock(return_value=bytearray(10))
+        with mock.patch.object(messages.ClientHello, 'create',
+                               return_value=return_val) as mock_method:
+            ch = chg.generate(state)
+
+        self.assertEqual(ch, return_val)
+        mock_method.assert_called_once_with((3, 3), bytearray(b'\x33'*32),
+                                            bytearray(0), [], extensions=None)
+
+    def test_generate_with_compression_methods(self):
+        state = ConnectionState()
+        chg = ClientHelloGenerator(compression=[0, 2, 3])
+
+        return_val = mock.MagicMock()
+        return_val.write = mock.MagicMock(return_value=bytearray(10))
+        with mock.patch.object(messages.ClientHello, 'create',
+                               return_value=return_val) as mock_method:
+            ch = chg.generate(state)
+
+        self.assertEqual(ch, return_val)
+        self.assertEqual(ch.compression_methods, [0, 2, 3])
+        mock_method.assert_called_once_with((3, 3), bytearray(32),
+                                            bytearray(0), [], extensions=None)
+
 class TestClientKeyExchangeGenerator(unittest.TestCase):
 
     @classmethod

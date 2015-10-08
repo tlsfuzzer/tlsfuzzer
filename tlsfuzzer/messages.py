@@ -189,13 +189,24 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
 
     """Generator for TLS handshake protocol Client Hello messages"""
 
-    def __init__(self, ciphers=None, extensions=None):
+    def __init__(self, ciphers=None, extensions=None, version=None,
+                 session_id=None, random=None, compression=None):
         super(ClientHelloGenerator, self).__init__()
         if ciphers is None:
             ciphers = []
+        if version is None:
+            version = (3, 3)
+        if session_id is None:
+            session_id = bytearray(0)
+        if compression is None:
+            compression = [0]
+
         self.ciphers = ciphers
-        self.version = (3, 3)
         self.extensions = extensions
+        self.version = version
+        self.session_id = session_id
+        self.random = random
+        self.compression = compression
 
     def _generate_extensions(self, state):
         """Convert extension generators to extension objects"""
@@ -214,6 +225,8 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
         return extensions
 
     def generate(self, state):
+        if self.random:
+            state.client_random = self.random
         if not state.client_random:
             state.client_random = bytearray(32)
 
@@ -223,9 +236,10 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
 
         clnt_hello = ClientHello().create(self.version,
                                           state.client_random,
-                                          bytearray(0),
+                                          self.session_id,
                                           self.ciphers,
                                           extensions=extensions)
+        clnt_hello.compression_methods = self.compression
 
         self.msg = clnt_hello
 
