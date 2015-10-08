@@ -16,13 +16,28 @@ except ImportError:
 from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,\
         ChangeCipherSpecGenerator, FinishedGenerator, \
         RenegotiationInfoExtension, ResetHandshakeHashes, SetMaxRecordSize, \
-        pad_handshake, truncate_handshake
+        pad_handshake, truncate_handshake, Close
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.extensions as extensions
 import tlslite.utils.keyfactory as keyfactory
 import tlslite.constants as constants
 from tlslite.utils.codec import Parser
+
+class TestClose(unittest.TestCase):
+    def test___init__(self):
+        close = Close()
+
+        self.assertIsNotNone(close)
+
+    def test_process(self):
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        close = Close()
+        close.process(state)
+
+        state.msg_sock.sock.close.called_once_with()
 
 class TestClientHelloGenerator(unittest.TestCase):
     def test___init__(self):

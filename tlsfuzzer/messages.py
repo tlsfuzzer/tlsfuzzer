@@ -114,7 +114,7 @@ class Close(Command):
 
     def process(self, state):
         """Close currently open connection"""
-        state.msg_sock.close()
+        state.msg_sock.sock.close()
 
 class ResetHandshakeHashes(Command):
 
