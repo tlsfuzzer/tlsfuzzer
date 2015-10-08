@@ -393,3 +393,30 @@ def pad_handshake(generator, size=0, pad_byte=0, pad=None):
 def truncate_handshake(generator, size=0, pad_byte=0):
     """Truncate a handshake message"""
     return pad_handshake(generator, -size, pad_byte)
+
+def fuzz_message(generator, substitutions=None, xors=None):
+    """Change arbitrary bytes of the message after write"""
+    def new_generate(state, old_generate=generator.generate):
+        """Monkey patch for the generate method of the Handshake generators"""
+        msg = old_generate(state)
+
+        def new_write(old_write=msg.write, substitutions=substitutions,
+                      xors=xors):
+            """Monkey patch for the write method of messages"""
+            data = old_write()
+
+            if substitutions is not None:
+                for pos in substitutions:
+                    data[pos] = substitutions[pos]
+
+            if xors is not None:
+                for pos in xors:
+                    data[pos] ^= xors[pos]
+
+            return data
+
+        msg.write = new_write
+        return msg
+
+    generator.generate = new_generate
+    return generator

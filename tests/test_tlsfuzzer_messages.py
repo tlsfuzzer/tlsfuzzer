@@ -16,7 +16,7 @@ except ImportError:
 from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,\
         ChangeCipherSpecGenerator, FinishedGenerator, \
         RenegotiationInfoExtension, ResetHandshakeHashes, SetMaxRecordSize, \
-        pad_handshake, truncate_handshake, Close
+        pad_handshake, truncate_handshake, Close, fuzz_message
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.extensions as extensions
@@ -352,3 +352,40 @@ class TestHandshakePadding(unittest.TestCase):
         # skip the first 4 bytes as they have different length
         self.assertEqual(self.vanilla_hello[4:-1],
                          padded_hello[4:])
+
+class TestFuzzMessage(unittest.TestCase):
+    def setUp(self):
+        self.state = ConnectionState()
+        self.hello_gen = ClientHelloGenerator()
+
+        self.vanilla_hello = self.hello_gen.generate(self.state).write()
+
+    def test_no_options(self):
+        self.assertEqual(len(self.vanilla_hello), 43)
+
+        hello_gen = fuzz_message(ClientHelloGenerator())
+
+        unmodified_hello = hello_gen.generate(self.state).write()
+        self.assertEqual(len(unmodified_hello), 43)
+
+        self.assertEqual(self.vanilla_hello, unmodified_hello)
+
+    def test_substitutions(self):
+        hello_gen = fuzz_message(ClientHelloGenerator(), substitutions={4:0xff})
+        modified_hello = hello_gen.generate(self.state).write()
+
+        self.assertNotEqual(self.vanilla_hello, modified_hello)
+
+        self.vanilla_hello[4] = 0xff
+
+        self.assertEqual(self.vanilla_hello, modified_hello)
+
+    def test_xors(self):
+        hello_gen = fuzz_message(ClientHelloGenerator(), xors={4:0xff})
+        modified_hello = hello_gen.generate(self.state).write()
+
+        self.assertNotEqual(self.vanilla_hello, modified_hello)
+
+        self.vanilla_hello[4] ^= 0xff
+
+        self.assertEqual(self.vanilla_hello, modified_hello)
