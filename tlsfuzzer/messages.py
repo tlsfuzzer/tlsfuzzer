@@ -445,3 +445,60 @@ def fuzz_message(generator, substitutions=None, xors=None):
 
     generator.generate = new_generate
     return generator
+
+def split_message(generator, fragment_list, size):
+    """
+    Split a given message type to multiple messages
+
+    Allows for splicing message into the middle of a different message type
+    """
+    def new_generate(state, old_generate=generator.generate,
+                     fragment_list=fragment_list, size=size):
+        """Monkey patch for the generate method of the message generator"""
+        msg = old_generate(state)
+        content_type = msg.contentType
+        data = msg.write()
+        # since empty messages can be created much more easily with
+        # RawMessageGenerator, we don't handle 0 length messages here
+        while len(data) > 0:
+            # move the data to fragment_list (outside the method)
+            fragment_list.append(Message(content_type, data[:size]))
+            data = data[size:]
+
+        return fragment_list.pop(0)
+
+    generator.generate = new_generate
+    return generator
+
+class PopMessageFromList(MessageGenerator):
+
+    """Takes a reference to list, pops a message from it to generate one"""
+
+    def __init__(self, fragment_list):
+        super(PopMessageFromList, self).__init__()
+        self.fragment_list = fragment_list
+
+    def generate(self, state):
+        """Create a message using the reference to list from init"""
+        msg = self.fragment_list.pop(0)
+        return msg
+
+class FlushMessageList(MessageGenerator):
+
+    """Takes a reference to list, empties it to generate a message"""
+
+    def __init__(self, fragment_list):
+        super(FlushMessageList, self).__init__()
+        self.fragment_list = fragment_list
+
+    def generate(self, state):
+        """Creata a single message to empty the list"""
+        msg = self.fragment_list.pop(0)
+        content_type = msg.contentType
+        data = msg.write()
+        while len(self.fragment_list) > 0:
+            msg_frag = self.fragment_list.pop(0)
+            assert msg_frag.contentType == content_type
+            data += msg_frag.write()
+        msg_ret = Message(content_type, data)
+        return msg_ret

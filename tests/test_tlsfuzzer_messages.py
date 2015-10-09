@@ -17,13 +17,15 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         ChangeCipherSpecGenerator, FinishedGenerator, \
         RenegotiationInfoExtension, ResetHandshakeHashes, SetMaxRecordSize, \
         pad_handshake, truncate_handshake, Close, fuzz_message, \
-        RawMessageGenerator
+        RawMessageGenerator, split_message, PopMessageFromList, \
+        FlushMessageList
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.extensions as extensions
 import tlslite.utils.keyfactory as keyfactory
 import tlslite.constants as constants
 from tlslite.utils.codec import Parser
+
 
 class TestClose(unittest.TestCase):
     def test___init__(self):
@@ -423,3 +425,70 @@ class TestFuzzMessage(unittest.TestCase):
         self.vanilla_hello[4] ^= 0xff
 
         self.assertEqual(self.vanilla_hello, modified_hello)
+
+class TestSplitMessage(unittest.TestCase):
+    def test_split_to_two(self):
+        state = ConnectionState()
+        vanilla_hello = ClientHelloGenerator().generate(state).write()
+        fragments = []
+        hello_gen = split_message(ClientHelloGenerator(), fragments, 30)
+
+        self.assertEqual(fragments, [])
+
+        first_part = hello_gen.generate(state).write()
+
+        self.assertEqual(len(first_part), 30)
+        self.assertEqual(len(fragments), 1)
+
+    def test_split_of_zero_length(self):
+        # 0 length messages are intentionally unhandled
+        fragments = []
+        msg_gen = split_message(RawMessageGenerator(20, bytearray(0)),
+                                fragments, 30)
+
+        state = ConnectionState()
+        with self.assertRaises(IndexError):
+            msg_gen.generate(state)
+
+class TestPopMessageFromList(unittest.TestCase):
+    def test_with_message_list(self):
+        msg_list = []
+
+        msg_gen = PopMessageFromList(msg_list)
+
+        msg_list.append(messages.Message(20, bytearray(b'\x20\x30')))
+        msg_list.append(messages.Message(21, bytearray(b'\x30\x20')))
+
+        msg = msg_gen.generate(None)
+
+        self.assertEqual(msg.contentType, 20)
+        self.assertEqual(msg.write(), bytearray(b'\x20\x30'))
+
+        self.assertEqual(len(msg_list), 1)
+
+class TestFlushMessageList(unittest.TestCase):
+    def test_with_message_list(self):
+        msg_list = []
+
+        msg_gen = FlushMessageList(msg_list)
+
+        self.assertEqual(msg_list, [])
+
+        msg_list.append(messages.Message(20, bytearray(b'\x20\x30')))
+        msg_list.append(messages.Message(20, bytearray(b'\x60\x70')))
+
+        msg = msg_gen.generate(None)
+
+        self.assertEqual(msg.contentType, 20)
+        self.assertEqual(msg.write(), bytearray(b'\x20\x30\x60\x70'))
+
+        self.assertEqual(msg_list, [])
+
+    def test_with_different_message_types(self):
+        msg_list = [messages.Message(20, bytearray(b'\x20')),
+                    messages.Message(30, bytearray(b'\x10'))]
+
+        msg_gen = FlushMessageList(msg_list)
+
+        with self.assertRaises(AssertionError):
+            msg_gen.generate(None)
