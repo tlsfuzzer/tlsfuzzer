@@ -4,7 +4,7 @@
 """Set of object for generating TLS messages to send"""
 
 from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
-        Finished, Alert, ApplicationData
+        Finished, Alert, ApplicationData, Message
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
         ExtensionType
 from tlslite.extensions import TLSExtension
@@ -173,6 +173,31 @@ class MessageGenerator(TreeNode):
         # since most messages don't require any post-send modifications
         # create a no-op default action
         pass
+
+class RawMessageGenerator(MessageGenerator):
+
+    """Generator for arbitrary record layer messages"""
+
+    def __init__(self, content_type, data, description=None):
+        """Set the record layer type and payload to send"""
+        super(RawMessageGenerator, self).__init__()
+        self.content_type = content_type
+        self.data = data
+        self.description = description
+
+    def generate(self, state):
+        """Create a tlslite-ng message that can be send"""
+        message = Message(self.content_type, self.data)
+        return message
+
+    def __repr__(self):
+        if self.description is None:
+            return "RawMessageGenerator(content_type={0!s}, data={1!r})".\
+                   format(self.content_type, self.data)
+        else:
+            return "RawMessageGenerator(content_type={0!s}, data={1!r}, " \
+                   "description={2!r})".format(self.content_type, self.data,
+                                               self.description)
 
 class HandshakeProtocolMessageGenerator(MessageGenerator):
 

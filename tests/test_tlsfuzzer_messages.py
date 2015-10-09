@@ -16,7 +16,8 @@ except ImportError:
 from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,\
         ChangeCipherSpecGenerator, FinishedGenerator, \
         RenegotiationInfoExtension, ResetHandshakeHashes, SetMaxRecordSize, \
-        pad_handshake, truncate_handshake, Close, fuzz_message
+        pad_handshake, truncate_handshake, Close, fuzz_message, \
+        RawMessageGenerator
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.extensions as extensions
@@ -38,6 +39,39 @@ class TestClose(unittest.TestCase):
         close.process(state)
 
         state.msg_sock.sock.close.called_once_with()
+
+class TestRawMessageGenerator(unittest.TestCase):
+    def test___init__(self):
+        message_gen = RawMessageGenerator(12, bytearray(b'\xff\x02'))
+
+        self.assertIsNotNone(message_gen)
+        self.assertEqual(message_gen.content_type, 12)
+        self.assertEqual(message_gen.data, bytearray(b'\xff\x02'))
+
+    def test_gen(self):
+        message_gen = RawMessageGenerator(12, bytearray(b'\xff\x02'))
+
+        message = message_gen.generate(None)
+
+        self.assertIsNotNone(message)
+        self.assertEqual(message.contentType, 12)
+        self.assertEqual(message.write(), bytearray(b'\xff\x02'))
+
+    def test___repr__(self):
+        message_gen = RawMessageGenerator(12, bytearray(b'\xff\x02'))
+
+        self.assertEqual(repr(message_gen),
+                         "RawMessageGenerator(content_type=12, "\
+                         "data=bytearray(b'\\xff\\x02'))")
+
+    def test___repr___with_description(self):
+        message_gen = RawMessageGenerator(12, bytearray(b'\xff'),
+                                          description="a broken message")
+
+        self.assertEqual(repr(message_gen),
+                         "RawMessageGenerator(content_type=12, "\
+                         "data=bytearray(b'\\xff'), description='a broken "\
+                         "message')")
 
 class TestClientHelloGenerator(unittest.TestCase):
     def test___init__(self):
