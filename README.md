@@ -10,10 +10,11 @@ version.
 ## Dependencies
 You'll need:
  * Python 2.6 or later or Python 3.2 or later
- * tlslite-ng
+ * tlslite-ng (note that `tlslite` will *not* work and they conflict with
+   eachother)
 
 Optionally, to make some calculations faster, you may want to install the
-following libraries:
+following libraries (see tlslite-ng README for details):
  * m2crypto
  * pycrypto
  * gmp
@@ -39,7 +40,8 @@ After all dependencies are installed, make sure:
  * you're in the directory of the project (after git clone just `cd tlsfuzzer`)
  * the server you want to test is running on the same computer (localhost)
  * the server is listening on port 4433
- * and the server and will answer with data to HTTP queries
+ * and the server will answer with data to HTTP queries (answer with valid
+   HTTP responses is optional)
 
 Then you can just run one of the tests in `scripts` directory, as such:
 ```
