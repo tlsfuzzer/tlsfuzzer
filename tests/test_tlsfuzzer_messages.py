@@ -18,13 +18,16 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         RenegotiationInfoExtension, ResetHandshakeHashes, SetMaxRecordSize, \
         pad_handshake, truncate_handshake, Close, fuzz_message, \
         RawMessageGenerator, split_message, PopMessageFromList, \
-        FlushMessageList
+        FlushMessageList, fuzz_mac
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
+import tlslite.messagesocket as messagesocket
 import tlslite.extensions as extensions
 import tlslite.utils.keyfactory as keyfactory
 import tlslite.constants as constants
+import tlslite.defragmenter as defragmenter
 from tlslite.utils.codec import Parser
+from tests.mocksock import MockSocket
 
 
 class TestClose(unittest.TestCase):
@@ -425,6 +428,136 @@ class TestFuzzMessage(unittest.TestCase):
         self.vanilla_hello[4] ^= 0xff
 
         self.assertEqual(self.vanilla_hello, modified_hello)
+
+class TestFuzzMAC(unittest.TestCase):
+    def setUp(self):
+        self.state = ConnectionState()
+
+        self.socket = MockSocket(bytearray())
+
+        defragger = defragmenter.Defragmenter()
+        defragger.addStaticSize(constants.ContentType.alert, 2)
+        defragger.addStaticSize(constants.ContentType.change_cipher_spec, 1)
+        defragger.addDynamicSize(constants.ContentType.handshake, 1, 3)
+        self.state.msg_sock = messagesocket.MessageSocket(self.socket,
+                                                          defragger)
+
+        self.state.msg_sock.version = (3, 3)
+        self.state.msg_sock.calcPendingStates(constants.CipherSuite.\
+                                                    TLS_RSA_WITH_NULL_MD5,
+                                              bytearray(48),
+                                              bytearray(32),
+                                              bytearray(32),
+                                              None)
+        self.state.msg_sock.changeWriteState()
+
+        self.expected_value = bytearray(
+            b"\x16"         # content type
+            b"\x03\x03"     # record layer protocol version
+            b"\x00\x3b"     # record layer record length
+            b"\x01"         # handshake message type
+            b"\x00\x00\x27" # handshke protocol message length
+            b"\x03\x03"     # client hello protocol version
+            # random
+            b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+            b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+            b"\x00"         # length of session_id
+            b"\x00\x00"     # cipher_suites length
+            b"\x01\x00"     # compression_methods (0 - uncompressed)
+            # 128 bit MD5 HMAC value
+            b"\x1cK \xce\xb3\x1d\x94\x0b\x0f\x9a\'\x9c\x87\x1a-`"
+            )
+
+        self.second_write = bytearray(self.expected_value[:-16])
+        self.second_write += bytearray(
+                # MD5 HMAC with sequence number of "2"
+                b"\x84\xcb\\\xf2A\x0c\xd3<u\xf3\xce\x8dk\xa0\xd8/")
+
+    def test_no_options(self):
+        hello_gen = fuzz_mac(ClientHelloGenerator())
+
+        unmodified_hello = hello_gen.generate(self.state)
+        self.assertEqual(len(unmodified_hello.write()), 43)
+
+        self.state.msg_sock.sendMessageBlocking(unmodified_hello)
+
+        self.assertEqual(len(self.socket.sent), 1)
+        self.assertEqual(self.socket.sent[0], self.expected_value)
+
+    def test_xor_last_byte(self):
+        hello_gen = fuzz_mac(ClientHelloGenerator(), xors={-1:0xff})
+
+        modified_hello = hello_gen.generate(self.state)
+        self.assertEqual(len(modified_hello.write()), 43)
+
+        self.state.msg_sock.sendMessageBlocking(modified_hello)
+
+        self.assertEqual(len(self.socket.sent), 1)
+        self.expected_value[-1] ^= 0xff
+        self.assertEqual(self.socket.sent[0], self.expected_value)
+
+    def test_xor_first_byte(self):
+        hello_gen = fuzz_mac(ClientHelloGenerator(), xors={0:0xff})
+
+        modified_hello = hello_gen.generate(self.state)
+        self.assertEqual(len(modified_hello.write()), 43)
+
+        self.state.msg_sock.sendMessageBlocking(modified_hello)
+
+        self.assertEqual(len(self.socket.sent), 1)
+        # MD5 is 16 bytes long
+        self.expected_value[-16] ^= 0xff
+        self.assertEqual(self.socket.sent[0], self.expected_value)
+
+    def test_substitute_last_byte(self):
+        hello_gen = fuzz_mac(ClientHelloGenerator(), substitutions={0:0xff})
+
+        modified_hello = hello_gen.generate(self.state)
+        self.assertEqual(len(modified_hello.write()), 43)
+
+        self.state.msg_sock.sendMessageBlocking(modified_hello)
+
+        self.assertEqual(len(self.socket.sent), 1)
+        # MD5 is 16 bytes long
+        self.expected_value[-16] = 0xff
+        self.assertEqual(self.socket.sent[0], self.expected_value)
+
+    def test_post_send_no_options(self):
+        hello_gen = fuzz_mac(ClientHelloGenerator())
+
+        unmodified_hello = hello_gen.generate(self.state)
+        self.assertEqual(len(unmodified_hello.write()), 43)
+
+        self.state.msg_sock.sendMessageBlocking(unmodified_hello)
+
+        self.assertEqual(len(self.socket.sent), 1)
+        self.assertEqual(self.socket.sent[0], self.expected_value)
+
+        hello_gen.post_send(self.state)
+
+        self.state.msg_sock.sendMessageBlocking(unmodified_hello)
+
+        self.assertEqual(len(self.socket.sent), 2)
+        self.assertEqual(self.socket.sent[1], self.second_write)
+
+    def test_post_send_xor_last_byte(self):
+        hello_gen = fuzz_mac(ClientHelloGenerator(), xors={-1:0xff})
+
+        modified_hello = hello_gen.generate(self.state)
+        self.assertEqual(len(modified_hello.write()), 43)
+
+        self.state.msg_sock.sendMessageBlocking(modified_hello)
+
+        self.assertEqual(len(self.socket.sent), 1)
+        self.expected_value[-1] ^= 0xff
+        self.assertEqual(self.socket.sent[0], self.expected_value)
+
+        hello_gen.post_send(self.state)
+
+        self.state.msg_sock.sendMessageBlocking(modified_hello)
+
+        self.assertEqual(len(self.socket.sent), 2)
+        self.assertEqual(self.socket.sent[1], self.second_write)
 
 class TestSplitMessage(unittest.TestCase):
     def test_split_to_two(self):

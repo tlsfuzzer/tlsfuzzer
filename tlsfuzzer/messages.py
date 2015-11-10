@@ -419,6 +419,18 @@ def truncate_handshake(generator, size=0, pad_byte=0):
     """Truncate a handshake message"""
     return pad_handshake(generator, -size, pad_byte)
 
+def substitute_and_xor(data, substitutions, xors):
+    """Apply changes from substitutions and xors to data for fuzzing"""
+    if substitutions is not None:
+        for pos in substitutions:
+            data[pos] = substitutions[pos]
+
+    if xors is not None:
+        for pos in xors:
+            data[pos] ^= xors[pos]
+
+    return data
+
 def fuzz_message(generator, substitutions=None, xors=None):
     """Change arbitrary bytes of the message after write"""
     def new_generate(state, old_generate=generator.generate):
@@ -430,13 +442,7 @@ def fuzz_message(generator, substitutions=None, xors=None):
             """Monkey patch for the write method of messages"""
             data = old_write()
 
-            if substitutions is not None:
-                for pos in substitutions:
-                    data[pos] = substitutions[pos]
-
-            if xors is not None:
-                for pos in xors:
-                    data[pos] ^= xors[pos]
+            data = substitute_and_xor(data, substitutions, xors)
 
             return data
 
@@ -444,6 +450,46 @@ def fuzz_message(generator, substitutions=None, xors=None):
         return msg
 
     generator.generate = new_generate
+    return generator
+
+def fuzz_mac(generator, substitutions=None, xors=None):
+    """Change arbitrary bytes of the MAC value"""
+    def new_generate(state, self=generator,
+                     old_generate=generator.generate,
+                     substitutions=substitutions,
+                     xors=xors):
+        """Monkey patch to modify MAC calculation of created MAC"""
+        msg = old_generate(state)
+
+        old_calculate_mac = state.msg_sock.calculateMAC
+
+        self.old_calculate_mac = old_calculate_mac
+
+        def new_calculate_mac(mac, seqnumBytes, contentType, data,
+                              old_calculate_mac=old_calculate_mac,
+                              substitutions=substitutions,
+                              xors=xors):
+            """Monkey patch for the MAC calculation method of msg socket"""
+            mac_bytes = old_calculate_mac(mac, seqnumBytes, contentType, data)
+
+            mac_bytes = substitute_and_xor(mac_bytes, substitutions, xors)
+
+            return mac_bytes
+
+        state.msg_sock.calculateMAC = new_calculate_mac
+
+        return msg
+
+    generator.generate = new_generate
+
+    def new_post_send(state, self=generator, old_post_send=generator.post_send):
+        """Monkey patch to restore old MAC calculation method"""
+        # we need to unwind the changes in reverse order, so first do
+        # our staff and then call the "super" method
+        state.msg_sock.calculateMAC = self.old_calculate_mac
+        old_post_send(state)
+
+    generator.post_send = new_post_send
     return generator
 
 def split_message(generator, fragment_list, size):
