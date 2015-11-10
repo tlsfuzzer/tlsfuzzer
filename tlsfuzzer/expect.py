@@ -247,8 +247,10 @@ class ExpectAlert(Expect):
 
     """Processing TLS Alert message"""
 
-    def __init__(self):
+    def __init__(self, level=None, description=None):
         super(ExpectAlert, self).__init__(ContentType.alert)
+        self.level = level
+        self.description = description
 
     def process(self, state, msg):
         assert msg.contentType == ContentType.alert
@@ -256,6 +258,12 @@ class ExpectAlert(Expect):
 
         alert = Alert()
         alert.parse(parser)
+
+        if self.level is not None:
+            assert alert.level == self.level
+
+        if self.description is not None:
+            assert alert.description == self.description
 
 class ExpectApplicationData(Expect):
 

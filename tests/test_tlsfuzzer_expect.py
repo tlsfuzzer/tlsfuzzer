@@ -17,7 +17,8 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         ExpectCertificate, ExpectServerHelloDone, ExpectChangeCipherSpec, \
         ExpectFinished, ExpectAlert, ExpectApplicationData
 
-from tlslite.constants import ContentType, HandshakeType, ExtensionType
+from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
+        AlertLevel, AlertDescription
 from tlslite.messages import Message, ServerHello
 from tlslite.extensions import SNIExtension
 from tlsfuzzer.runner import ConnectionState
@@ -291,6 +292,14 @@ class TestExpectAlert(unittest.TestCase):
         self.assertFalse(exp.is_command())
         self.assertFalse(exp.is_generator())
 
+    def test___init___with_values(self):
+        exp = ExpectAlert(AlertLevel.warning,
+                          AlertDescription.unknown_psk_identity)
+
+        self.assertTrue(exp.is_expect())
+        self.assertFalse(exp.is_command())
+        self.assertFalse(exp.is_generator())
+
     def test_is_match(self):
         exp = ExpectAlert()
 
@@ -307,6 +316,47 @@ class TestExpectAlert(unittest.TestCase):
                       bytearray(2))
 
         exp.process(state, msg)
+
+    def test_is_match_with_values(self):
+        exp = ExpectAlert(AlertLevel.warning,
+                          AlertDescription.unknown_psk_identity)
+
+        msg = Message(ContentType.alert,
+                      bytearray(2))
+
+        self.assertTrue(exp.is_match(msg))
+
+    def test_process_with_values(self):
+        exp = ExpectAlert(AlertLevel.warning,
+                          AlertDescription.unknown_psk_identity)
+
+        state = ConnectionState()
+        msg = Message(ContentType.alert,
+                      bytearray(b'\x01\x73'))
+
+        exp.process(state, msg)
+
+    def test_process_with_values_and_not_matching_level(self):
+        exp = ExpectAlert(AlertLevel.fatal,
+                          AlertDescription.unknown_psk_identity)
+
+        state = ConnectionState()
+        msg = Message(ContentType.alert,
+                      bytearray(b'\x01\x73'))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
+    def test_process_with_values_and_not_matching_description(self):
+        exp = ExpectAlert(AlertLevel.warning,
+                          AlertDescription.bad_record_mac)
+
+        state = ConnectionState()
+        msg = Message(ContentType.alert,
+                      bytearray(b'\x01\x73'))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
 
 class TestExpectApplicationData(unittest.TestCase):
     def test___init__(self):
