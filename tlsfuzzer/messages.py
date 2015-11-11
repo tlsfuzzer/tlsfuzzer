@@ -452,6 +452,18 @@ def fuzz_message(generator, substitutions=None, xors=None):
     generator.generate = new_generate
     return generator
 
+def post_send_msg_sock_restore(obj, method_name, old_method_name):
+    """Un-Monkey patch a method of msg_sock"""
+    def new_post_send(state, obj=obj,
+                      method_name=method_name,
+                      old_method_name=old_method_name,
+                      old_post_send=obj.post_send):
+        """Reverse the patching of a method in msg_sock"""
+        setattr(state.msg_sock, method_name, getattr(obj, old_method_name))
+        old_post_send(state)
+    obj.post_send = new_post_send
+    return obj
+
 def fuzz_mac(generator, substitutions=None, xors=None):
     """Change arbitrary bytes of the MAC value"""
     def new_generate(state, self=generator,
@@ -482,14 +494,68 @@ def fuzz_mac(generator, substitutions=None, xors=None):
 
     generator.generate = new_generate
 
-    def new_post_send(state, self=generator, old_post_send=generator.post_send):
-        """Monkey patch to restore old MAC calculation method"""
-        # we need to unwind the changes in reverse order, so first do
-        # our staff and then call the "super" method
-        state.msg_sock.calculateMAC = self.old_calculate_mac
-        old_post_send(state)
+    post_send_msg_sock_restore(generator, 'calculateMAC', 'old_calculate_mac')
 
-    generator.post_send = new_post_send
+    return generator
+
+def div_ceil(divident, divisor):
+    """Perform integer division of divident by divisor, round up"""
+    quotient, reminder = divmod(divident, divisor)
+    return quotient + int(bool(reminder))
+
+def fuzz_padding(generator, min_length=None, substitutions=None, xors=None):
+    """Change the padding of the message
+
+    the min_length specifies the minimum length of the padding created,
+    including the byte specifying length of padding
+
+    substitutions and xors are dicionaries the specify the values to which
+    the padding should be set, note that the "-1" position is the byte with
+    length of padding while "-2" is the last byte of padding (if padding
+    has non-zero length)
+    """
+    if min_length is not None and min_length >= 256:
+        raise ValueError("Padding cannot be longer than 255 bytes")
+
+    def new_generate(state, self=generator,
+                     old_generate=generator.generate,
+                     substitutions=substitutions,
+                     xors=xors):
+        """Monkey patch to modify padding behaviour"""
+        msg = old_generate(state)
+
+        self.old_add_padding = state.msg_sock.addPadding
+
+        def new_add_padding(data, self=state.msg_sock,
+                            old_add_padding=self.old_add_padding,
+                            substitutions=substitutions,
+                            xors=xors):
+            """Monkey patch the padding creating method"""
+            if min_length is None:
+                # make a copy of data as we need it unmodified later
+                padded_data = old_add_padding(bytearray(data))
+                padding_length = padded_data[-1]
+                padding = padded_data[-(padding_length+1):]
+            else:
+                block_size = self.blockSize
+                padding_length = div_ceil(len(data) + min_length,
+                                          block_size) * block_size - len(data)
+                if padding_length > 255:
+                    raise ValueError("min_length set too high for message")
+                padding = bytearray([padding_length - 1] * (padding_length))
+
+            padding = substitute_and_xor(padding, substitutions, xors)
+
+            return data + padding
+
+        state.msg_sock.addPadding = new_add_padding
+
+        return msg
+
+    generator.generate = new_generate
+
+    post_send_msg_sock_restore(generator, 'addPadding', 'old_add_padding')
+
     return generator
 
 def split_message(generator, fragment_list, size):

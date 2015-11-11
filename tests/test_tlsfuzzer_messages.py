@@ -18,7 +18,7 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         RenegotiationInfoExtension, ResetHandshakeHashes, SetMaxRecordSize, \
         pad_handshake, truncate_handshake, Close, fuzz_message, \
         RawMessageGenerator, split_message, PopMessageFromList, \
-        FlushMessageList, fuzz_mac
+        FlushMessageList, fuzz_mac, fuzz_padding, ApplicationDataGenerator
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
@@ -558,6 +558,155 @@ class TestFuzzMAC(unittest.TestCase):
 
         self.assertEqual(len(self.socket.sent), 2)
         self.assertEqual(self.socket.sent[1], self.second_write)
+
+class TestFuzzPadding(unittest.TestCase):
+    def setUp(self):
+        self.state = ConnectionState()
+        self.socket = MockSocket(bytearray())
+
+        defragger = defragmenter.Defragmenter()
+        defragger.addStaticSize(constants.ContentType.alert, 2)
+        defragger.addStaticSize(constants.ContentType.change_cipher_spec, 1)
+        defragger.addDynamicSize(constants.ContentType.handshake, 1, 3)
+        self.state.msg_sock = messagesocket.MessageSocket(self.socket,
+                                                          defragger)
+        self.state.msg_sock.version = (3, 0)
+        self.state.msg_sock.calcPendingStates(constants.CipherSuite.\
+                                                TLS_RSA_WITH_AES_128_CBC_SHA,
+                                              bytearray(48),
+                                              bytearray(32),
+                                              bytearray(32),
+                                              None)
+        self.state.msg_sock.changeWriteState()
+
+    def test_no_options(self):
+        hello_gen = fuzz_padding(ClientHelloGenerator())
+
+        unmodified_hello = hello_gen.generate(self.state)
+        self.assertEqual(len(unmodified_hello.write()), 43)
+
+        self.state.msg_sock.sendMessageBlocking(unmodified_hello)
+
+        self.assertEqual(len(self.socket.sent), 1)
+        self.assertEqual(len(self.socket.sent[0]),
+                         1 +        # record layer type
+                         2 +        # protocol version
+                         2 +        # record payload length field
+                         43 +       # length of ClientHello
+                         160 // 8 + # length of HMAC
+                         1)         # size of length tag of padding (0)
+
+    def test_min_length(self):
+        hello_gen = fuzz_padding(ClientHelloGenerator(),
+                                 min_length=0)
+
+        unmodified_hello = hello_gen.generate(self.state)
+        self.assertEqual(len(unmodified_hello.write()), 43)
+
+        self.state.msg_sock.sendMessageBlocking(unmodified_hello)
+
+        self.assertEqual(len(self.socket.sent), 1)
+        self.assertEqual(len(self.socket.sent[0]),
+                         1 +        # record layer type
+                         2 +        # protocol version
+                         2 +        # record payload length field
+                         43 +       # length of ClientHello
+                         160 // 8 + # length of HMAC
+                         1)         # size of length tag of padding (0)
+
+    def test_min_length_with_high_value(self):
+        hello_gen = fuzz_padding(ClientHelloGenerator(),
+                                 min_length=200)
+
+        unmodified_hello = hello_gen.generate(self.state)
+        self.assertEqual(len(unmodified_hello.write()), 43)
+
+        self.state.msg_sock.sendMessageBlocking(unmodified_hello)
+
+        self.assertEqual(len(self.socket.sent), 1)
+        self.assertEqual(len(self.socket.sent[0]),
+                         1 +        # record layer type
+                         2 +        # protocol version
+                         2 +        # record payload length field
+                         43 +       # length of ClientHello
+                         160 // 8 + # length of HMAC
+                         1 +        # size of length tag of padding (0)
+                         208)       # minimal length of padding
+
+    def test_min_length_with_post_send(self):
+        hello_gen = fuzz_padding(ClientHelloGenerator(),
+                                 min_length=200)
+
+        unmodified_hello = hello_gen.generate(self.state)
+        self.assertEqual(len(unmodified_hello.write()), 43)
+
+        self.state.msg_sock.sendMessageBlocking(unmodified_hello)
+
+        self.assertEqual(len(self.socket.sent), 1)
+        self.assertEqual(len(self.socket.sent[0]),
+                         1 +        # record layer type
+                         2 +        # protocol version
+                         2 +        # record payload length field
+                         43 +       # length of ClientHello
+                         160 // 8 + # length of HMAC
+                         1 +        # size of length tag of padding (0)
+                         208)       # minimal length of padding greater than 200
+
+        hello_gen.post_send(self.state)
+
+        clean_hello_gen = ClientHelloGenerator()
+        clean_hello = clean_hello_gen.generate(self.state)
+        self.state.msg_sock.sendMessageBlocking(clean_hello)
+
+        self.assertEqual(len(self.socket.sent), 2)
+        self.assertEqual(len(self.socket.sent[1]),
+                         1 +        # record layer type
+                         2 +        # protocol version
+                         2 +        # record payload length field
+                         43 +       # length of ClientHello
+                         160 // 8 + # length of HMAC
+                         1 +        # size of length tag of padding (0)
+                         0)       # minimal length of padding
+
+    def test_min_length_with_invalid_length(self):
+        with self.assertRaises(ValueError):
+            fuzz_padding(ClientHelloGenerator(), min_length=256)
+
+    def test_min_length_with_length_too_big_for_data(self):
+        data_gen = fuzz_padding(ApplicationDataGenerator(b"text"),
+                                min_length=254)
+
+        data_msg = data_gen.generate(self.state)
+        self.assertEqual(len(data_msg.write()), 4)
+
+        with self.assertRaises(ValueError):
+            self.state.msg_sock.sendMessageBlocking(data_msg)
+
+    def test_xors(self):
+        # packet with no modifications
+        unchanged = bytearray(
+                b'\x17\x03\x00\x000' # record layer header
+                b'\xa1\xbb\x9f&Z\x1cb\xb3\xf3U\x11\xbb\xf4\xd6\x91\xf3'
+                b'\xa8\xf2"\xb8\xa9@]\x16,\xc9\x17Wh\x17\x1e\xb5'
+                b'\x9f\xcdm\x9a\xf0!\xe65\xea\xa8\xeb|(\xd8\xd2\x02')
+        data_gen = fuzz_padding(ApplicationDataGenerator(b"text"),
+                                min_length=16,
+                                xors={-2:0xff})
+
+        data_msg = data_gen.generate(self.state)
+        self.state.msg_sock.sendMessageBlocking(data_msg)
+        self.assertEqual(len(self.socket.sent), 1)
+        self.assertEqual(len(self.socket.sent[0]),
+                         1 +        # record layer type
+                         2 +        # protocol version
+                         2 +        # record payload length field
+                         4 +        # length of Application Data
+                         160 // 8 + # length of HMAC
+                         1 +        # size of length tag of padding (0)
+                         23)        # minimal length of padding
+        last_block = bytearray(
+                b'\\Y\x90j\x8a\xe7\x82\xf3=\xceE\xe3\x0f\x85\x82\t')
+        self.assertEqual(self.socket.sent[0], unchanged[:-16] + last_block)
 
 class TestSplitMessage(unittest.TestCase):
     def test_split_to_two(self):
