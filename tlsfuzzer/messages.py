@@ -540,8 +540,9 @@ def fuzz_padding(generator, min_length=None, substitutions=None, xors=None):
                 block_size = self.blockSize
                 padding_length = div_ceil(len(data) + min_length,
                                           block_size) * block_size - len(data)
-                if padding_length > 255:
-                    raise ValueError("min_length set too high for message")
+                if padding_length > 256:
+                    raise ValueError("min_length set too high for message: {0}"\
+                            .format(padding_length))
                 padding = bytearray([padding_length - 1] * (padding_length))
 
             padding = substitute_and_xor(padding, substitutions, xors)
