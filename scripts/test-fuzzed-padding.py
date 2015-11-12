@@ -59,6 +59,36 @@ def main():
         conversations["XOR position " + str(pos) + " with " + str(hex(val))] = \
                 conversation
 
+    # zero-fill the padding
+    conversation = Connect("localhost", 4433)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    # block size for AES-128 is 16 bytes
+    # SHA-1 MAC is 20 bytes long
+    # length of "GET / HTTP" is 10 bytes
+    # which means the padding will be two bytes - 1 byte of padding and one
+    # byte length
+    node = node.add_child(fuzz_padding(ApplicationDataGenerator(
+                                                    b"GET / HTTP"),
+                                       substitutions={0:0}))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.bad_record_mac))
+#   node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+
+    conversations["zero-filled"] = \
+            conversation
+
     # run the conversation
     good = 0
     bad = 0
