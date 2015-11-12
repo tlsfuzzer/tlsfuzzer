@@ -214,7 +214,7 @@ class ExpectFinished(ExpectHandshake):
 
     """Processing TLS handshake protocol Finished message"""
 
-    def __init__(self, version=(3, 3)):
+    def __init__(self, version=None):
         super(ExpectFinished, self).__init__(ContentType.handshake,
                                              HandshakeType.finished)
         self.version = version
@@ -228,6 +228,8 @@ class ExpectFinished(ExpectHandshake):
         parser = Parser(msg.write())
         hs_type = parser.get(1)
         assert hs_type == HandshakeType.finished
+        if self.version is None:
+            self.version = state.version
 
         finished = Finished(self.version)
         finished.parse(parser)
