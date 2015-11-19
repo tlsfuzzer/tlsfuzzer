@@ -30,7 +30,11 @@ class ConnectionState(object):
 
         # cipher negotiated in connection
         self.cipher = 0
-        # version proposed in client hello, and later negotiated in connection
+
+        # version proposed in client hello
+        self.client_version = (3, 3)
+
+        # version negotiated in connection
         self.version = (3, 3)
 
         # hashes of all handshake messages exchanged so far
