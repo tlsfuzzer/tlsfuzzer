@@ -1,0 +1,3 @@
+[pep257]
+
+add-ignore = D203
