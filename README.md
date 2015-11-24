@@ -2,6 +2,7 @@
 [![Coverage Status](https://coveralls.io/repos/tomato42/tlsfuzzer/badge.svg?branch=master)](https://coveralls.io/r/tomato42/tlsfuzzer?branch=master)
 [![Code Health](https://landscape.io/github/tomato42/tlsfuzzer/master/landscape.svg?style=flat)](https://landscape.io/github/tomato42/tlsfuzzer/master)
 [![Code Climate](https://codeclimate.com/github/tomato42/tlsfuzzer/badges/gpa.svg)](https://codeclimate.com/github/tomato42/tlsfuzzer)
+[![Code Issues](https://www.quantifiedcode.com/api/v1/project/58f8ffe4125b4d72a9d9337aa3ba96eb/badge.svg)](https://www.quantifiedcode.com/app/project/58f8ffe4125b4d72a9d9337aa3ba96eb)
 
 # tlsfuzzer
 Fuzzer and test suite for TLS (v1.0, v1.1, v1.2) implementations. Early alpha
