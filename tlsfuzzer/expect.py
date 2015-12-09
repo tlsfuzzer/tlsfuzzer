@@ -261,11 +261,18 @@ class ExpectAlert(Expect):
         alert = Alert()
         alert.parse(parser)
 
-        if self.level is not None:
-            assert alert.level == self.level
-
-        if self.description is not None:
-            assert alert.description == self.description
+        problem_desc = ""
+        if self.level is not None and alert.level != self.level:
+            problem_desc += "Alert level {0} != {1}".format(alert.level,
+                                                            self.level)
+        if self.description is not None \
+            and alert.description != self.description:
+            if problem_desc:
+                problem_desc += ", "
+            problem_desc += "Alert description {0} != {1}".format(\
+                                        alert.description, self.description)
+        if problem_desc:
+            raise AssertionError(problem_desc)
 
 class ExpectApplicationData(Expect):
 

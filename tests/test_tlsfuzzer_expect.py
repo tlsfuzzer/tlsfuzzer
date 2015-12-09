@@ -358,6 +358,16 @@ class TestExpectAlert(unittest.TestCase):
         with self.assertRaises(AssertionError):
             exp.process(state, msg)
 
+    def test_process_with_values_not_matching_anything(self):
+        exp = ExpectAlert(AlertLevel.warning,
+                          AlertDescription.bad_record_mac)
+        state = ConnectionState()
+        msg = Message(ContentType.alert,
+                      bytearray(b'\xff\xff'))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
 class TestExpectApplicationData(unittest.TestCase):
     def test___init__(self):
         exp = ExpectApplicationData()
