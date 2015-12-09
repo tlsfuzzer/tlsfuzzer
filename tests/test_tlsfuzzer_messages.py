@@ -18,7 +18,8 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         RenegotiationInfoExtension, ResetHandshakeHashes, SetMaxRecordSize, \
         pad_handshake, truncate_handshake, Close, fuzz_message, \
         RawMessageGenerator, split_message, PopMessageFromList, \
-        FlushMessageList, fuzz_mac, fuzz_padding, ApplicationDataGenerator
+        FlushMessageList, fuzz_mac, fuzz_padding, ApplicationDataGenerator, \
+        CertificateGenerator
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
@@ -237,6 +238,22 @@ class TestChangeCipherSpecGenerator(unittest.TestCase):
 
         self.assertTrue(state.msg_sock.calcPendingStates.called)
         self.assertTrue(state.msg_sock.changeWriteState.called)
+
+class TestCertificateGenerator(unittest.TestCase):
+    def test___init__(self):
+        certg = CertificateGenerator()
+
+        self.assertIsNotNone(certg)
+
+    def test_generate(self):
+        certg = CertificateGenerator()
+
+        msg = certg.generate(None)
+
+        self.assertIsInstance(msg, messages.Certificate)
+        self.assertIsNone(msg.certChain)
+        self.assertEqual(msg.certificateType,
+                         constants.ClientCertificateType.rsa_sign)
 
 class TestFinishedGenerator(unittest.TestCase):
     def test___init__(self):

@@ -4,9 +4,9 @@
 """Set of object for generating TLS messages to send"""
 
 from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
-        Finished, Alert, ApplicationData, Message
+        Finished, Alert, ApplicationData, Message, Certificate
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
-        ExtensionType
+        ExtensionType, CertificateType, ClientCertificateType
 from tlslite.extensions import TLSExtension
 from tlslite.messagesocket import MessageSocket
 from tlslite.defragmenter import Defragmenter
@@ -311,6 +311,26 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
         self.msg = cke
 
         return cke
+
+class CertificateGenerator(HandshakeProtocolMessageGenerator):
+    """Generator for TLS handshake protocol Certificate message"""
+
+    def __init__(self, certs=None, cert_type=None):
+        super(CertificateGenerator, self).__init__()
+        self.certs = certs
+        self.cert_type = cert_type
+
+    def generate(self, status):
+        """Create a Certificate message"""
+        del status # unused
+        # TODO: support client certs
+        if self.cert_type is None:
+            self.cert_type = ClientCertificateType.rsa_sign
+        cert = Certificate(self.cert_type)
+        cert.create(self.certs)
+
+        self.msg = cert
+        return cert
 
 class ChangeCipherSpecGenerator(MessageGenerator):
 
