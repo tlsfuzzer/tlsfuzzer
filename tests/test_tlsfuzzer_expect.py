@@ -106,6 +106,25 @@ class TestExpectServerHello(unittest.TestCase):
 
         extension_process.assert_called_once_with(state, ext)
 
+    def test_process_with_incorrect_version(self):
+        extension_process = mock.MagicMock()
+        exp = ExpectServerHello(version=(3, 3))
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        ext = RenegotiationInfoExtension().create()
+
+        msg = ServerHello().create(version=(3, 2),
+                                   random=bytearray(32),
+                                   session_id=bytearray(0),
+                                   cipher_suite=4)
+
+        self.assertTrue(exp.is_match(msg))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
     def test_process_with_unexpected_extensions(self):
         exp = ExpectServerHello(extensions={ExtensionType.renegotiation_info:
                                            None})

@@ -89,11 +89,12 @@ class ExpectServerHello(ExpectHandshake):
 
     """Parsing TLS Handshake protocol Server Hello messages"""
 
-    def __init__(self, extensions=None):
+    def __init__(self, extensions=None, version=None):
         """Initialize the object"""
         super(ExpectServerHello, self).__init__(ContentType.handshake,
                                                 HandshakeType.server_hello)
         self.extensions = extensions
+        self.version = version
 
     def process(self, state, msg):
         """
@@ -118,6 +119,8 @@ class ExpectServerHello(ExpectHandshake):
         state.cipher = srv_hello.cipher_suite
         state.version = srv_hello.server_version
         state.server_random = srv_hello.random
+        if self.version is not None:
+            assert self.version == srv_hello.server_version
 
         # update the state of connection
         state.msg_sock.version = srv_hello.server_version
