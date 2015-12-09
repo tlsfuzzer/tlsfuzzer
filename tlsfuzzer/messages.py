@@ -4,9 +4,9 @@
 """Set of object for generating TLS messages to send"""
 
 from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
-        Finished, Alert, ApplicationData, Message
+        Finished, Alert, ApplicationData, Message, Certificate
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
-        ExtensionType
+        ExtensionType, CertificateType, ClientCertificateType
 from tlslite.extensions import TLSExtension
 from tlslite.messagesocket import MessageSocket
 from tlslite.defragmenter import Defragmenter
@@ -219,13 +219,12 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
         super(ClientHelloGenerator, self).__init__()
         if ciphers is None:
             ciphers = []
-        if version is None:
-            version = (3, 3)
         if session_id is None:
             session_id = bytearray(0)
         if compression is None:
             compression = [0]
 
+        self.version = version
         self.ciphers = ciphers
         self.extensions = extensions
         self.version = version
@@ -250,6 +249,8 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
         return extensions
 
     def generate(self, state):
+        if self.version is None:
+            self.version = state.client_version
         if self.random:
             state.client_random = self.random
         if not state.client_random:
@@ -265,6 +266,7 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
                                           self.ciphers,
                                           extensions=extensions)
         clnt_hello.compression_methods = self.compression
+        state.client_version = self.version
 
         self.msg = clnt_hello
 
@@ -274,10 +276,11 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
 
     """Generator for TLS handshake protocol Client Key Exchange messages"""
 
-    def __init__(self, cipher=None, version=None):
+    def __init__(self, cipher=None, version=None, client_version=None):
         super(ClientKeyExchangeGenerator, self).__init__()
         self.cipher = cipher
         self.version = version
+        self.client_version = client_version
         self.premaster_secret = bytearray(48)
 
     def generate(self, status):
@@ -287,12 +290,15 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
         if self.cipher is None:
             self.cipher = status.cipher
 
+        if self.client_version is None:
+            self.client_version = status.client_version
+
         cke = ClientKeyExchange(self.cipher, self.version)
         premaster_secret = self.premaster_secret
         assert len(premaster_secret) > 1
 
-        premaster_secret[0] = self.version[0]
-        premaster_secret[1] = self.version[1]
+        premaster_secret[0] = self.client_version[0]
+        premaster_secret[1] = self.client_version[1]
 
         status.premaster_secret = premaster_secret
 
@@ -305,6 +311,26 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
         self.msg = cke
 
         return cke
+
+class CertificateGenerator(HandshakeProtocolMessageGenerator):
+    """Generator for TLS handshake protocol Certificate message"""
+
+    def __init__(self, certs=None, cert_type=None):
+        super(CertificateGenerator, self).__init__()
+        self.certs = certs
+        self.cert_type = cert_type
+
+    def generate(self, status):
+        """Create a Certificate message"""
+        del status # unused
+        # TODO: support client certs
+        if self.cert_type is None:
+            self.cert_type = ClientCertificateType.rsa_sign
+        cert = Certificate(self.cert_type)
+        cert.create(self.certs)
+
+        self.msg = cert
+        return cert
 
 class ChangeCipherSpecGenerator(MessageGenerator):
 
@@ -342,6 +368,8 @@ class FinishedGenerator(HandshakeProtocolMessageGenerator):
         self.protocol = protocol
 
     def generate(self, status):
+        if self.protocol is None:
+            self.protocol = status.version
         finished = Finished(self.protocol)
 
         verify_data = calcFinished(status.version,

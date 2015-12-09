@@ -8,3 +8,7 @@ max-line-length: 80
 
 ignore-paths:
     - tests
+
+pep257:
+    disable:
+        - D203

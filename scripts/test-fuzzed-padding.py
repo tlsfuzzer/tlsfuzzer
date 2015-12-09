@@ -10,16 +10,18 @@ from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, \
-        fuzz_padding
+        fuzz_padding, CertificateGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectClose
+        ExpectAlert, ExpectClose, ExpectCertificateRequest
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription
 
 def main():
     """check if incorrect padding is rejected by server"""
     conversations = {}
+    hostname = "localhost"
+    port = 4433
 
     for pos, val in [
                      (-1, 0x01),
@@ -34,15 +36,24 @@ def main():
                      (-20, 0xff),
                      # we're generating at least 20 bytes of padding
                      ]:
-        conversation = Connect("localhost", 4433)
+        conversation = Connect(hostname, port)
         node = conversation
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         node = node.add_child(ClientHelloGenerator(ciphers))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectCertificateRequest())
+        fork = node
         node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(CertificateGenerator())
+
+        # handle servers which ask for client certificates
+        fork.next_sibling = ExpectServerHelloDone()
+        join = ClientKeyExchangeGenerator()
+        fork.next_sibling.add_child(join)
+
+        node = node.add_child(join)
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectChangeCipherSpec())
@@ -60,14 +71,23 @@ def main():
                 conversation
 
     # zero-fill the padding
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(hostname, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateRequest())
+    fork = node
     node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(CertificateGenerator())
+
+    # handle servers which ask for client certificates
+    fork.next_sibling = ExpectServerHelloDone()
+    join = ClientKeyExchangeGenerator()
+    fork.next_sibling.add_child(join)
+
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())

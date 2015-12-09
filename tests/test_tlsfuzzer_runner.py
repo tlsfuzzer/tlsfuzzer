@@ -13,7 +13,7 @@ except ImportError:
     import unittest.mock as mock
     from unittest.mock import call
 
-from tlsfuzzer.runner import ConnectionState, Runner
+from tlsfuzzer.runner import ConnectionState, Runner, guess_response
 from tlsfuzzer.expect import ExpectClose
 import tlslite.messages as messages
 import tlslite.constants as constants
@@ -156,3 +156,62 @@ class TestRunner(unittest.TestCase):
             runner.run()
 
         runner.state.msg_sock.sock.close.called_once_with()
+
+class TestGuessResponse(unittest.TestCase):
+
+    def test_guess_response(self):
+        content_type = constants.ContentType.application_data
+        data = bytearray(10)
+
+        self.assertEqual("ApplicationData(len=10)",
+                         guess_response(content_type, data))
+
+    def test_guess_response_with_CCS(self):
+        content_type = constants.ContentType.change_cipher_spec
+        data = bytearray(b'\x01')
+
+        self.assertEqual("ChangeCipherSpec()",
+                         guess_response(content_type, data))
+
+    def test_guess_response_with_bad_CCS(self):
+        content_type = constants.ContentType.change_cipher_spec
+        data = bytearray()
+
+        self.assertEqual("ChangeCipherSpec(invalid size)",
+                         guess_response(content_type, data))
+
+    def test_guess_response_with_alert(self):
+        content_type = constants.ContentType.alert
+        data = bytearray([constants.AlertLevel.warning,
+                          constants.AlertDescription.protocol_version])
+
+        self.assertEqual("Alert(warning, protocol_version)",
+                         guess_response(content_type, data))
+
+    def test_guess_response_with_invalid_alert(self):
+        content_type = constants.ContentType.alert
+        data = bytearray([constants.AlertLevel.warning])
+
+        self.assertEqual("Alert(invalid size)",
+                         guess_response(content_type, data))
+
+    def test_guess_response_with_handshake(self):
+        content_type = constants.ContentType.handshake
+        data = bytearray([constants.HandshakeType.client_hello,
+                          0, 0, 0])
+
+        self.assertEqual("Handshake(client_hello)",
+                         guess_response(content_type, data))
+    def test_guess_response_with_invalid_handshake(self):
+        content_type = constants.ContentType.handshake
+        data = bytearray()
+
+        self.assertEqual("Handshake(invalid size)",
+                         guess_response(content_type, data))
+
+    def test_guess_response_with_invalid_data(self):
+        content_type = 0xfa
+        data = bytearray(b'\x02\x03\x05')
+
+        self.assertEqual("Message(content_type=250, first_byte=2, len=3)",
+                         guess_response(content_type, data))

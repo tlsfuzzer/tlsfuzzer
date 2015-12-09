@@ -15,11 +15,13 @@ except ImportError:
 
 from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         ExpectCertificate, ExpectServerHelloDone, ExpectChangeCipherSpec, \
-        ExpectFinished, ExpectAlert, ExpectApplicationData
+        ExpectFinished, ExpectAlert, ExpectApplicationData, \
+        ExpectCertificateRequest
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
-        AlertLevel, AlertDescription
-from tlslite.messages import Message, ServerHello
+        AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
+        SignatureAlgorithm
+from tlslite.messages import Message, ServerHello, CertificateRequest
 from tlslite.extensions import SNIExtension
 from tlsfuzzer.runner import ConnectionState
 from tlsfuzzer.messages import RenegotiationInfoExtension
@@ -358,6 +360,16 @@ class TestExpectAlert(unittest.TestCase):
         with self.assertRaises(AssertionError):
             exp.process(state, msg)
 
+    def test_process_with_values_not_matching_anything(self):
+        exp = ExpectAlert(AlertLevel.warning,
+                          AlertDescription.bad_record_mac)
+        state = ConnectionState()
+        msg = Message(ContentType.alert,
+                      bytearray(b'\xff\xff'))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
 class TestExpectApplicationData(unittest.TestCase):
     def test___init__(self):
         exp = ExpectApplicationData()
@@ -394,3 +406,45 @@ class TestExpectApplicationData(unittest.TestCase):
 
         with self.assertRaises(AssertionError):
             exp.process(state, msg)
+
+class TestExpectCertificateRequest(unittest.TestCase):
+    def test___init__(self):
+        exp = ExpectCertificateRequest()
+
+        self.assertTrue(exp.is_expect())
+        self.assertFalse(exp.is_command())
+        self.assertFalse(exp.is_generator())
+
+    def test_is_match(self):
+        exp = ExpectCertificateRequest()
+
+        state = ConnectionState()
+        msg = Message(ContentType.handshake,
+                      bytearray([HandshakeType.certificate_request]))
+
+        self.assertTrue(exp.is_match(msg))
+
+    def test_is_match_with_unmatching_handshake_type(self):
+        exp = ExpectCertificateRequest()
+
+        state = ConnectionState()
+        msg = Message(ContentType.application_data,
+                      bytearray([HandshakeType.certificate_request]))
+
+        self.assertFalse(exp.is_match(msg))
+
+    def test_process(self):
+        exp = ExpectCertificateRequest()
+
+        state = ConnectionState()
+        msg = CertificateRequest((3, 3))
+        msg.create([ClientCertificateType.rsa_sign,
+                    ClientCertificateType.rsa_fixed_dh],
+                   [],
+                   [(HashAlgorithm.sha1, SignatureAlgorithm.rsa),
+                    (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+                    (HashAlgorithm.sha384, SignatureAlgorithm.rsa)])
+        msg = Message(ContentType.handshake,
+                      msg.write())
+
+        exp.process(state, msg)

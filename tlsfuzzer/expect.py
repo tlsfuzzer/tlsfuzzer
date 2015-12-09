@@ -5,7 +5,7 @@
 
 from tlslite.constants import ContentType, HandshakeType, CertificateType
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
-        ChangeCipherSpec, Finished, Alert
+        ChangeCipherSpec, Finished, Alert, CertificateRequest
 from tlslite.utils.codec import Parser
 from tlslite.mathtls import calcFinished
 from .tree import TreeNode
@@ -163,6 +163,33 @@ class ExpectCertificate(ExpectHandshake):
         state.handshake_messages.append(cert)
         state.handshake_hashes.update(msg.write())
 
+class ExpectCertificateRequest(ExpectHandshake):
+    """Processing TLS Handshake protocol Certificate Request message"""
+
+    def __init__(self):
+        msg_type = HandshakeType.certificate_request
+        super(ExpectCertificateRequest, self).__init__(ContentType.handshake,
+                                                       msg_type)
+
+    @staticmethod
+    def process(state, msg):
+        """
+        Check received Certificate Request
+
+        @type state: ConnectionState
+        """
+        assert msg.contentType == ContentType.handshake
+
+        parser = Parser(msg.write())
+        hs_type = parser.get(1)
+        assert hs_type == HandshakeType.certificate_request
+
+        cert_request = CertificateRequest(state.version)
+        cert_request.parse(parser)
+
+        state.handshake_messages.append(cert_request)
+        state.handshake_hashes.update(msg.write())
+
 class ExpectServerHelloDone(ExpectHandshake):
 
     """Processing TLS Handshake protocol ServerHelloDone messages"""
@@ -261,11 +288,18 @@ class ExpectAlert(Expect):
         alert = Alert()
         alert.parse(parser)
 
-        if self.level is not None:
-            assert alert.level == self.level
-
-        if self.description is not None:
-            assert alert.description == self.description
+        problem_desc = ""
+        if self.level is not None and alert.level != self.level:
+            problem_desc += "Alert level {0} != {1}".format(alert.level,
+                                                            self.level)
+        if self.description is not None \
+            and alert.description != self.description:
+            if problem_desc:
+                problem_desc += ", "
+            problem_desc += "Alert description {0} != {1}".format(\
+                                        alert.description, self.description)
+        if problem_desc:
+            raise AssertionError(problem_desc)
 
 class ExpectApplicationData(Expect):
 
