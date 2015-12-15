@@ -43,3 +43,18 @@ class TestTreeNode(unittest.TestCase):
         node.next_sibling = sibling
 
         self.assertEqual([node, sibling], list(node.get_all_siblings()))
+
+    def test_is_command(self):
+        node = TreeNode()
+        with self.assertRaises(NotImplementedError):
+            node.is_command()
+
+    def test_is_generator(self):
+        node = TreeNode()
+        with self.assertRaises(NotImplementedError):
+            node.is_generator()
+
+    def test_is_expect(self):
+        node = TreeNode()
+        with self.assertRaises(NotImplementedError):
+            node.is_expect()
