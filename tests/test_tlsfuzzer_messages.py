@@ -19,7 +19,7 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         pad_handshake, truncate_handshake, Close, fuzz_message, \
         RawMessageGenerator, split_message, PopMessageFromList, \
         FlushMessageList, fuzz_mac, fuzz_padding, ApplicationDataGenerator, \
-        CertificateGenerator
+        CertificateGenerator, CertificateVerifyGenerator, CertificateRequest
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
@@ -29,6 +29,7 @@ import tlslite.constants as constants
 import tlslite.defragmenter as defragmenter
 from tlslite.utils.codec import Parser
 from tests.mocksock import MockSocket
+from tlslite.utils.keyfactory import generateRSAKey
 
 
 class TestClose(unittest.TestCase):
@@ -115,6 +116,34 @@ class TestClientHelloGenerator(unittest.TestCase):
         mock_method.assert_called_once_with((3, 3), bytearray(32), bytearray(0),
                                             [],
                                             extensions=[ext])
+
+    def test_generate_extensions_with_raw_extension(self):
+        state = ConnectionState()
+        ext = extensions.TLSExtension().create(extType=0x1234, data=None)
+        chg = ClientHelloGenerator(extensions={0x1234:ext})
+
+        return_val = mock.MagicMock()
+        return_val.write = mock.MagicMock(return_value=bytearray(10))
+        with mock.patch.object(messages.ClientHello, 'create',
+                return_value=return_val) as mock_method:
+            ch = chg.generate(state)
+
+        self.assertEqual(ch, return_val)
+        mock_method.assert_called_once_with((3, 3), bytearray(32), bytearray(0),
+                                            [],
+                                            extensions=[ext])
+
+    def test_generate_extensions_with_garbage_extension(self):
+        state = ConnectionState()
+        ext = "some weird non-extension"
+        chg = ClientHelloGenerator(extensions={0x1234:ext})
+
+        return_val = mock.MagicMock()
+        return_val.write = mock.MagicMock(return_value=bytearray(10))
+        with mock.patch.object(messages.ClientHello, 'create',
+                return_value=return_val) as mock_method:
+            with self.assertRaises(ValueError):
+                ch = chg.generate(state)
 
     def test_generate_extensions_with_ext_generator(self):
         state = ConnectionState()
@@ -253,7 +282,65 @@ class TestCertificateGenerator(unittest.TestCase):
         self.assertIsInstance(msg, messages.Certificate)
         self.assertIsNone(msg.certChain)
         self.assertEqual(msg.certificateType,
-                         constants.ClientCertificateType.rsa_sign)
+                         constants.CertificateType.x509)
+
+class TestCertificateVerifyGenerator(unittest.TestCase):
+    def test___init__(self):
+        cert_ver_g = CertificateVerifyGenerator()
+
+        self.assertIsNotNone(cert_ver_g)
+
+    def test_generate_without_priv_key(self):
+        cert_ver_g = CertificateVerifyGenerator()
+        state = ConnectionState()
+
+        with self.assertRaises(ValueError):
+            cert_ver_g.generate(state)
+
+    def test_generate_TLS_1_1(self):
+        priv_key = generateRSAKey(1024)
+        cert_ver_g = CertificateVerifyGenerator(priv_key)
+        state = ConnectionState()
+        state.version = (3, 2)
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertEqual(len(msg.signature), 128)
+
+    def test_generate_TLS_1_2(self):
+        priv_key = generateRSAKey(1024)
+        cert_ver_g = CertificateVerifyGenerator(priv_key)
+        state = ConnectionState()
+        state.version = (3, 3)
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertEqual(len(msg.signature), 128)
+        self.assertEqual(msg.signatureAlgorithm,
+                         (constants.HashAlgorithm.sha1,
+                          constants.SignatureAlgorithm.rsa))
+
+    def test_generate_TLS_1_2_with_cert_request(self):
+        priv_key = generateRSAKey(1024)
+        cert_ver_g = CertificateVerifyGenerator(priv_key)
+        state = ConnectionState()
+        state.version = (3, 3)
+        req = CertificateRequest((3, 3)).create([], [],
+            [(constants.HashAlgorithm.sha256,
+              constants.SignatureAlgorithm.rsa),
+             (constants.HashAlgorithm.sha1,
+              constants.SignatureAlgorithm.rsa)])
+        state.handshake_messages = [req]
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertEqual(len(msg.signature), 128)
+        self.assertEqual(msg.signatureAlgorithm,
+                         (constants.HashAlgorithm.sha256,
+                          constants.SignatureAlgorithm.rsa))
 
 class TestFinishedGenerator(unittest.TestCase):
     def test___init__(self):

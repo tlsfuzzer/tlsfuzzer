@@ -4,15 +4,18 @@
 """Set of object for generating TLS messages to send"""
 
 from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
-        Finished, Alert, ApplicationData, Message, Certificate
+        Finished, Alert, ApplicationData, Message, Certificate, \
+        CertificateVerify, CertificateRequest
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
-        ExtensionType, CertificateType, ClientCertificateType
+        ExtensionType, CertificateType, ClientCertificateType, HashAlgorithm, \
+        SignatureAlgorithm
 from tlslite.extensions import TLSExtension
 from tlslite.messagesocket import MessageSocket
 from tlslite.defragmenter import Defragmenter
 from tlslite.mathtls import calcMasterSecret, calcFinished
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.utils.codec import Writer
+from tlslite.keyexchange import KeyExchange
 from .tree import TreeNode
 import socket
 
@@ -237,7 +240,12 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
         extensions = []
         for ext_id in self.extensions:
             if self.extensions[ext_id] is not None:
-                extensions.append(self.extensions[ext_id](state))
+                if callable(self.extensions[ext_id]):
+                    extensions.append(self.extensions[ext_id](state))
+                elif isinstance(self.extensions[ext_id], TLSExtension):
+                    extensions.append(self.extensions[ext_id])
+                else:
+                    raise ValueError("Bad extension, id: {0}".format(ext_id))
                 continue
 
             if ext_id == ExtensionType.renegotiation_info:
@@ -325,12 +333,54 @@ class CertificateGenerator(HandshakeProtocolMessageGenerator):
         del status # unused
         # TODO: support client certs
         if self.cert_type is None:
-            self.cert_type = ClientCertificateType.rsa_sign
+            self.cert_type = CertificateType.x509
         cert = Certificate(self.cert_type)
         cert.create(self.certs)
 
         self.msg = cert
         return cert
+
+class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
+    """Generator for TLS handshake protocol Certificate Verify message"""
+
+    def __init__(self, private_key=None, sig_type=None, version=None):
+        super(CertificateVerifyGenerator, self).__init__()
+        self.private_key = private_key
+        self.sig_type = sig_type
+        self.version = version
+
+    def generate(self, status):
+        """Create a CertificateVerify message"""
+        if self.version is None:
+            self.version = status.version
+        if self.sig_type is None and self.version >= (3, 3):
+            cert_req = next((msg for msg in status.handshake_messages[::-1]
+                             if isinstance(msg, CertificateRequest)), None)
+            if cert_req is not None:
+                self.sig_type = next((sig for sig in
+                                      cert_req.supported_signature_algs
+                                      if sig[1] == SignatureAlgorithm.rsa),
+                                     None)
+            if self.sig_type is None:
+                self.sig_type = (HashAlgorithm.sha1,
+                                 SignatureAlgorithm.rsa)
+        # TODO: generate a random key if none provided
+        if self.private_key is None:
+            raise ValueError("Can't create a signature without private key!")
+
+        verify_bytes = KeyExchange.calcVerifyBytes(status.version,
+                                                   status.handshake_hashes,
+                                                   self.sig_type,
+                                                   status.premaster_secret,
+                                                   status.client_random,
+                                                   status.server_random)
+        signature = self.private_key.sign(verify_bytes)
+
+        cert_verify = CertificateVerify(status.version)
+        cert_verify.create(signature, self.sig_type)
+
+        self.msg = cert_verify
+        return cert_verify
 
 class ChangeCipherSpecGenerator(MessageGenerator):
 
