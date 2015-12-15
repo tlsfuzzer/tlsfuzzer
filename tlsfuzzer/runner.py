@@ -4,6 +4,7 @@
 
 from __future__ import print_function
 
+import socket
 from tlslite.messages import Message, Certificate
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.errors import TLSAbruptCloseError
@@ -117,7 +118,7 @@ class Runner(object):
                     # check peer response
                     try:
                         header, parser = self.state.msg_sock.recvMessageBlocking()
-                    except TLSAbruptCloseError:
+                    except (TLSAbruptCloseError, socket.error):
                         close_node = next((n for n in node.get_all_siblings() \
                                            if isinstance(n, ExpectClose)), None)
                         if close_node:
