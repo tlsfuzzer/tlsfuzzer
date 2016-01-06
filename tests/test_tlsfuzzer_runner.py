@@ -15,9 +15,11 @@ except ImportError:
 
 from tlsfuzzer.runner import ConnectionState, Runner, guess_response
 from tlsfuzzer.expect import ExpectClose
+from tlsfuzzer.messages import ClientHelloGenerator
 import tlslite.messages as messages
 import tlslite.constants as constants
 from tlslite.errors import TLSAbruptCloseError
+import socket
 
 class TestConnectionState(unittest.TestCase):
     def test___init__(self):
@@ -156,6 +158,33 @@ class TestRunner(unittest.TestCase):
             runner.run()
 
         runner.state.msg_sock.sock.close.called_once_with()
+
+    def test_run_with_generate_and_unexpected_closed_socket(self):
+        node = mock.MagicMock()
+        node.is_command = mock.Mock(return_value=False)
+        node.is_expect = mock.Mock(return_value=False)
+        node.is_generator = mock.Mock(return_value=True)
+        node.child = None
+
+        runner = Runner(node)
+        runner.state.msg_sock = mock.MagicMock()
+        runner.state.msg_sock.sendMessageBlocking = \
+                mock.MagicMock(side_effect=socket.error)
+
+        with self.assertRaises(AssertionError):
+            runner.run()
+
+    def test_run_with_generate_and_expected_closed_socket(self):
+        node = ClientHelloGenerator()
+        node.next_sibling = ExpectClose()
+
+        runner = Runner(node)
+        runner.state.msg_sock = mock.MagicMock()
+        runner.state.msg_sock.sendMessageBlocking = \
+                mock.MagicMock(side_effect=socket.error)
+
+        # does NOT raise exception
+        runner.run()
 
 class TestGuessResponse(unittest.TestCase):
 

@@ -145,7 +145,16 @@ class Runner(object):
                 elif node.is_generator():
                     # send message to peer
                     msg = node.generate(self.state)
-                    self.state.msg_sock.sendMessageBlocking(msg)
+                    try:
+                        self.state.msg_sock.sendMessageBlocking(msg)
+                    except socket.error:
+                        close_node = next((n for n in node.get_all_siblings()
+                                           if isinstance(n, ExpectClose)), None)
+                        if close_node:
+                            node = close_node.child
+                            continue
+                        else:
+                            raise AssertionError("Unexpected closure from peer")
                     node.post_send(self.state)
 
                     node = node.child
