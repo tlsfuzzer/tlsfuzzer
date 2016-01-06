@@ -11,8 +11,10 @@ version.
 ## Dependencies
 You'll need:
  * Python 2.6 or later or Python 3.2 or later
- * tlslite-ng (note that `tlslite` will *not* work and they conflict with
-   eachother)
+ * tlslite-ng 0.6.0-alpha3 or later (note that `tlslite` will *not* work and
+   they conflict with eachother)
+ * ecdsa python module (dependency of tlslite-ng, should get installed
+   automatically with it)
 
 Optionally, to make some calculations faster, you may want to install the
 following libraries (see tlslite-ng README for details):
@@ -28,8 +30,9 @@ python get-pip.py
 
 Then install tlslite-ng:
 ```
-pip install tlslite-ng
+pip install --pre tlslite-ng
 ```
+(Use `--upgrade` if you did install it before)
 
 Download the tlsfuzzer:
 ```
@@ -48,3 +51,7 @@ Then you can just run one of the tests in `scripts` directory, as such:
 ```
 PYTHONPATH=. python scripts/test-invalid-compression-methods.py
 ```
+
+If test has additional requirements, it will output them to console. No errors
+printed means that all expecations were met (so for tests with bad data the
+server rejected our messages).
