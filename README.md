@@ -6,7 +6,7 @@
 
 # tlsfuzzer
 Fuzzer and test suite for TLS (v1.0, v1.1, v1.2) implementations. Early alpha
-version.
+version - thus no API stability guarantees.
 
 ## Dependencies
 You'll need:
