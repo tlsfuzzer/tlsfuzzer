@@ -287,6 +287,22 @@ class TestChangeCipherSpecGenerator(unittest.TestCase):
         self.assertTrue(state.msg_sock.calcPendingStates.called)
         self.assertTrue(state.msg_sock.changeWriteState.called)
 
+    def test_post_send_with_extended_master_secret(self):
+        ccsg = ChangeCipherSpecGenerator()
+        ccsg.generate(None)
+        state = ConnectionState()
+        state.extended_master_secret = True
+        state.msg_sock = mock.MagicMock()
+
+        with mock.patch('tlsfuzzer.messages.calcExtendedMasterSecret') as mthd:
+            mthd.return_value = bytearray(48)
+            ccsg.post_send(state)
+        mthd.assert_called_once_with(state.version, state.cipher,
+                                     state.premaster_secret,
+                                     state.handshake_hashes)
+        self.assertTrue(state.msg_sock.calcPendingStates.called)
+        self.assertTrue(state.msg_sock.changeWriteState.called)
+
 class TestCertificateGenerator(unittest.TestCase):
     def test___init__(self):
         certg = CertificateGenerator()
