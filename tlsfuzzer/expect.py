@@ -89,12 +89,20 @@ class ExpectServerHello(ExpectHandshake):
 
     """Parsing TLS Handshake protocol Server Hello messages"""
 
-    def __init__(self, extensions=None, version=None):
-        """Initialize the object"""
+    def __init__(self, extensions=None, version=None, resume=False):
+        """
+        Initialize the object
+
+        @type resume: boolean
+        @param resume: whether the session id should match the one from
+        current state - IOW, if the server hello should belong to a resumed
+        session.
+        """
         super(ExpectServerHello, self).__init__(ContentType.handshake,
                                                 HandshakeType.server_hello)
         self.extensions = extensions
         self.version = version
+        self.resume = resume
 
     def process(self, state, msg):
         """
@@ -116,11 +124,23 @@ class ExpectServerHello(ExpectHandshake):
         srv_hello.parse(parser)
 
         # extract important info
-        state.cipher = srv_hello.cipher_suite
-        state.version = srv_hello.server_version
         state.server_random = srv_hello.random
+
+        # check for session_id based session resumption
+        if self.resume:
+            assert state.session_id == srv_hello.session_id
+        if (state.session_id == srv_hello.session_id and
+                srv_hello.session_id != bytearray(0)):
+            state.resuming = True
+            assert state.cipher == srv_hello.cipher_suite
+            assert state.version == srv_hello.server_version
+        state.session_id = srv_hello.session_id
+
         if self.version is not None:
             assert self.version == srv_hello.server_version
+
+        state.cipher = srv_hello.cipher_suite
+        state.version = srv_hello.server_version
 
         # update the state of connection
         state.msg_sock.version = srv_hello.server_version
@@ -238,6 +258,13 @@ class ExpectChangeCipherSpec(Expect):
 
         # TOOD: check if it's correct
 
+        if state.resuming:
+            state.msg_sock.calcPendingStates(state.cipher,
+                                             state.master_secret,
+                                             state.client_random,
+                                             state.server_random,
+                                             None)
+
         state.msg_sock.changeReadState()
 
 class ExpectFinished(ExpectHandshake):
@@ -274,6 +301,7 @@ class ExpectFinished(ExpectHandshake):
 
         state.handshake_messages.append(finished)
         state.server_verify_data = finished.verify_data
+        state.handshake_hashes.update(msg.write())
 
 class ExpectAlert(Expect):
 

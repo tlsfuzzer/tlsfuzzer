@@ -146,6 +146,72 @@ class TestExpectServerHello(unittest.TestCase):
         with self.assertRaises(AssertionError):
             exp.process(state, msg)
 
+    def test_process_with_resumption(self):
+        exp = ExpectServerHello()
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        state.session_id = bytearray(b'\xaa\xaa\xaa')
+        state.cipher = 4
+
+        self.assertFalse(state.resuming)
+
+        msg = ServerHello()
+        msg.create(version=(3, 3),
+                   random=bytearray(32),
+                   session_id=bytearray(b'\xaa\xaa\xaa'),
+                   cipher_suite=4)
+
+        self.assertTrue(exp.is_match(msg))
+
+        exp.process(state, msg)
+
+        self.assertTrue(state.resuming)
+
+    def test_process_with_mandatory_resumption(self):
+        exp = ExpectServerHello(resume=True)
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        state.session_id = bytearray(b'\xaa\xaa\xaa')
+        state.cipher = 4
+
+        self.assertFalse(state.resuming)
+
+        msg = ServerHello()
+        msg.create(version=(3, 3),
+                   random=bytearray(32),
+                   session_id=bytearray(b'\xaa\xaa\xaa'),
+                   cipher_suite=4)
+
+        self.assertTrue(exp.is_match(msg))
+
+        exp.process(state, msg)
+
+        self.assertTrue(state.resuming)
+
+
+    def test_process_with_mandatory_resumption_but_wrong_id(self):
+        exp = ExpectServerHello(resume=True)
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        state.session_id = bytearray(b'\xaa\xaa\xaa')
+        state.cipher = 4
+
+        self.assertFalse(state.resuming)
+
+        msg = ServerHello()
+        msg.create(version=(3, 3),
+                   random=bytearray(32),
+                   session_id=bytearray(b'\xbb\xbb\xbb'),
+                   cipher_suite=4)
+
+        self.assertTrue(exp.is_match(msg))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
 class TestExpectCertificate(unittest.TestCase):
     def test___init__(self):
         exp = ExpectCertificate()
@@ -258,6 +324,31 @@ class TestExpectChangeCipherSpec(unittest.TestCase):
 
         exp.process(state, msg)
 
+        state.msg_sock.calcPendingStates.assert_not_called()
+        state.msg_sock.changeReadState.assert_called_once_with()
+
+    def test_process_with_resumption(self):
+        exp = ExpectChangeCipherSpec()
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        state.resuming = True
+
+        state.cipher = mock.Mock(name="cipher")
+        state.master_secret = mock.Mock(name="master_secret")
+        state.client_random = mock.Mock(name="client_random")
+        state.server_random = mock.Mock(name="server_random")
+
+        msg = Message(ContentType.change_cipher_spec, bytearray(1))
+
+        exp.process(state, msg)
+
+        state.msg_sock.calcPendingStates.assert_called_once_with(
+                state.cipher,
+                state.master_secret,
+                state.client_random,
+                state.server_random,
+                None)
         state.msg_sock.changeReadState.assert_called_once_with()
 
 class TestExpectFinished(unittest.TestCase):

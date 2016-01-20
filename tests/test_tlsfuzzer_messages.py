@@ -19,7 +19,8 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         pad_handshake, truncate_handshake, Close, fuzz_message, \
         RawMessageGenerator, split_message, PopMessageFromList, \
         FlushMessageList, fuzz_mac, fuzz_padding, ApplicationDataGenerator, \
-        CertificateGenerator, CertificateVerifyGenerator, CertificateRequest
+        CertificateGenerator, CertificateVerifyGenerator, CertificateRequest, \
+        ResetRenegotiationInfo
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
@@ -356,6 +357,28 @@ class TestFinishedGenerator(unittest.TestCase):
 
         self.assertIsInstance(ret, messages.Finished)
 
+    def test_post_send(self):
+        fg = FinishedGenerator()
+        state = ConnectionState()
+
+        ret = fg.generate(state)
+
+        self.assertNotIn(ret, state.handshake_messages)
+
+        fg.post_send(state)
+
+        self.assertIn(ret, state.handshake_messages)
+
+    def test_post_send_with_resumption(self):
+        fg = FinishedGenerator()
+        state = ConnectionState()
+        state.resuming = True
+
+        ret = fg.generate(state)
+        fg.post_send(state)
+
+        self.assertFalse(state.resuming)
+
 class TestResetHandshakeHashes(unittest.TestCase):
     def test___init__(self):
         node = ResetHandshakeHashes()
@@ -373,6 +396,24 @@ class TestResetHandshakeHashes(unittest.TestCase):
         node.process(state)
 
         self.assertIsNot(hashes, state.handshake_hashes)
+
+class TestResetRenegotiationInfo(unittest.TestCase):
+    def test___init__(self):
+        node = ResetRenegotiationInfo()
+
+        self.assertIsNotNone(node)
+
+    def test_process(self):
+        node = ResetRenegotiationInfo()
+
+        state = ConnectionState()
+        state.client_verify_data = bytearray(b'\xde\xad\xc0\xde')
+        state.server_verify_data = bytearray(b'\xc0\xff\xee')
+
+        node.process(state)
+
+        self.assertEqual(state.client_verify_data, bytearray(0))
+        self.assertEqual(state.server_verify_data, bytearray(0))
 
 class TestSetMaxRecordSize(unittest.TestCase):
     def test___init__(self):

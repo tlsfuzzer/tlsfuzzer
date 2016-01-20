@@ -57,9 +57,15 @@ class ConnectionState(object):
         self.server_random = bytearray(0)
         self.client_random = bytearray(0)
 
+        # session ID set by server
+        self.session_id = bytearray(0)
+
         # Finished message data for secure renegotiation
         self.client_verify_data = bytearray(0)
         self.server_verify_data = bytearray(0)
+
+        # Whether we are currently resuming a previously negotiated session
+        self.resuming = False
 
     def get_server_public_key(self):
         """Extract server public key from server Certificate message"""
@@ -166,5 +172,6 @@ class Runner(object):
             if node is None:
                 node = old_node
             print("Error encountered while processing node " + str(node) +
-                  " with last message being: " + repr(msg))
+                  " (child: " + str(node.child) + ") with last message " +
+                  "being: " + repr(msg))
             raise
