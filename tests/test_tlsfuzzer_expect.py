@@ -22,7 +22,7 @@ from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
         SignatureAlgorithm
 from tlslite.messages import Message, ServerHello, CertificateRequest
-from tlslite.extensions import SNIExtension
+from tlslite.extensions import SNIExtension, TLSExtension
 from tlsfuzzer.runner import ConnectionState
 from tlsfuzzer.messages import RenegotiationInfoExtension
 
@@ -211,6 +211,27 @@ class TestExpectServerHello(unittest.TestCase):
 
         with self.assertRaises(AssertionError):
             exp.process(state, msg)
+
+    def test_process_with_extended_master_secret(self):
+        exp = ExpectServerHello(
+                extensions={ExtensionType.extended_master_secret:None})
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        self.assertFalse(state.extended_master_secret)
+
+        ext = TLSExtension(extType=ExtensionType.extended_master_secret)
+        msg = ServerHello().create(version=(3, 3),
+                                   random=bytearray(32),
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=[ext])
+
+        self.assertTrue(exp.is_match(msg))
+
+        exp.process(state, msg)
+
+        self.assertTrue(state.extended_master_secret)
 
 class TestExpectCertificate(unittest.TestCase):
     def test___init__(self):

@@ -12,10 +12,12 @@ from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
 from tlslite.extensions import TLSExtension
 from tlslite.messagesocket import MessageSocket
 from tlslite.defragmenter import Defragmenter
-from tlslite.mathtls import calcMasterSecret, calcFinished
+from tlslite.mathtls import calcMasterSecret, calcFinished, \
+        calcExtendedMasterSecret
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.utils.codec import Writer
 from tlslite.keyexchange import KeyExchange
+from .handshake_helpers import calc_pending_states
 from .tree import TreeNode
 import socket
 
@@ -400,8 +402,11 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         return cert_verify
 
 class ChangeCipherSpecGenerator(MessageGenerator):
-
     """Generator for TLS Change Cipher Spec messages"""
+
+    def __init__(self, extended_master_secret=None):
+        super(ChangeCipherSpecGenerator, self).__init__()
+        self.extended_master_secret = extended_master_secret
 
     def generate(self, status):
         ccs = ChangeCipherSpec()
@@ -409,23 +414,28 @@ class ChangeCipherSpecGenerator(MessageGenerator):
 
     def post_send(self, status):
         cipher_suite = status.cipher
+        if self.extended_master_secret is None:
+            self.extended_master_secret = status.extended_master_secret
 
         if not status.resuming:
-            master_secret = calcMasterSecret(status.version,
+            if self.extended_master_secret:
+                master_secret = \
+                    calcExtendedMasterSecret(status.version,
                                              cipher_suite,
                                              status.premaster_secret,
-                                             status.client_random,
-                                             status.server_random)
+                                             status.handshake_hashes)
+            else:
+                master_secret = calcMasterSecret(status.version,
+                                                 cipher_suite,
+                                                 status.premaster_secret,
+                                                 status.client_random,
+                                                 status.server_random)
 
             status.master_secret = master_secret
 
             # in case of resumption, the pending states are generated
             # during receive of server sent CCS
-            status.msg_sock.calcPendingStates(cipher_suite,
-                                              master_secret,
-                                              status.client_random,
-                                              status.server_random,
-                                              None)
+            calc_pending_states(status)
 
         status.msg_sock.changeWriteState()
 

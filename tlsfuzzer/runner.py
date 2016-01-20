@@ -67,6 +67,10 @@ class ConnectionState(object):
         # Whether we are currently resuming a previously negotiated session
         self.resuming = False
 
+        # Whether the session we're currently using is using extended master
+        # secret calculation defined in RFC 7627
+        self.extended_master_secret = False
+
     def get_server_public_key(self):
         """Extract server public key from server Certificate message"""
         certificates = (msg for msg in self.handshake_messages if\
