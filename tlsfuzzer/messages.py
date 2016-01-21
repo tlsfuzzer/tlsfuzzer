@@ -130,6 +130,23 @@ class ResetHandshakeHashes(Command):
         """Reset current running handshake protocol hashes"""
         state.handshake_hashes = HandshakeHashes()
 
+class ResetRenegotiationInfo(Command):
+    """Object used to reset state of data needed for secure renegotiation"""
+
+    def __init__(self, client=None, server=None):
+        super(ResetRenegotiationInfo, self).__init__()
+        self.client_verify_data = client
+        self.server_verify_data = server
+
+    def process(self, state):
+        """Reset current Finished message values"""
+        if self.client_verify_data is None:
+            self.client_verify_data = bytearray(0)
+        if self.server_verify_data is None:
+            self.server_verify_data = bytearray(0)
+        state.client_verify_data = self.client_verify_data
+        state.server_verify_data = self.server_verify_data
+
 class SetMaxRecordSize(Command):
 
     """Change the Record Layer to send records of non standard size"""
@@ -222,8 +239,6 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
         super(ClientHelloGenerator, self).__init__()
         if ciphers is None:
             ciphers = []
-        if session_id is None:
-            session_id = bytearray(0)
         if compression is None:
             compression = [0]
 
@@ -261,6 +276,8 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
             self.version = state.client_version
         if self.random:
             state.client_random = self.random
+        if self.session_id is None:
+            self.session_id = state.session_id
         if not state.client_random:
             state.client_random = bytearray(32)
 
@@ -393,19 +410,22 @@ class ChangeCipherSpecGenerator(MessageGenerator):
     def post_send(self, status):
         cipher_suite = status.cipher
 
-        master_secret = calcMasterSecret(status.version,
-                                         cipher_suite,
-                                         status.premaster_secret,
-                                         status.client_random,
-                                         status.server_random)
+        if not status.resuming:
+            master_secret = calcMasterSecret(status.version,
+                                             cipher_suite,
+                                             status.premaster_secret,
+                                             status.client_random,
+                                             status.server_random)
 
-        status.master_secret = master_secret
+            status.master_secret = master_secret
 
-        status.msg_sock.calcPendingStates(cipher_suite,
-                                          master_secret,
-                                          status.client_random,
-                                          status.server_random,
-                                          None)
+            # in case of resumption, the pending states are generated
+            # during receive of server sent CCS
+            status.msg_sock.calcPendingStates(cipher_suite,
+                                              master_secret,
+                                              status.client_random,
+                                              status.server_random,
+                                              None)
 
         status.msg_sock.changeWriteState()
 
@@ -418,6 +438,7 @@ class FinishedGenerator(HandshakeProtocolMessageGenerator):
         self.protocol = protocol
 
     def generate(self, status):
+        """Create a Finished message"""
         if self.protocol is None:
             self.protocol = status.version
         finished = Finished(self.protocol)
@@ -435,6 +456,14 @@ class FinishedGenerator(HandshakeProtocolMessageGenerator):
         self.msg = finished
 
         return finished
+
+    def post_send(self, status):
+        """Perform post-transmit changes needed by generation of Finished"""
+        super(FinishedGenerator, self).post_send(status)
+
+        # resumption finished
+        if status.resuming:
+            status.resuming = False
 
 class AlertGenerator(MessageGenerator):
 
