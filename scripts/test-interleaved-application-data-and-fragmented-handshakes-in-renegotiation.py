@@ -46,6 +46,7 @@ def main():
     node = node.add_child(ResetHandshakeHashes())
     fragment_list = []
     node = node.add_child(split_message(ClientHelloGenerator([CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA],
+                                                             session_id=bytearray(0),
                                                              extensions={ExtensionType.renegotiation_info:None}),
                                         fragment_list, 30))
     # interleaved AppData
@@ -86,7 +87,8 @@ def main():
     # 2nd handshake
     node = node.add_child(ResetHandshakeHashes())
     node = node.add_child(ClientHelloGenerator([CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA],
-                                                             extensions={ExtensionType.renegotiation_info:None}))
+                                               session_id=bytearray(0),
+                                               extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
@@ -129,6 +131,7 @@ def main():
     # 2nd handshake
     node = node.add_child(ResetHandshakeHashes())
     node = node.add_child(ClientHelloGenerator([CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA],
+                                               session_id=bytearray(0),
                                                extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())

@@ -42,6 +42,7 @@ def main():
     # 2nd handshake
     node = node.add_child(ResetHandshakeHashes())
     node = node.add_child(ClientHelloGenerator([CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA],
+                                               session_id=bytearray(0),
                                                extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
