@@ -20,7 +20,7 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         RawMessageGenerator, split_message, PopMessageFromList, \
         FlushMessageList, fuzz_mac, fuzz_padding, ApplicationDataGenerator, \
         CertificateGenerator, CertificateVerifyGenerator, CertificateRequest, \
-        ResetRenegotiationInfo
+        ResetRenegotiationInfo, Connect
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
@@ -31,6 +31,7 @@ import tlslite.defragmenter as defragmenter
 from tlslite.utils.codec import Parser
 from tests.mocksock import MockSocket
 from tlslite.utils.keyfactory import generateRSAKey
+import socket
 
 
 class TestClose(unittest.TestCase):
@@ -47,6 +48,29 @@ class TestClose(unittest.TestCase):
         close.process(state)
 
         state.msg_sock.sock.close.called_once_with()
+
+class TestConnect(unittest.TestCase):
+    def test___init__(self):
+        connect = Connect(1, 2)
+
+        self.assertIsNotNone(connect)
+        self.assertEqual(connect.hostname, 1)
+        self.assertEqual(connect.port, 2)
+        self.assertEqual(connect.version, (3, 0))
+
+    @mock.patch('socket.socket')
+    def test_process(self, mock_sock):
+        state = ConnectionState()
+        connect = Connect(1, 2)
+
+        connect.process(state)
+
+        self.assertEqual(state.msg_sock.version, (3, 0))
+
+        mock_sock.assert_called_once_with(socket.AF_INET, socket.SOCK_STREAM)
+        instance = mock_sock.return_value
+        instance.connect.assert_called_once_with((1, 2))
+        self.assertIs(state.msg_sock.sock, instance)
 
 class TestRawMessageGenerator(unittest.TestCase):
     def test___init__(self):
