@@ -72,6 +72,20 @@ class TestConnect(unittest.TestCase):
         instance.connect.assert_called_once_with((1, 2))
         self.assertIs(state.msg_sock.sock, instance)
 
+    @mock.patch('socket.socket')
+    def test_process_with_SSLv2(self, mock_sock):
+        state = ConnectionState()
+        connect = Connect(1, 2, (0, 2))
+
+        connect.process(state)
+
+        self.assertEqual(state.msg_sock.version, (0, 2))
+
+        mock_sock.assert_called_once_with(socket.AF_INET, socket.SOCK_STREAM)
+        instance = mock_sock.return_value
+        instance.connect.assert_called_once_with((1, 2))
+        self.assertIs(state.msg_sock.sock, instance)
+
 class TestRawMessageGenerator(unittest.TestCase):
     def test___init__(self):
         message_gen = RawMessageGenerator(12, bytearray(b'\xff\x02'))
