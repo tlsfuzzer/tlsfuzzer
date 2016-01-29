@@ -3,11 +3,15 @@
 
 """Parsing and processing of received TLS messages"""
 
-from tlslite.constants import ContentType, HandshakeType, CertificateType
+from tlslite.constants import ContentType, HandshakeType, CertificateType, \
+        SSL2HandshakeType
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
-        ChangeCipherSpec, Finished, Alert, CertificateRequest
+        ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
+        ServerFinished
 from tlslite.utils.codec import Parser
 from tlslite.mathtls import calcFinished
+from tlslite.x509 import X509
+from tlslite.x509certchain import X509CertChain
 from .tree import TreeNode
 
 class Expect(TreeNode):
@@ -74,6 +78,9 @@ class ExpectHandshake(Expect):
     def is_match(self, msg):
         """Check if message is a given type of handshake protocol message"""
         if not super(ExpectHandshake, self).is_match(msg):
+            return False
+
+        if not msg.write():  # if message is empty
             return False
 
         hs_type = Parser(msg.write()).get(1)
@@ -160,6 +167,51 @@ class ExpectServerHello(ExpectHandshake):
             if srv_hello.extensions is not None:
                 for ext_id in (ext.extType for ext in srv_hello.extensions):
                     assert ext_id in self.extensions
+
+class ExpectServerHello2(ExpectHandshake):
+    """Processing of SSLv2 Handshake Protocol SERVER-HELLO message"""
+
+    def __init__(self):
+        super(ExpectServerHello2, self).__init__(ContentType.handshake,
+                                                 SSL2HandshakeType.server_hello)
+
+    def process(self, state, msg):
+        """
+        Process the message and update state accordingly
+
+        @type state: ConnectionState
+        @param state: overall state of TLS connection
+
+        @type msg: Message
+        @param msg: TLS Message read from socket
+        """
+        # the value is faked for SSLv2 protocol, but let's just check sanity
+        assert msg.contentType == ContentType.handshake
+
+        parser = Parser(msg.write())
+        hs_type = parser.get(1)
+        assert hs_type == SSL2HandshakeType.server_hello
+
+        server_hello = ServerHello2().parse(parser)
+
+        state.handshake_messages.append(server_hello)
+        state.handshake_hashes.update(msg.write())
+
+        if server_hello.session_id_hit:
+            state.resuming = True
+        state.session_id = server_hello.session_id
+        state.server_random = server_hello.session_id
+        state.version = server_hello.server_version
+        state.msg_sock.version = server_hello.server_version
+
+        # fake a certificate message so finding the server public key works
+        x509 = X509()
+        x509.parseBinary(server_hello.certificate)
+        cert_chain = X509CertChain([x509])
+        certificate = Certificate(CertificateType.x509)
+        certificate.create(cert_chain)
+        state.handshake_messages.append(certificate)
+        # fake message so don't update handshake hashes
 
 class ExpectCertificate(ExpectHandshake):
 
@@ -267,13 +319,32 @@ class ExpectChangeCipherSpec(Expect):
 
         state.msg_sock.changeReadState()
 
+class ExpectVerify(ExpectHandshake):
+    """Processing of SSLv2 SERVER-VERIFY message"""
+
+    def __init__(self):
+        super(ExpectVerify, self).__init__(ContentType.handshake,
+                                           SSL2HandshakeType.server_verify)
+
+    def process(self, state, msg):
+        """Check if the VERIFY message has expected value"""
+        assert msg.contentType == ContentType.handshake
+        parser = Parser(msg.write())
+
+        msg_type = parser.get(1)
+        assert msg_type == SSL2HandshakeType.server_verify
+
 class ExpectFinished(ExpectHandshake):
 
     """Processing TLS handshake protocol Finished message"""
 
     def __init__(self, version=None):
-        super(ExpectFinished, self).__init__(ContentType.handshake,
-                                             HandshakeType.finished)
+        if version in ((0, 2), (2, 0)):
+            super(ExpectFinished, self).__init__(ContentType.handshake,
+                                                 SSL2HandshakeType.server_finished)
+        else:
+            super(ExpectFinished, self).__init__(ContentType.handshake,
+                                                 HandshakeType.finished)
         self.version = version
 
     def process(self, state, msg):
@@ -284,24 +355,34 @@ class ExpectFinished(ExpectHandshake):
         assert msg.contentType == ContentType.handshake
         parser = Parser(msg.write())
         hs_type = parser.get(1)
-        assert hs_type == HandshakeType.finished
+        assert hs_type == self.handshake_type
         if self.version is None:
             self.version = state.version
 
-        finished = Finished(self.version)
+        if self.version in ((0, 2), (2, 0)):
+            finished = ServerFinished()
+        else:
+            finished = Finished(self.version)
+
         finished.parse(parser)
 
-        verify_expected = calcFinished(state.version,
-                                       state.master_secret,
-                                       state.cipher,
-                                       state.handshake_hashes,
-                                       not state.client)
+        if self.version in ((0, 2), (2, 0)):
+            state.session_id = finished.verify_data
+        else:
+            verify_expected = calcFinished(state.version,
+                                           state.master_secret,
+                                           state.cipher,
+                                           state.handshake_hashes,
+                                           not state.client)
 
-        assert finished.verify_data == verify_expected
+            assert finished.verify_data == verify_expected
 
         state.handshake_messages.append(finished)
         state.server_verify_data = finished.verify_data
         state.handshake_hashes.update(msg.write())
+
+        if self.version in ((0, 2), (2, 0)):
+            state.msg_sock.handshake_finished = True
 
 class ExpectAlert(Expect):
 
@@ -331,6 +412,25 @@ class ExpectAlert(Expect):
                                         alert.description, self.description)
         if problem_desc:
             raise AssertionError(problem_desc)
+
+class ExpectSSL2Alert(ExpectHandshake):
+    """Processing of SSLv2 Handshake protocol alert messages"""
+
+    def __init__(self, error=None):
+        super(ExpectSSL2Alert, self).__init__(ContentType.handshake,
+                                              SSL2HandshakeType.error)
+        self.error = error
+
+    def process(self, state, msg):
+        """Analyse the error message"""
+        assert msg.contentType == ContentType.handshake
+
+        parser = Parser(msg.write())
+        hs_type = parser.get(1)
+        assert hs_type == SSL2HandshakeType.error
+
+        if self.error is not None:
+            assert self.error == parser.get(2)
 
 class ExpectApplicationData(Expect):
 

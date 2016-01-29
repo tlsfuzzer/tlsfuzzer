@@ -5,16 +5,18 @@
 
 from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         Finished, Alert, ApplicationData, Message, Certificate, \
-        CertificateVerify, CertificateRequest
+        CertificateVerify, CertificateRequest, ClientMasterKey, \
+        ClientFinished
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
         ExtensionType, CertificateType, ClientCertificateType, HashAlgorithm, \
-        SignatureAlgorithm
+        SignatureAlgorithm, CipherSuite
 from tlslite.extensions import TLSExtension
 from tlslite.messagesocket import MessageSocket
 from tlslite.defragmenter import Defragmenter
 from tlslite.mathtls import calcMasterSecret, calcFinished
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.utils.codec import Writer
+from tlslite.utils.cryptomath import getRandomBytes
 from tlslite.keyexchange import KeyExchange
 from .tree import TreeNode
 import socket
@@ -336,6 +338,61 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
 
         return cke
 
+class ClientMasterKeyGenerator(HandshakeProtocolMessageGenerator):
+    """Generator for SSLv2 Handshake Protocol CLIENT-MASTER-KEY message"""
+
+    def __init__(self, cipher=None, master_key=None):
+        super(ClientMasterKeyGenerator, self).__init__()
+        self.cipher = cipher
+        self.master_key = master_key
+
+    def generate(self, state):
+        """Generate a new CLIENT-MASTER-KEY message"""
+        if self.cipher is None:
+            raise NotImplementedError("No cipher autonegotiation")
+        if self.master_key is None:
+            if state.master_secret == bytearray(0):
+                if self.cipher in CipherSuite.ssl2_128Key:
+                    key_size = 16
+                elif self.cipher in CipherSuite.ssl2_192Key:
+                    key_size = 24
+                elif self.cipher in CipherSuite.ssl2_64Key:
+                    key_size = 8
+                else:
+                    raise AssertionError("unknown cipher but no master_secret")
+                self.master_key = getRandomBytes(key_size)
+            else:
+                self.master_key = state.master_secret
+
+        cipher = self.cipher
+        if (cipher not in CipherSuite.ssl2rc4 and
+                cipher not in CipherSuite.ssl2_3des):
+            # tlslite-ng doesn't implement anything else, so we need to
+            # workaround calculation of pending states failure for test
+            # cases which don't really encrypt data
+            cipher = CipherSuite.SSL_CK_RC4_128_WITH_MD5
+
+        key_arg = state.msg_sock.calcSSL2PendingStates(cipher,
+                                                       self.master_key,
+                                                       state.client_random,
+                                                       state.server_random,
+                                                       None)
+
+        if self.cipher in CipherSuite.ssl2export:
+            clear_key = self.master_key[:-5]
+            secret_key = self.master_key[-5:]
+        else:
+            clear_key = bytearray(0)
+            secret_key = self.master_key
+
+        pub_key = state.get_server_public_key()
+        encrypted_master_key = pub_key.encrypt(secret_key)
+
+        cmk = ClientMasterKey()
+        cmk.create(self.cipher, clear_key, encrypted_master_key, key_arg)
+        self.msg = cmk
+        return cmk
+
 class CertificateGenerator(HandshakeProtocolMessageGenerator):
     """Generator for TLS handshake protocol Certificate message"""
 
@@ -440,15 +497,23 @@ class FinishedGenerator(HandshakeProtocolMessageGenerator):
         """Create a Finished message"""
         if self.protocol is None:
             self.protocol = status.version
-        finished = Finished(self.protocol)
 
-        verify_data = calcFinished(status.version,
-                                   status.master_secret,
-                                   status.cipher,
-                                   status.handshake_hashes,
-                                   status.client)
+        if self.protocol in ((0, 2), (2, 0)):
+            finished = ClientFinished()
+            verify_data = status.session_id
 
-        status.client_verify_data = verify_data
+            # in SSLv2 we're using it as a CCS-of-sorts too
+            status.msg_sock.changeWriteState()
+            status.msg_sock.changeReadState()
+        else:
+            finished = Finished(self.protocol)
+            verify_data = calcFinished(status.version,
+                                       status.master_secret,
+                                       status.cipher,
+                                       status.handshake_hashes,
+                                       status.client)
+
+            status.client_verify_data = verify_data
 
         finished.create(verify_data)
 

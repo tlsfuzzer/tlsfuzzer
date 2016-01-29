@@ -16,7 +16,7 @@ except ImportError:
 from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         ExpectCertificate, ExpectServerHelloDone, ExpectChangeCipherSpec, \
         ExpectFinished, ExpectAlert, ExpectApplicationData, \
-        ExpectCertificateRequest
+        ExpectCertificateRequest, ExpectServerHello2
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
@@ -211,6 +211,16 @@ class TestExpectServerHello(unittest.TestCase):
 
         with self.assertRaises(AssertionError):
             exp.process(state, msg)
+
+class TestExpectServerHello2(unittest.TestCase):
+    def test___init__(self):
+        exp = ExpectServerHello2()
+
+        self.assertIsNotNone(exp)
+
+        self.assertTrue(exp.is_expect())
+        self.assertFalse(exp.is_command())
+        self.assertFalse(exp.is_generator())
 
 class TestExpectCertificate(unittest.TestCase):
     def test___init__(self):

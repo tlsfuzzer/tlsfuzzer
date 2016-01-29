@@ -5,11 +5,11 @@
 from __future__ import print_function
 
 import socket
-from tlslite.messages import Message, Certificate
+from tlslite.messages import Message, Certificate, RecordHeader2
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.errors import TLSAbruptCloseError
 from tlslite.constants import ContentType, HandshakeType, AlertLevel, \
-        AlertDescription
+        AlertDescription, SSL2HandshakeType
 from .expect import ExpectClose
 
 class ConnectionState(object):
@@ -74,7 +74,7 @@ class ConnectionState(object):
         cert_message = next(certificates)
         return cert_message.certChain.getEndEntityPublicKey()
 
-def guess_response(content_type, data):
+def guess_response(content_type, data, ssl2=False):
     """Guess which kind of message is in the record layer payload"""
     if content_type == ContentType.change_cipher_spec:
         if len(data) != 1:
@@ -89,7 +89,10 @@ def guess_response(content_type, data):
     elif content_type == ContentType.handshake:
         if not data:
             return "Handshake(invalid size)"
-        return "Handshake({0})".format(HandshakeType.toStr(data[0]))
+        if ssl2:
+            return "Handshake({0})".format(SSL2HandshakeType.toStr(data[0]))
+        else:
+            return "Handshake({0})".format(HandshakeType.toStr(data[0]))
     elif content_type == ContentType.application_data:
         return "ApplicationData(len={0})".format(len(data))
     else:
@@ -141,8 +144,11 @@ class Runner(object):
                         # since we're aborting, the user can't clean up
                         self.state.msg_sock.sock.close()
                         raise AssertionError("Unexpected message from peer: " +
-                                             guess_response(msg.contentType,
-                                                            msg.write()))
+                                             guess_response(\
+                                                 msg.contentType,
+                                                 msg.write(),
+                                                 isinstance(header,
+                                                            RecordHeader2)))
 
                     node.process(self.state, msg)
 
