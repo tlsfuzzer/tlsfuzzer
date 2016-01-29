@@ -20,7 +20,8 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         RawMessageGenerator, split_message, PopMessageFromList, \
         FlushMessageList, fuzz_mac, fuzz_padding, ApplicationDataGenerator, \
         CertificateGenerator, CertificateVerifyGenerator, CertificateRequest, \
-        ResetRenegotiationInfo, fuzz_plaintext, Connect
+        ResetRenegotiationInfo, fuzz_plaintext, Connect, \
+        ClientMasterKeyGenerator
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
@@ -341,6 +342,96 @@ class TestChangeCipherSpecGenerator(unittest.TestCase):
         self.assertTrue(state.msg_sock.calcPendingStates.called)
         self.assertTrue(state.msg_sock.changeWriteState.called)
 
+class TestClientMasterKeyGenerator(unittest.TestCase):
+    def test___init__(self):
+        cmk = ClientMasterKeyGenerator()
+
+    def test_generate_with_no_cipher(self):
+        cmk = ClientMasterKeyGenerator()
+
+        with self.assertRaises(NotImplementedError):
+            cmk.generate(None)
+
+    def test_generate(self):
+        cmk = ClientMasterKeyGenerator(
+                cipher=constants.CipherSuite.SSL_CK_DES_192_EDE3_CBC_WITH_MD5)
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        state.get_server_public_key = mock.MagicMock()
+
+        ret = cmk.generate(state)
+        self.assertEqual(ret.cipher,
+                         constants.CipherSuite.SSL_CK_DES_192_EDE3_CBC_WITH_MD5)
+        self.assertEqual(ret.clear_key, bytearray(0))
+        self.assertEqual(ret.encrypted_key,
+                         state.get_server_public_key().encrypt())
+        self.assertEqual(ret.key_argument,
+                         state.msg_sock.calcSSL2PendingStates())
+
+    def test_generate_with_master_key(self):
+        cmk = ClientMasterKeyGenerator(
+                cipher=constants.CipherSuite.SSL_CK_DES_192_EDE3_CBC_WITH_MD5,
+                master_key=bytearray(range(24)))
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        state.get_server_public_key = mock.MagicMock()
+
+        ret = cmk.generate(state)
+
+        state.msg_sock.calcSSL2PendingStates.assert_called_once_with(
+                constants.CipherSuite.SSL_CK_DES_192_EDE3_CBC_WITH_MD5,
+                bytearray(range(24)),
+                bytearray(0),
+                bytearray(0),
+                None)
+
+    def test_generate_with_export_cipher(self):
+        cmk = ClientMasterKeyGenerator(
+                cipher=constants.CipherSuite.SSL_CK_RC2_128_CBC_EXPORT40_WITH_MD5)
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        state.get_server_public_key = mock.MagicMock()
+
+        ret = cmk.generate(state)
+
+        self.assertEqual(len(ret.clear_key), 11)
+
+    def test_generate_with_unknown_cipher(self):
+        cmk = ClientMasterKeyGenerator(cipher=0xffffff)
+        state = ConnectionState()
+
+        with self.assertRaises(AssertionError):
+            cmk.generate(state)
+
+    def test_generate_with_des_cipher(self):
+        cmk = ClientMasterKeyGenerator(
+                cipher=constants.CipherSuite.SSL_CK_DES_64_CBC_WITH_MD5)
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        state.get_server_public_key = mock.MagicMock()
+
+        ret = cmk.generate(state)
+
+        self.assertEqual(ret.encrypted_key,
+                         state.get_server_public_key().encrypt())
+
+    def test_generate_with_session_key(self):
+        cmk = ClientMasterKeyGenerator(
+                cipher=constants.CipherSuite.SSL_CK_DES_192_EDE3_CBC_WITH_MD5)
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        state.get_server_public_key = mock.MagicMock()
+        state.master_secret = bytearray(range(32))
+
+        ret = cmk.generate(state)
+
+        state.msg_sock.calcSSL2PendingStates.assert_called_once_with(
+                constants.CipherSuite.SSL_CK_DES_192_EDE3_CBC_WITH_MD5,
+                bytearray(range(32)),
+                bytearray(0),
+                bytearray(0),
+                None)
+
 class TestCertificateGenerator(unittest.TestCase):
     def test___init__(self):
         certg = CertificateGenerator()
@@ -450,6 +541,18 @@ class TestFinishedGenerator(unittest.TestCase):
         fg.post_send(state)
 
         self.assertFalse(state.resuming)
+
+    def test_generate_with_ssl2(self):
+        fg = FinishedGenerator((0, 2))
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        state.session_id = bytearray(b'abba')
+
+        ret = fg.generate(state)
+
+        self.assertEqual(ret.verify_data, bytearray(b'abba'))
+        state.msg_sock.changeWriteState.assert_called_once_with()
+        state.msg_sock.changeReadState.assert_called_once_with()
 
 class TestResetHandshakeHashes(unittest.TestCase):
     def test___init__(self):

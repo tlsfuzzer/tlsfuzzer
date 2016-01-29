@@ -16,13 +16,15 @@ except ImportError:
 from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         ExpectCertificate, ExpectServerHelloDone, ExpectChangeCipherSpec, \
         ExpectFinished, ExpectAlert, ExpectApplicationData, \
-        ExpectCertificateRequest, ExpectServerKeyExchange
+        ExpectCertificateRequest, ExpectServerKeyExchange, \
+        ExpectServerHello2, ExpectVerify, ExpectSSL2Alert
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
-        SignatureAlgorithm, CipherSuite, CertificateType
+        SignatureAlgorithm, CipherSuite, CertificateType, SSL2HandshakeType, \
+        SSL2ErrorDescription
 from tlslite.messages import Message, ServerHello, CertificateRequest, \
-        ClientHello, Certificate
+        ClientHello, Certificate, ServerHello2, ServerFinished
 from tlslite.extensions import SNIExtension, TLSExtension
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509certchain import X509CertChain, X509
@@ -89,6 +91,14 @@ class TestExpectHandshake(unittest.TestCase):
 
         with self.assertRaises(NotImplementedError):
             exp.process(None, None)
+
+    def test_is_match_with_empty_message(self):
+        exp = ExpectHandshake(ContentType.handshake,
+                              HandshakeType.client_hello)
+
+        ret = exp.is_match(Message(ContentType.handshake, bytearray(0)))
+
+        self.assertFalse(ret)
 
 class TestExpectServerHello(unittest.TestCase):
     def test___init__(self):
@@ -273,6 +283,45 @@ class TestExpectServerHello(unittest.TestCase):
 
         self.assertTrue(state.extended_master_secret)
 
+class TestExpectServerHello2(unittest.TestCase):
+    def test___init__(self):
+        exp = ExpectServerHello2()
+
+        self.assertIsNotNone(exp)
+
+        self.assertTrue(exp.is_expect())
+        self.assertFalse(exp.is_command())
+        self.assertFalse(exp.is_generator())
+
+    def test_process(self):
+        exp = ExpectServerHello2()
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        msg = ServerHello2()
+        msg.session_id_hit = 1
+        msg.session_id = bytearray(b'\x12')
+        msg.certificate = X509().parse(srv_raw_certificate).writeBytes()
+
+        ret = exp.process(state, msg)
+
+        self.assertEqual(state.session_id, msg.session_id)
+
+    def test_process_with_version(self):
+        exp = ExpectServerHello2((2, 0))
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        msg = ServerHello2()
+        msg.session_id_hit = 1
+        msg.session_id = bytearray(b'\x12')
+        msg.server_version = (2, 0)
+        msg.certificate = X509().parse(srv_raw_certificate).writeBytes()
+
+        ret = exp.process(state, msg)
+
+        self.assertEqual(state.session_id, msg.session_id)
+
 class TestExpectCertificate(unittest.TestCase):
     def test___init__(self):
         exp = ExpectCertificate()
@@ -422,6 +471,13 @@ class TestExpectFinished(unittest.TestCase):
         self.assertFalse(exp.is_command())
         self.assertFalse(exp.is_generator())
 
+    def test___init___with_ssl2(self):
+        exp = ExpectFinished(version=(2, 0))
+
+        self.assertIsNotNone(exp)
+        self.assertTrue(exp.is_expect())
+        self.assertEqual(exp.version, (2, 0))
+
     def test_is_match(self):
         exp = ExpectFinished()
 
@@ -456,6 +512,30 @@ class TestExpectFinished(unittest.TestCase):
                       bytearray(b"\xa3;\x9c\xc9\'E\xbc\xf6\xc7\x96\xaf\x7f"))
 
         exp.process(state, msg)
+
+    def test_process_with_ssl2(self):
+        exp = ExpectFinished((2, 0))
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        msg = ServerFinished().create(bytearray(range(12)))
+
+        exp.process(state, msg)
+
+class TestExpectVerify(unittest.TestCase):
+    def test___init__(self):
+        exp = ExpectVerify()
+        self.assertIsNotNone(exp)
+
+        self.assertTrue(exp.is_expect())
+        self.assertFalse(exp.is_command())
+        self.assertFalse(exp.is_generator())
+
+    def test_process(self):
+        exp = ExpectVerify()
+        msg = Message(ContentType.handshake,
+                      bytearray([SSL2HandshakeType.server_verify]))
+
+        exp.process(None, msg)
 
 class TestExpectAlert(unittest.TestCase):
     def test___init__(self):
@@ -540,6 +620,33 @@ class TestExpectAlert(unittest.TestCase):
 
         with self.assertRaises(AssertionError):
             exp.process(state, msg)
+
+class TestExpectSSL2Alert(unittest.TestCase):
+    def test___init__(self):
+        exp = ExpectSSL2Alert()
+
+        self.assertTrue(exp.is_expect())
+        self.assertFalse(exp.is_command())
+        self.assertFalse(exp.is_generator())
+
+    def test_process(self):
+        exp = ExpectSSL2Alert(SSL2ErrorDescription.bad_certificate)
+
+        msg = Message(ContentType.handshake,
+                      bytearray([SSL2HandshakeType.error,
+                                 0x00,
+                                 0x04]))
+        exp.process(None, msg)
+
+    def test_process_with_non_matching_alert(self):
+        exp = ExpectSSL2Alert(SSL2ErrorDescription.bad_certificate)
+        msg = Message(ContentType.handshake,
+                      bytearray([SSL2HandshakeType.error,
+                                 0x00,
+                                 0x01]))
+
+        with self.assertRaises(AssertionError):
+            exp.process(None, msg)
 
 class TestExpectApplicationData(unittest.TestCase):
     def test___init__(self):

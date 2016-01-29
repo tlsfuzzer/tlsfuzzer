@@ -272,3 +272,10 @@ class TestGuessResponse(unittest.TestCase):
 
         self.assertEqual("Message(content_type=250, first_byte=2, len=3)",
                          guess_response(content_type, data))
+
+    def test_guess_response_with_SSL2_hanshake(self):
+        content_type = constants.ContentType.handshake
+        data = bytearray([constants.SSL2HandshakeType.server_hello])
+
+        self.assertEqual("Handshake(server_hello)",
+                         guess_response(content_type, data, ssl2=True))
