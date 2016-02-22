@@ -47,6 +47,10 @@ def main():
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
     node = node.add_child(ExpectAlert())
+    node.child = ExpectClose()
+    # if we're doing TLSv1.0 the server should be doing 1/n-1 splitting
+    node.next_sibling = ExpectApplicationData()
+    node = node.next_sibling
     node.next_sibling = ExpectClose()
 
     conversations["SSLv2 Client Hello"] = conversation
