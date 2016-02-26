@@ -4,6 +4,7 @@
 from __future__ import print_function
 import traceback
 import sys
+import getopt
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
@@ -16,15 +17,39 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType
 
+def help_msg():
+    print("Usage: <script-name> [-h hostname] [-p port]")
+    print(" -h hostname   hostname to connect to, \"localhost\" by default")
+    print(" -p port       port to use for connection, \"4433\" by default")
+    print(" --help        this message")
+
 def main():
     """
     Test if the server supports SSLv2-style Client Hello messages for
     negotiating TLS connections
     """
     conversations = {}
+    host = "localhost"
+    port = 4433
+
+    argv = sys.argv[1:]
+    opts, argv = getopt.getopt(argv, "h:p:", ["help"])
+    for opt, arg in opts:
+        if opt == '-h':
+            host = arg
+        elif opt == '-p':
+            port = int(arg)
+        elif opt == '--help':
+            help_msg()
+            sys.exit(0)
+        else:
+            raise ValueError("Unknown option: {0}".format(opt))
+    if argv:
+        help_msg()
+        raise ValueError("Unknown options: {0}".format(argv))
 
     # instruct RecordLayer to use SSLv2 record layer protocol (0, 2)
-    conversation = Connect("localhost", 4433, version=(0, 2))
+    conversation = Connect(host, port, version=(0, 2))
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
