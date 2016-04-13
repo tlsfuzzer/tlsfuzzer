@@ -3,11 +3,14 @@
 
 """Parsing and processing of received TLS messages"""
 
-from tlslite.constants import ContentType, HandshakeType, CertificateType
+from tlslite.constants import ContentType, HandshakeType, CertificateType,\
+        HashAlgorithm, SignatureAlgorithm, ExtensionType
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
-        ChangeCipherSpec, Finished, Alert, CertificateRequest
+        ChangeCipherSpec, Finished, Alert, CertificateRequest, \
+        ServerKeyExchange, ClientHello
 from tlslite.utils.codec import Parser
 from tlslite.mathtls import calcFinished
+from tlslite.keyexchange import KeyExchange, DHE_RSAKeyExchange
 from .tree import TreeNode
 
 class Expect(TreeNode):
@@ -184,6 +187,71 @@ class ExpectCertificate(ExpectHandshake):
         cert.parse(parser)
 
         state.handshake_messages.append(cert)
+        state.handshake_hashes.update(msg.write())
+
+class ExpectServerKeyExchange(ExpectHandshake):
+    """Processing TLS Handshake protocol Server Key Exchange message"""
+
+    def __init__(self, version=None, cipher_suite=None, valid_sig_algs=None):
+        msg_type = HandshakeType.server_key_exchange
+        super(ExpectServerKeyExchange, self).__init__(ContentType.handshake,
+                                                      msg_type)
+        self.version = version
+        self.cipher_suite = cipher_suite
+        self.valid_sig_algs = valid_sig_algs
+
+    def process(self, state, msg):
+        """Process the Server Key Exchange message"""
+        assert msg.contentType == ContentType.handshake
+        parser = Parser(msg.write())
+        hs_type = parser.get(1)
+        assert hs_type == HandshakeType.server_key_exchange
+
+        if self.version is None:
+            self.version = state.version
+        if self.cipher_suite is None:
+            self.cipher_suite = state.cipher
+        valid_sig_algs = self.valid_sig_algs
+
+        server_key_exchange = ServerKeyExchange(self.cipher_suite,
+                                                self.version)
+        server_key_exchange.parse(parser)
+
+        client_random = state.client_random
+        server_random = state.server_random
+        public_key = state.get_server_public_key()
+        server_hello = state.get_last_message_of_type(ServerHello)
+        if server_hello is None:
+            server_hello = ServerHello
+            server_hello.server_version = state.version
+        if valid_sig_algs is None:
+            # if the value was unset in script, get the advertised value from
+            # Client Hello
+            client_hello = state.get_last_message_of_type(ClientHello)
+            if client_hello is not None:
+                sig_algs_ext = client_hello.getExtension(ExtensionType.
+                                                         signature_algorithms)
+                if sig_algs_ext is not None:
+                    valid_sig_algs = sig_algs_ext.sigalgs
+            if valid_sig_algs is None:
+                # no advertised means support for sha1 only
+                valid_sig_algs = [(HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
+
+        KeyExchange.verifyServerKeyExchange(server_key_exchange,
+                                            public_key,
+                                            client_random,
+                                            server_random,
+                                            valid_sig_algs)
+
+        state.key_exchange = DHE_RSAKeyExchange(self.cipher_suite,
+                                                clientHello=None,
+                                                serverHello=server_hello,
+                                                privateKey=None)
+        state.premaster_secret = state.key_exchange.\
+                                 processServerKeyExchange(public_key,
+                                                          server_key_exchange)
+
+        state.handshake_messages.append(server_key_exchange)
         state.handshake_hashes.update(msg.write())
 
 class ExpectCertificateRequest(ExpectHandshake):
