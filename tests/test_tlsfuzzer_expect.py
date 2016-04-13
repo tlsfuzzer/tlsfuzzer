@@ -16,15 +16,54 @@ except ImportError:
 from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         ExpectCertificate, ExpectServerHelloDone, ExpectChangeCipherSpec, \
         ExpectFinished, ExpectAlert, ExpectApplicationData, \
-        ExpectCertificateRequest
+        ExpectCertificateRequest, ExpectServerKeyExchange
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
-        SignatureAlgorithm
-from tlslite.messages import Message, ServerHello, CertificateRequest
-from tlslite.extensions import SNIExtension
+        SignatureAlgorithm, CipherSuite, CertificateType
+from tlslite.messages import Message, ServerHello, CertificateRequest, \
+        ClientHello, Certificate
+from tlslite.utils.keyfactory import parsePEMKey
+from tlslite.x509certchain import X509CertChain, X509
+from tlslite.extensions import SNIExtension, SignatureAlgorithmsExtension
+from tlslite.keyexchange import DHE_RSAKeyExchange
+from tlslite.errors import TLSIllegalParameterException
 from tlsfuzzer.runner import ConnectionState
 from tlsfuzzer.messages import RenegotiationInfoExtension
+
+srv_raw_key = str(
+    "-----BEGIN RSA PRIVATE KEY-----\n"\
+    "MIICXQIBAAKBgQDRCQR5qRLJX8sy1N4BF1G1fml1vNW5S6o4h3PeWDtg7JEn+jIt\n"\
+    "M/NZekrGv/+3gU9C9ixImJU6U+Tz3kU27qw0X+4lDJAZ8VZgqQTp/MWJ9Dqz2Syy\n"\
+    "yQWUvUNUj90P9mfuyDO5rY/VLIskdBNOzUy0xvXvT99fYQE+QPP7aRgo3QIDAQAB\n"\
+    "AoGAVSLbE8HsyN+fHwDbuo4I1Wa7BRz33xQWLBfe9TvyUzOGm0WnkgmKn3LTacdh\n"\
+    "GxgrdBZXSun6PVtV8I0im5DxyVaNdi33sp+PIkZU386f1VUqcnYnmgsnsUQEBJQu\n"\
+    "fUZmgNM+bfR+Rfli4Mew8lQ0sorZ+d2/5fsM0g80Qhi5M3ECQQDvXeCyrcy0u/HZ\n"\
+    "FNjIloyXaAIvavZ6Lc6gfznCSfHc5YwplOY7dIWp8FRRJcyXkA370l5dJ0EXj5Gx\n"\
+    "udV9QQ43AkEA34+RxjRk4DT7Zo+tbM/Fkoi7jh1/0hFkU5NDHweJeH/mJseiHtsH\n"\
+    "KOcPGtEGBBqT2KNPWVz4Fj19LiUmmjWXiwJBAIBs49O5/+ywMdAAqVblv0S0nweF\n"\
+    "4fwne4cM+5ZMSiH0XsEojGY13EkTEon/N8fRmE8VzV85YmkbtFWgmPR85P0CQQCs\n"\
+    "elWbN10EZZv3+q1wH7RsYzVgZX3yEhz3JcxJKkVzRCnKjYaUi6MweWN76vvbOq4K\n"\
+    "G6Tiawm0Duh/K4ZmvyYVAkBppE5RRQqXiv1KF9bArcAJHvLm0vnHPpf1yIQr5bW6\n"\
+    "njBuL4qcxlaKJVGRXT7yFtj2fj0gv3914jY2suWqp8XJ\n"\
+    "-----END RSA PRIVATE KEY-----\n"\
+    )
+
+srv_raw_certificate = str(
+    "-----BEGIN CERTIFICATE-----\n"\
+    "MIIB9jCCAV+gAwIBAgIJAMyn9DpsTG55MA0GCSqGSIb3DQEBCwUAMBQxEjAQBgNV\n"\
+    "BAMMCWxvY2FsaG9zdDAeFw0xNTAxMjExNDQzMDFaFw0xNTAyMjAxNDQzMDFaMBQx\n"\
+    "EjAQBgNVBAMMCWxvY2FsaG9zdDCBnzANBgkqhkiG9w0BAQEFAAOBjQAwgYkCgYEA\n"\
+    "0QkEeakSyV/LMtTeARdRtX5pdbzVuUuqOIdz3lg7YOyRJ/oyLTPzWXpKxr//t4FP\n"\
+    "QvYsSJiVOlPk895FNu6sNF/uJQyQGfFWYKkE6fzFifQ6s9kssskFlL1DVI/dD/Zn\n"\
+    "7sgzua2P1SyLJHQTTs1MtMb170/fX2EBPkDz+2kYKN0CAwEAAaNQME4wHQYDVR0O\n"\
+    "BBYEFJtvXbRmxRFXYVMOPH/29pXCpGmLMB8GA1UdIwQYMBaAFJtvXbRmxRFXYVMO\n"\
+    "PH/29pXCpGmLMAwGA1UdEwQFMAMBAf8wDQYJKoZIhvcNAQELBQADgYEAkOgC7LP/\n"\
+    "Rd6uJXY28HlD2K+/hMh1C3SRT855ggiCMiwstTHACGgNM+AZNqt6k8nSfXc6k1gw\n"\
+    "5a7SGjzkWzMaZC3ChBeCzt/vIAGlMyXeqTRhjTCdc/ygRv3NPrhUKKsxUYyXRk5v\n"\
+    "g/g6MwxzXfQP3IyFu3a9Jia/P89Z1rQCNRY=\n"\
+    "-----END CERTIFICATE-----\n"\
+    )
 
 class TestExpect(unittest.TestCase):
     def test___init__(self):
@@ -515,6 +554,123 @@ class TestExpectApplicationData(unittest.TestCase):
         self.assertTrue(exp.is_match(msg))
 
         with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
+class TestExpectServerKeyExchange(unittest.TestCase):
+    def test__init__(self):
+        exp = ExpectServerKeyExchange()
+
+        self.assertTrue(exp.is_expect())
+        self.assertFalse(exp.is_command())
+        self.assertFalse(exp.is_generator())
+
+    def test_is_match(self):
+        exp = ExpectServerKeyExchange()
+
+        state = ConnectionState()
+        msg = Message(ContentType.handshake,
+                      bytearray([HandshakeType.server_key_exchange]))
+
+        self.assertTrue(exp.is_match(msg))
+
+    def test_process(self):
+        exp = ExpectServerKeyExchange()
+
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA
+
+        cert = Certificate(CertificateType.x509).\
+                create(X509CertChain([X509().parse(srv_raw_certificate)]))
+
+        private_key = parsePEMKey(srv_raw_key, private=True)
+        client_hello = ClientHello()
+        client_hello.client_version = (3, 3)
+        client_hello.random = bytearray(32)
+        client_hello.extensions = [SignatureAlgorithmsExtension().create(
+            [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)])]
+        state.client_random = client_hello.random
+        state.handshake_messages.append(client_hello)
+        server_hello = ServerHello()
+        server_hello.server_version = (3, 3)
+        server_hello.random = bytearray(32)
+        state.server_random = server_hello.random
+        # server hello is not necessary for the test to work
+        #state.handshake_messages.append(server_hello)
+        state.handshake_messages.append(cert)
+        srv_key_exchange = DHE_RSAKeyExchange(\
+                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                client_hello,
+                server_hello,
+                private_key)
+
+        msg = srv_key_exchange.makeServerKeyExchange('sha256')
+
+        exp.process(state, msg)
+
+    def test_process_with_default_signature_algorithm(self):
+        exp = ExpectServerKeyExchange()
+
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA
+
+        cert = Certificate(CertificateType.x509).\
+                create(X509CertChain([X509().parse(srv_raw_certificate)]))
+
+        private_key = parsePEMKey(srv_raw_key, private=True)
+        client_hello = ClientHello()
+        client_hello.client_version = (3, 3)
+        client_hello.random = bytearray(32)
+        state.client_random = client_hello.random
+        state.handshake_messages.append(client_hello)
+        server_hello = ServerHello()
+        server_hello.server_version = (3, 3)
+        server_hello.random = bytearray(32)
+        state.server_random = server_hello.random
+        # server hello is not necessary for the test to work
+        #state.handshake_messages.append(server_hello)
+        state.handshake_messages.append(cert)
+        srv_key_exchange = DHE_RSAKeyExchange(\
+                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                client_hello,
+                server_hello,
+                private_key)
+
+        msg = srv_key_exchange.makeServerKeyExchange('sha1')
+
+        exp.process(state, msg)
+
+    def test_process_with_not_matching_signature_algorithms(self):
+        exp = ExpectServerKeyExchange(valid_sig_algs=[(HashAlgorithm.sha256,
+                                                       SignatureAlgorithm.rsa)])
+
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA
+
+        cert = Certificate(CertificateType.x509).\
+                create(X509CertChain([X509().parse(srv_raw_certificate)]))
+
+        private_key = parsePEMKey(srv_raw_key, private=True)
+        client_hello = ClientHello()
+        client_hello.client_version = (3, 3)
+        client_hello.random = bytearray(32)
+        state.client_random = client_hello.random
+        state.handshake_messages.append(client_hello)
+        server_hello = ServerHello()
+        server_hello.server_version = (3, 3)
+        server_hello.random = bytearray(32)
+        state.server_random = server_hello.random
+        # server hello is not necessary for the test to work
+        #state.handshake_messages.append(server_hello)
+        state.handshake_messages.append(cert)
+        srv_key_exchange = DHE_RSAKeyExchange(\
+                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                client_hello,
+                server_hello,
+                private_key)
+
+        msg = srv_key_exchange.makeServerKeyExchange('sha1')
+
+        with self.assertRaises(TLSIllegalParameterException):
             exp.process(state, msg)
 
 class TestExpectCertificateRequest(unittest.TestCase):

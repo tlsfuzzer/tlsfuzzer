@@ -45,6 +45,34 @@ class TestConnectionState(unittest.TestCase):
         state.get_server_public_key()
         self.assertTrue(cert_list.getEndEntityPublicKey.called)
 
+    def test_get_last_message_of_type(self):
+        state = ConnectionState()
+        msg = messages.ServerHello()
+        msg.server_version = (3, 1)
+        state.handshake_messages.append(msg)
+
+        msg = messages.ServerHello()
+        msg.server_version = (3, 3)
+        state.handshake_messages.append(msg)
+
+        msg = state.get_last_message_of_type(messages.ServerHello)
+        self.assertEqual(msg.server_version, (3, 3))
+
+    def test_get_last_message_of_type_with_no_messages_of_that_type(self):
+        state = ConnectionState()
+        msg = messages.ServerHello()
+        msg.server_version = (3, 1)
+        state.handshake_messages.append(msg)
+
+        msg = state.get_last_message_of_type(messages.ClientHello)
+        self.assertIsNone(msg)
+
+    def test_get_last_message_of_type_with_no_messages(self):
+        state = ConnectionState()
+
+        msg = state.get_last_message_of_type(messages.ClientHello)
+        self.assertIsNone(msg)
+
 class TestRunner(unittest.TestCase):
     def test___init__(self):
         runner = Runner(None)

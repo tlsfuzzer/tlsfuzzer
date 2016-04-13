@@ -8,7 +8,7 @@ from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         CertificateVerify, CertificateRequest
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
         ExtensionType, CertificateType, ClientCertificateType, HashAlgorithm, \
-        SignatureAlgorithm
+        SignatureAlgorithm, CipherSuite
 from tlslite.extensions import TLSExtension
 from tlslite.messagesocket import MessageSocket
 from tlslite.defragmenter import Defragmenter
@@ -319,19 +319,21 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
             self.client_version = status.client_version
 
         cke = ClientKeyExchange(self.cipher, self.version)
-        premaster_secret = self.premaster_secret
-        assert len(premaster_secret) > 1
+        if self.cipher in CipherSuite.certSuites:
+            assert len(self.premaster_secret) > 1
 
-        premaster_secret[0] = self.client_version[0]
-        premaster_secret[1] = self.client_version[1]
+            self.premaster_secret[0] = self.client_version[0]
+            self.premaster_secret[1] = self.client_version[1]
 
-        status.premaster_secret = premaster_secret
+            status.premaster_secret = self.premaster_secret
 
-        public_key = status.get_server_public_key()
+            public_key = status.get_server_public_key()
 
-        premaster_secret = public_key.encrypt(premaster_secret)
-
-        cke.createRSA(premaster_secret)
+            cke.createRSA(public_key.encrypt(self.premaster_secret))
+        elif self.cipher in CipherSuite.dheCertSuites:
+            cke = status.key_exchange.makeClientKeyExchange()
+        else:
+            raise AssertionError("Unknown cipher/key exchange type")
 
         self.msg = cke
 

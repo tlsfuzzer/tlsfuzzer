@@ -67,12 +67,23 @@ class ConnectionState(object):
         # Whether we are currently resuming a previously negotiated session
         self.resuming = False
 
+        # variable holding the intermediate state for DHE (and similar) key
+        # exchanges
+        self.key_exchange = None
+
     def get_server_public_key(self):
         """Extract server public key from server Certificate message"""
         certificates = (msg for msg in self.handshake_messages if\
                         isinstance(msg, Certificate))
         cert_message = next(certificates)
         return cert_message.certChain.getEndEntityPublicKey()
+
+    def get_last_message_of_type(self, msg_type):
+        """Returns last handshake message of provided type"""
+        for msg in reversed(self.handshake_messages):
+            if isinstance(msg, msg_type):
+                return msg
+        return None
 
 def guess_response(content_type, data):
     """Guess which kind of message is in the record layer payload"""

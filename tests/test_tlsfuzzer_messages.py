@@ -236,6 +236,23 @@ class TestClientKeyExchangeGenerator(unittest.TestCase):
 
         self.assertEqual(decrypt[:2], bytearray([3, 3]))
 
+    def test_generate_with_dhe(self):
+        state = ConnectionState()
+        state.key_exchange = mock.MagicMock()
+
+        cke = ClientKeyExchangeGenerator(
+                cipher=constants.CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA)
+
+        ret = cke.generate(state)
+
+        self.assertIs(ret, state.key_exchange.makeClientKeyExchange())
+
+    def test_generate_with_unknown_cipher(self):
+        state = ConnectionState()
+        cke = ClientKeyExchangeGenerator()
+        with self.assertRaises(AssertionError):
+            cke.generate(state)
+
     def test_post_send(self):
         state = ConnectionState()
         state.get_server_public_key = lambda : self.priv_key
