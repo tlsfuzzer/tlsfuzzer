@@ -226,7 +226,8 @@ class TestClientKeyExchangeGenerator(unittest.TestCase):
     def test_generate(self):
         state = ConnectionState()
         state.get_server_public_key = lambda : self.priv_key
-        cke = ClientKeyExchangeGenerator()
+        cke = ClientKeyExchangeGenerator(
+                cipher=constants.CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA)
 
         ret = cke.generate(state)
 
