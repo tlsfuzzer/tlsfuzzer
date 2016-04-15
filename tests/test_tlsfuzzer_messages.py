@@ -21,7 +21,8 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         FlushMessageList, fuzz_mac, fuzz_padding, ApplicationDataGenerator, \
         CertificateGenerator, CertificateVerifyGenerator, CertificateRequest, \
         ResetRenegotiationInfo, fuzz_plaintext, Connect, \
-        ClientMasterKeyGenerator, TCPBufferingEnable, TCPBufferingDisable
+        ClientMasterKeyGenerator, TCPBufferingEnable, TCPBufferingDisable, \
+        TCPBufferingFlush
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
@@ -116,6 +117,39 @@ class TestTCPBufferingDisable(unittest.TestCase):
         node.process(state)
 
         self.assertFalse(state.msg_sock.sock.buffer_writes)
+
+
+class TestTCPBufferingFlush(unittest.TestCase):
+    def test___init__(self):
+        node = TCPBufferingFlush()
+
+        self.assertIsNotNone(node)
+        self.assertTrue(node.is_command())
+        self.assertFalse(node.is_expect())
+        self.assertFalse(node.is_generator())
+
+    @mock.patch('socket.socket')
+    def test_generate(self, raw_sock):
+        state = ConnectionState()
+        conn = Connect('localhost', 4433)
+        conn.process(state)
+
+        node = TCPBufferingEnable()
+        node.process(state)
+
+        node = RawMessageGenerator(12, bytearray(b'\xff'))
+        msg = node.generate(state)
+        state.msg_sock.sendMessageBlocking(msg)
+
+        raw_sock.return_value.send.assert_not_called()
+        raw_sock.return_value.sendall.assert_not_called()
+
+        flush = TCPBufferingFlush()
+        flush.process(state)
+
+        raw_sock.return_value.sendall.assert_called_once_with(
+                bytearray(b'\x0c\x03\x00\x00\x01\xff'))
+
 
 class TestConnect(unittest.TestCase):
     def test___init__(self):

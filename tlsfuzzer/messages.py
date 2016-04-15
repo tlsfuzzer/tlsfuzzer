@@ -195,6 +195,18 @@ class TCPBufferingDisable(Command):
         state.msg_sock.sock.buffer_writes = False
 
 
+class TCPBufferingFlush(Command):
+    """
+    Send all messages in the buffer
+
+    Does not change the state of buffering
+    """
+
+    def process(self, state):
+        """Flush all messages to TCP socket"""
+        state.msg_sock.sock.flush()
+
+
 class MessageGenerator(TreeNode):
 
     """Message generator objects"""
