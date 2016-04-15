@@ -183,6 +183,18 @@ class TCPBufferingEnable(Command):
         state.msg_sock.sock.buffer_writes = True
 
 
+class TCPBufferingDisable(Command):
+    """
+    Stop buffering all writes on the TCP level
+
+    All messages will be now passed directly to the TCP socket
+    """
+
+    def process(self, state):
+        """Disable TCP buffering"""
+        state.msg_sock.sock.buffer_writes = False
+
+
 class MessageGenerator(TreeNode):
 
     """Message generator objects"""
