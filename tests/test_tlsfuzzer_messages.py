@@ -292,6 +292,15 @@ class TestClientKeyExchangeGenerator(unittest.TestCase):
         with self.assertRaises(AssertionError):
             cke.generate(state)
 
+    def test_generate_DHE_with_bogus_value(self):
+        state = ConnectionState()
+        cke = ClientKeyExchangeGenerator(
+                cipher=constants.CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                dh_Yc=4982)
+
+        ret = cke.generate(state)
+        self.assertEqual(ret.dh_Yc, 4982)
+
     def test_post_send(self):
         state = ConnectionState()
         state.get_server_public_key = lambda : self.priv_key

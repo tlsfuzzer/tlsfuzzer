@@ -302,14 +302,21 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
 
 class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
 
-    """Generator for TLS handshake protocol Client Key Exchange messages"""
+    """
+    Generator for TLS handshake protocol Client Key Exchange messages
 
-    def __init__(self, cipher=None, version=None, client_version=None):
+    @type dh_Yc: int
+    @ivar dh_Yc: Override the sent dh_Yc value to the specified one
+    """
+
+    def __init__(self, cipher=None, version=None, client_version=None,
+                 dh_Yc=None):
         super(ClientKeyExchangeGenerator, self).__init__()
         self.cipher = cipher
         self.version = version
         self.client_version = client_version
         self.premaster_secret = bytearray(48)
+        self.dh_Yc = dh_Yc
 
     def generate(self, status):
         if self.version is None:
@@ -334,7 +341,11 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
 
             cke.createRSA(public_key.encrypt(self.premaster_secret))
         elif self.cipher in CipherSuite.dheCertSuites:
-            cke = status.key_exchange.makeClientKeyExchange()
+            if self.dh_Yc is not None:
+                cke = ClientKeyExchange(self.cipher,
+                                        self.version).createDH(self.dh_Yc)
+            else:
+                cke = status.key_exchange.makeClientKeyExchange()
         else:
             raise AssertionError("Unknown cipher/key exchange type")
 
