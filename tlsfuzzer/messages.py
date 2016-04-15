@@ -170,6 +170,19 @@ class SetMaxRecordSize(Command):
         else:
             state.msg_sock.recordSize = self.max_size
 
+
+class TCPBufferingEnable(Command):
+    """
+    Start buffering all writes on the TCP level of connection
+
+    You will need to call an explicit flush to send the messages
+    """
+
+    def process(self, state):
+        """Enable TCP buffering"""
+        state.msg_sock.sock.buffer_writes = True
+
+
 class MessageGenerator(TreeNode):
 
     """Message generator objects"""

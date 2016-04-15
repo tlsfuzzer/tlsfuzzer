@@ -21,7 +21,7 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         FlushMessageList, fuzz_mac, fuzz_padding, ApplicationDataGenerator, \
         CertificateGenerator, CertificateVerifyGenerator, CertificateRequest, \
         ResetRenegotiationInfo, fuzz_plaintext, Connect, \
-        ClientMasterKeyGenerator
+        ClientMasterKeyGenerator, TCPBufferingEnable
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
@@ -67,6 +67,28 @@ class TestClose(unittest.TestCase):
         close.process(state)
 
         state.msg_sock.sock.close.called_once_with()
+
+class TestTCPBufferingEnable(unittest.TestCase):
+    def test___init__(self):
+        node = TCPBufferingEnable()
+
+        self.assertIsNotNone(node)
+        self.assertTrue(node.is_command())
+        self.assertFalse(node.is_expect())
+        self.assertFalse(node.is_generator())
+
+    @mock.patch('socket.socket')
+    def test_generate(self, raw_sock):
+        state = ConnectionState()
+        conn = Connect('localhost', 4433)
+        conn.process(state)
+
+        self.assertFalse(state.msg_sock.sock.buffer_writes)
+
+        node = TCPBufferingEnable()
+        node.process(state)
+
+        self.assertTrue(state.msg_sock.sock.buffer_writes)
 
 class TestConnect(unittest.TestCase):
     def test___init__(self):
