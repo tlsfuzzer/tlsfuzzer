@@ -616,6 +616,43 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
                          (constants.HashAlgorithm.sha256,
                           constants.SignatureAlgorithm.rsa))
 
+    def test_generate_with_mismatched_alg(self):
+        priv_key = generateRSAKey(1024)
+        cert_ver_g = CertificateVerifyGenerator(priv_key,
+                                                sig_alg=(
+                                                    constants.HashAlgorithm.md5,
+                                                    constants.SignatureAlgorithm.rsa))
+        state = ConnectionState()
+        state.version = (3, 3)
+        req = CertificateRequest((3, 3)).create([], [],
+            [(constants.HashAlgorithm.sha256,
+              constants.SignatureAlgorithm.rsa),
+             (constants.HashAlgorithm.sha1,
+              constants.SignatureAlgorithm.rsa)])
+        state.handshake_messages = [req]
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertEqual(len(msg.signature), 128)
+        self.assertEqual(msg.signatureAlgorithm,
+                         (constants.HashAlgorithm.sha256,
+                          constants.SignatureAlgorithm.rsa))
+
+    def test_generate_with_mismatched_version(self):
+        priv_key = generateRSAKey(1024)
+        cert_ver_g = CertificateVerifyGenerator(priv_key, sig_version=(3, 0))
+        state = ConnectionState()
+        state.version = (3, 3)
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertEqual(len(msg.signature), 128)
+        self.assertEqual(msg.signatureAlgorithm,
+                         (constants.HashAlgorithm.sha1,
+                          constants.SignatureAlgorithm.rsa))
+
 class TestFinishedGenerator(unittest.TestCase):
     def test___init__(self):
         fg = FinishedGenerator()

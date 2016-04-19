@@ -484,18 +484,33 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
     @type msg_version: touple of two integers
     @ivar msg_version: protocol version that the message is to use,
       default is taken from current connection state
+
+    @type sig_version: touple of two integers
+    @ivar sig_version: protocol version to use for calculating the verify bytes
+      for the signature (overrides msg_version, but just for the signature).
+      Equal to msg_version by default.
+
+    @type sig_alg: touple of two integers
+    @ivar sig_alg: hash and signature algorithm to be used for creating the
+      signature in the message. Equal to msg_alg by default. Requires the
+      protocol of the signature to be set to at least TLSv1.2 to be effective.
     """
 
-    def __init__(self, private_key=None, msg_version=None, msg_alg=None):
+    def __init__(self, private_key=None, msg_version=None, msg_alg=None,
+                 sig_version=None, sig_alg=None):
         super(CertificateVerifyGenerator, self).__init__()
         self.private_key = private_key
         self.msg_alg = msg_alg
         self.msg_version = msg_version
+        self.sig_version = sig_version
+        self.sig_alg = sig_alg
 
     def generate(self, status):
         """Create a CertificateVerify message"""
         if self.msg_version is None:
             self.msg_version = status.version
+        if self.sig_version is None:
+            self.sig_version = self.msg_version
         if self.msg_alg is None and self.msg_version >= (3, 3):
             cert_req = next((msg for msg in status.handshake_messages[::-1]
                              if isinstance(msg, CertificateRequest)), None)
@@ -507,13 +522,15 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             if self.msg_alg is None:
                 self.msg_alg = (HashAlgorithm.sha1,
                                 SignatureAlgorithm.rsa)
+        if self.sig_alg is None:
+            self.sig_alg = self.msg_alg
         # TODO: generate a random key if none provided
         if self.private_key is None:
             raise ValueError("Can't create a signature without private key!")
 
-        verify_bytes = KeyExchange.calcVerifyBytes(self.msg_version,
+        verify_bytes = KeyExchange.calcVerifyBytes(self.sig_version,
                                                    status.handshake_hashes,
-                                                   self.msg_alg,
+                                                   self.sig_alg,
                                                    status.premaster_secret,
                                                    status.client_random,
                                                    status.server_random)
