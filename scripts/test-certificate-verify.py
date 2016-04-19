@@ -104,7 +104,7 @@ def main():
     node = node.add_child(ClientKeyExchangeGenerator())
     sig_type = (HashAlgorithm.md5, SignatureAlgorithm.rsa)
     node = node.add_child(CertificateVerifyGenerator(private_key,
-                                                     sig_type=sig_type
+                                                     msg_alg=sig_type
                                                      ))
     # the other side can close connection right away, add options to handle it
     node.next_sibling = ExpectClose()

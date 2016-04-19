@@ -55,36 +55,36 @@ def main():
         raise ValueError("Specify certificate file using -c")
 
     for md in ['sha1', 'sha256', 'sha384', 'sha512']:
-	    conversation = Connect(hostname, port)
-	    node = conversation
-	    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-		       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-	    ext = {ExtensionType.signature_algorithms :
-		   SignatureAlgorithmsExtension().create([
-		     (getattr(HashAlgorithm, x),
-		      SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-							'sha224', 'sha1', 'md5']])}
-	    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-	    node = node.add_child(ExpectServerHello(version=(3, 3)))
-	    node = node.add_child(ExpectCertificate())
-	    node = node.add_child(ExpectCertificateRequest())
-	    node = node.add_child(ExpectServerHelloDone())
-	    node = node.add_child(CertificateGenerator(X509CertChain([cert])))
-	    node = node.add_child(ClientKeyExchangeGenerator())
-	    node = node.add_child(CertificateVerifyGenerator(
-		private_key, sig_type=(getattr(HashAlgorithm, md), SignatureAlgorithm.rsa)))
-	    node = node.add_child(ChangeCipherSpecGenerator())
-	    node = node.add_child(FinishedGenerator())
-	    node = node.add_child(ExpectChangeCipherSpec())
-	    node = node.add_child(ExpectFinished())
-	    node = node.add_child(ApplicationDataGenerator(b"GET / HTTP/1.0\n\n"))
-	    node = node.add_child(ExpectApplicationData())
-	    node = node.add_child(AlertGenerator(AlertDescription.close_notify))
-	    node = node.add_child(ExpectClose())
-	    node.next_sibling = ExpectAlert()
-	    node.next_sibling.add_child(ExpectClose())
+        conversation = Connect(hostname, port)
+        node = conversation
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        ext = {ExtensionType.signature_algorithms :
+               SignatureAlgorithmsExtension().create([
+                    (getattr(HashAlgorithm, x),
+                     SignatureAlgorithm.rsa) for x in ['sha512', 'sha384',
+                            'sha256', 'sha224', 'sha1', 'md5']])}
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+        node = node.add_child(ExpectServerHello(version=(3, 3)))
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectCertificateRequest())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(CertificateGenerator(X509CertChain([cert])))
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(CertificateVerifyGenerator(
+            private_key, msg_alg=(getattr(HashAlgorithm, md), SignatureAlgorithm.rsa)))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(ApplicationDataGenerator(b"GET / HTTP/1.0\n\n"))
+        node = node.add_child(ExpectApplicationData())
+        node = node.add_child(AlertGenerator(AlertDescription.close_notify))
+        node = node.add_child(ExpectClose())
+        node.next_sibling = ExpectAlert()
+        node.next_sibling.add_child(ExpectClose())
 
-	    conversations["check " + md] = conversation
+        conversations["check " + md] = conversation
 
     # run the conversation
     good = 0
