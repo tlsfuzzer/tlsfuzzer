@@ -119,11 +119,82 @@ def main():
 
     conversations["MD5 forced"] = conversation
 
+    # place a real MD5 signature in CertificateVerify, but indicate a normal
+    # (requested by server) in the outside structure - tests if the server
+    # parses the HashInfo structure from signature or if it compares it with
+    # expected value
+    conversation = Connect(hostname, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {ExtensionType.signature_algorithms :
+           SignatureAlgorithmsExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1', 'md5']])}
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello(version=(3, 3)))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateRequest())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(CertificateGenerator(X509CertChain([cert])))
+    node = node.add_child(ClientKeyExchangeGenerator())
+    sig_type = (HashAlgorithm.md5, SignatureAlgorithm.rsa)
+    node = node.add_child(CertificateVerifyGenerator(private_key,
+                                                     sig_alg=sig_type
+                                                     ))
+    # the other side can close connection right away, add options to handle it
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node.next_sibling = ExpectClose()
+    node = node.add_child(FinishedGenerator())
+    node.next_sibling = ExpectClose()
+    # we expect closure or Alert and then closure of socket
+    node = node.add_child(ExpectClose())
+    node.next_sibling = ExpectAlert()
+    node.next_sibling.add_child(ExpectClose())
+
+    conversations["MD5 forced in HashInfo"] = conversation
+
+    # make invalid signature in CertificateVerify (TLSv1.1 style)
+    conversation = Connect(hostname, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {ExtensionType.signature_algorithms :
+           SignatureAlgorithmsExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1', 'md5']])}
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello(version=(3, 3)))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateRequest())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(CertificateGenerator(X509CertChain([cert])))
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(CertificateVerifyGenerator(private_key,
+                                                     sig_version=(3, 2)
+                                                     ))
+    # the other side can close connection right away, add options to handle it
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node.next_sibling = ExpectClose()
+    node = node.add_child(FinishedGenerator())
+    node.next_sibling = ExpectClose()
+    # we expect closure or Alert and then closure of socket
+    node = node.add_child(ExpectClose())
+    node.next_sibling = ExpectAlert()
+    node.next_sibling.add_child(ExpectClose())
+
+    conversations["TLSv1.1 signature in TLSv1.2 Certificate Verify"] = \
+            conversation
+
     # run the conversation
     good = 0
     bad = 0
 
-    print("MD5 CertificateVerify (CVE-2015-7575 aka SLOTH) test version 4")
+    print("MD5 CertificateVerify (CVE-2015-7575 aka SLOTH) test version 5")
 
     for conversation_name in conversations:
         conversation = conversations[conversation_name]
