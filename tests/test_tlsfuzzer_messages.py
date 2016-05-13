@@ -20,7 +20,7 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         RawMessageGenerator, split_message, PopMessageFromList, \
         FlushMessageList, fuzz_mac, fuzz_padding, ApplicationDataGenerator, \
         CertificateGenerator, CertificateVerifyGenerator, CertificateRequest, \
-        ResetRenegotiationInfo
+        ResetRenegotiationInfo, fuzz_plaintext
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
@@ -870,6 +870,78 @@ class TestFuzzPadding(unittest.TestCase):
         last_block = bytearray(
                 b'\\Y\x90j\x8a\xe7\x82\xf3=\xceE\xe3\x0f\x85\x82\t')
         self.assertEqual(self.socket.sent[0], unchanged[:-16] + last_block)
+
+class TestFuzzPlaintext(unittest.TestCase):
+    def setUp(self):
+        self.state = ConnectionState()
+        self.socket = MockSocket(bytearray())
+
+        defragger = defragmenter.Defragmenter()
+        defragger.addStaticSize(constants.ContentType.alert, 2)
+        defragger.addStaticSize(constants.ContentType.change_cipher_spec, 1)
+        defragger.addDynamicSize(constants.ContentType.handshake, 1, 3)
+        self.state.msg_sock = messagesocket.MessageSocket(self.socket,
+                                                          defragger)
+        self.state.msg_sock.version = (3, 0)
+        self.state.msg_sock.calcPendingStates(constants.CipherSuite.\
+                                                TLS_RSA_WITH_AES_128_CBC_SHA,
+                                              bytearray(48),
+                                              bytearray(32),
+                                              bytearray(32),
+                                              None)
+        self.state.msg_sock.changeWriteState()
+
+    def test_xors(self):
+        # packet with no modifications
+        unchanged = bytearray(
+                b'\x17\x03\x00\x00 ' # record layer header
+                b'\xa1\xbb\x9f&Z\x1cb\xb3\xf3U\x11\xbb\xf4\xd6\x91\xf3'
+                b'\xbf4\xd0\x86\x99\xb9\xd9Z\xc4_\x8db\xa7\xda\x1a\xea')
+        data_gen = fuzz_plaintext(ApplicationDataGenerator(b"text"),
+                                  xors={-2:0xff})
+
+        data_msg = data_gen.generate(self.state)
+        self.state.msg_sock.sendMessageBlocking(data_msg)
+        self.assertEqual(len(self.socket.sent), 1)
+        self.assertEqual(len(self.socket.sent[0]),
+                         1 +        # record layer type
+                         2 +        # protocol version
+                         2 +        # record payload length field
+                         4 +        # length of Application Data
+                         160 // 8 + # length of HMAC
+                         1 +        # size of length tag of padding (0)
+                         7)         # minimal length of padding
+        last_block = bytearray(
+                b'\x14\xa3\x14\xd2V+\x90\x08t\x81A%\xe5\xd5\xf4\x10')
+        self.assertEqual(self.socket.sent[0], unchanged[:-16] + last_block)
+
+    def test_substitutions(self):
+        # packet with no modifications
+        unchanged = bytearray(
+                b'\x17\x03\x00\x00 ' # record layer header
+                b'\xa1\xbb\x9f&Z\x1cb\xb3\xf3U\x11\xbb\xf4\xd6\x91\xf3'
+                b'\xbf4\xd0\x86\x99\xb9\xd9Z\xc4_\x8db\xa7\xda\x1a\xea')
+        data_gen = fuzz_plaintext(ApplicationDataGenerator(b"text"),
+                                  substitutions={0:0xff})
+
+        data_msg = data_gen.generate(self.state)
+        self.state.msg_sock.sendMessageBlocking(data_msg)
+        self.assertEqual(len(self.socket.sent), 1)
+        self.assertEqual(len(self.socket.sent[0]),
+                         1 +        # record layer type
+                         2 +        # protocol version
+                         2 +        # record payload length field
+                         4 +        # length of Application Data
+                         160 // 8 + # length of HMAC
+                         1 +        # size of length tag of padding (0)
+                         7)         # minimal length of padding
+        # since we are doing the substitution on a CBC cipher in first block,
+        # all subsequent blocks ciphertext is different too
+        expected = bytearray(
+                b'\xc0\\ba\x7f}Q\xe0\xa6\xc27P\xd7U\xdf\xf9'
+                b'n\x97\xdf_\xe2\xef,X\x9b\rv[\x1c\x83\x1e\xbd')
+        self.assertEqual(self.socket.sent[0][:5], unchanged[:5])
+        self.assertEqual(self.socket.sent[0][5:], expected)
 
 class TestSplitMessage(unittest.TestCase):
     def test_split_to_two(self):
