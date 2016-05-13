@@ -668,6 +668,51 @@ def fuzz_padding(generator, min_length=None, substitutions=None, xors=None):
 
     return generator
 
+def fuzz_plaintext(generator, substitutions=None, xors=None):
+    """
+    Change arbitrary bytes of the plaintext right before encryption.
+
+    Get access to all data before encryption, including the IV, MAC and
+    padding.
+
+    Note: works only with CBC ciphers. in EtM mode will not include MAC.
+
+    substitutions and xors are dictionaries that specify the values to which
+    the plaintext should be set, note that the "-1" position is the byte with
+    length of padding while "-2" is the last byte of padding (if padding
+    has non-zero length)
+    """
+    def new_generate(state, self=generator,
+                     old_generate=generator.generate,
+                     substitutions=substitutions,
+                     xors=xors):
+        """Monkey patch to modify padding behaviour"""
+        msg = old_generate(state)
+
+        self.old_add_padding = state.msg_sock.addPadding
+
+        def new_add_padding(data,
+                            old_add_padding=self.old_add_padding,
+                            substitutions=substitutions,
+                            xors=xors):
+            """Monkey patch the padding creating method"""
+            data = old_add_padding(data)
+
+            data = substitute_and_xor(data, substitutions, xors)
+
+            return data
+
+        state.msg_sock.addPadding = new_add_padding
+
+        return msg
+
+    generator.generate = new_generate
+
+    post_send_msg_sock_restore(generator, 'addPadding', 'old_add_padding')
+
+    return generator
+
+
 def split_message(generator, fragment_list, size):
     """
     Split a given message type to multiple messages
