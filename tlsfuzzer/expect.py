@@ -10,6 +10,7 @@ from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ServerKeyExchange, ClientHello
 from tlslite.utils.codec import Parser
 from tlslite.mathtls import calcFinished
+from .handshake_helpers import calc_pending_states
 from tlslite.keyexchange import KeyExchange, DHE_RSAKeyExchange
 from .tree import TreeNode
 
@@ -151,6 +152,9 @@ class ExpectServerHello(ExpectHandshake):
         state.handshake_messages.append(srv_hello)
         state.handshake_hashes.update(msg.write())
 
+        # Reset value of the session-wide settings
+        state.extended_master_secret = False
+
         # check if the message has expected values
         if self.extensions is not None:
             for ext_id in self.extensions:
@@ -159,6 +163,8 @@ class ExpectServerHello(ExpectHandshake):
                 # run extension-specific checker if present
                 if self.extensions[ext_id] is not None:
                     self.extensions[ext_id](state, ext)
+                if ext_id == ExtensionType.extended_master_secret:
+                    state.extended_master_secret = True
             # not supporting any extensions is valid
             if srv_hello.extensions is not None:
                 for ext_id in (ext.extType for ext in srv_hello.extensions):
@@ -327,11 +333,7 @@ class ExpectChangeCipherSpec(Expect):
         # TOOD: check if it's correct
 
         if state.resuming:
-            state.msg_sock.calcPendingStates(state.cipher,
-                                             state.master_secret,
-                                             state.client_random,
-                                             state.server_random,
-                                             None)
+            calc_pending_states(state)
 
         state.msg_sock.changeReadState()
 
