@@ -49,6 +49,34 @@ def main():
 
     conversations["sanity"] = conversation
 
+    # check if server works with SHA384 PRF ciphersuite
+    conversation = Connect("localhost", 4433)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384]
+    node = node.add_child(ClientHelloGenerator(
+        ciphers,
+        extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectServerHello(
+        extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    if http:
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\n")))
+        node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    node.add_child(Close())
+
+    conversations["sanity sha384 prf"] = conversation
+
     # check if server works at all (TLSv1.1)
     conversation = Connect("localhost", 4433)
     node = conversation
@@ -108,6 +136,36 @@ def main():
     node.add_child(Close())
 
     conversations["extended master secret"] = conversation
+
+    # check if server supports extended master secret with SHA384 PRF
+    conversation = Connect("localhost", 4433)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384]
+    node = node.add_child(ClientHelloGenerator(
+        ciphers,
+        extensions={ExtensionType.renegotiation_info:None,
+                    ExtensionType.extended_master_secret:None}))
+    node = node.add_child(ExpectServerHello(
+        extensions={ExtensionType.renegotiation_info:None,
+                    ExtensionType.extended_master_secret:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    if http:
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\n")))
+        node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    node.add_child(Close())
+
+    conversations["extended master secret w/SHA384 PRF"] = conversation
 
     # check if server supports extended master secret
     conversation = Connect("localhost", 4433)
@@ -215,6 +273,60 @@ def main():
     node.add_child(Close())
 
     conversations["EMS with session resume"] = conversation
+
+    # check if server uses EMS for resumed connections and SHA384 PRF
+    conversation = Connect("localhost", 4433)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384]
+    node = node.add_child(ClientHelloGenerator(
+        ciphers,
+        extensions={ExtensionType.renegotiation_info:None,
+                    ExtensionType.extended_master_secret:None}))
+    node = node.add_child(ExpectServerHello(
+        extensions={ExtensionType.renegotiation_info:None,
+                    ExtensionType.extended_master_secret:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    close = ExpectClose()
+    node.next_sibling = close
+    node = node.add_child(ExpectClose())
+    node = node.add_child(Close())
+
+    node = node.add_child(Connect("localhost", 4433))
+    close.add_child(node)
+    node = node.add_child(ResetHandshakeHashes())
+    node = node.add_child(ResetRenegotiationInfo())
+    node = node.add_child(ClientHelloGenerator(
+        ciphers,
+        extensions={ExtensionType.renegotiation_info:None,
+                    ExtensionType.extended_master_secret:None}))
+    node = node.add_child(ExpectServerHello(
+        extensions={ExtensionType.renegotiation_info:None,
+                    ExtensionType.extended_master_secret:None},
+        resume=True))
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    if http:
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\n")))
+        node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    node.add_child(Close())
+
+    conversations["EMS with session resume and SHA384 PRF"] = conversation
 
     # check if server aborts session resume without EMS extension
     conversation = Connect("localhost", 4433)
