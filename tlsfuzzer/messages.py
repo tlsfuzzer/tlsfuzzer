@@ -19,6 +19,7 @@ from tlslite.handshakehashes import HandshakeHashes
 from tlslite.utils.codec import Writer
 from tlslite.utils.cryptomath import getRandomBytes
 from tlslite.keyexchange import KeyExchange
+from tlslite.bufferedsocket import BufferedSocket
 from .handshake_helpers import calc_pending_states
 from .tree import TreeNode
 import socket
@@ -100,6 +101,9 @@ class Connect(Command):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(5)
         sock.connect((self.hostname, self.port))
+
+        # allow for later buffering of writes to the socket
+        sock = BufferedSocket(sock)
 
         defragmenter = Defragmenter()
         defragmenter.addStaticSize(ContentType.alert, 2)

@@ -34,6 +34,24 @@ from tests.mocksock import MockSocket
 from tlslite.utils.keyfactory import generateRSAKey
 import socket
 
+class TestConnect(unittest.TestCase):
+    def test___init__(self):
+        node = Connect(None, None)
+        self.assertIsNotNone(node)
+
+    @mock.patch('socket.socket')
+    def test_process(self, raw_sock):
+        state = ConnectionState()
+        self.assertIsNone(state.msg_sock)
+
+        node = Connect('localhost', 4433)
+
+        node.process(state)
+
+        raw_sock.assert_called_once_with(socket.AF_INET, socket.SOCK_STREAM)
+        raw_sock.return_value.connect.assert_called_once_with(('localhost',
+                                                               4433))
+        self.assertIsNotNone(state.msg_sock)
 
 class TestClose(unittest.TestCase):
     def test___init__(self):
@@ -71,7 +89,7 @@ class TestConnect(unittest.TestCase):
         mock_sock.assert_called_once_with(socket.AF_INET, socket.SOCK_STREAM)
         instance = mock_sock.return_value
         instance.connect.assert_called_once_with((1, 2))
-        self.assertIs(state.msg_sock.sock, instance)
+        self.assertIs(state.msg_sock.sock.socket, instance)
 
     @mock.patch('socket.socket')
     def test_process_with_SSLv2(self, mock_sock):
@@ -85,7 +103,7 @@ class TestConnect(unittest.TestCase):
         mock_sock.assert_called_once_with(socket.AF_INET, socket.SOCK_STREAM)
         instance = mock_sock.return_value
         instance.connect.assert_called_once_with((1, 2))
-        self.assertIs(state.msg_sock.sock, instance)
+        self.assertIs(state.msg_sock.sock.socket, instance)
 
 class TestRawMessageGenerator(unittest.TestCase):
     def test___init__(self):
