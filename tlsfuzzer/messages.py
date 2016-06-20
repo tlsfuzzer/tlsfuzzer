@@ -86,14 +86,12 @@ class Connect(Command):
 
     """Object used to connect to a TCP server"""
 
-    def __init__(self, hostname, port):
+    def __init__(self, hostname, port, version=(3, 0)):
         """Provide minimal settings needed to connect to other peer"""
         super(Connect, self).__init__()
         self.hostname = hostname
         self.port = port
-        # note that this is just the default record layer message,
-        # changed to version from server hello as soon as it is received
-        self.version = (3, 0)
+        self.version = version
 
     def process(self, state):
         """Connect to a server"""
@@ -237,7 +235,7 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
     """Generator for TLS handshake protocol Client Hello messages"""
 
     def __init__(self, ciphers=None, extensions=None, version=None,
-                 session_id=None, random=None, compression=None):
+                 session_id=None, random=None, compression=None, ssl2=False):
         super(ClientHelloGenerator, self).__init__()
         if ciphers is None:
             ciphers = []
@@ -251,6 +249,7 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
         self.session_id = session_id
         self.random = random
         self.compression = compression
+        self.ssl2 = ssl2
 
     def _generate_extensions(self, state):
         """Convert extension generators to extension objects"""
@@ -287,11 +286,11 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
         if self.extensions is not None:
             extensions = self._generate_extensions(state)
 
-        clnt_hello = ClientHello().create(self.version,
-                                          state.client_random,
-                                          self.session_id,
-                                          self.ciphers,
-                                          extensions=extensions)
+        clnt_hello = ClientHello(self.ssl2).create(self.version,
+                                                   state.client_random,
+                                                   self.session_id,
+                                                   self.ciphers,
+                                                   extensions=extensions)
         clnt_hello.compression_methods = self.compression
         state.client_version = self.version
 
