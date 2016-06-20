@@ -1,9 +1,24 @@
-# Save as .codeclimate.yml (note leading .) in project root directory
-languages:
-  Ruby: true
-  JavaScript: true
-  PHP: true
-  Python: true
+engines:
+  radon:
+    enabled: true
+  pep8:
+    enabled: true
+  duplication:
+    enabled: true
+    config:
+      languages:
+      - python
+  fixme:
+    enabled: true
+    checks:
+      bug:
+        enabled: true
+  markdownlint:
+    enabled: true
+ratings:
+  paths:
+  - "tlsfuzzer/**"
+  - "**.py"
 exclude_paths:
  - "tests/*"
  - "scripts/*"
