@@ -19,6 +19,7 @@ from tlslite.handshakehashes import HandshakeHashes
 from tlslite.utils.codec import Writer
 from tlslite.utils.cryptomath import getRandomBytes
 from tlslite.keyexchange import KeyExchange
+from tlslite.bufferedsocket import BufferedSocket
 from .handshake_helpers import calc_pending_states
 from .tree import TreeNode
 import socket
@@ -101,6 +102,9 @@ class Connect(Command):
         sock.settimeout(5)
         sock.connect((self.hostname, self.port))
 
+        # allow for later buffering of writes to the socket
+        sock = BufferedSocket(sock)
+
         defragmenter = Defragmenter()
         defragmenter.addStaticSize(ContentType.alert, 2)
         defragmenter.addStaticSize(ContentType.change_cipher_spec, 1)
@@ -165,6 +169,43 @@ class SetMaxRecordSize(Command):
             state.msg_sock.recordSize = 2**14
         else:
             state.msg_sock.recordSize = self.max_size
+
+
+class TCPBufferingEnable(Command):
+    """
+    Start buffering all writes on the TCP level of connection
+
+    You will need to call an explicit flush to send the messages
+    """
+
+    def process(self, state):
+        """Enable TCP buffering"""
+        state.msg_sock.sock.buffer_writes = True
+
+
+class TCPBufferingDisable(Command):
+    """
+    Stop buffering all writes on the TCP level
+
+    All messages will be now passed directly to the TCP socket
+    """
+
+    def process(self, state):
+        """Disable TCP buffering"""
+        state.msg_sock.sock.buffer_writes = False
+
+
+class TCPBufferingFlush(Command):
+    """
+    Send all messages in the buffer
+
+    Does not change the state of buffering
+    """
+
+    def process(self, state):
+        """Flush all messages to TCP socket"""
+        state.msg_sock.sock.flush()
+
 
 class MessageGenerator(TreeNode):
 
@@ -302,14 +343,21 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
 
 class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
 
-    """Generator for TLS handshake protocol Client Key Exchange messages"""
+    """
+    Generator for TLS handshake protocol Client Key Exchange messages
 
-    def __init__(self, cipher=None, version=None, client_version=None):
+    @type dh_Yc: int
+    @ivar dh_Yc: Override the sent dh_Yc value to the specified one
+    """
+
+    def __init__(self, cipher=None, version=None, client_version=None,
+                 dh_Yc=None):
         super(ClientKeyExchangeGenerator, self).__init__()
         self.cipher = cipher
         self.version = version
         self.client_version = client_version
         self.premaster_secret = bytearray(48)
+        self.dh_Yc = dh_Yc
 
     def generate(self, status):
         if self.version is None:
@@ -334,7 +382,11 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
 
             cke.createRSA(public_key.encrypt(self.premaster_secret))
         elif self.cipher in CipherSuite.dheCertSuites:
-            cke = status.key_exchange.makeClientKeyExchange()
+            if self.dh_Yc is not None:
+                cke = ClientKeyExchange(self.cipher,
+                                        self.version).createDH(self.dh_Yc)
+            else:
+                cke = status.key_exchange.makeClientKeyExchange()
         else:
             raise AssertionError("Unknown cipher/key exchange type")
 
