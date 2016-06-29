@@ -126,7 +126,7 @@ def main():
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
 
-    conversations["high record version (3, 254), very high protocol version"] = conversation
+    conversations["high record version (3, 254), very high protocol version (254, 254)"] = conversation
 
     good = 0
     bad = 0
