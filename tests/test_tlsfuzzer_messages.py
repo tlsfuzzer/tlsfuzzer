@@ -22,7 +22,7 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         CertificateGenerator, CertificateVerifyGenerator, CertificateRequest, \
         ResetRenegotiationInfo, fuzz_plaintext, Connect, \
         ClientMasterKeyGenerator, TCPBufferingEnable, TCPBufferingDisable, \
-        TCPBufferingFlush, fuzz_encrypted_message
+        TCPBufferingFlush, fuzz_encrypted_message, fuzz_pkcs1_padding
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
@@ -1370,3 +1370,39 @@ class TestFlushMessageList(unittest.TestCase):
 
         with self.assertRaises(AssertionError):
             msg_gen.generate(None)
+
+class TestFuzzPKCS1Padding(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.key = generateRSAKey(1024)
+        cls.key.old_addPKCS1Padding = cls.key._addPKCS1Padding
+
+    def setUp(self):
+        self.key._addPKCS1Padding = self.key.old_addPKCS1Padding
+
+    def test_with_no_substitutions(self):
+        fuzz_pkcs1_padding(self.key)
+        for_signing = bytearray(range(0, 16))
+        data = self.key._addPKCS1Padding(for_signing, 1)
+
+        expected = bytearray([0, 1] + [0xff] * 109 + [0] + list(range(0, 16)))
+        self.assertEqual(len(data), len(expected))
+        self.assertEqual(data, expected)
+
+    def test_with_substitutions(self):
+        fuzz_pkcs1_padding(self.key, substitutions={1: 2})
+        for_signing = bytearray(range(0, 16))
+        data = self.key._addPKCS1Padding(for_signing, 1)
+
+        expected = bytearray([0, 2] + [0xff] * 109 + [0] + list(range(0, 16)))
+        self.assertEqual(len(data), len(expected))
+        self.assertEqual(data, expected)
+
+    def test_with_xors(self):
+        fuzz_pkcs1_padding(self.key, xors={-1: 0x0f})
+        for_signing = bytearray(range(1, 17))
+        data = self.key._addPKCS1Padding(for_signing, 1)
+
+        expected = bytearray([0, 1] + [0xff] * 109 + [0x0f] + list(range(1, 17)))
+        self.assertEqual(len(data), len(expected))
+        self.assertEqual(data, expected)

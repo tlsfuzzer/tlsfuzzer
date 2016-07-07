@@ -17,7 +17,7 @@ from tlslite.mathtls import calcMasterSecret, calcFinished, \
         calcExtendedMasterSecret
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.utils.codec import Writer
-from tlslite.utils.cryptomath import getRandomBytes
+from tlslite.utils.cryptomath import getRandomBytes, numBytes
 from tlslite.keyexchange import KeyExchange
 from tlslite.bufferedsocket import BufferedSocket
 from .handshake_helpers import calc_pending_states
@@ -348,16 +348,24 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
 
     @type dh_Yc: int
     @ivar dh_Yc: Override the sent dh_Yc value to the specified one
+    @type padding_subs: dict
+    @ivar padding_subs: Substitutions for the encrypted premaster secret
+       padding bytes (applicable only for the RSA key exchange)
+    @type padding_xors: dict
+    @ivar padding_xors: XORs for the encrypted premaster secret padding bytes
+       (applicable only for the RSA key exchange)
     """
 
     def __init__(self, cipher=None, version=None, client_version=None,
-                 dh_Yc=None):
+                 dh_Yc=None, padding_subs=None, padding_xors=None):
         super(ClientKeyExchangeGenerator, self).__init__()
         self.cipher = cipher
         self.version = version
         self.client_version = client_version
         self.premaster_secret = bytearray(48)
         self.dh_Yc = dh_Yc
+        self.padding_subs = padding_subs
+        self.padding_xors = padding_xors
 
     def generate(self, status):
         if self.version is None:
@@ -380,7 +388,7 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
 
             public_key = status.get_server_public_key()
 
-            cke.createRSA(public_key.encrypt(self.premaster_secret))
+            cke.createRSA(self._encrypt_with_fuzzing(public_key))
         elif self.cipher in CipherSuite.dheCertSuites:
             if self.dh_Yc is not None:
                 cke = ClientKeyExchange(self.cipher,
@@ -393,6 +401,15 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
         self.msg = cke
 
         return cke
+
+    def _encrypt_with_fuzzing(self, public_key):
+        """Use public_key to encrypt premaster secret with fuzzed padding"""
+        old_addPKCS1Padding = public_key._addPKCS1Padding
+        public_key = fuzz_pkcs1_padding(public_key, self.padding_subs,
+                                        self.padding_xors)
+        ret = public_key.encrypt(self.premaster_secret)
+        public_key._addPKCS1Padding = old_addPKCS1Padding
+        return ret
 
 class ClientMasterKeyGenerator(HandshakeProtocolMessageGenerator):
     """Generator for SSLv2 Handshake Protocol CLIENT-MASTER-KEY message"""
@@ -966,3 +983,26 @@ class FlushMessageList(MessageGenerator):
             data += msg_frag.write()
         msg_ret = Message(content_type, data)
         return msg_ret
+
+def fuzz_pkcs1_padding(key, substitutions=None, xors=None):
+    """
+    Fuzz the PKCS#1 padding used in signatures or encryption
+
+    Use to modify Client Key Exchange padding of encrypted value
+    """
+    if not xors and not substitutions:
+        return key
+
+    def new_addPKCS1Padding(bytes, blockType, self=key,
+                            old_add_padding=key._addPKCS1Padding,
+                            substitutions=substitutions, xors=xors):
+        """Monkey patch for the _addPKCS1Padding() method of RSA key"""
+        ret = old_add_padding(bytes, blockType)
+        pad_length = numBytes(self.n) - len(bytes)
+        pad = ret[:pad_length]
+        value = ret[pad_length:]
+        pad = substitute_and_xor(pad, substitutions, xors)
+        return pad + value
+
+    key._addPKCS1Padding = new_addPKCS1Padding
+    return key
