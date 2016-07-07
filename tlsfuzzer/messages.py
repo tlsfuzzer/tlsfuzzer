@@ -764,6 +764,46 @@ def fuzz_mac(generator, substitutions=None, xors=None):
 
     return generator
 
+def fuzz_encrypted_message(generator, substitutions=None, xors=None):
+    """Change arbitrary bytes of the authenticated ciphertext block"""
+    def new_generate(state, self=generator,
+                     old_generate=generator.generate,
+                     substitutions=substitutions,
+                     xors=xors):
+        """Monkey patch to modify authenticated ciphertext block"""
+        msg = old_generate(state)
+
+        old_send = state.msg_sock._recordSocket.send
+
+        self.old_send = old_send
+
+        def new_send(message, padding, old_send=old_send,
+                     substitutions=substitutions, xors=xors):
+            """Monkey patch for the send method of msg socket
+
+            message.data is the encrypted tls record, e.g.
+
+            message.data = aead_encrypt(plain); defined by aead suite
+            message.data = encrypt(plain + padding) + mac; etm
+            message.data = encrypt(plain + mac + padding); mte
+            """
+            data = message.write()
+
+            data = substitute_and_xor(data, substitutions, xors)
+
+            new_message = Message(message.contentType, data)
+
+            return old_send(new_message, padding)
+
+        state.msg_sock._recordSocket.send = new_send
+
+        return msg
+
+    generator.generate = new_generate
+    post_send_msg_sock_restore(generator, '._recordSocket.send', 'old_send')
+    return generator
+
+
 def div_ceil(divident, divisor):
     """Perform integer division of divident by divisor, round up"""
     quotient, reminder = divmod(divident, divisor)

@@ -22,7 +22,7 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         CertificateGenerator, CertificateVerifyGenerator, CertificateRequest, \
         ResetRenegotiationInfo, fuzz_plaintext, Connect, \
         ClientMasterKeyGenerator, TCPBufferingEnable, TCPBufferingDisable, \
-        TCPBufferingFlush
+        TCPBufferingFlush, fuzz_encrypted_message
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
@@ -34,6 +34,7 @@ from tlslite.utils.codec import Parser
 from tests.mocksock import MockSocket
 from tlslite.utils.keyfactory import generateRSAKey
 import socket
+import os
 
 class TestConnect(unittest.TestCase):
     def test___init__(self):
@@ -1025,6 +1026,62 @@ class TestFuzzMAC(unittest.TestCase):
 
         self.assertEqual(len(self.socket.sent), 2)
         self.assertEqual(self.socket.sent[1], self.second_write)
+
+class TestFuzzEncryptedMessage(unittest.TestCase):
+    def setUp(self):
+        patcher = mock.patch.object(os,
+                                    'urandom',
+                                    lambda x: bytearray(x))
+        mock_random = patcher.start()
+
+        self.addCleanup(patcher.stop)
+        self.state = ConnectionState()
+
+        self.socket = MockSocket(bytearray())
+
+        defragger = defragmenter.Defragmenter()
+        defragger.addStaticSize(constants.ContentType.alert, 2)
+        defragger.addStaticSize(constants.ContentType.change_cipher_spec, 1)
+        defragger.addDynamicSize(constants.ContentType.handshake, 1, 3)
+        self.state.msg_sock = messagesocket.MessageSocket(self.socket,
+                                                          defragger)
+
+        self.state.msg_sock.version = (3, 1)
+        self.state.msg_sock.encryptThenMAC = True
+        self.state.msg_sock.calcPendingStates(
+                constants.CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                bytearray(48), # master secret
+                bytearray(32), # client random
+                bytearray(32), # server random
+                None)
+
+        self.state.msg_sock.changeWriteState()
+        self.expected_value = bytearray(
+            b'\x17' +           # application data
+            b'\x03\x01' +       # TLS version
+            b'\x00\x24' +       # length - 1 block + 20 bytes of MAC
+            b'\xc7\xd6\xaf:.MY\x80W\x81\xd2|5A#\xd5' +
+            b'X\xcd\xdc\'o\xb3I\xdd-\xfc\tneq~\x0f' +
+            b'd\xdb\xbdw'
+            )
+
+    def test_no_changes(self):
+        node = ApplicationDataGenerator(bytearray(b'test'))
+        node = fuzz_encrypted_message(node)
+        msg = node.generate(self.state)
+        self.state.msg_sock.sendMessageBlocking(msg)
+        self.assertEqual(len(self.socket.sent), 1)
+        self.assertEqual(self.socket.sent[0], self.expected_value)
+
+    def test_xor_last_byte(self):
+        node = ApplicationDataGenerator(bytearray(b'test'))
+        node = fuzz_encrypted_message(node, xors={-1:0xff})
+        msg = node.generate(self.state)
+        self.state.msg_sock.sendMessageBlocking(msg)
+        self.expected_value[-1] ^= 0xff
+        self.assertEqual(len(self.socket.sent), 1)
+        self.assertEqual(self.socket.sent[0], self.expected_value)
+
 
 class TestFuzzPadding(unittest.TestCase):
     def setUp(self):
