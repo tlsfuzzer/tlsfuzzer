@@ -5,7 +5,7 @@
 
 from tlslite.constants import ContentType, HandshakeType, CertificateType,\
         HashAlgorithm, SignatureAlgorithm, ExtensionType,\
-        SSL2HandshakeType
+        SSL2HandshakeType, CipherSuite
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
         ServerKeyExchange, ClientHello, ServerFinished
@@ -304,10 +304,13 @@ class ExpectServerKeyExchange(ExpectHandshake):
                                             server_random,
                                             valid_sig_algs)
 
-        state.key_exchange = DHE_RSAKeyExchange(self.cipher_suite,
-                                                clientHello=None,
-                                                serverHello=server_hello,
-                                                privateKey=None)
+        if self.cipher_suite in CipherSuite.dhAllSuites:
+            state.key_exchange = DHE_RSAKeyExchange(self.cipher_suite,
+                                                    clientHello=None,
+                                                    serverHello=server_hello,
+                                                    privateKey=None)
+        else:
+            raise AssertionError("Unsupported cipher selected")
         state.premaster_secret = state.key_exchange.\
                                  processServerKeyExchange(public_key,
                                                           server_key_exchange)

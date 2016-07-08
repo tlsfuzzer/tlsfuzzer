@@ -24,7 +24,8 @@ from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         SignatureAlgorithm, CipherSuite, CertificateType, SSL2HandshakeType, \
         SSL2ErrorDescription
 from tlslite.messages import Message, ServerHello, CertificateRequest, \
-        ClientHello, Certificate, ServerHello2, ServerFinished
+        ClientHello, Certificate, ServerHello2, ServerFinished, \
+        ServerKeyExchange
 from tlslite.extensions import SNIExtension, TLSExtension
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509certchain import X509CertChain, X509
@@ -800,6 +801,40 @@ class TestExpectServerKeyExchange(unittest.TestCase):
         msg = srv_key_exchange.makeServerKeyExchange('sha1')
 
         with self.assertRaises(TLSIllegalParameterException):
+            exp.process(state, msg)
+
+    def test_process_with_unknown_key_exchange(self):
+        exp = ExpectServerKeyExchange()
+
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_SRP_SHA_RSA_WITH_AES_128_CBC_SHA
+        cert = Certificate(CertificateType.x509).\
+                create(X509CertChain([X509().parse(srv_raw_certificate)]))
+        private_key = parsePEMKey(srv_raw_key, private=True)
+
+        client_hello = ClientHello()
+        client_hello.client_version = (3, 3)
+        client_hello.random = bytearray(32)
+        client_hello.extensions = [SignatureAlgorithmsExtension().create(
+            [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)])]
+        state.client_random = client_hello.random
+        state.handshake_messages.append(client_hello)
+        server_hello = ServerHello()
+        server_hello.server_version = (3, 3)
+        state.version = server_hello.server_version
+        server_hello.random = bytearray(32)
+        state.server_random = server_hello.random
+        state.handshake_messages.append(cert)
+
+        msg = ServerKeyExchange(state.cipher, state.version)
+        msg.createSRP(1, 2, bytearray(3), 5)
+        msg.signAlg = SignatureAlgorithm.rsa
+        msg.hashAlg = HashAlgorithm.sha256
+        hash_bytes = msg.hash(client_hello.random, server_hello.random)
+        hash_bytes = private_key.addPKCS1Prefix(hash_bytes, 'sha256')
+        msg.signature = private_key.sign(hash_bytes)
+
+        with self.assertRaises(AssertionError):
             exp.process(state, msg)
 
 class TestExpectCertificateRequest(unittest.TestCase):
