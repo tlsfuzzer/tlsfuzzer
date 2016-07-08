@@ -388,6 +388,17 @@ class TestClientKeyExchangeGenerator(unittest.TestCase):
 
         self.assertIs(ret, state.key_exchange.makeClientKeyExchange())
 
+    def test_generate_with_ecdhe(self):
+        state = ConnectionState()
+        state.key_exchange = mock.MagicMock()
+
+        cke = ClientKeyExchangeGenerator(
+                cipher=constants.CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA)
+
+        ret = cke.generate(state)
+
+        self.assertIs(ret, state.key_exchange.makeClientKeyExchange())
+
     def test_generate_with_unknown_cipher(self):
         state = ConnectionState()
         cke = ClientKeyExchangeGenerator()
@@ -402,6 +413,15 @@ class TestClientKeyExchangeGenerator(unittest.TestCase):
 
         ret = cke.generate(state)
         self.assertEqual(ret.dh_Yc, 4982)
+
+    def test_generate_ECDHE_with_bogus_value(self):
+        state = ConnectionState()
+        cke = ClientKeyExchangeGenerator(
+                cipher=constants.CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                ecdh_Yc=bytearray(range(1, 24)))
+
+        ret = cke.generate(state)
+        self.assertEqual(ret.ecdh_Yc, bytearray(range(1, 24)))
 
     def test_post_send(self):
         state = ConnectionState()
