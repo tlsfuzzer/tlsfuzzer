@@ -53,16 +53,14 @@ def main():
                                 ("medium, maximum fragmentation", 1024, 1),
                                 ("maximum size without fragmentation", 2**14-53, None)]:
 
-        padding_extension = lambda _,l=ext_len:TLSExtension().create(21,
-                                                                   bytearray(l))
-
         conversation = Connect("localhost", 4433)
         node = conversation
         node = node.add_child(SetMaxRecordSize(record_len))
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        ext = {21: TLSExtension().create(21, bytearray(ext_len))}
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={21: padding_extension}))
+                                                   extensions=ext))
         node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
@@ -86,7 +84,7 @@ def main():
                       str(ext_len) + "B extension"] = conversation
 
     # check if records bigger than TLSPlaintext limit are rejected
-    padding_extension = lambda _:TLSExtension().create(21, bytearray(2**14-52))
+    padding_extension = TLSExtension().create(21, bytearray(2**14-52))
 
     conversation = Connect("localhost", 4433)
     node = conversation
