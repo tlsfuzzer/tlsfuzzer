@@ -354,10 +354,14 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
     @type padding_xors: dict
     @ivar padding_xors: XORs for the encrypted premaster secret padding bytes
        (applicable only for the RSA key exchange)
+    @type ecdh_Yc: bytearray
+    @ivar ecdh_Yc: encoded ECC point being the client key share for the
+       key exchange
     """
 
     def __init__(self, cipher=None, version=None, client_version=None,
-                 dh_Yc=None, padding_subs=None, padding_xors=None):
+                 dh_Yc=None, padding_subs=None, padding_xors=None,
+                 ecdh_Yc=None):
         super(ClientKeyExchangeGenerator, self).__init__()
         self.cipher = cipher
         self.version = version
@@ -366,6 +370,7 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
         self.dh_Yc = dh_Yc
         self.padding_subs = padding_subs
         self.padding_xors = padding_xors
+        self.ecdh_Yc = ecdh_Yc
 
     def generate(self, status):
         if self.version is None:
@@ -393,6 +398,12 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
             if self.dh_Yc is not None:
                 cke = ClientKeyExchange(self.cipher,
                                         self.version).createDH(self.dh_Yc)
+            else:
+                cke = status.key_exchange.makeClientKeyExchange()
+        elif self.cipher in CipherSuite.ecdhAllSuites:
+            if self.ecdh_Yc is not None:
+                cke = ClientKeyExchange(self.cipher,
+                                        self.version).createECDH(self.ecdh_Yc)
             else:
                 cke = status.key_exchange.makeClientKeyExchange()
         else:

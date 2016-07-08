@@ -5,14 +5,15 @@
 
 from tlslite.constants import ContentType, HandshakeType, CertificateType,\
         HashAlgorithm, SignatureAlgorithm, ExtensionType,\
-        SSL2HandshakeType
+        SSL2HandshakeType, CipherSuite, GroupName
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
         ServerKeyExchange, ClientHello, ServerFinished
 from tlslite.utils.codec import Parser
 from tlslite.mathtls import calcFinished
 from .handshake_helpers import calc_pending_states
-from tlslite.keyexchange import KeyExchange, DHE_RSAKeyExchange
+from tlslite.keyexchange import KeyExchange, DHE_RSAKeyExchange, \
+        ECDHE_RSAKeyExchange
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 from .tree import TreeNode
@@ -253,13 +254,15 @@ class ExpectCertificate(ExpectHandshake):
 class ExpectServerKeyExchange(ExpectHandshake):
     """Processing TLS Handshake protocol Server Key Exchange message"""
 
-    def __init__(self, version=None, cipher_suite=None, valid_sig_algs=None):
+    def __init__(self, version=None, cipher_suite=None, valid_sig_algs=None,
+                 valid_groups=None):
         msg_type = HandshakeType.server_key_exchange
         super(ExpectServerKeyExchange, self).__init__(ContentType.handshake,
                                                       msg_type)
         self.version = version
         self.cipher_suite = cipher_suite
         self.valid_sig_algs = valid_sig_algs
+        self.valid_groups = valid_groups
 
     def process(self, state, msg):
         """Process the Server Key Exchange message"""
@@ -273,6 +276,7 @@ class ExpectServerKeyExchange(ExpectHandshake):
         if self.cipher_suite is None:
             self.cipher_suite = state.cipher
         valid_sig_algs = self.valid_sig_algs
+        valid_groups = self.valid_groups
 
         server_key_exchange = ServerKeyExchange(self.cipher_suite,
                                                 self.version)
@@ -304,10 +308,31 @@ class ExpectServerKeyExchange(ExpectHandshake):
                                             server_random,
                                             valid_sig_algs)
 
-        state.key_exchange = DHE_RSAKeyExchange(self.cipher_suite,
-                                                clientHello=None,
-                                                serverHello=server_hello,
-                                                privateKey=None)
+        if self.cipher_suite in CipherSuite.dhAllSuites:
+            state.key_exchange = DHE_RSAKeyExchange(self.cipher_suite,
+                                                    clientHello=None,
+                                                    serverHello=server_hello,
+                                                    privateKey=None)
+        elif self.cipher_suite in CipherSuite.ecdhAllSuites:
+            # extract valid groups from Client Hello
+            if valid_groups is None:
+                client_hello = state.get_last_message_of_type(ClientHello)
+                if client_hello is not None:
+                    groups_ext = client_hello.getExtension(ExtensionType.
+                                                           supported_groups)
+                    if groups_ext is not None:
+                        valid_groups = groups_ext.groups
+                if valid_groups is None:
+                    # no advertised means support for all
+                    valid_groups = GroupName.allEC
+            state.key_exchange = ECDHE_RSAKeyExchange(self.cipher_suite,
+                                                      clientHello=None,
+                                                      serverHello=server_hello,
+                                                      privateKey=None,
+                                                      acceptedCurves=
+                                                      valid_groups)
+        else:
+            raise AssertionError("Unsupported cipher selected")
         state.premaster_secret = state.key_exchange.\
                                  processServerKeyExchange(public_key,
                                                           server_key_exchange)
