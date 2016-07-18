@@ -13,7 +13,7 @@ version - thus no API stability guarantees.
 You'll need:
 
  * Python 2.6 or later or Python 3.2 or later
- * tlslite-ng 0.6.0-alpha3 or later (note that `tlslite` will *not* work and
+ * tlslite-ng 0.6.0-alpha5 or later (note that `tlslite` will *not* work and
    they conflict with eachother)
  * ecdsa python module (dependency of tlslite-ng, should get installed
    automatically with it)
