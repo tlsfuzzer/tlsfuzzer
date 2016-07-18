@@ -65,3 +65,52 @@ PYTHONPATH=. python scripts/test-invalid-compression-methods.py
 If test has additional requirements, it will output them to console. No errors
 printed means that all expecations were met (so for tests with bad data the
 server rejected our messages).
+
+## Server under test configuration
+
+In general, the server under test requires just a RSA certificate, you
+can create it using the following OpenSSL command:
+
+```
+openssl req -x509 -newkey rsa -keyout localhost.key -out localhost.crt -subj \
+/CN=localhost -nodes -batch
+```
+
+### OpenSSL
+
+To test OpenSSL, it's sufficient to pass an extra `-www` option to a
+typical `s_server` command line:
+
+```
+openssl s_server -key localhost.key -cert localhost.crt -www
+```
+
+### GnuTLS
+
+To test GnuTLS server, you need to tell it to behave as an HTTP server
+and additionally, to not ask for client certificates:
+
+```
+gnutls-serv --http -p 4433 --x509keyfile localhost.key --x509certfile \
+localhost.crt --disable-client-cert
+```
+
+### NSS
+
+To test the Mozilla NSS library server, you first need to create a database
+with server certificate:
+
+```
+mkdir nssdb
+certutil -N -d sql:nssdb --empty-password
+openssl pkcs12 -export -passout pass: -out localhost.p12 -inkey localhost.key \
+-in localhost.crt -name localhost
+pk12util -i localhost.p12 -d sql:nssdb -W ''
+```
+
+Finally, start the server with support for TLSv1.0 and later protocols, DHE
+ciphers and with the above certificate:
+
+```
+selfserv -d sql:./nssdb -p 4433 -V tls1.0: -H 1 -n localhost
+```
