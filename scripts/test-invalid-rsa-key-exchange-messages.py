@@ -63,6 +63,26 @@ def main():
         conversations["encrypted premaster set to all zero ({0})".format(size)] =\
                 conversation
 
+    # set the encrypted premaster to the the value of server modulus
+    conversation = Connect("localhost", 4433)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator(
+        modulus_as_encrypted_premaster=True))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.bad_record_mac))
+    node.add_child(ExpectClose())
+
+    conversations["modulus as encrypted premaster"] = conversation
+
+
     good = 0
     bad = 0
 
