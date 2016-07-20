@@ -423,6 +423,15 @@ class TestClientKeyExchangeGenerator(unittest.TestCase):
         ret = cke.generate(state)
         self.assertEqual(ret.ecdh_Yc, bytearray(range(1, 24)))
 
+    def test_generate_with_all_null_RSA(self):
+        state = ConnectionState()
+        cke = ClientKeyExchangeGenerator(
+                cipher=constants.CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                encrypted_premaster=bytearray(512))
+
+        ret = cke.generate(state)
+        self.assertEqual(ret.encryptedPreMasterSecret, bytearray(512))
+
     def test_post_send(self):
         state = ConnectionState()
         state.get_server_public_key = lambda : self.priv_key

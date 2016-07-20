@@ -357,11 +357,14 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
     @type ecdh_Yc: bytearray
     @ivar ecdh_Yc: encoded ECC point being the client key share for the
        key exchange
+    @type encrypted_premaster: bytearray
+    @ivar encrypted_premaster: the premaster secret after it was encrypted,
+       as it will be sent on the wire
     """
 
     def __init__(self, cipher=None, version=None, client_version=None,
                  dh_Yc=None, padding_subs=None, padding_xors=None,
-                 ecdh_Yc=None):
+                 ecdh_Yc=None, encrypted_premaster=None):
         super(ClientKeyExchangeGenerator, self).__init__()
         self.cipher = cipher
         self.version = version
@@ -371,6 +374,7 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
         self.padding_subs = padding_subs
         self.padding_xors = padding_xors
         self.ecdh_Yc = ecdh_Yc
+        self.encrypted_premaster = encrypted_premaster
 
     def generate(self, status):
         if self.version is None:
@@ -384,16 +388,18 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
 
         cke = ClientKeyExchange(self.cipher, self.version)
         if self.cipher in CipherSuite.certSuites:
-            assert len(self.premaster_secret) > 1
+            if self.encrypted_premaster:
+                cke.createRSA(self.encrypted_premaster)
+            else:
+                assert len(self.premaster_secret) > 1
+                self.premaster_secret[0] = self.client_version[0]
+                self.premaster_secret[1] = self.client_version[1]
 
-            self.premaster_secret[0] = self.client_version[0]
-            self.premaster_secret[1] = self.client_version[1]
+                status.premaster_secret = self.premaster_secret
 
-            status.premaster_secret = self.premaster_secret
+                public_key = status.get_server_public_key()
 
-            public_key = status.get_server_public_key()
-
-            cke.createRSA(self._encrypt_with_fuzzing(public_key))
+                cke.createRSA(self._encrypt_with_fuzzing(public_key))
         elif self.cipher in CipherSuite.dheCertSuites:
             if self.dh_Yc is not None:
                 cke = ClientKeyExchange(self.cipher,
