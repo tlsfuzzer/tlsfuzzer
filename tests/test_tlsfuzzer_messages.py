@@ -33,6 +33,7 @@ import tlslite.defragmenter as defragmenter
 from tlslite.utils.codec import Parser
 from tests.mocksock import MockSocket
 from tlslite.utils.keyfactory import generateRSAKey
+from tlslite.utils.cryptomath import numberToByteArray
 import socket
 import os
 
@@ -431,6 +432,17 @@ class TestClientKeyExchangeGenerator(unittest.TestCase):
 
         ret = cke.generate(state)
         self.assertEqual(ret.encryptedPreMasterSecret, bytearray(512))
+
+    def test_generate_with_modulus_as_premaster(self):
+        state = ConnectionState()
+        state.get_server_public_key = lambda : self.priv_key
+        cke = ClientKeyExchangeGenerator(
+                cipher=constants.CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                modulus_as_encrypted_premaster=True)
+
+        ret = cke.generate(state)
+        self.assertEqual(ret.encryptedPreMasterSecret,
+                         numberToByteArray(self.priv_key.n))
 
     def test_post_send(self):
         state = ConnectionState()

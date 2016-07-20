@@ -17,7 +17,8 @@ from tlslite.mathtls import calcMasterSecret, calcFinished, \
         calcExtendedMasterSecret
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.utils.codec import Writer
-from tlslite.utils.cryptomath import getRandomBytes, numBytes
+from tlslite.utils.cryptomath import getRandomBytes, numBytes, \
+    numberToByteArray
 from tlslite.keyexchange import KeyExchange
 from tlslite.bufferedsocket import BufferedSocket
 from .handshake_helpers import calc_pending_states
@@ -360,11 +361,16 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
     @type encrypted_premaster: bytearray
     @ivar encrypted_premaster: the premaster secret after it was encrypted,
        as it will be sent on the wire
+    @type modulus_as_encrypted_premaster: boolean
+    @ivar modulus_as_encrypted_premaster: if True, set the encrypted
+       premaster (the value seen on the wire) to the server's certificate
+       modulus (the server's public key)
     """
 
     def __init__(self, cipher=None, version=None, client_version=None,
                  dh_Yc=None, padding_subs=None, padding_xors=None,
-                 ecdh_Yc=None, encrypted_premaster=None):
+                 ecdh_Yc=None, encrypted_premaster=None,
+                 modulus_as_encrypted_premaster=False):
         super(ClientKeyExchangeGenerator, self).__init__()
         self.cipher = cipher
         self.version = version
@@ -375,6 +381,7 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
         self.padding_xors = padding_xors
         self.ecdh_Yc = ecdh_Yc
         self.encrypted_premaster = encrypted_premaster
+        self.modulus_as_encrypted_premaster = modulus_as_encrypted_premaster
 
     def generate(self, status):
         if self.version is None:
@@ -388,6 +395,9 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
 
         cke = ClientKeyExchange(self.cipher, self.version)
         if self.cipher in CipherSuite.certSuites:
+            if self.modulus_as_encrypted_premaster:
+                public_key = status.get_server_public_key()
+                self.encrypted_premaster = numberToByteArray(public_key.n)
             if self.encrypted_premaster:
                 cke.createRSA(self.encrypted_premaster)
             else:
