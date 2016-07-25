@@ -48,6 +48,33 @@ def main():
 
     conversations["aes-128-gcm cipher"] = conversation
 
+    nonces256 = []
+
+    conversation = Connect("localhost", 4433)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(CollectNonces(nonces256))
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+
+    conversations["aes-256-gcm cipher"] = conversation
+
+
     good = 0
     bad = 0
 
@@ -71,8 +98,8 @@ def main():
         else:
             bad += 1
 
-    print("Nonce monotonicity...")
-    if nonces < 2:
+    print("aes-128-gcm Nonce monotonicity...")
+    if len(nonces) < 2:
         print("Not enough nonces collected, FAIL")
         bad += 1
     else:
@@ -80,6 +107,21 @@ def main():
             print("reused nonce! Security vulnerability!")
             bad += 1
         elif bytesToNumber(nonces[0]) + 1 != bytesToNumber(nonces[1]):
+            print("nonce not monotonically increasing, FAIL")
+            bad += 1
+        else:
+            print("OK\n")
+            good += 1
+
+    print("aes-256-gcm Nonce monotonicity...")
+    if len(nonces256) < 2:
+        print("Not enough nonces collected, FAIL")
+        bad += 1
+    else:
+        if bytesToNumber(nonces256[0]) == bytesToNumber(nonces256[1]):
+            print("reused nonce! Security vulnerability!")
+            bad += 1
+        elif bytesToNumber(nonces256[0]) + 1 != bytesToNumber(nonces256[1]):
             print("nonce not monotonically increasing, FAIL")
             bad += 1
         else:
