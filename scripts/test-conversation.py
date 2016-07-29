@@ -30,8 +30,9 @@ def main():
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
-    node = node.add_child(ApplicationDataGenerator(bytearray(b"hello server!\n")))
-    #node = node.add_child(ExpectApplicationData(bytearray(b"hello client!\n")))
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0!\n\n")))
+    node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
     node = node.add_child(ExpectAlert())
