@@ -100,7 +100,8 @@ class ExpectServerHello(ExpectHandshake):
 
     """Parsing TLS Handshake protocol Server Hello messages"""
 
-    def __init__(self, extensions=None, version=None, resume=False):
+    def __init__(self, extensions=None, version=None, resume=False,
+                 cipher=None):
         """
         Initialize the object
 
@@ -111,6 +112,7 @@ class ExpectServerHello(ExpectHandshake):
         """
         super(ExpectServerHello, self).__init__(ContentType.handshake,
                                                 HandshakeType.server_hello)
+        self.cipher = cipher
         self.extensions = extensions
         self.version = version
         self.resume = resume
@@ -149,6 +151,9 @@ class ExpectServerHello(ExpectHandshake):
 
         if self.version is not None:
             assert self.version == srv_hello.server_version
+
+        if self.cipher is not None:
+            assert self.cipher == srv_hello.cipher_suite
 
         state.cipher = srv_hello.cipher_suite
         state.version = srv_hello.server_version
