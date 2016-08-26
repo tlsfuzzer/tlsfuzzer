@@ -208,6 +208,35 @@ class TCPBufferingFlush(Command):
         state.msg_sock.sock.flush()
 
 
+class CollectNonces(Command):
+    """
+    Start collecting nonces being sent by the server in the provided array.
+
+    Works only for ciphers like AES-GCM which use explicit nonces. Ciphers
+    like Chacha20 use implicit nonce constructed from PRF output and sequence
+    number.
+
+    Needs to be run after the cipher was negotiated and switched to (after
+    CCS), will collect nonces only till next renegotiation.
+    """
+
+    def __init__(self, nonces):
+        super(CollectNonces, self).__init__()
+        self.nonces = nonces
+
+    def process(self, state):
+        """Monkey patch the seal() method"""
+        seal_mthd = state.msg_sock._writeState.encContext.seal
+
+        def collector(nonce, buf, authData, old_seal=seal_mthd,
+                      nonces=self.nonces):
+            """Collects used nonces for encryption"""
+            nonces.append(nonce)
+            return old_seal(nonce, buf, authData)
+
+        state.msg_sock._writeState.encContext.seal = collector
+
+
 class MessageGenerator(TreeNode):
 
     """Message generator objects"""

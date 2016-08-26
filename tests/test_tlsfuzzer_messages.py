@@ -22,7 +22,8 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         CertificateGenerator, CertificateVerifyGenerator, CertificateRequest, \
         ResetRenegotiationInfo, fuzz_plaintext, Connect, \
         ClientMasterKeyGenerator, TCPBufferingEnable, TCPBufferingDisable, \
-        TCPBufferingFlush, fuzz_encrypted_message, fuzz_pkcs1_padding
+        TCPBufferingFlush, fuzz_encrypted_message, fuzz_pkcs1_padding, \
+        CollectNonces
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
@@ -151,6 +152,48 @@ class TestTCPBufferingFlush(unittest.TestCase):
 
         raw_sock.return_value.sendall.assert_called_once_with(
                 bytearray(b'\x0c\x03\x00\x00\x01\xff'))
+
+
+class TestCollectNonces(unittest.TestCase):
+    def test__init__(self):
+        nonces = []
+        node = CollectNonces(nonces)
+
+        self.assertTrue(node.is_command())
+
+    def test_process(self):
+        state = ConnectionState()
+
+        sock = MockSocket(bytearray())
+
+        defragger = defragmenter.Defragmenter()
+        defragger.addStaticSize(constants.ContentType.alert, 2)
+        defragger.addStaticSize(constants.ContentType.change_cipher_spec, 1)
+        defragger.addDynamicSize(constants.ContentType.handshake, 1, 3)
+        state.msg_sock = messagesocket.MessageSocket(sock,
+                                                     defragger)
+
+
+        state.msg_sock.version = (3, 3)
+        state.msg_sock.calcPendingStates(constants.CipherSuite.
+                                         TLS_RSA_WITH_AES_128_GCM_SHA256,
+                                         bytearray(48),
+                                         bytearray(32),
+                                         bytearray(32),
+                                         None)
+        state.msg_sock.changeWriteState()
+
+        nonces = []
+        node = CollectNonces(nonces)
+        node.process(state)
+
+        node = ApplicationDataGenerator(b'some text')
+        msg = node.generate(state)
+        state.msg_sock.sendMessageBlocking(msg)
+
+        self.assertEqual(nonces,
+                         [bytearray(b'\xa9\xfc\x88\x1d'
+                                    b'\x00\x00\x00\x00\x00\x00\x00\x00')])
 
 
 class TestConnect(unittest.TestCase):
