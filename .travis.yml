@@ -12,6 +12,11 @@ branches:
   only:
     - master
 
+addons:
+  apt_packages:
+    # needed for M2Crypto
+    - swig
+
 before_install:
   - |
        echo -e "TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST\n" \
@@ -37,6 +42,8 @@ install:
   - if [[ $TRAVIS_PYTHON_VERSION == '3.2' ]]; then travis_retry pip install 'coverage<4'; else travis_retry pip install 'coverage'; fi
   - travis_retry pip install -r requirements.txt
   - travis_retry pip install -r build-requirements.txt
+  - if [[ $TRAVIS_PYTHON_VERSION == '2.6' || $TRAVIS_PYTHON_VERSION == '2.7' ]]; then travis_retry pip install m2crypto; fi
+  - if ! [[ $TRAVIS_PYTHON_VERSION == '2.6' || $TRAVIS_PYTHON_VERSION == '2.7' ]]; then travis_retry pip install pycrypto; fi
 
 script:
   - |
@@ -46,6 +53,7 @@ script:
           coverage run --branch --source tlsfuzzer -m unittest discover;
       fi
   - coverage report -m
+  - python tests/scripts_retention.py `which tls.py`
   # pylint doesn't work on 2.6: https://bitbucket.org/logilab/pylint/issue/390/py26-compatiblity-broken
   # diff-quality doesn't work on 3.2: https://github.com/edx/diff-cover/issues/94
   - |

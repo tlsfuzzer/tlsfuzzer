@@ -29,3 +29,6 @@ test:
 	pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" tlsfuzzer > pylint_report.txt || :
 	diff-quality --violations=pylint --fail-under=90 pylint_report.txt
 	diff-cover --fail-under=90 coverage.xml
+
+test-scripts:
+	python tests/scripts_retention.py tls.py
