@@ -1,1 +1,1 @@
-tlslite-ng>=0.6.0-alpha5
+tlslite-ng>=0.6.0

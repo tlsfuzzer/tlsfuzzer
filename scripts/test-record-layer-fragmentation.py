@@ -71,8 +71,8 @@ def main():
         node = node.add_child(ExpectFinished())
         node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
         node = node.add_child(ExpectApplicationData())
-        # RFCs do not consider Alerts special with regards to fragmentation
-        #node = node.add_child(SetMaxRecordSize(2))
+        # XXX RFCs do NOT consider Alerts special with regards to fragmentation
+        node = node.add_child(SetMaxRecordSize(2))
         node = node.add_child(AlertGenerator(AlertLevel.warning,
                                              AlertDescription.close_notify))
         node = node.add_child(ExpectAlert())
@@ -112,6 +112,7 @@ def main():
         res = True
         try:
             runner.run()
+            print("OK")
         except:
             print("Error while processing")
             print(traceback.format_exc())
