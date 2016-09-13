@@ -145,6 +145,7 @@ def run_rsa_cert_tests(server_cmd):
                       #'test-invalid-session-id.py',
                       'test-invalid-version.py',
                       'test-large-number-of-extensions.py',
+                      'test-message-skipping.py',
                       # test requires renegotiation support
                       #'test-openssl-3712.py',
                       'test-record-layer-fragmentation.py',
