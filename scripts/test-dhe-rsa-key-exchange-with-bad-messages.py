@@ -40,6 +40,8 @@ def help_msg():
     print("                may be specified multiple times")
     print(" --help         this message")
 
+
+
 def main():
     """Test if server correctly handles malformed DHE_RSA CKE messages"""
     host = "localhost"
@@ -65,6 +67,7 @@ def main():
         run_only = set(args)
     else:
         run_only = None
+
 
     conversations = {}
 
@@ -115,8 +118,9 @@ def main():
         node = node.add_child(FinishedGenerator())
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
-        node = node.add_child(ExpectAlert())
-        node.add_child(ExpectClose())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.illegal_parameter))
+        node = node.add_child(ExpectClose())
 
         conversations["invalid dh_Yc value - " + str(i) + "b"] = conversation
 
@@ -132,12 +136,16 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
     node = node.add_child(truncate_handshake(ClientKeyExchangeGenerator(),
                                              1))
-#    node = node.add_child(ExpectAlert(
-#        description=AlertDescription.decode_error))
-    node = node.add_child(ExpectAlert())
-    node.add_child(ExpectClose())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.decode_error))
+    node = node.add_child(ExpectClose())
 
     conversations["truncated dh_Yc value"] = conversation
 
@@ -160,10 +168,9 @@ def main():
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
     node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert())
-#    node = node.add_child(
-#            ExpectAlert(description=AlertDescription.decode_error))
-    node.add_child(ExpectClose())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.decode_error))
+    node = node.add_child(ExpectClose())
 
     conversations["padded Client Key Exchange"] = conversation
 
@@ -193,14 +200,13 @@ def main():
         except:
             print("Error while processing")
             print(traceback.format_exc())
-            print("")
             res = False
 
         if res:
-            good+=1
+            good += 1
             print("OK\n")
         else:
-            bad+=1
+            bad += 1
             failed.append(c_name)
 
     print("Test version 2")
