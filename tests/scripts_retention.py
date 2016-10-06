@@ -1,24 +1,31 @@
+from __future__ import print_function
 from subprocess import Popen, call, PIPE
 from threading import Thread, Lock
 import time
 import logging
 import sys
 import socket
+try:
+    import queue
+except ImportError:
+    import Queue as queue
 
 logging.basicConfig(level=logging.DEBUG)
 #logging.basicConfig(level=logging.INFO)
 #logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
+out = queue.Queue()
+
 def process_stdout(name, proc):
     for line in iter(proc.stdout.readline, b''):
         line = line.rstrip()
-        logger.debug("{0}:stdout:{1}".format(name, line))
+        out.put("{0}:stdout:{1}".format(name, line))
 
 def process_stderr(name, proc):
     for line in iter(proc.stderr.readline, b''):
         line = line.rstrip()
-        logger.debug("{0}:stderr:{1}".format(name, line))
+        out.put("{0}:stderr:{1}".format(name, line))
 
 def wait_till_open(host, port):
     t1 = time.time()
@@ -51,10 +58,27 @@ def start_server(server_cmd, client_cert=False):
     wait_till_open('localhost', 4433)
     return ret, thr_stdout, thr_stderr
 
+def print_all_from_queue():
+    while True:
+        try:
+            line = out.get(False)
+            print(line, file=sys.stderr)
+        except queue.Empty:
+            break
+
+
+def flush_queue():
+    while True:
+        try:
+            out.get(False)
+        except queue.Empty:
+            break
+
 
 def run_clients(scripts, srv, args=tuple()):
     good = 0
     bad = 0
+    print_all_from_queue()
     for script in scripts:
         logger.info("{0}:started".format(script))
         proc_args = ['PYTHONPATH=.', 'python', '-u',
@@ -75,8 +99,10 @@ def run_clients(scripts, srv, args=tuple()):
         if ret == 0:
             good += 1
             logger.info("{0}:finished".format(script))
+            flush_queue()
         else:
             bad += 1
+            print_all_from_queue()
             logger.error("{0}:failure:{1}".format(script, ret))
     return good, bad
 
