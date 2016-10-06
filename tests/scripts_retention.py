@@ -3,24 +3,35 @@ from threading import Thread, Lock
 import time
 import logging
 import sys
+import socket
 
 logging.basicConfig(level=logging.DEBUG)
 #logging.basicConfig(level=logging.INFO)
 #logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
-def process_stdout(name, proc, lock=None):
+def process_stdout(name, proc):
     for line in iter(proc.stdout.readline, b''):
         line = line.rstrip()
-        if lock is not None and b'Using certificate and ' in line:
-            lock.release()
-            lock = None
         logger.debug("{0}:stdout:{1}".format(name, line))
 
 def process_stderr(name, proc):
     for line in iter(proc.stderr.readline, b''):
         line = line.rstrip()
         logger.debug("{0}:stderr:{1}".format(name, line))
+
+def wait_till_open(host, port):
+    t1 = time.time()
+    while time.time() - t1 < 10:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(5)
+        try:
+            sock.connect((host, port))
+        except socket.error as e:
+            continue
+        break
+    else:
+        raise ValueError("Can't connect to server")
 
 def start_server(server_cmd, client_cert=False):
     args = ['PYTHONPATH=.', 'python', '-u', server_cmd, 'server',
@@ -29,18 +40,15 @@ def start_server(server_cmd, client_cert=False):
     if client_cert:
         args += ['--reqcert']
     args += ['localhost:4433']
-    lock = Lock()
-    lock.acquire()
     ret = Popen(" ".join(args),
                shell=True, stdout=PIPE, stderr=PIPE, bufsize=1)
-    thr_stdout = Thread(target=process_stdout, args=('server', ret, lock))
+    thr_stdout = Thread(target=process_stdout, args=('server', ret))
     thr_stdout.daemon = True
     thr_stdout.start()
     thr_stderr = Thread(target=process_stderr, args=('server', ret))
     thr_stderr.daemon = True
     thr_stderr.start()
-    # wait for server to start
-    time.sleep(1)
+    wait_till_open('localhost', 4433)
     return ret, thr_stdout, thr_stderr
 
 
