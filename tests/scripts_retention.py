@@ -138,6 +138,7 @@ def run_rsa_cert_tests(server_cmd):
                       # not verified correctly by tlslite-ng
                       #'test-invalid-session-id.py',
                       'test-invalid-version.py',
+                      'test-large-number-of-extensions.py',
                       # test requires renegotiation support
                       #'test-openssl-3712.py',
                       'test-record-layer-fragmentation.py',
