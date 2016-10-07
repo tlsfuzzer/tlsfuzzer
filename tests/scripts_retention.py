@@ -1,6 +1,7 @@
 from __future__ import print_function
 from subprocess import Popen, call, PIPE
 from threading import Thread, Lock
+import os
 import time
 import logging
 import sys
@@ -41,14 +42,16 @@ def wait_till_open(host, port):
         raise ValueError("Can't connect to server")
 
 def start_server(server_cmd, client_cert=False):
-    args = ['PYTHONPATH=.', 'python', '-u', server_cmd, 'server',
+    args = ['python', '-u', server_cmd, 'server',
             '-k', 'tests/serverX509Key.pem',
             '-c', 'tests/serverX509Cert.pem']
     if client_cert:
         args += ['--reqcert']
     args += ['localhost:4433']
-    ret = Popen(" ".join(args),
-               shell=True, stdout=PIPE, stderr=PIPE, bufsize=1)
+    my_env = os.environ.copy()
+    my_env["PYTHONPATH"]="."
+    ret = Popen(args, env=my_env,
+                stdout=PIPE, stderr=PIPE, bufsize=1)
     thr_stdout = Thread(target=process_stdout, args=('server', ret))
     thr_stdout.daemon = True
     thr_stdout.start()
@@ -81,11 +84,13 @@ def run_clients(scripts, srv, args=tuple()):
     print_all_from_queue()
     for script in scripts:
         logger.info("{0}:started".format(script))
-        proc_args = ['PYTHONPATH=.', 'python', '-u',
+        proc_args = ['python', '-u',
                      'scripts/{0}'.format(script)]
         proc_args.extend(args)
-        proc = Popen(" ".join(proc_args),
-                     shell=True, stdout=PIPE, stderr=PIPE, bufsize=1)
+        my_env = os.environ.copy()
+        my_env["PYTHONPATH"]="."
+        proc = Popen(proc_args, env=my_env,
+                     stdout=PIPE, stderr=PIPE, bufsize=1)
         thr_stdout = Thread(target=process_stdout, args=(script, proc))
         thr_stderr = Thread(target=process_stderr, args=(script, proc))
         thr_stdout.start()
@@ -173,11 +178,11 @@ def run_rsa_cert_tests(server_cmd):
             logging.debug("Killing server process")
             srv.send_signal(15)  # SIGTERM
             srv.wait()
-            logging.debug("Server process killed")
+            logging.debug("Server process killed: {0}".format(srv.returncode))
         except OSError:
             logging.debug("Can't kill server process")
-    srv_err.join(5)
-    srv_out.join(5)
+    srv_err.join()
+    srv_out.join()
 
     client_certs = ['test-certificate-verify-malformed-sig.py',
                     'test-certificate-verify.py',
@@ -190,16 +195,18 @@ def run_rsa_cert_tests(server_cmd):
         n_good, n_bad = run_clients(client_certs, srv,
                                     ['-k', 'tests/clientX509Key.pem',
                                      '-c', 'tests/clientX509Cert.pem'])
+        good += n_good
+        bad += n_bad
     finally:
         try:
             logging.debug("Killing server process")
             srv.send_signal(15)  # SIGTERM
             srv.wait()
-            logging.debug("Server process killed")
+            logging.debug("Server process killed: {0}".format(srv.returncode))
         except OSError:
             logging.debug("Can't kill server process")
-    srv_err.join(5)
-    srv_out.join(5)
+    srv_err.join()
+    srv_out.join()
 
     return (good, bad)
 
