@@ -8,7 +8,8 @@ import sys
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator
+        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+        TCPBufferingEnable, TCPBufferingDisable, TCPBufferingFlush
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectApplicationData
@@ -39,6 +40,7 @@ def main():
                                          AlertDescription.close_notify))
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
 
     conversations["sanity"] = conversation
 
@@ -61,6 +63,7 @@ def main():
                                          AlertDescription.close_notify))
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
 
     conversations["static non-zero byte in random padding"] = conversation
 
@@ -73,9 +76,13 @@ def main():
     node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
     node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1:3}))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.bad_record_mac))
     node.add_child(ExpectClose())
@@ -91,9 +98,13 @@ def main():
     node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
     node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1:1}))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.bad_record_mac))
     node.add_child(ExpectClose())
@@ -109,9 +120,13 @@ def main():
     node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
     node = node.add_child(ClientKeyExchangeGenerator(padding_subs={4:0}))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.bad_record_mac))
     node.add_child(ExpectClose())
@@ -126,9 +141,13 @@ def main():
     node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
     node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-2:0}))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.bad_record_mac))
     node.add_child(ExpectClose())
@@ -143,9 +162,13 @@ def main():
     node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
     node = node.add_child(ClientKeyExchangeGenerator(padding_subs={2:0}))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.bad_record_mac))
     node.add_child(ExpectClose())
@@ -160,9 +183,13 @@ def main():
     node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
     node = node.add_child(ClientKeyExchangeGenerator(padding_subs={0:1}))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.bad_record_mac))
     node.add_child(ExpectClose())
