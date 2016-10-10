@@ -10,7 +10,7 @@ from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
         ExtensionType, CertificateType, ClientCertificateType, HashAlgorithm, \
         SignatureAlgorithm, CipherSuite
-from tlslite.extensions import TLSExtension
+from tlslite.extensions import TLSExtension, RenegotiationInfoExtension
 from tlslite.messagesocket import MessageSocket
 from tlslite.defragmenter import Defragmenter
 from tlslite.mathtls import calcMasterSecret, calcFinished, \
@@ -25,43 +25,6 @@ from .handshake_helpers import calc_pending_states
 from .tree import TreeNode
 import socket
 
-# TODO move the following to tlslite proper
-class RenegotiationInfoExtension(TLSExtension):
-
-    """Implementation of the Renegotiation Info extension
-
-    Handling of the Secure Renegotiation extension from RFC 5746
-    """
-
-    def __init__(self):
-        self.renegotiated_connection = None
-        self.serverType = False
-
-    @property
-    def extType(self):
-        """Return the extension type, 0xff01"""
-        return ExtensionType.renegotiation_info
-
-    @property
-    def extData(self):
-        """Return the extension payload"""
-        if self.renegotiated_connection is None:
-            return bytearray(0)
-
-        writer = Writer()
-        writer.addVarSeq(self.renegotiated_connection, 1, 1)
-
-        return writer.bytes
-
-    def create(self, renegotiated_connection=None):
-        """Set the payload of the extension"""
-        self.renegotiated_connection = renegotiated_connection
-        return self
-
-    def parse(self, parser):
-        """Parse the extension from on the wire data"""
-        self.renegotiated_connection = parser.getVarBytes(1)
-        return self
 
 class Command(TreeNode):
 
