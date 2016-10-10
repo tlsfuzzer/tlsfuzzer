@@ -23,7 +23,7 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         ResetRenegotiationInfo, fuzz_plaintext, Connect, \
         ClientMasterKeyGenerator, TCPBufferingEnable, TCPBufferingDisable, \
         TCPBufferingFlush, fuzz_encrypted_message, fuzz_pkcs1_padding, \
-        CollectNonces
+        CollectNonces, AlertGenerator
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
@@ -747,6 +747,32 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
 
         self.assertIsNotNone(msg)
         self.assertEqual(msg.signature, bytearray())
+
+
+class TestAlertGenerator(unittest.TestCase):
+    def test_default_settings(self):
+        a = AlertGenerator()
+
+        self.assertIsNotNone(a)
+
+        state = ConnectionState()
+
+        ret = a.generate(state)
+        self.assertEqual(ret.level, constants.AlertLevel.warning)
+        self.assertEqual(ret.description,
+                         constants.AlertDescription.close_notify)
+
+    def test___init___with_parameters(self):
+        a = AlertGenerator(constants.AlertLevel.fatal,
+                           constants.AlertDescription.decode_error)
+        self.assertIsNotNone(a)
+
+        state = ConnectionState()
+
+        ret = a.generate(state)
+        self.assertEqual(ret.level, constants.AlertLevel.fatal)
+        self.assertEqual(ret.description,
+                         constants.AlertDescription.decode_error)
 
 
 class TestFinishedGenerator(unittest.TestCase):
