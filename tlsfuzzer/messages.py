@@ -567,16 +567,20 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
     @ivar sig_alg: hash and signature algorithm to be used for creating the
       signature in the message. Equal to msg_alg by default. Requires the
       protocol of the signature to be set to at least TLSv1.2 to be effective.
+
+    @type signature: bytearray
+    @ivar signature: bytes to sent as the signature of the message
     """
 
     def __init__(self, private_key=None, msg_version=None, msg_alg=None,
-                 sig_version=None, sig_alg=None):
+                 sig_version=None, sig_alg=None, signature=None):
         super(CertificateVerifyGenerator, self).__init__()
         self.private_key = private_key
         self.msg_alg = msg_alg
         self.msg_version = msg_version
         self.sig_version = sig_version
         self.sig_alg = sig_alg
+        self.signature = signature
 
     def generate(self, status):
         """Create a CertificateVerify message"""
@@ -598,16 +602,20 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         if self.sig_alg is None:
             self.sig_alg = self.msg_alg
         # TODO: generate a random key if none provided
-        if self.private_key is None:
-            raise ValueError("Can't create a signature without private key!")
+        if self.signature is not None:
+            signature = self.signature
+        else:
+            if self.private_key is None:
+                raise ValueError("Can't create a signature without "
+                                 "private key!")
 
-        verify_bytes = KeyExchange.calcVerifyBytes(self.sig_version,
-                                                   status.handshake_hashes,
-                                                   self.sig_alg,
-                                                   status.premaster_secret,
-                                                   status.client_random,
-                                                   status.server_random)
-        signature = self.private_key.sign(verify_bytes)
+            verify_bytes = KeyExchange.calcVerifyBytes(self.sig_version,
+                                                       status.handshake_hashes,
+                                                       self.sig_alg,
+                                                       status.premaster_secret,
+                                                       status.client_random,
+                                                       status.server_random)
+            signature = self.private_key.sign(verify_bytes)
 
         cert_verify = CertificateVerify(self.msg_version)
         cert_verify.create(signature, self.msg_alg)

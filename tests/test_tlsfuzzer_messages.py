@@ -738,6 +738,17 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
                          (constants.HashAlgorithm.sha1,
                           constants.SignatureAlgorithm.rsa))
 
+    def test_generate_with_empty_signature(self):
+        cert_ver_g = CertificateVerifyGenerator(signature=bytearray())
+        state = ConnectionState()
+        state.version = (3, 3)
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertEqual(msg.signature, bytearray())
+
+
 class TestFinishedGenerator(unittest.TestCase):
     def test___init__(self):
         fg = FinishedGenerator()
