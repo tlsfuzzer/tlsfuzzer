@@ -450,7 +450,7 @@ class TestExpectChangeCipherSpec(unittest.TestCase):
         state = ConnectionState()
         state.msg_sock = mock.MagicMock()
 
-        msg = Message(ContentType.change_cipher_spec, bytearray(1))
+        msg = Message(ContentType.change_cipher_spec, bytearray([1]))
 
         exp.process(state, msg)
 
@@ -469,7 +469,7 @@ class TestExpectChangeCipherSpec(unittest.TestCase):
         state.client_random = mock.Mock(name="client_random")
         state.server_random = mock.Mock(name="server_random")
 
-        msg = Message(ContentType.change_cipher_spec, bytearray(1))
+        msg = Message(ContentType.change_cipher_spec, bytearray([1]))
 
         exp.process(state, msg)
 

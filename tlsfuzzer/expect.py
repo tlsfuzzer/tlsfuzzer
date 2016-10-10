@@ -415,7 +415,7 @@ class ExpectChangeCipherSpec(Expect):
         parser = Parser(msg.write())
         ccs = ChangeCipherSpec().parse(parser)
 
-        # TOOD: check if it's correct
+        assert ccs.type == 1
 
         if state.resuming:
             calc_pending_states(state)
