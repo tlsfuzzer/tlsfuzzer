@@ -6,12 +6,16 @@
 from __future__ import print_function
 import traceback
 import sys
+import getopt
+import re
+from itertools import chain
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        fuzz_message, truncate_handshake, pad_handshake
+        fuzz_message, truncate_handshake, pad_handshake, \
+        TCPBufferingEnable, TCPBufferingDisable, TCPBufferingFlush
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectServerKeyExchange, \
@@ -23,16 +27,57 @@ from tlslite.extensions import SupportedGroupsExtension, \
         ECPointFormatsExtension
 
 
+def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
+    return [int(text) if text.isdigit() else text.lower()
+            for text in re.split(_nsre, s)]
+
+
+def help_msg():
+    print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
+    print(" -h hostname    name of the host to run the test against")
+    print("                localhost by default")
+    print(" -p port        port number to use for connection, 4433 by default")
+    print(" probe-name     if present, will run only the probes with given")
+    print("                names and not all of them, e.g \"sanity\"")
+    print(" -e probe-name  exclude the probe from the list of the ones run")
+    print("                may be specified multiple times")
+    print(" --help         this message")
+
+
 def main():
     """Check handling of malformed ECDHE_RSA client key exchange messages"""
+    host = "localhost"
+    port = 4433
+    run_exclude = set()
+
+    argv = sys.argv[1:]
+    opts, args = getopt.getopt(argv, "h:p:e:", ["help"])
+    for opt, arg in opts:
+        if opt == '-h':
+            host = arg
+        elif opt == '-p':
+            port = int(arg)
+        elif opt == '-e':
+            run_exclude.add(arg)
+        elif opt == '--help':
+            help_msg()
+            sys.exit(0)
+        else:
+            raise ValueError("Unknown option: {0}".format(opt))
+
+    if args:
+        run_only = set(args)
+    else:
+        run_only = None
+
     conversations = {}
 
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA]
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.supported_groups: SupportedGroupsExtension().
-           create([GroupName.secp256r1, GroupName.secp384r1]),
+           create([GroupName.secp256r1]),
            ExtensionType.ec_point_formats: ECPointFormatsExtension().
            create([ECPointFormat.uncompressed])}
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -56,15 +101,15 @@ def main():
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
 
-    conversations["sanity check ECDHE_RSA_AES_128"] = conversation
+    conversations["sanity"] = conversation
 
     # invalid ecdh_Yc value
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA]
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.supported_groups: SupportedGroupsExtension().
-           create([GroupName.secp256r1, GroupName.secp384r1]),
+           create([GroupName.secp256r1]),
            ExtensionType.ec_point_formats: ECPointFormatsExtension().
            create([ECPointFormat.uncompressed])}
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -75,24 +120,126 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    subst = dict((i, 0x00) for i in range(-1, -65, -1))
+    subst[-1] = 0x01
+    node = node.add_child(fuzz_message(ClientKeyExchangeGenerator(),
+                                       substitutions=subst))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.illegal_parameter))
+    node = node.add_child(ExpectClose())
+
+    conversations["invalid point (0, 1)"] = conversation
+
+    # invalid ecdh_Yc value
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA]
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.supported_groups: SupportedGroupsExtension().
+           create([GroupName.secp256r1]),
+           ExtensionType.ec_point_formats: ECPointFormatsExtension().
+           create([ECPointFormat.uncompressed])}
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=ext))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.ec_point_formats: None}
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    # point at infinity doesn't have a defined encoding, but some libraries
+    # encode it as 0, 0, check if it is rejected
+    subst = dict((i, 0x00) for i in range(-1, -65, -1))
+    node = node.add_child(fuzz_message(ClientKeyExchangeGenerator(),
+                                       substitutions=subst))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.illegal_parameter))
+    node = node.add_child(ExpectClose())
+
+    conversations["invalid point (0, 0)"] = conversation
+
+
+    # invalid ecdh_Yc value
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA]
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.supported_groups: SupportedGroupsExtension().
+           create([GroupName.secp256r1]),
+           ExtensionType.ec_point_formats: ECPointFormatsExtension().
+           create([ECPointFormat.uncompressed])}
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=ext))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.ec_point_formats: None}
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    # uncompressed EC points need to be self consistent, by changing
+    # one coordinate without changing the other we create an invalid point
+    node = node.add_child(fuzz_message(ClientKeyExchangeGenerator(),
+                                       substitutions=dict((i, 0x00) for i in range(-1, -33, -1))))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.illegal_parameter))
+    node = node.add_child(ExpectClose())
+
+    conversations["invalid point (self-inconsistent, y all zero)"] = conversation
+
+    # invalid ecdh_Yc value
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA]
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.supported_groups: SupportedGroupsExtension().
+           create([GroupName.secp256r1]),
+           ExtensionType.ec_point_formats: ECPointFormatsExtension().
+           create([ECPointFormat.uncompressed])}
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=ext))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.ec_point_formats: None}
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
     # uncompressed EC points need to be self consistent, by changing
     # one coordinate without changing the other we create an invalid point
     node = node.add_child(fuzz_message(ClientKeyExchangeGenerator(),
                                        xors={-1:0xff}))
     node = node.add_child(ChangeCipherSpecGenerator())
-    # node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectAlert())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.illegal_parameter))
     node = node.add_child(ExpectClose())
 
     conversations["invalid point (self-inconsistent)"] = conversation
 
     # truncated Client Key Exchange
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA]
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.supported_groups: SupportedGroupsExtension().
-           create([GroupName.secp256r1, GroupName.secp384r1]),
+           create([GroupName.secp256r1]),
            ExtensionType.ec_point_formats: ECPointFormatsExtension().
            create([ECPointFormat.uncompressed])}
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -103,24 +250,28 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
     # uncompressed EC points need to be self consistent, by changing
     # one coordinate without changing the other we create an invalid point
     node = node.add_child(truncate_handshake(ClientKeyExchangeGenerator(),
                                              1))
-    # node = node.add_child(ChangeCipherSpecGenerator())
-    # node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectAlert())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.decode_error))
     node = node.add_child(ExpectClose())
 
     conversations["truncated ecdh_Yc value"] = conversation
 
     # padded Client Key Exchange
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA]
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.supported_groups: SupportedGroupsExtension().
-           create([GroupName.secp256r1, GroupName.secp384r1]),
+           create([GroupName.secp256r1]),
            ExtensionType.ec_point_formats: ECPointFormatsExtension().
            create([ECPointFormat.uncompressed])}
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -131,24 +282,39 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
     # uncompressed EC points need to be self consistent, by changing
     # one coordinate without changing the other we create an invalid point
     node = node.add_child(pad_handshake(ClientKeyExchangeGenerator(),
                                         1))
-    # node = node.add_child(ChangeCipherSpecGenerator())
-    # node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectAlert())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.decode_error))
     node = node.add_child(ExpectClose())
 
     conversations["padded Client Key Exchange"] = conversation
 
     good = 0
     bad = 0
+    failed = []
 
-    for conversation_name, conversation in conversations.items():
-        print("{0} ...".format(conversation_name))
+    # make sure that sanity test is run first and last
+    # to verify that server was running and kept running throught
+    sanity_test = ('sanity', conversations['sanity'])
+    ordered_tests = chain([sanity_test],
+                          filter(lambda x: x[0] != 'sanity',
+                                 conversations.items()),
+                          [sanity_test])
 
-        runner = Runner(conversation)
+    for c_name, c_test in ordered_tests:
+        if run_only and c_name not in run_only or c_name in run_exclude:
+            continue
+        print("{0} ...".format(c_name))
+
+        runner = Runner(c_test)
 
         res = True
         try:
@@ -156,7 +322,6 @@ def main():
         except:
             print("Error while processing")
             print(traceback.format_exc())
-            print("")
             res = False
 
         if res:
@@ -164,10 +329,13 @@ def main():
             print("OK\n")
         else:
             bad += 1
+            failed.append(c_name)
 
     print("Test end")
     print("successful: {0}".format(good))
     print("failed: {0}".format(bad))
+    failed_sorted = sorted(failed, key=natural_sort_keys)
+    print("  {0}".format('\n  '.join(repr(i) for i in failed_sorted)))
 
     if bad > 0:
         sys.exit(1)
