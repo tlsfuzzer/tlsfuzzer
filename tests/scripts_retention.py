@@ -139,6 +139,7 @@ def run_rsa_cert_tests(server_cmd):
                       #'test-interleaved-application-data-in-renegotiation.py',
                       'test-invalid-cipher-suites.py',
                       'test-invalid-client-hello.py',
+                      'test-invalid-client-hello-w-record-overflow.py',
                       'test-invalid-compression-methods.py',
                       'test-invalid-content-type.py',
                       'test-invalid-rsa-key-exchange-messages.py',
