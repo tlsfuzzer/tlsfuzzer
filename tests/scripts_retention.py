@@ -137,8 +137,8 @@ def run_rsa_cert_tests(server_cmd):
                       #'test-interleaved-application-data-and-fragmented-handshakes-in-renegotiation.py',
                       #'test-interleaved-application-data-in-renegotiation.py',
                       'test-invalid-cipher-suites.py',
-                      # tlslite-ng just ignores this field
-                      #'test-invalid-compression-methods.py',
+                      'test-invalid-client-hello.py',
+                      'test-invalid-compression-methods.py',
                       'test-invalid-content-type.py',
                       'test-invalid-rsa-key-exchange-messages.py',
                       # not verified correctly by tlslite-ng
