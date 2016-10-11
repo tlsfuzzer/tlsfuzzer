@@ -125,6 +125,7 @@ def run_rsa_cert_tests(server_cmd):
                       'test-ecdhe-rsa-key-exchange.py',
                       'test-ecdhe-rsa-key-exchange-with-bad-messages.py',
                       'test-empty-extensions.py',
+                      'test-extensions.py',
                       # test requires renegotiation support
                       #'test-extended-master-secret-extension.py',
                       'test-fallback-scsv.py',
