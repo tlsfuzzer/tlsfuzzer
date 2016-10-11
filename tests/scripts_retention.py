@@ -152,6 +152,7 @@ def run_rsa_cert_tests(server_cmd):
                       'test-record-layer-fragmentation.py',
                       'test-sessionID-resumption.py',
                       'test-sig-algs.py',
+                      'test-signature-algorithms.py',
                       'test-sslv2-connection.py',
                       'test-sslv2-force-cipher-3des.py',
                       'test-sslv2-force-cipher-non3des.py',
