@@ -18,8 +18,8 @@ from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 from .tree import TreeNode
 
-class Expect(TreeNode):
 
+class Expect(TreeNode):
     """Base class for objects handling message readers"""
 
     def __init__(self, content_type):
@@ -66,8 +66,8 @@ class Expect(TreeNode):
         """
         raise NotImplementedError("Subclasses need to implement this!")
 
-class ExpectHandshake(Expect):
 
+class ExpectHandshake(Expect):
     """Common methods for handling TLS Handshake protocol messages"""
 
     def __init__(self, content_type, handshake_type):
@@ -96,8 +96,8 @@ class ExpectHandshake(Expect):
     def process(self, state, msg):
         raise NotImplementedError("Subclass need to implement this!")
 
-class ExpectServerHello(ExpectHandshake):
 
+class ExpectServerHello(ExpectHandshake):
     """Parsing TLS Handshake protocol Server Hello messages"""
 
     def __init__(self, extensions=None, version=None, resume=False,
@@ -182,12 +182,15 @@ class ExpectServerHello(ExpectHandshake):
                 for ext_id in (ext.extType for ext in srv_hello.extensions):
                     assert ext_id in self.extensions
 
+
 class ExpectServerHello2(ExpectHandshake):
     """Processing of SSLv2 Handshake Protocol SERVER-HELLO message"""
 
     def __init__(self, version=None):
-        super(ExpectServerHello2, self).__init__(ContentType.handshake,
-                                                 SSL2HandshakeType.server_hello)
+        c_type = ContentType.handshake
+        h_type = SSL2HandshakeType.server_hello
+        super(ExpectServerHello2, self).__init__(c_type,
+                                                 h_type)
         self.version = version
 
     def process(self, state, msg):
@@ -231,8 +234,8 @@ class ExpectServerHello2(ExpectHandshake):
         state.handshake_messages.append(certificate)
         # fake message so don't update handshake hashes
 
-class ExpectCertificate(ExpectHandshake):
 
+class ExpectCertificate(ExpectHandshake):
     """Processing TLS Handshake protocol Certificate messages"""
 
     def __init__(self, cert_type=CertificateType.x509):
@@ -255,6 +258,7 @@ class ExpectCertificate(ExpectHandshake):
 
         state.handshake_messages.append(cert)
         state.handshake_hashes.update(msg.write())
+
 
 class ExpectServerKeyExchange(ExpectHandshake):
     """Processing TLS Handshake protocol Server Key Exchange message"""
@@ -330,20 +334,21 @@ class ExpectServerKeyExchange(ExpectHandshake):
                 if valid_groups is None:
                     # no advertised means support for all
                     valid_groups = GroupName.allEC
-            state.key_exchange = ECDHE_RSAKeyExchange(self.cipher_suite,
-                                                      clientHello=None,
-                                                      serverHello=server_hello,
-                                                      privateKey=None,
-                                                      acceptedCurves=
-                                                      valid_groups)
+            state.key_exchange = \
+                ECDHE_RSAKeyExchange(self.cipher_suite,
+                                     clientHello=None,
+                                     serverHello=server_hello,
+                                     privateKey=None,
+                                     acceptedCurves=valid_groups)
         else:
             raise AssertionError("Unsupported cipher selected")
         state.premaster_secret = state.key_exchange.\
-                                 processServerKeyExchange(public_key,
-                                                          server_key_exchange)
+            processServerKeyExchange(public_key,
+                                     server_key_exchange)
 
         state.handshake_messages.append(server_key_exchange)
         state.handshake_hashes.update(msg.write())
+
 
 class ExpectCertificateRequest(ExpectHandshake):
     """Processing TLS Handshake protocol Certificate Request message"""
@@ -372,8 +377,8 @@ class ExpectCertificateRequest(ExpectHandshake):
         state.handshake_messages.append(cert_request)
         state.handshake_hashes.update(msg.write())
 
-class ExpectServerHelloDone(ExpectHandshake):
 
+class ExpectServerHelloDone(ExpectHandshake):
     """Processing TLS Handshake protocol ServerHelloDone messages"""
 
     def __init__(self):
@@ -398,8 +403,8 @@ class ExpectServerHelloDone(ExpectHandshake):
         state.handshake_messages.append(srv_hello_done)
         state.handshake_hashes.update(msg.write())
 
-class ExpectChangeCipherSpec(Expect):
 
+class ExpectChangeCipherSpec(Expect):
     """Processing TLS Change Cipher Spec messages"""
 
     def __init__(self):
@@ -415,12 +420,13 @@ class ExpectChangeCipherSpec(Expect):
         parser = Parser(msg.write())
         ccs = ChangeCipherSpec().parse(parser)
 
-        # TOOD: check if it's correct
+        assert ccs.type == 1
 
         if state.resuming:
             calc_pending_states(state)
 
         state.msg_sock.changeReadState()
+
 
 class ExpectVerify(ExpectHandshake):
     """Processing of SSLv2 SERVER-VERIFY message"""
@@ -437,8 +443,8 @@ class ExpectVerify(ExpectHandshake):
         msg_type = parser.get(1)
         assert msg_type == SSL2HandshakeType.server_verify
 
-class ExpectFinished(ExpectHandshake):
 
+class ExpectFinished(ExpectHandshake):
     """Processing TLS handshake protocol Finished message"""
 
     def __init__(self, version=None):
@@ -488,8 +494,8 @@ class ExpectFinished(ExpectHandshake):
         if self.version in ((0, 2), (2, 0)):
             state.msg_sock.handshake_finished = True
 
-class ExpectAlert(Expect):
 
+class ExpectAlert(Expect):
     """Processing TLS Alert message"""
 
     def __init__(self, level=None, description=None):
@@ -509,13 +515,14 @@ class ExpectAlert(Expect):
             problem_desc += "Alert level {0} != {1}".format(alert.level,
                                                             self.level)
         if self.description is not None \
-            and alert.description != self.description:
+                and alert.description != self.description:
             if problem_desc:
                 problem_desc += ", "
-            problem_desc += "Alert description {0} != {1}".format(\
-                                        alert.description, self.description)
+            problem_desc += ("Alert description {0} != {1}"
+                             .format(alert.description, self.description))
         if problem_desc:
             raise AssertionError(problem_desc)
+
 
 class ExpectSSL2Alert(ExpectHandshake):
     """Processing of SSLv2 Handshake protocol alert messages"""
@@ -536,6 +543,7 @@ class ExpectSSL2Alert(ExpectHandshake):
         if self.error is not None:
             assert self.error == parser.get(2)
 
+
 class ExpectApplicationData(Expect):
 
     """Processing Application Data message"""
@@ -551,6 +559,7 @@ class ExpectApplicationData(Expect):
 
         if self.data:
             assert self.data == data
+
 
 class ExpectClose(Expect):
 

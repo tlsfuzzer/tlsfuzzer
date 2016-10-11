@@ -1,7 +1,7 @@
 # Author: Hubert Kario, (c) 2015
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
-"""Set of object for generating TLS messages to send"""
+"""Objects for generating TLS messages to send."""
 
 from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         Finished, Alert, ApplicationData, Message, Certificate, \
@@ -10,7 +10,7 @@ from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
         ExtensionType, CertificateType, ClientCertificateType, HashAlgorithm, \
         SignatureAlgorithm, CipherSuite
-from tlslite.extensions import TLSExtension
+from tlslite.extensions import TLSExtension, RenegotiationInfoExtension
 from tlslite.messagesocket import MessageSocket
 from tlslite.defragmenter import Defragmenter
 from tlslite.mathtls import calcMasterSecret, calcFinished, \
@@ -25,80 +25,43 @@ from .handshake_helpers import calc_pending_states
 from .tree import TreeNode
 import socket
 
-# TODO move the following to tlslite proper
-class RenegotiationInfoExtension(TLSExtension):
-
-    """Implementation of the Renegotiation Info extension
-
-    Handling of the Secure Renegotiation extension from RFC 5746
-    """
-
-    def __init__(self):
-        self.renegotiated_connection = None
-        self.serverType = False
-
-    @property
-    def extType(self):
-        """Return the extension type, 0xff01"""
-        return ExtensionType.renegotiation_info
-
-    @property
-    def extData(self):
-        """Return the extension payload"""
-        if self.renegotiated_connection is None:
-            return bytearray(0)
-
-        writer = Writer()
-        writer.addVarSeq(self.renegotiated_connection, 1, 1)
-
-        return writer.bytes
-
-    def create(self, renegotiated_connection=None):
-        """Set the payload of the extension"""
-        self.renegotiated_connection = renegotiated_connection
-        return self
-
-    def parse(self, parser):
-        """Parse the extension from on the wire data"""
-        self.renegotiated_connection = parser.getVarBytes(1)
-        return self
 
 class Command(TreeNode):
-
-    """Command objects"""
+    """Command objects."""
 
     def __init__(self):
+        """Create object."""
         super(Command, self).__init__()
 
     def is_command(self):
-        """Define object as a command node"""
+        """Define object as a command node."""
         return True
 
     def is_expect(self):
-        """Define object as a command node"""
+        """Define object as a command node."""
         return False
 
     def is_generator(self):
-        """Define object as a command node"""
+        """Define object as a command node."""
         return False
 
     def process(self, state):
-        """Change the state of the connection"""
+        """Change the state of the connection."""
         raise NotImplementedError("Subclasses need to implement this!")
 
-class Connect(Command):
 
-    """Object used to connect to a TCP server"""
+class Connect(Command):
+    """Object used to connect to a TCP server."""
 
     def __init__(self, hostname, port, version=(3, 0)):
-        """Provide minimal settings needed to connect to other peer"""
+        """Provide minimal settings needed to connect to other peer."""
         super(Connect, self).__init__()
         self.hostname = hostname
         self.port = port
         self.version = version
 
     def process(self, state):
-        """Connect to a server"""
+        """Connect to a server."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(5)
         sock.connect((self.hostname, self.port))
@@ -115,38 +78,46 @@ class Connect(Command):
 
         state.msg_sock.version = self.version
 
-class Close(Command):
 
-    """Object used to close a TCP connection"""
+class Close(Command):
+    """Object used to close a TCP connection."""
 
     def __init__(self):
+        """Close connection object."""
         super(Close, self).__init__()
 
     def process(self, state):
-        """Close currently open connection"""
+        """Close currently open connection."""
         state.msg_sock.sock.close()
 
-class ResetHandshakeHashes(Command):
 
-    """Object used to reset current state of handshake hashes to zero"""
+class ResetHandshakeHashes(Command):
+    """
+    Object used to reset current state of handshake hashes to zero.
+
+    Used for session renegotiation or resumption.
+    """
 
     def __init__(self):
+        """Object for resetting handshake hashes of session."""
         super(ResetHandshakeHashes, self).__init__()
 
     def process(self, state):
-        """Reset current running handshake protocol hashes"""
+        """Reset current running handshake protocol hashes."""
         state.handshake_hashes = HandshakeHashes()
 
+
 class ResetRenegotiationInfo(Command):
-    """Object used to reset state of data needed for secure renegotiation"""
+    """Object used to reset state of data needed for secure renegotiation."""
 
     def __init__(self, client=None, server=None):
+        """Reset the stored rengotiation info to provided values."""
         super(ResetRenegotiationInfo, self).__init__()
         self.client_verify_data = client
         self.server_verify_data = server
 
     def process(self, state):
-        """Reset current Finished message values"""
+        """Reset current Finished message values."""
         if self.client_verify_data is None:
             self.client_verify_data = bytearray(0)
         if self.server_verify_data is None:
@@ -154,17 +125,17 @@ class ResetRenegotiationInfo(Command):
         state.client_verify_data = self.client_verify_data
         state.server_verify_data = self.server_verify_data
 
-class SetMaxRecordSize(Command):
 
-    """Change the Record Layer to send records of non standard size"""
+class SetMaxRecordSize(Command):
+    """Change the Record Layer to send records of non standard size."""
 
     def __init__(self, max_size=None):
-        """Set the maximum record layer message size, no option for default"""
+        """Set the maximum record layer message size, no option for default."""
         super(SetMaxRecordSize, self).__init__()
         self.max_size = max_size
 
     def process(self, state):
-        """Change the size of messages in record layer"""
+        """Change the size of messages in record layer."""
         if self.max_size is None:
             # the maximum for SSLv3, TLS1.0, TLS1.1 and TLS1.2
             state.msg_sock.recordSize = 2**14
@@ -174,37 +145,37 @@ class SetMaxRecordSize(Command):
 
 class TCPBufferingEnable(Command):
     """
-    Start buffering all writes on the TCP level of connection
+    Start buffering all writes on the TCP level of connection.
 
     You will need to call an explicit flush to send the messages
     """
 
     def process(self, state):
-        """Enable TCP buffering"""
+        """Enable TCP buffering."""
         state.msg_sock.sock.buffer_writes = True
 
 
 class TCPBufferingDisable(Command):
     """
-    Stop buffering all writes on the TCP level
+    Stop buffering all writes on the TCP level.
 
     All messages will be now passed directly to the TCP socket
     """
 
     def process(self, state):
-        """Disable TCP buffering"""
+        """Disable TCP buffering."""
         state.msg_sock.sock.buffer_writes = False
 
 
 class TCPBufferingFlush(Command):
     """
-    Send all messages in the buffer
+    Send all messages in the buffer.
 
     Does not change the state of buffering
     """
 
     def process(self, state):
-        """Flush all messages to TCP socket"""
+        """Flush all messages to TCP socket."""
         state.msg_sock.sock.flush()
 
 
@@ -221,16 +192,17 @@ class CollectNonces(Command):
     """
 
     def __init__(self, nonces):
+        """Link the list for storing nonces with the object."""
         super(CollectNonces, self).__init__()
         self.nonces = nonces
 
     def process(self, state):
-        """Monkey patch the seal() method"""
+        """Monkey patch the seal() method."""
         seal_mthd = state.msg_sock._writeState.encContext.seal
 
         def collector(nonce, buf, authData, old_seal=seal_mthd,
                       nonces=self.nonces):
-            """Collects used nonces for encryption"""
+            """Collect used nonces for encryption."""
             nonces.append(nonce)
             return old_seal(nonce, buf, authData)
 
@@ -238,52 +210,53 @@ class CollectNonces(Command):
 
 
 class MessageGenerator(TreeNode):
-
-    """Message generator objects"""
+    """Message generator objects."""
 
     def __init__(self):
+        """Initialize the object."""
         super(MessageGenerator, self).__init__()
         self.msg = None
 
     def is_command(self):
-        """Define object as a generator node"""
+        """Define object as a generator node."""
         return False
 
     def is_expect(self):
-        """Define object as a generator node"""
+        """Define object as a generator node."""
         return False
 
     def is_generator(self):
-        """Define object as a generator node"""
+        """Define object as a generator node."""
         return True
 
     def generate(self, state):
-        """Return a message ready to write to socket"""
+        """Return a message ready to write to socket."""
         raise NotImplementedError("Subclasses need to implement this!")
 
     def post_send(self, state):
-        """Modify the state after sending the message"""
+        """Modify the state after sending the message."""
         # since most messages don't require any post-send modifications
         # create a no-op default action
         pass
 
-class RawMessageGenerator(MessageGenerator):
 
-    """Generator for arbitrary record layer messages"""
+class RawMessageGenerator(MessageGenerator):
+    """Generator for arbitrary record layer messages."""
 
     def __init__(self, content_type, data, description=None):
-        """Set the record layer type and payload to send"""
+        """Set the record layer type and payload to send."""
         super(RawMessageGenerator, self).__init__()
         self.content_type = content_type
         self.data = data
         self.description = description
 
     def generate(self, state):
-        """Create a tlslite-ng message that can be send"""
+        """Create a tlslite-ng message that can be send."""
         message = Message(self.content_type, self.data)
         return message
 
     def __repr__(self):
+        """Return human readable representation of the object."""
         if self.description is None:
             return "RawMessageGenerator(content_type={0!s}, data={1!r})".\
                    format(self.content_type, self.data)
@@ -292,23 +265,24 @@ class RawMessageGenerator(MessageGenerator):
                    "description={2!r})".format(self.content_type, self.data,
                                                self.description)
 
-class HandshakeProtocolMessageGenerator(MessageGenerator):
 
-    """Message generator for TLS Handshake protocol messages"""
+class HandshakeProtocolMessageGenerator(MessageGenerator):
+    """Message generator for TLS Handshake protocol messages."""
 
     def post_send(self, state):
-        """Update handshake hashes after sending"""
+        """Update handshake hashes after sending."""
         super(HandshakeProtocolMessageGenerator, self).post_send(state)
 
         state.handshake_hashes.update(self.msg.write())
         state.handshake_messages.append(self.msg)
 
-class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
 
-    """Generator for TLS handshake protocol Client Hello messages"""
+class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
+    """Generator for TLS handshake protocol Client Hello messages."""
 
     def __init__(self, ciphers=None, extensions=None, version=None,
                  session_id=None, random=None, compression=None, ssl2=False):
+        """Set up the object for generation of Client Hello messages."""
         super(ClientHelloGenerator, self).__init__()
         if ciphers is None:
             ciphers = []
@@ -325,7 +299,7 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
         self.ssl2 = ssl2
 
     def _generate_extensions(self, state):
-        """Convert extension generators to extension objects"""
+        """Convert extension generators to extension objects."""
         extensions = []
         for ext_id in self.extensions:
             if self.extensions[ext_id] is not None:
@@ -338,7 +312,8 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
                 continue
 
             if ext_id == ExtensionType.renegotiation_info:
-                ext = RenegotiationInfoExtension().create(state.client_verify_data)
+                ext = RenegotiationInfoExtension()\
+                        .create(state.client_verify_data)
                 extensions.append(ext)
             else:
                 extensions.append(TLSExtension().create(ext_id, bytearray(0)))
@@ -346,6 +321,7 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
         return extensions
 
     def generate(self, state):
+        """Create a Client Hello message."""
         if self.version is None:
             self.version = state.client_version
         if self.random:
@@ -371,10 +347,10 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
 
         return clnt_hello
 
-class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
 
+class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
     """
-    Generator for TLS handshake protocol Client Key Exchange messages
+    Generator for TLS handshake protocol Client Key Exchange messages.
 
     @type dh_Yc: int
     @ivar dh_Yc: Override the sent dh_Yc value to the specified one
@@ -400,6 +376,7 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
                  dh_Yc=None, padding_subs=None, padding_xors=None,
                  ecdh_Yc=None, encrypted_premaster=None,
                  modulus_as_encrypted_premaster=False):
+        """Set settings of the Client Key Exchange to be sent."""
         super(ClientKeyExchangeGenerator, self).__init__()
         self.cipher = cipher
         self.version = version
@@ -413,6 +390,7 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
         self.modulus_as_encrypted_premaster = modulus_as_encrypted_premaster
 
     def generate(self, status):
+        """Create a Client Key Exchange message."""
         if self.version is None:
             self.version = status.version
 
@@ -459,7 +437,7 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
         return cke
 
     def _encrypt_with_fuzzing(self, public_key):
-        """Use public_key to encrypt premaster secret with fuzzed padding"""
+        """Use public_key to encrypt premaster secret with fuzzed padding."""
         old_addPKCS1Padding = public_key._addPKCS1Padding
         public_key = fuzz_pkcs1_padding(public_key, self.padding_subs,
                                         self.padding_xors)
@@ -467,16 +445,18 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
         public_key._addPKCS1Padding = old_addPKCS1Padding
         return ret
 
+
 class ClientMasterKeyGenerator(HandshakeProtocolMessageGenerator):
-    """Generator for SSLv2 Handshake Protocol CLIENT-MASTER-KEY message"""
+    """Generator for SSLv2 Handshake Protocol CLIENT-MASTER-KEY message."""
 
     def __init__(self, cipher=None, master_key=None):
+        """Set the cipher to send to server."""
         super(ClientMasterKeyGenerator, self).__init__()
         self.cipher = cipher
         self.master_key = master_key
 
     def generate(self, state):
-        """Generate a new CLIENT-MASTER-KEY message"""
+        """Generate a new CLIENT-MASTER-KEY message."""
         if self.cipher is None:
             raise NotImplementedError("No cipher autonegotiation")
         if self.master_key is None:
@@ -522,17 +502,19 @@ class ClientMasterKeyGenerator(HandshakeProtocolMessageGenerator):
         self.msg = cmk
         return cmk
 
+
 class CertificateGenerator(HandshakeProtocolMessageGenerator):
-    """Generator for TLS handshake protocol Certificate message"""
+    """Generator for TLS handshake protocol Certificate message."""
 
     def __init__(self, certs=None, cert_type=None):
+        """Set the certificates to send to server."""
         super(CertificateGenerator, self).__init__()
         self.certs = certs
         self.cert_type = cert_type
 
     def generate(self, status):
-        """Create a Certificate message"""
-        del status # unused
+        """Create a Certificate message."""
+        del status  # unused
         # TODO: support client certs
         if self.cert_type is None:
             self.cert_type = CertificateType.x509
@@ -542,9 +524,10 @@ class CertificateGenerator(HandshakeProtocolMessageGenerator):
         self.msg = cert
         return cert
 
+
 class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
     """
-    Generator for TLS handshake protocol Certificate Verify message
+    Generator for TLS handshake protocol Certificate Verify message.
 
     @type msg_alg: touple of two integers
     @ivar msg_alg: signature and hash algorithm to be set on in the
@@ -574,6 +557,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
 
     def __init__(self, private_key=None, msg_version=None, msg_alg=None,
                  sig_version=None, sig_alg=None, signature=None):
+        """Create object for generating Certificate Verify messages."""
         super(CertificateVerifyGenerator, self).__init__()
         self.private_key = private_key
         self.msg_alg = msg_alg
@@ -583,7 +567,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         self.signature = signature
 
     def generate(self, status):
-        """Create a CertificateVerify message"""
+        """Create a CertificateVerify message."""
         if self.msg_version is None:
             self.msg_version = status.version
         if self.sig_version is None:
@@ -623,18 +607,22 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         self.msg = cert_verify
         return cert_verify
 
+
 class ChangeCipherSpecGenerator(MessageGenerator):
-    """Generator for TLS Change Cipher Spec messages"""
+    """Generator for TLS Change Cipher Spec messages."""
 
     def __init__(self, extended_master_secret=None):
+        """Create an object for generating CCS messages."""
         super(ChangeCipherSpecGenerator, self).__init__()
         self.extended_master_secret = extended_master_secret
 
     def generate(self, status):
+        """Create a message for sending to server."""
         ccs = ChangeCipherSpec()
         return ccs
 
     def post_send(self, status):
+        """Generate new encryption keys for connection."""
         cipher_suite = status.cipher
         if self.extended_master_secret is None:
             self.extended_master_secret = status.extended_master_secret
@@ -661,16 +649,17 @@ class ChangeCipherSpecGenerator(MessageGenerator):
 
         status.msg_sock.changeWriteState()
 
-class FinishedGenerator(HandshakeProtocolMessageGenerator):
 
-    """Generator for TLS handshake protocol Finished messages"""
+class FinishedGenerator(HandshakeProtocolMessageGenerator):
+    """Generator for TLS handshake protocol Finished messages."""
 
     def __init__(self, protocol=None):
+        """Object to generate Finished messages."""
         super(FinishedGenerator, self).__init__()
         self.protocol = protocol
 
     def generate(self, status):
-        """Create a Finished message"""
+        """Create a Finished message."""
         if self.protocol is None:
             self.protocol = status.version
 
@@ -698,51 +687,58 @@ class FinishedGenerator(HandshakeProtocolMessageGenerator):
         return finished
 
     def post_send(self, status):
-        """Perform post-transmit changes needed by generation of Finished"""
+        """Perform post-transmit changes needed by generation of Finished."""
         super(FinishedGenerator, self).post_send(status)
 
         # resumption finished
         if status.resuming:
             status.resuming = False
 
-class AlertGenerator(MessageGenerator):
 
-    """Generator for TLS Alert messages"""
+class AlertGenerator(MessageGenerator):
+    """Generator for TLS Alert messages."""
 
     def __init__(self, level=AlertLevel.warning,
                  description=AlertDescription.close_notify):
+        """Save the level and description of the Alert to send."""
         super(AlertGenerator, self).__init__()
         self.level = level
         self.description = description
 
     def generate(self, status):
+        """Send the Alert to server."""
         alert = Alert().create(self.description, self.level)
         return alert
 
-class ApplicationDataGenerator(MessageGenerator):
 
-    """Generator for TLS Application Data messages"""
+class ApplicationDataGenerator(MessageGenerator):
+    """Generator for TLS Application Data messages."""
 
     def __init__(self, payload):
+        """Save the data to send to server."""
         super(ApplicationDataGenerator, self).__init__()
         self.payload = payload
 
     def generate(self, status):
+        """Send data to server in Application Data messages."""
         app_data = ApplicationData().create(self.payload)
         return app_data
 
+
 def pad_handshake(generator, size=0, pad_byte=0, pad=None):
-    """Pad or truncate handshake messages
+    """
+    Pad or truncate handshake messages.
 
     Pad or truncate a handshake message by given amount of bytes, use negative
-    to size to truncate"""
-
+    to size to truncate.
+    """
     def new_generate(state, old_generate=generator.generate):
-        """Monkey patch for the generate method of the Handshake generators"""
+        """Monkey patch for the generate method of the Handshake generators."""
         msg = old_generate(state)
 
-        def post_write(writer, self=msg, size=size, pad_byte=pad_byte, pad=pad):
-            """Monkey patch for the postWrite of handshake messages"""
+        def post_write(writer, self=msg, size=size, pad_byte=pad_byte,
+                       pad=pad):
+            """Monkey patch for the postWrite of handshake messages."""
             if pad is not None:
                 size = len(pad)
             header_writer = Writer()
@@ -762,12 +758,14 @@ def pad_handshake(generator, size=0, pad_byte=0, pad=None):
     generator.generate = new_generate
     return generator
 
+
 def truncate_handshake(generator, size=0, pad_byte=0):
-    """Truncate a handshake message"""
+    """Truncate a handshake message."""
     return pad_handshake(generator, -size, pad_byte)
 
+
 def substitute_and_xor(data, substitutions, xors):
-    """Apply changes from substitutions and xors to data for fuzzing"""
+    """Apply changes from substitutions and xors to data for fuzzing."""
     if substitutions is not None:
         for pos in substitutions:
             data[pos] = substitutions[pos]
@@ -778,15 +776,16 @@ def substitute_and_xor(data, substitutions, xors):
 
     return data
 
+
 def fuzz_message(generator, substitutions=None, xors=None):
-    """Change arbitrary bytes of the message after write"""
+    """Change arbitrary bytes of the message after write."""
     def new_generate(state, old_generate=generator.generate):
-        """Monkey patch for the generate method of the Handshake generators"""
+        """Monkey patch for the generate method of the Handshake generators."""
         msg = old_generate(state)
 
         def new_write(old_write=msg.write, substitutions=substitutions,
                       xors=xors):
-            """Monkey patch for the write method of messages"""
+            """Monkey patch for the write method of messages."""
             data = old_write()
 
             data = substitute_and_xor(data, substitutions, xors)
@@ -799,25 +798,27 @@ def fuzz_message(generator, substitutions=None, xors=None):
     generator.generate = new_generate
     return generator
 
+
 def post_send_msg_sock_restore(obj, method_name, old_method_name):
-    """Un-Monkey patch a method of msg_sock"""
+    """Un-Monkey patch a method of msg_sock."""
     def new_post_send(state, obj=obj,
                       method_name=method_name,
                       old_method_name=old_method_name,
                       old_post_send=obj.post_send):
-        """Reverse the patching of a method in msg_sock"""
+        """Reverse the patching of a method in msg_sock."""
         setattr(state.msg_sock, method_name, getattr(obj, old_method_name))
         old_post_send(state)
     obj.post_send = new_post_send
     return obj
 
+
 def fuzz_mac(generator, substitutions=None, xors=None):
-    """Change arbitrary bytes of the MAC value"""
+    """Change arbitrary bytes of the MAC value."""
     def new_generate(state, self=generator,
                      old_generate=generator.generate,
                      substitutions=substitutions,
                      xors=xors):
-        """Monkey patch to modify MAC calculation of created MAC"""
+        """Monkey patch to modify MAC calculation of created MAC."""
         msg = old_generate(state)
 
         old_calculate_mac = state.msg_sock.calculateMAC
@@ -828,7 +829,7 @@ def fuzz_mac(generator, substitutions=None, xors=None):
                               old_calculate_mac=old_calculate_mac,
                               substitutions=substitutions,
                               xors=xors):
-            """Monkey patch for the MAC calculation method of msg socket"""
+            """Monkey patch for the MAC calculation method of msg socket."""
             mac_bytes = old_calculate_mac(mac, seqnumBytes, contentType, data)
 
             mac_bytes = substitute_and_xor(mac_bytes, substitutions, xors)
@@ -845,13 +846,14 @@ def fuzz_mac(generator, substitutions=None, xors=None):
 
     return generator
 
+
 def fuzz_encrypted_message(generator, substitutions=None, xors=None):
-    """Change arbitrary bytes of the authenticated ciphertext block"""
+    """Change arbitrary bytes of the authenticated ciphertext block."""
     def new_generate(state, self=generator,
                      old_generate=generator.generate,
                      substitutions=substitutions,
                      xors=xors):
-        """Monkey patch to modify authenticated ciphertext block"""
+        """Monkey patch to modify authenticated ciphertext block."""
         msg = old_generate(state)
 
         old_send = state.msg_sock._recordSocket.send
@@ -860,7 +862,8 @@ def fuzz_encrypted_message(generator, substitutions=None, xors=None):
 
         def new_send(message, padding, old_send=old_send,
                      substitutions=substitutions, xors=xors):
-            """Monkey patch for the send method of msg socket
+            """
+            Monkey patch for the send method of msg socket.
 
             message.data is the encrypted tls record, e.g.
 
@@ -886,12 +889,14 @@ def fuzz_encrypted_message(generator, substitutions=None, xors=None):
 
 
 def div_ceil(divident, divisor):
-    """Perform integer division of divident by divisor, round up"""
+    """Perform integer division of divident by divisor, round up."""
     quotient, reminder = divmod(divident, divisor)
     return quotient + int(bool(reminder))
 
+
 def fuzz_padding(generator, min_length=None, substitutions=None, xors=None):
-    """Change the padding of the message
+    """
+    Change the padding of the message.
 
     the min_length specifies the minimum length of the padding created,
     including the byte specifying length of padding
@@ -908,7 +913,7 @@ def fuzz_padding(generator, min_length=None, substitutions=None, xors=None):
                      old_generate=generator.generate,
                      substitutions=substitutions,
                      xors=xors):
-        """Monkey patch to modify padding behaviour"""
+        """Monkey patch to modify padding behaviour."""
         msg = old_generate(state)
 
         self.old_add_padding = state.msg_sock.addPadding
@@ -917,7 +922,7 @@ def fuzz_padding(generator, min_length=None, substitutions=None, xors=None):
                             old_add_padding=self.old_add_padding,
                             substitutions=substitutions,
                             xors=xors):
-            """Monkey patch the padding creating method"""
+            """Monkey patch the padding creating method."""
             if min_length is None:
                 # make a copy of data as we need it unmodified later
                 padded_data = old_add_padding(bytearray(data))
@@ -928,8 +933,9 @@ def fuzz_padding(generator, min_length=None, substitutions=None, xors=None):
                 padding_length = div_ceil(len(data) + min_length,
                                           block_size) * block_size - len(data)
                 if padding_length > 256:
-                    raise ValueError("min_length set too high for message: {0}"\
-                            .format(padding_length))
+                    raise ValueError("min_length set too "
+                                     "high for message: {0}"
+                                     .format(padding_length))
                 padding = bytearray([padding_length - 1] * (padding_length))
 
             padding = substitute_and_xor(padding, substitutions, xors)
@@ -945,6 +951,7 @@ def fuzz_padding(generator, min_length=None, substitutions=None, xors=None):
     post_send_msg_sock_restore(generator, 'addPadding', 'old_add_padding')
 
     return generator
+
 
 def fuzz_plaintext(generator, substitutions=None, xors=None):
     """
@@ -964,7 +971,7 @@ def fuzz_plaintext(generator, substitutions=None, xors=None):
                      old_generate=generator.generate,
                      substitutions=substitutions,
                      xors=xors):
-        """Monkey patch to modify padding behaviour"""
+        """Monkey patch to modify padding behaviour."""
         msg = old_generate(state)
 
         self.old_add_padding = state.msg_sock.addPadding
@@ -973,7 +980,7 @@ def fuzz_plaintext(generator, substitutions=None, xors=None):
                             old_add_padding=self.old_add_padding,
                             substitutions=substitutions,
                             xors=xors):
-            """Monkey patch the padding creating method"""
+            """Monkey patch the padding creating method."""
             data = old_add_padding(data)
 
             data = substitute_and_xor(data, substitutions, xors)
@@ -993,13 +1000,13 @@ def fuzz_plaintext(generator, substitutions=None, xors=None):
 
 def split_message(generator, fragment_list, size):
     """
-    Split a given message type to multiple messages
+    Split a given message type to multiple messages.
 
     Allows for splicing message into the middle of a different message type
     """
     def new_generate(state, old_generate=generator.generate,
                      fragment_list=fragment_list, size=size):
-        """Monkey patch for the generate method of the message generator"""
+        """Monkey patch for the generate method of the message generator."""
         msg = old_generate(state)
         content_type = msg.contentType
         data = msg.write()
@@ -1015,29 +1022,31 @@ def split_message(generator, fragment_list, size):
     generator.generate = new_generate
     return generator
 
-class PopMessageFromList(MessageGenerator):
 
-    """Takes a reference to list, pops a message from it to generate one"""
+class PopMessageFromList(MessageGenerator):
+    """Takes a reference to list, pops a message from it to generate one."""
 
     def __init__(self, fragment_list):
+        """Link a list to store messages with the object."""
         super(PopMessageFromList, self).__init__()
         self.fragment_list = fragment_list
 
     def generate(self, state):
-        """Create a message using the reference to list from init"""
+        """Create a message using the reference to list from init."""
         msg = self.fragment_list.pop(0)
         return msg
 
-class FlushMessageList(MessageGenerator):
 
-    """Takes a reference to list, empties it to generate a message"""
+class FlushMessageList(MessageGenerator):
+    """Takes a reference to list, empties it to generate a message."""
 
     def __init__(self, fragment_list):
+        """Link a list to pull the messages from to the object."""
         super(FlushMessageList, self).__init__()
         self.fragment_list = fragment_list
 
     def generate(self, state):
-        """Creata a single message to empty the list"""
+        """Creata a single message to empty the list."""
         msg = self.fragment_list.pop(0)
         content_type = msg.contentType
         data = msg.write()
@@ -1048,11 +1057,12 @@ class FlushMessageList(MessageGenerator):
         msg_ret = Message(content_type, data)
         return msg_ret
 
+
 def fuzz_pkcs1_padding(key, substitutions=None, xors=None):
     """
-    Fuzz the PKCS#1 padding used in signatures or encryption
+    Fuzz the PKCS#1 padding used in signatures or encryption.
 
-    Use to modify Client Key Exchange padding of encrypted value
+    Use to modify Client Key Exchange padding of encrypted value.
     """
     if not xors and not substitutions:
         return key
@@ -1060,7 +1070,7 @@ def fuzz_pkcs1_padding(key, substitutions=None, xors=None):
     def new_addPKCS1Padding(bytes, blockType, self=key,
                             old_add_padding=key._addPKCS1Padding,
                             substitutions=substitutions, xors=xors):
-        """Monkey patch for the _addPKCS1Padding() method of RSA key"""
+        """Monkey patch for the _addPKCS1Padding() method of RSA key."""
         ret = old_add_padding(bytes, blockType)
         pad_length = numBytes(self.n) - len(bytes)
         pad = ret[:pad_length]

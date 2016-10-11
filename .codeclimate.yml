@@ -1,13 +1,17 @@
 engines:
   radon:
     enabled: true
+    config:
+       threshold: "C"
   pep8:
     enabled: true
   duplication:
     enabled: true
     config:
       languages:
-      - python
+          python:
+             mass_threshold: 42
+             python_version: 3
   fixme:
     enabled: true
     checks:

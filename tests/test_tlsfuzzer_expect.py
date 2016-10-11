@@ -34,7 +34,7 @@ from tlslite.extensions import SNIExtension, SignatureAlgorithmsExtension
 from tlslite.keyexchange import DHE_RSAKeyExchange, ECDHE_RSAKeyExchange
 from tlslite.errors import TLSIllegalParameterException
 from tlsfuzzer.runner import ConnectionState
-from tlsfuzzer.messages import RenegotiationInfoExtension
+from tlslite.extensions import RenegotiationInfoExtension
 
 srv_raw_key = str(
     "-----BEGIN RSA PRIVATE KEY-----\n"\
@@ -144,7 +144,7 @@ class TestExpectServerHello(unittest.TestCase):
         state = ConnectionState()
         state.msg_sock = mock.MagicMock()
 
-        ext = RenegotiationInfoExtension().create()
+        ext = RenegotiationInfoExtension().create(None)
 
         msg = ServerHello().create(version=(3, 3),
                                    random=bytearray(32),
@@ -165,7 +165,7 @@ class TestExpectServerHello(unittest.TestCase):
         state = ConnectionState()
         state.msg_sock = mock.MagicMock()
 
-        ext = RenegotiationInfoExtension().create()
+        ext = RenegotiationInfoExtension().create(None)
 
         msg = ServerHello().create(version=(3, 2),
                                    random=bytearray(32),
@@ -183,7 +183,7 @@ class TestExpectServerHello(unittest.TestCase):
         state = ConnectionState()
         state.msg_sock = mock.MagicMock()
 
-        ext = RenegotiationInfoExtension().create()
+        ext = RenegotiationInfoExtension().create(None)
 
         msg = ServerHello().create(version=(3, 3),
                                    random=bytearray(32),
@@ -203,7 +203,7 @@ class TestExpectServerHello(unittest.TestCase):
         state.msg_sock = mock.MagicMock()
 
         exts = []
-        exts.append(RenegotiationInfoExtension().create())
+        exts.append(RenegotiationInfoExtension().create(None))
         exts.append(SNIExtension().create())
         msg = ServerHello().create(version=(3, 3),
                                    random=bytearray(32),
@@ -450,7 +450,7 @@ class TestExpectChangeCipherSpec(unittest.TestCase):
         state = ConnectionState()
         state.msg_sock = mock.MagicMock()
 
-        msg = Message(ContentType.change_cipher_spec, bytearray(1))
+        msg = Message(ContentType.change_cipher_spec, bytearray([1]))
 
         exp.process(state, msg)
 
@@ -469,7 +469,7 @@ class TestExpectChangeCipherSpec(unittest.TestCase):
         state.client_random = mock.Mock(name="client_random")
         state.server_random = mock.Mock(name="server_random")
 
-        msg = Message(ContentType.change_cipher_spec, bytearray(1))
+        msg = Message(ContentType.change_cipher_spec, bytearray([1]))
 
         exp.process(state, msg)
 
