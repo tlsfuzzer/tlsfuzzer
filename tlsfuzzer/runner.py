@@ -189,6 +189,8 @@ class Runner(object):
                 else:
                     raise AssertionError("Unknown decision tree node")
         except:
+            if self.state.msg_sock:
+                self.state.msg_sock.sock.close()
             # TODO put into a log
             if node is None:
                 node = old_node

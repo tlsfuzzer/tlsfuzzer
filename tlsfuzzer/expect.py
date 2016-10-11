@@ -171,7 +171,9 @@ class ExpectServerHello(ExpectHandshake):
         if self.extensions is not None:
             for ext_id in self.extensions:
                 ext = srv_hello.getExtension(ext_id)
-                assert ext is not None
+                if ext is None:
+                    raise AssertionError("Required extension {0} missing"
+                                         .format(ExtensionType.toStr(ext_id)))
                 # run extension-specific checker if present
                 if self.extensions[ext_id] is not None:
                     self.extensions[ext_id](state, ext)
@@ -180,7 +182,10 @@ class ExpectServerHello(ExpectHandshake):
             # not supporting any extensions is valid
             if srv_hello.extensions is not None:
                 for ext_id in (ext.extType for ext in srv_hello.extensions):
-                    assert ext_id in self.extensions
+                    if ext_id not in self.extensions:
+                        raise AssertionError("unexpected extension: {0}"
+                                             .format(ExtensionType
+                                                     .toStr(ext_id)))
 
 
 class ExpectServerHello2(ExpectHandshake):
