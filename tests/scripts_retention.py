@@ -186,6 +186,7 @@ def run_rsa_cert_tests(server_cmd):
     srv_out.join()
 
     client_certs = ['test-certificate-malformed.py',
+                    'test-certificate-request.py',
                     'test-certificate-verify-malformed-sig.py',
                     'test-certificate-verify-malformed.py',
                     'test-certificate-verify.py',
