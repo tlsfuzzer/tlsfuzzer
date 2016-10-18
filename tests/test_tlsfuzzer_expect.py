@@ -933,3 +933,36 @@ class TestExpectCertificateRequest(unittest.TestCase):
                       msg.write())
 
         exp.process(state, msg)
+
+    def test_sig_algs(self):
+        sig_algs = [(HashAlgorithm.sha1, SignatureAlgorithm.rsa),
+                    (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+                    (HashAlgorithm.sha384, SignatureAlgorithm.rsa)]
+        exp = ExpectCertificateRequest(sig_algs=sig_algs)
+
+        state = ConnectionState()
+        msg = CertificateRequest((3, 3))
+        msg.create([ClientCertificateType.rsa_sign,
+                    ClientCertificateType.rsa_fixed_dh],
+                   [],
+                   sig_algs)
+        msg = Message(ContentType.handshake, msg.write())
+
+        exp.process(state, msg)
+
+    def test_sig_algs_mismatched(self):
+        sig_algs = [(HashAlgorithm.sha1, SignatureAlgorithm.rsa),
+                    (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+                    (HashAlgorithm.sha384, SignatureAlgorithm.rsa)]
+        exp = ExpectCertificateRequest(sig_algs=sig_algs[0:0])
+
+        state = ConnectionState()
+        msg = CertificateRequest((3, 3))
+        msg.create([ClientCertificateType.rsa_sign,
+                    ClientCertificateType.rsa_fixed_dh],
+                   [],
+                   sig_algs)
+        msg = Message(ContentType.handshake, msg.write())
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)

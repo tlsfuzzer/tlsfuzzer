@@ -358,13 +358,13 @@ class ExpectServerKeyExchange(ExpectHandshake):
 class ExpectCertificateRequest(ExpectHandshake):
     """Processing TLS Handshake protocol Certificate Request message"""
 
-    def __init__(self):
+    def __init__(self, sig_algs=None):
         msg_type = HandshakeType.certificate_request
         super(ExpectCertificateRequest, self).__init__(ContentType.handshake,
                                                        msg_type)
+        self.sig_algs = sig_algs
 
-    @staticmethod
-    def process(state, msg):
+    def process(self, state, msg):
         """
         Check received Certificate Request
 
@@ -378,6 +378,11 @@ class ExpectCertificateRequest(ExpectHandshake):
 
         cert_request = CertificateRequest(state.version)
         cert_request.parse(parser)
+        if self.sig_algs is not None and \
+                cert_request.supported_signature_algs != self.sig_algs:
+            raise AssertionError("Unexpected algorithms found: {0}"
+                                 .format(cert_request.supported_signature_algs)
+                                )
 
         state.handshake_messages.append(cert_request)
         state.handshake_hashes.update(msg.write())
