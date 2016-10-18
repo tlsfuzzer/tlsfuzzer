@@ -127,6 +127,7 @@ def run_rsa_cert_tests(server_cmd):
                       'test-empty-extensions.py',
                       # test requires renegotiation support
                       #'test-extended-master-secret-extension.py',
+                      'test-fallback-scsv.py',
                       'test-fuzzed-ciphertext.py',
                       'test-fuzzed-finished.py',
                       'test-fuzzed-MAC.py',
