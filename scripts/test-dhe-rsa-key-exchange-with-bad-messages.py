@@ -38,6 +38,9 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -a alert       numerical value of the expected alert for messages")
+    print("                with publicly invalid client key shares,")
+    print("                47 (illegal_parameter) by default")
     print(" --help         this message")
 
 
@@ -47,9 +50,10 @@ def main():
     host = "localhost"
     port = 4433
     run_exclude = set()
+    alert = AlertDescription.illegal_parameter
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:a:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -60,6 +64,8 @@ def main():
         elif opt == '--help':
             help_msg()
             sys.exit(0)
+        elif opt == "-a":
+            alert = int(arg)
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -119,7 +125,7 @@ def main():
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.illegal_parameter))
+                                          alert))
         node = node.add_child(ExpectClose())
 
         conversations["invalid dh_Yc value - " + str(i) + "b"] = conversation
@@ -143,7 +149,7 @@ def main():
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.illegal_parameter))
+                                          alert))
         node = node.add_child(ExpectClose())
 
         conversations["invalid dh_Yc value - {0}".format(i)] = conversation
@@ -167,7 +173,7 @@ def main():
     node = node.add_child(TCPBufferingDisable())
     node = node.add_child(TCPBufferingFlush())
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                      AlertDescription.illegal_parameter))
+                                      alert))
     node = node.add_child(ExpectClose())
 
     conversations["invalid dh_Yc value - p"] = conversation
@@ -191,7 +197,7 @@ def main():
     node = node.add_child(TCPBufferingDisable())
     node = node.add_child(TCPBufferingFlush())
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                      AlertDescription.illegal_parameter))
+                                      alert))
     node = node.add_child(ExpectClose())
 
     conversations["invalid dh_Yc value - p-1"] = conversation
