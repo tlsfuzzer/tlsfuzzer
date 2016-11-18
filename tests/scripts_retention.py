@@ -125,6 +125,7 @@ def run_rsa_cert_tests(server_cmd):
                       'test-ecdhe-rsa-key-exchange.py',
                       'test-ecdhe-rsa-key-exchange-with-bad-messages.py',
                       'test-empty-extensions.py',
+                      'test-extensions.py',
                       # test requires renegotiation support
                       #'test-extended-master-secret-extension.py',
                       'test-fallback-scsv.py',
@@ -137,19 +138,23 @@ def run_rsa_cert_tests(server_cmd):
                       #'test-interleaved-application-data-and-fragmented-handshakes-in-renegotiation.py',
                       #'test-interleaved-application-data-in-renegotiation.py',
                       'test-invalid-cipher-suites.py',
-                      # tlslite-ng just ignores this field
-                      #'test-invalid-compression-methods.py',
+                      'test-invalid-client-hello.py',
+                      'test-invalid-client-hello-w-record-overflow.py',
+                      'test-invalid-compression-methods.py',
                       'test-invalid-content-type.py',
                       'test-invalid-rsa-key-exchange-messages.py',
                       # not verified correctly by tlslite-ng
                       #'test-invalid-session-id.py',
                       'test-invalid-version.py',
                       'test-large-number-of-extensions.py',
+                      'test-message-duplication.py',
+                      'test-message-skipping.py',
                       # test requires renegotiation support
                       #'test-openssl-3712.py',
                       'test-record-layer-fragmentation.py',
                       'test-sessionID-resumption.py',
                       'test-sig-algs.py',
+                      'test-signature-algorithms.py',
                       'test-sslv2-connection.py',
                       'test-sslv2-force-cipher-3des.py',
                       'test-sslv2-force-cipher-non3des.py',

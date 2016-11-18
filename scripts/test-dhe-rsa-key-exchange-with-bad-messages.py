@@ -6,6 +6,9 @@
 from __future__ import print_function
 import traceback
 import sys
+import getopt
+import re
+from itertools import chain
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
@@ -21,11 +24,51 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType
 
+def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
+    return [int(text) if text.isdigit() else text.lower()
+            for text in re.split(_nsre, s)]
+
+
+def help_msg():
+    print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
+    print(" -h hostname    name of the host to run the test against")
+    print("                localhost by default")
+    print(" -p port        port number to use for connection, 4433 by default")
+    print(" probe-name     if present, will run only the probes with given")
+    print("                names and not all of them, e.g \"sanity\"")
+    print(" -e probe-name  exclude the probe from the list of the ones run")
+    print("                may be specified multiple times")
+    print(" --help         this message")
+
 def main():
     """Test if server correctly handles malformed DHE_RSA CKE messages"""
+    host = "localhost"
+    port = 4433
+    run_exclude = set()
+
+    argv = sys.argv[1:]
+    opts, args = getopt.getopt(argv, "h:p:e:", ["help"])
+    for opt, arg in opts:
+        if opt == '-h':
+            host = arg
+        elif opt == '-p':
+            port = int(arg)
+        elif opt == '-e':
+            run_exclude.add(arg)
+        elif opt == '--help':
+            help_msg()
+            sys.exit(0)
+        else:
+            raise ValueError("Unknown option: {0}".format(opt))
+
+    if args:
+        run_only = set(args)
+    else:
+        run_only = None
+
     conversations = {}
 
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -50,12 +93,12 @@ def main():
     node.next_sibling = ExpectClose()
     node = node.add_child(ExpectClose())
 
-    conversations["sanity check DHE_RSA_AES_128"] = conversation
+    conversations["sanity"] = conversation
 
     # invalid dh_Yc value
     #for i in [2*1024, 4*1024, 8*1024, 16*1024]:
     for i in [8*1024]:
-        conversation = Connect("localhost", 4433)
+        conversation = Connect(host, port)
         node = conversation
         ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
         node = node.add_child(ClientHelloGenerator(ciphers,
@@ -69,17 +112,16 @@ def main():
         node = node.add_child(TCPBufferingEnable())
         node = node.add_child(ClientKeyExchangeGenerator(dh_Yc=2**(i)))
         node = node.add_child(ChangeCipherSpecGenerator())
-        #node = node.add_child(FinishedGenerator())
+        node = node.add_child(FinishedGenerator())
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert())
-        #node.next_sibling = ExpectClose()
         node.add_child(ExpectClose())
 
         conversations["invalid dh_Yc value - " + str(i) + "b"] = conversation
 
     # truncated dh_Yc value
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -93,17 +135,14 @@ def main():
     node = node.add_child(truncate_handshake(ClientKeyExchangeGenerator(),
                                              1))
 #    node = node.add_child(ExpectAlert(
-#        description=AlertDescription.handshake_failure))
-#    node = node.add_child(ExpectAlert(
-#        description=AlertDescription.record_overflow))
+#        description=AlertDescription.decode_error))
     node = node.add_child(ExpectAlert())
-#    node.next_sibling = ExpectClose()
     node.add_child(ExpectClose())
 
     conversations["truncated dh_Yc value"] = conversation
 
     # padded Client Key Exchange
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -114,23 +153,39 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
     node = node.add_child(pad_handshake(ClientKeyExchangeGenerator(),
                                              1))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
     node = node.add_child(ExpectAlert())
 #    node = node.add_child(
-#            ExpectAlert(description=AlertDescription.record_overflow))
-    # node.next_sibling = ExpectClose()
+#            ExpectAlert(description=AlertDescription.decode_error))
     node.add_child(ExpectClose())
 
     conversations["padded Client Key Exchange"] = conversation
 
+    # run the conversations
     good = 0
     bad = 0
+    failed = []
 
-    for conversation_name, conversation in conversations.items():
-        print("{0} ...".format(conversation_name))
+    # make sure that sanity test is run first and last
+    # to verify that server was running and kept running throught
+    sanity_test = ('sanity', conversations['sanity'])
+    ordered_tests = chain([sanity_test],
+                          filter(lambda x: x[0] != 'sanity',
+                                 conversations.items()),
+                          [sanity_test])
 
-        runner = Runner(conversation)
+    for c_name, c_test in ordered_tests:
+        if run_only and c_name not in run_only or c_name in run_exclude:
+            continue
+        print("{0} ...".format(c_name))
+
+        runner = Runner(c_test)
 
         res = True
         try:
@@ -146,8 +201,9 @@ def main():
             print("OK\n")
         else:
             bad+=1
+            failed.append(c_name)
 
-    print("Test version 1")
+    print("Test version 2")
     print("Check if server properly verifies received Client Key Exchange")
     print("message. That the extra data (pad) at the end is noticed, that")
     print("too short message is rejected and a message with \"obviously\"")
@@ -156,6 +212,8 @@ def main():
     print("Test end")
     print("successful: {0}".format(good))
     print("failed: {0}".format(bad))
+    failed_sorted = sorted(failed, key=natural_sort_keys)
+    print("  {0}".format('\n  '.join(repr(i) for i in failed_sorted)))
 
     if bad > 0:
         sys.exit(1)

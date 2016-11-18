@@ -6,6 +6,9 @@
 from __future__ import print_function
 import traceback
 import sys
+import getopt
+import re
+from itertools import chain
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
@@ -20,9 +23,89 @@ from tlslite.extensions import SignatureAlgorithmsExtension
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType, HashAlgorithm, SignatureAlgorithm
 
+
+def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
+    return [int(text) if text.isdigit() else text.lower()
+            for text in re.split(_nsre, s)]
+
+
+def help_msg():
+    print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
+    print(" -h hostname    name of the host to run the test against")
+    print("                localhost by default")
+    print(" -p port        port number to use for connection, 4433 by default")
+    print(" probe-name     if present, will run only the probes with given")
+    print("                names and not all of them, e.g \"sanity\"")
+    print(" -e probe-name  exclude the probe from the list of the ones run")
+    print("                may be specified multiple times")
+    print(" --help         this message")
+
+
 def main():
     """Test if server supports all common hash algorithms in DHE_RSA kex"""
+    host = "localhost"
+    port = 4433
+    run_exclude = set()
+
+    argv = sys.argv[1:]
+    opts, args = getopt.getopt(argv, "h:p:e:", ["help"])
+    for opt, arg in opts:
+        if opt == '-h':
+            host = arg
+        elif opt == '-p':
+            port = int(arg)
+        elif opt == '-e':
+            run_exclude.add(arg)
+        elif opt == '--help':
+            help_msg()
+            sys.exit(0)
+        else:
+            raise ValueError("Unknown option: {0}".format(opt))
+
+    if args:
+        run_only = set(args)
+    else:
+        run_only = None
+
     conversations = {}
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA,
+               CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_DHE_RSA_WITH_AES_256_CBC_SHA,
+               CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
+               CipherSuite.TLS_DHE_RSA_WITH_AES_256_CBC_SHA256]
+    sig_algs = [(getattr(HashAlgorithm, hash_alg), SignatureAlgorithm.rsa)
+                for hash_alg in ("sha1", "sha224", "sha256", "sha384",
+                                "sha512")]
+    ext = SignatureAlgorithmsExtension().create(sig_algs)
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions={ExtensionType.
+                                                   renegotiation_info:None,
+                                                   ExtensionType.
+                                                   signature_algorithms:
+                                                   ext}))
+    node = node.add_child(ExpectServerHello(version=(3, 3),
+                                            extensions={ExtensionType.
+                                                     renegotiation_info:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange(valid_sig_algs=sig_algs))
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+
+    conversations["sanity"] = conversation
 
     for cipher in [CipherSuite.TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
@@ -30,7 +113,7 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_256_CBC_SHA256]:
         for hash_alg in ["sha1", "sha224", "sha256", "sha384", "sha512"]:
-            conversation = Connect("localhost", 4433)
+            conversation = Connect(host, port)
             node = conversation
             ciphers = [cipher]
             sig_algs = [(getattr(HashAlgorithm, hash_alg), SignatureAlgorithm.rsa)]
@@ -65,11 +148,22 @@ def main():
 
     good = 0
     bad = 0
+    failed = []
 
-    for conversation_name, conversation in conversations.items():
-        print("{0} ...".format(conversation_name))
+    # make sure that sanity test is run first and last
+    # to verify that server was running and kept running throught
+    sanity_test = ('sanity', conversations['sanity'])
+    ordered_tests = chain([sanity_test],
+                          filter(lambda x: x[0] != 'sanity',
+                                 conversations.items()),
+                          [sanity_test])
 
-        runner = Runner(conversation)
+    for c_name, c_test in ordered_tests:
+        if run_only and c_name not in run_only or c_name in run_exclude:
+            continue
+        print("{0} ...".format(c_name))
+
+        runner = Runner(c_test)
 
         res = True
         try:
@@ -85,10 +179,13 @@ def main():
             print("OK\n")
         else:
             bad+=1
+            failed.append(c_name)
 
     print("Test end")
     print("successful: {0}".format(good))
     print("failed: {0}".format(bad))
+    failed_sorted = sorted(failed, key=natural_sort_keys)
+    print("  {0}".format('\n  '.join(repr(i) for i in failed_sorted)))
 
     if bad > 0:
         sys.exit(1)
