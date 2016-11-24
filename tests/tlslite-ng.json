@@ -8,6 +8,40 @@
      "environment": {"PYTHONPATH": "."},
      "tests" : [
          {"name" : "test-aes-gcm-nonces.py" },
+         {"name" : "test-alpn-negotiation.py"
+          "arguments" : ["-e", "renegotiation 2nd handshake alpn",
+                         "-e", "renegotiation with protocol change",
+                         "-e", "renegotiation without protocol change",
+                         "-e", "resumption with alpn",
+                         "-e", "resumption with alpn change"
+         ],
+          "comment": "tlslite-ng doesn't support renegotiation, only session id based resumption is supported"
+         },
+         {"name" : "test-alpn-negotiation.py",
+          "arguments" : ["renegotiation 2nd handshake alpn"],
+          "comment": "tlslite-ng doesn't support renegotiation",
+          "exp_pass": false
+         },
+         {"name" : "test-alpn-negotiation.py",
+          "arguments" : ["renegotiation with protocol change"],
+          "comment": "tlslite-ng doesn't support renegotiation",
+          "exp_pass": false
+         },
+         {"name" : "test-alpn-negotiation.py",
+          "arguments" : ["renegotiation without protocol change"],
+          "comment": "tlslite-ng doesn't support renegotiation",
+          "exp_pass": false
+         },
+         {"name" : "test-alpn-negotiation.py",
+          "arguments" : ["resumption with alpn"],
+          "comment": "only session id based resumption is supported",
+          "exp_pass": false
+         },
+         {"name" : "test-alpn-negotiation.py",
+          "arguments" : ["resumption with alpn change"],
+          "comment": "only session id based resumption is supported",
+          "exp_pass": false
+         },
          {"name" : "test-atypical-padding.py" },
          {"name" : "test-bleichenbacher-workaround.py" },
          {"name" : "test-chacha20.py" },
