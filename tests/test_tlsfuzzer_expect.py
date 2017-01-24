@@ -17,15 +17,16 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         ExpectCertificate, ExpectServerHelloDone, ExpectChangeCipherSpec, \
         ExpectFinished, ExpectAlert, ExpectApplicationData, \
         ExpectCertificateRequest, ExpectServerKeyExchange, \
-        ExpectServerHello2, ExpectVerify, ExpectSSL2Alert
+        ExpectServerHello2, ExpectVerify, ExpectSSL2Alert, \
+        ExpectCertificateStatus
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
         SignatureAlgorithm, CipherSuite, CertificateType, SSL2HandshakeType, \
-        SSL2ErrorDescription, GroupName
+        SSL2ErrorDescription, GroupName, CertificateStatusType
 from tlslite.messages import Message, ServerHello, CertificateRequest, \
         ClientHello, Certificate, ServerHello2, ServerFinished, \
-        ServerKeyExchange
+        ServerKeyExchange, CertificateStatus
 from tlslite.extensions import SNIExtension, TLSExtension, \
         SupportedGroupsExtension
 from tlslite.utils.keyfactory import parsePEMKey
@@ -375,6 +376,47 @@ class TestExpectCertificate(unittest.TestCase):
                       bytearray([HandshakeType.client_hello]))
 
         self.assertFalse(exp.is_match(msg))
+
+
+class TestExpectCertificateStatus(unittest.TestCase):
+    def test___init__(self):
+        exp = ExpectCertificateStatus()
+
+        self.assertIsNotNone(exp)
+
+        self.assertTrue(exp.is_expect())
+        self.assertFalse(exp.is_command())
+        self.assertFalse(exp.is_generator())
+
+    def test_is_match(self):
+        exp = ExpectCertificateStatus()
+
+        msg = Message(ContentType.handshake,
+                      bytearray([HandshakeType.certificate_status]))
+
+        self.assertTrue(exp.is_match(msg))
+
+    def test_is_match_with_unmatching_content_type(self):
+        exp = ExpectCertificateStatus()
+
+        msg = Message(ContentType.application_data,
+                      bytearray([HandshakeType.certificate_status]))
+
+        self.assertFalse(exp.is_match(msg))
+
+    def test_process(self):
+        exp = ExpectCertificateStatus()
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        msg = CertificateStatus().create(CertificateStatusType.ocsp,
+                                         bytearray(10))
+
+        self.assertTrue(exp.is_match(msg))
+
+        exp.process(state, msg)
+
 
 class TestExpectServerHelloDone(unittest.TestCase):
     def test___init__(self):
