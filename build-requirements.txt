@@ -1,3 +1,2 @@
 pylint
 diff_cover
-coveralls
