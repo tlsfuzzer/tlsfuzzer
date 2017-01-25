@@ -38,16 +38,22 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -a alert       numerical value of the expected alert for messages")
+    print("                with publicly invalid client key shares,")
+    print("                47 (illegal_parameter) by default")
     print(" --help         this message")
+
+
 
 def main():
     """Test if server correctly handles malformed DHE_RSA CKE messages"""
     host = "localhost"
     port = 4433
     run_exclude = set()
+    alert = AlertDescription.illegal_parameter
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:a:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -58,6 +64,8 @@ def main():
         elif opt == '--help':
             help_msg()
             sys.exit(0)
+        elif opt == "-a":
+            alert = int(arg)
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -65,6 +73,7 @@ def main():
         run_only = set(args)
     else:
         run_only = None
+
 
     conversations = {}
 
@@ -115,10 +124,83 @@ def main():
         node = node.add_child(FinishedGenerator())
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
-        node = node.add_child(ExpectAlert())
-        node.add_child(ExpectClose())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          alert))
+        node = node.add_child(ExpectClose())
 
         conversations["invalid dh_Yc value - " + str(i) + "b"] = conversation
+
+    for i in [0, 1]:
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.
+                                                       renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.
+                                                         renegotiation_info:None}))
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerKeyExchange())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
+        node = node.add_child(ClientKeyExchangeGenerator(dh_Yc=i))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          alert))
+        node = node.add_child(ExpectClose())
+
+        conversations["invalid dh_Yc value - {0}".format(i)] = conversation
+
+    # share equal to p
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions={ExtensionType.
+                                                   renegotiation_info:None}))
+    node = node.add_child(ExpectServerHello(extensions={ExtensionType.
+                                                     renegotiation_info:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientKeyExchangeGenerator(p_as_share=True))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      alert))
+    node = node.add_child(ExpectClose())
+
+    conversations["invalid dh_Yc value - p"] = conversation
+
+    # share equal to p-1
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions={ExtensionType.
+                                                   renegotiation_info:None}))
+    node = node.add_child(ExpectServerHello(extensions={ExtensionType.
+                                                     renegotiation_info:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientKeyExchangeGenerator(p_1_as_share=True))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      alert))
+    node = node.add_child(ExpectClose())
+
+    conversations["invalid dh_Yc value - p-1"] = conversation
 
     # truncated dh_Yc value
     conversation = Connect(host, port)
@@ -132,12 +214,16 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
     node = node.add_child(truncate_handshake(ClientKeyExchangeGenerator(),
                                              1))
-#    node = node.add_child(ExpectAlert(
-#        description=AlertDescription.decode_error))
-    node = node.add_child(ExpectAlert())
-    node.add_child(ExpectClose())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.decode_error))
+    node = node.add_child(ExpectClose())
 
     conversations["truncated dh_Yc value"] = conversation
 
@@ -160,10 +246,9 @@ def main():
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
     node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert())
-#    node = node.add_child(
-#            ExpectAlert(description=AlertDescription.decode_error))
-    node.add_child(ExpectClose())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.decode_error))
+    node = node.add_child(ExpectClose())
 
     conversations["padded Client Key Exchange"] = conversation
 
@@ -193,14 +278,13 @@ def main():
         except:
             print("Error while processing")
             print(traceback.format_exc())
-            print("")
             res = False
 
         if res:
-            good+=1
+            good += 1
             print("OK\n")
         else:
-            bad+=1
+            bad += 1
             failed.append(c_name)
 
     print("Test version 2")

@@ -408,6 +408,11 @@ class TestClientKeyExchangeGenerator(unittest.TestCase):
 
         self.assertEqual(len(cke.premaster_secret), 48)
 
+    def test___init___with_invalid_param(self):
+        with self.assertRaises(ValueError):
+            cke = ClientKeyExchangeGenerator(p_as_share=True,
+                                             p_1_as_share=True)
+
     def test_generate(self):
         state = ConnectionState()
         state.get_server_public_key = lambda : self.priv_key
@@ -486,6 +491,34 @@ class TestClientKeyExchangeGenerator(unittest.TestCase):
         ret = cke.generate(state)
         self.assertEqual(ret.encryptedPreMasterSecret,
                          numberToByteArray(self.priv_key.n))
+
+    def test_generate_with_p_as_share(self):
+        state = ConnectionState()
+        ske = messages.ServerKeyExchange(
+                constants.CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                (3, 3))
+        ske.createDH(21, 2, 11)
+        state.handshake_messages.append(ske)
+        cke = ClientKeyExchangeGenerator(
+                cipher=constants.CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                p_as_share=True)
+
+        ret = cke.generate(state)
+        self.assertEqual(ret.dh_Yc, 21)
+
+    def test_generate_with_p_1_as_share(self):
+        state = ConnectionState()
+        ske = messages.ServerKeyExchange(
+                constants.CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                (3, 3))
+        ske.createDH(21, 2, 11)
+        state.handshake_messages.append(ske)
+        cke = ClientKeyExchangeGenerator(
+                cipher=constants.CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                p_1_as_share=True)
+
+        ret = cke.generate(state)
+        self.assertEqual(ret.dh_Yc, 20)
 
     def test_post_send(self):
         state = ConnectionState()
