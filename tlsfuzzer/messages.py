@@ -6,7 +6,7 @@
 from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         Finished, Alert, ApplicationData, Message, Certificate, \
         CertificateVerify, CertificateRequest, ClientMasterKey, \
-        ClientFinished
+        ClientFinished, ServerKeyExchange
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
         ExtensionType, CertificateType, ClientCertificateType, HashAlgorithm, \
         SignatureAlgorithm, CipherSuite
@@ -370,12 +370,20 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
     @ivar modulus_as_encrypted_premaster: if True, set the encrypted
        premaster (the value seen on the wire) to the server's certificate
        modulus (the server's public key)
+    @type p_as_share: boolean
+    @ivar p_as_share: set the key share to the value p provided by server
+       in Server Key Exchange (applicable only to FFDHE key exchange)
+    @type p_1_as_share: boolean
+    @ivar p_1_as_share: set the key share to the value p-1, as provided by
+       server in Server Key Exchange (applicable only to FFDHE key exchange
+       with safe primes)
     """
 
     def __init__(self, cipher=None, version=None, client_version=None,
                  dh_Yc=None, padding_subs=None, padding_xors=None,
                  ecdh_Yc=None, encrypted_premaster=None,
-                 modulus_as_encrypted_premaster=False):
+                 modulus_as_encrypted_premaster=False, p_as_share=False,
+                 p_1_as_share=False):
         """Set settings of the Client Key Exchange to be sent."""
         super(ClientKeyExchangeGenerator, self).__init__()
         self.cipher = cipher
@@ -388,6 +396,12 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
         self.ecdh_Yc = ecdh_Yc
         self.encrypted_premaster = encrypted_premaster
         self.modulus_as_encrypted_premaster = modulus_as_encrypted_premaster
+        self.p_as_share = p_as_share
+        self.p_1_as_share = p_1_as_share
+
+        if p_as_share and p_1_as_share:
+            raise ValueError("Can't set both p_as_share and p_1_as_share at "
+                             "the same time")
 
     def generate(self, status):
         """Create a Client Key Exchange message."""
@@ -421,6 +435,16 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
             if self.dh_Yc is not None:
                 cke = ClientKeyExchange(self.cipher,
                                         self.version).createDH(self.dh_Yc)
+            elif self.p_as_share or self.p_1_as_share:
+                ske = next((i for i in reversed(status.handshake_messages)
+                            if isinstance(i, ServerKeyExchange)), None)
+                assert ske, "No server key exchange in messages"
+                if self.p_as_share:
+                    cke = ClientKeyExchange(self.cipher,
+                                            self.version).createDH(ske.dh_p)
+                else:
+                    cke = ClientKeyExchange(self.cipher,
+                                            self.version).createDH(ske.dh_p-1)
             else:
                 cke = status.key_exchange.makeClientKeyExchange()
         elif self.cipher in CipherSuite.ecdhAllSuites:

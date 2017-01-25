@@ -148,6 +148,54 @@ def main():
 
         conversations["invalid dh_Yc value - {0}".format(i)] = conversation
 
+    # share equal to p
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions={ExtensionType.
+                                                   renegotiation_info:None}))
+    node = node.add_child(ExpectServerHello(extensions={ExtensionType.
+                                                     renegotiation_info:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientKeyExchangeGenerator(p_as_share=True))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.illegal_parameter))
+    node = node.add_child(ExpectClose())
+
+    conversations["invalid dh_Yc value - p"] = conversation
+
+    # share equal to p-1
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions={ExtensionType.
+                                                   renegotiation_info:None}))
+    node = node.add_child(ExpectServerHello(extensions={ExtensionType.
+                                                     renegotiation_info:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientKeyExchangeGenerator(p_1_as_share=True))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.illegal_parameter))
+    node = node.add_child(ExpectClose())
+
+    conversations["invalid dh_Yc value - p-1"] = conversation
+
     # truncated dh_Yc value
     conversation = Connect(host, port)
     node = conversation
