@@ -10,7 +10,7 @@ from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
         ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus
 from tlslite.utils.codec import Parser
-from tlslite.mathtls import calcFinished
+from tlslite.mathtls import calcFinished, RFC7919_GROUPS
 from .handshake_helpers import calc_pending_states
 from tlslite.keyexchange import KeyExchange, DHE_RSAKeyExchange, \
         ECDHE_RSAKeyExchange
@@ -278,6 +278,12 @@ class ExpectServerKeyExchange(ExpectHandshake):
         self.valid_sig_algs = valid_sig_algs
         self.valid_groups = valid_groups
 
+    def _checkParams(self, server_key_exchange):
+        groups = [RFC7919_GROUPS[i - 256] for i in self.valid_groups
+                  if i in range(256, 512)]
+        if (server_key_exchange.dh_g, server_key_exchange.dh_p) not in groups:
+            raise AssertionError("DH parameters not from RFC 7919")
+
     def process(self, state, msg):
         """Process the Server Key Exchange message"""
         assert msg.contentType == ContentType.handshake
@@ -323,6 +329,9 @@ class ExpectServerKeyExchange(ExpectHandshake):
                                             valid_sig_algs)
 
         if self.cipher_suite in CipherSuite.dhAllSuites:
+            if valid_groups and any(i in range(256, 512)
+                                    for i in valid_groups):
+                self._checkParams(server_key_exchange)
             state.key_exchange = DHE_RSAKeyExchange(self.cipher_suite,
                                                     clientHello=None,
                                                     serverHello=server_hello,
