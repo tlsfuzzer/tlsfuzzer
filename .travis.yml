@@ -39,7 +39,7 @@ before_install:
 
 install:
   - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then travis_retry pip install unittest2; fi
-  - if [[ $TRAVIS_PYTHON_VERSION == '3.2' ]]; then travis_retry pip install 'coverage<4'; else travis_retry pip install 'coverage'; fi
+  - if [[ $TRAVIS_PYTHON_VERSION == '3.2' ]]; then travis_retry pip install 'requests<2.11' 'coverage<4' 'coveralls<1'; else travis_retry pip install 'coverage' 'coveralls'; fi
   - travis_retry pip install -r requirements.txt
   - travis_retry pip install -r build-requirements.txt
   - if [[ $TRAVIS_PYTHON_VERSION == '2.6' || $TRAVIS_PYTHON_VERSION == '2.7' ]]; then travis_retry pip install m2crypto; fi
