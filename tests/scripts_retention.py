@@ -149,6 +149,8 @@ def run_rsa_cert_tests(server_cmd):
                       'test-large-number-of-extensions.py',
                       'test-message-duplication.py',
                       'test-message-skipping.py',
+                      # test requires OCSP setup
+                      #'test-ocsp-stapling.py',
                       # test requires renegotiation support
                       #'test-openssl-3712.py',
                       'test-record-layer-fragmentation.py',

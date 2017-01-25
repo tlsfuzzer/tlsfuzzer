@@ -8,7 +8,7 @@ from tlslite.constants import ContentType, HandshakeType, CertificateType,\
         SSL2HandshakeType, CipherSuite, GroupName
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
-        ServerKeyExchange, ClientHello, ServerFinished
+        ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus
 from tlslite.utils.codec import Parser
 from tlslite.mathtls import calcFinished
 from .handshake_helpers import calc_pending_states
@@ -577,3 +577,24 @@ class ExpectClose(Expect):
 
     def __init__(self):
         super(ExpectClose, self).__init__(None)
+
+
+class ExpectCertificateStatus(ExpectHandshake):
+    """Processing of CertificateStatus message from RFC 6066."""
+
+    def __init__(self):
+        super(ExpectCertificateStatus,
+              self).__init__(ContentType.handshake,
+                             HandshakeType.certificate_status)
+
+    def process(self, state, msg):
+        assert msg.contentType == ContentType.handshake
+
+        parser = Parser(msg.write())
+        hs_type = parser.get(1)
+        assert hs_type == HandshakeType.certificate_status
+
+        cert_status = CertificateStatus().parse(parser)
+
+        state.handshake_messages.append(cert_status)
+        state.handshake_hashes.update(msg.write())
