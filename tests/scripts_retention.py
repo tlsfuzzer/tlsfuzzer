@@ -116,6 +116,8 @@ def run_rsa_cert_tests(server_cmd):
     simple_scripts = ['test-aes-gcm-nonces.py',
                       'test-atypical-padding.py',
                       'test-bleichenbacher-workaround.py',
+                      # SSLv3 is not enabled by default
+                      #'test-client-compatibility.py',
                       'test-conversation.py',
                       'test-cve-2016-2107.py',
                       'test-dhe-rsa-key-exchange.py',
