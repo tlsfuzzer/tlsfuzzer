@@ -6,6 +6,7 @@ import time
 import logging
 import sys
 import socket
+import threading
 try:
     import queue
 except ImportError:
@@ -17,6 +18,11 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 out = queue.Queue()
+
+pass_count = 0
+fail_count = 0
+pass_lock = threading.Lock()
+fail_lock = threading.Lock()
 
 def process_stdout(name, proc):
     for line in iter(proc.stdout.readline, b''):
@@ -61,10 +67,23 @@ def start_server(server_cmd, client_cert=False):
     wait_till_open('localhost', 4433)
     return ret, thr_stdout, thr_stderr
 
+def count_tc_passes(line):
+    global pass_count
+    global fail_count
+    if line.find(':successful: ') >= 0:
+        number = int(line.split(' ')[-1])
+        with pass_lock:
+            pass_count += number
+    elif line.find(':failed: ') >= 0:
+        number = int(line.split(' ')[-1])
+        with fail_lock:
+            fail_count += number
+
 def print_all_from_queue():
     while True:
         try:
             line = out.get(False)
+            count_tc_passes(line)
             print(line, file=sys.stderr)
         except queue.Empty:
             break
@@ -73,7 +92,8 @@ def print_all_from_queue():
 def flush_queue():
     while True:
         try:
-            out.get(False)
+            line = out.get(False)
+            count_tc_passes(line)
         except queue.Empty:
             break
 
@@ -236,6 +256,9 @@ def main():
     print("Ran {0} scripts".format(good + bad))
     print("good: {0}".format(good))
     print("bad: {0}".format(bad))
+    print("Ran {0} test cases".format(pass_count + fail_count))
+    print("successful: {0}".format(pass_count))
+    print("failed: {0}".format(fail_count))
 
     if bad > 0:
         sys.exit(1)
