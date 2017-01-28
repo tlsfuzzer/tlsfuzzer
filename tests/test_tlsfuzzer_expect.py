@@ -377,6 +377,16 @@ class TestExpectCertificate(unittest.TestCase):
 
         self.assertFalse(exp.is_match(msg))
 
+    def test_process(self):
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        exp = ExpectCertificate()
+
+        msg = Certificate(CertificateType.x509).\
+                create(X509CertChain([X509().parse(srv_raw_certificate)]))
+
+        exp.process(state, msg)
+
 
 class TestExpectCertificateStatus(unittest.TestCase):
     def test___init__(self):
