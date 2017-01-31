@@ -26,11 +26,13 @@ fail_lock = threading.Lock()
 
 def process_stdout(name, proc):
     for line in iter(proc.stdout.readline, b''):
+        line = line.decode()
         line = line.rstrip()
         out.put("{0}:stdout:{1}".format(name, line))
 
 def process_stderr(name, proc):
     for line in iter(proc.stderr.readline, b''):
+        line = line.decode()
         line = line.rstrip()
         out.put("{0}:stderr:{1}".format(name, line))
 
