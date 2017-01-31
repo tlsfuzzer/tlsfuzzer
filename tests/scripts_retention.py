@@ -133,9 +133,11 @@ def run_clients(scripts, srv, args=tuple()):
 
 
 def run_rsa_cert_tests(server_cmd):
+    # tests are sorted alphabetically
     simple_scripts = ['test-aes-gcm-nonces.py',
                       'test-atypical-padding.py',
                       'test-bleichenbacher-workaround.py',
+                      'test-clienthello-md5.py',
                       # SSLv3 is not enabled by default
                       #'test-client-compatibility.py',
                       'test-conversation.py',
