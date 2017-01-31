@@ -90,11 +90,12 @@ class OrderedDict(dict):
         try:
             for node in self.__map.itervalues():
                 del node[:]
-            root = self.__root
-            root[:] = [root, root, None]
-            self.__map.clear()
         except AttributeError:
-            pass
+            for node in self.__map.values():
+                del node[:]
+        root = self.__root
+        root[:] = [root, root, None]
+        self.__map.clear()
         dict.clear(self)
 
     def popitem(self, last=True):
