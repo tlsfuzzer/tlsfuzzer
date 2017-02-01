@@ -137,6 +137,7 @@ def run_clients(scripts, srv, args=tuple()):
 def run_rsa_cert_tests(server_cmd):
     # tests are sorted alphabetically
     simple_scripts = ['test-aes-gcm-nonces.py',
+                      'test-alpn-negotiation.py',
                       'test-atypical-padding.py',
                       'test-bleichenbacher-workaround.py',
                       'test-clienthello-md5.py',
