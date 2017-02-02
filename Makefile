@@ -31,4 +31,4 @@ test:
 	diff-cover --fail-under=90 coverage.xml
 
 test-scripts:
-	python tests/scripts_retention.py tls.py
+	python tests/scripts_retention.py tests/tlslite-ng.json `which tls.py`

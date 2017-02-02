@@ -146,7 +146,7 @@ def main():
         4,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x03\x00\x01\x02'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x002\x00\x01\x00\x02\x00\x03\x00\x04\x00\x05\x00\x06\x00\x07\x00\x08\x00\t\x00\n\x00\x0b\x00\x0c\x00\r\x00\x0e\x00\x0f\x00\x10\x00\x11\x00\x12\x00\x13\x00\x14\x00\x15\x00\x16\x00\x17\x00\x18\x00\x19'))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
@@ -192,7 +192,7 @@ def main():
         4,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x03\x00\x01\x02'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x002\x00\x0e\x00\r\x00\x19\x00\x0b\x00\x0c\x00\x18\x00\t\x00\n\x00\x16\x00\x17\x00\x08\x00\x06\x00\x07\x00\x14\x00\x15\x00\x04\x00\x05\x00\x12\x00\x13\x00\x01\x00\x02\x00\x03\x00\x0f\x00\x10\x00\x11'))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
@@ -239,7 +239,7 @@ def main():
         4,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x03\x00\x01\x02'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x002\x00\x0e\x00\r\x00\x19\x00\x0b\x00\x0c\x00\x18\x00\t\x00\n\x00\x16\x00\x17\x00\x08\x00\x06\x00\x07\x00\x14\x00\x15\x00\x04\x00\x05\x00\x12\x00\x13\x00\x01\x00\x02\x00\x03\x00\x0f\x00\x10\x00\x11'))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
@@ -285,7 +285,7 @@ def main():
         4,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x03\x00\x01\x02'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x002\x00\x0e\x00\r\x00\x19\x00\x0b\x00\x0c\x00\x18\x00\t\x00\n\x00\x16\x00\x17\x00\x08\x00\x06\x00\x07\x00\x14\x00\x15\x00\x04\x00\x05\x00\x12\x00\x13\x00\x01\x00\x02\x00\x03\x00\x0f\x00\x10\x00\x11'))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
@@ -335,7 +335,7 @@ def main():
         4,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x19\x00\x18\x00\x17'))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
@@ -376,7 +376,7 @@ def main():
         4,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00 \x06\x01\x06\x02\x06\x03\x05\x01\x05\x02\x05\x03\x04\x01\x04\x02\x04\x03\x03\x01\x03\x02\x03\x03\x02\x01\x02\x02\x02\x03\x01\x01'))
     ext[13172] = TLSExtension(extType=13172).create(bytearray(b''))
@@ -406,7 +406,7 @@ def main():
         10,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[23] = TLSExtension(extType=23).create(bytearray(b''))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x14\x06\x01\x06\x03\x05\x01\x05\x03\x04\x01\x04\x03\x03\x01\x03\x03\x02\x01\x02\x03'))
@@ -441,7 +441,7 @@ def main():
         10]
     ext = OrderedDict()
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[23] = TLSExtension(extType=23).create(bytearray(b''))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x10\x06\x01\x06\x03\x05\x01\x05\x03\x04\x01\x04\x03\x02\x01\x02\x03'))
@@ -469,7 +469,7 @@ def main():
         49191,
         49171]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x0c\x05\x01\x04\x01\x02\x01\x05\x03\x04\x03\x02\x03'))
@@ -520,7 +520,7 @@ def main():
         65279,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
@@ -575,7 +575,7 @@ def main():
         3,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 1), compression=[1, 0], extensions=ext))
     node = node.add_child(ExpectServerHello())
     conversations["47: BingPreview Dec 2013 on unknown"] = conversation
@@ -663,7 +663,7 @@ def main():
         3,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x03\x00\x01\x02'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x002\x00\x0e\x00\r\x00\x19\x00\x0b\x00\x0c\x00\x18\x00\t\x00\n\x00\x16\x00\x17\x00\x08\x00\x06\x00\x07\x00\x14\x00\x15\x00\x04\x00\x05\x00\x12\x00\x13\x00\x01\x00\x02\x00\x03\x00\x0f\x00\x10\x00\x11'))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00 \x06\x01\x06\x02\x06\x03\x05\x01\x05\x02\x05\x03\x04\x01\x04\x02\x04\x03\x03\x01\x03\x02\x03\x03\x02\x01\x02\x02\x02\x03\x01\x01'))
@@ -696,7 +696,7 @@ def main():
         3,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 1), compression=[1, 0], extensions=ext))
     node = node.add_child(ExpectServerHello())
     conversations["74: BingPreview Jun 2014 on unknown"] = conversation
@@ -740,7 +740,7 @@ def main():
         65279,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -791,7 +791,7 @@ def main():
         65279,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -826,7 +826,7 @@ def main():
         60,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -860,7 +860,7 @@ def main():
         60,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -895,7 +895,7 @@ def main():
         47,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -930,7 +930,7 @@ def main():
         47,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -967,7 +967,7 @@ def main():
         47,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -1005,7 +1005,7 @@ def main():
         5,
         4]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -1043,7 +1043,7 @@ def main():
         5,
         4]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -1081,7 +1081,7 @@ def main():
         5,
         4]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -1119,7 +1119,7 @@ def main():
         5,
         4]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -1158,7 +1158,7 @@ def main():
         10,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x14\x06\x01\x06\x03\x05\x01\x05\x03\x04\x01\x04\x03\x03\x01\x03\x03\x02\x01\x02\x03'))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
@@ -1196,7 +1196,7 @@ def main():
         10,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[23] = TLSExtension(extType=23).create(bytearray(b''))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x14\x06\x01\x06\x03\x05\x01\x05\x03\x04\x01\x04\x03\x03\x01\x03\x03\x02\x01\x02\x03'))
@@ -1235,7 +1235,7 @@ def main():
         10,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[23] = TLSExtension(extType=23).create(bytearray(b''))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x14\x06\x01\x06\x03\x05\x01\x05\x03\x04\x01\x04\x03\x03\x01\x03\x03\x02\x01\x02\x03'))
@@ -1270,7 +1270,7 @@ def main():
         10,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[23] = TLSExtension(extType=23).create(bytearray(b''))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x14\x06\x01\x06\x03\x05\x01\x05\x03\x04\x01\x04\x03\x03\x01\x03\x03\x02\x01\x02\x03'))
@@ -1305,7 +1305,7 @@ def main():
         10,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[23] = TLSExtension(extType=23).create(bytearray(b''))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x14\x06\x01\x06\x03\x05\x01\x05\x03\x04\x01\x04\x03\x03\x01\x03\x03\x02\x01\x02\x03'))
@@ -1339,7 +1339,7 @@ def main():
         10]
     ext = OrderedDict()
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[23] = TLSExtension(extType=23).create(bytearray(b''))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x14\x06\x01\x06\x03\x05\x01\x05\x03\x04\x01\x04\x03\x03\x01\x03\x03\x02\x01\x02\x03'))
@@ -1373,7 +1373,7 @@ def main():
         10]
     ext = OrderedDict()
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[23] = TLSExtension(extType=23).create(bytearray(b''))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x14\x06\x01\x06\x03\x05\x01\x05\x03\x04\x01\x04\x03\x03\x01\x03\x03\x02\x01\x02\x03'))
@@ -1406,7 +1406,7 @@ def main():
         10]
     ext = OrderedDict()
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[23] = TLSExtension(extType=23).create(bytearray(b''))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x14\x06\x01\x06\x03\x05\x01\x05\x03\x04\x01\x04\x03\x03\x01\x03\x03\x02\x01\x02\x03'))
@@ -1434,7 +1434,7 @@ def main():
         10]
     ext = OrderedDict()
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[23] = TLSExtension(extType=23).create(bytearray(b''))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x14\x06\x01\x06\x03\x05\x01\x05\x03\x04\x01\x04\x03\x03\x01\x03\x03\x02\x01\x02\x03'))
@@ -1467,7 +1467,7 @@ def main():
         10]
     ext = OrderedDict()
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[23] = TLSExtension(extType=23).create(bytearray(b''))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x10\x06\x01\x06\x03\x05\x01\x05\x03\x04\x01\x04\x03\x02\x01\x02\x03'))
@@ -1503,7 +1503,7 @@ def main():
         10]
     ext = OrderedDict()
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[23] = TLSExtension(extType=23).create(bytearray(b''))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x10\x06\x01\x06\x03\x05\x01\x05\x03\x04\x01\x04\x03\x02\x01\x02\x03'))
@@ -1546,7 +1546,7 @@ def main():
         10,
         19]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x17\x00\x18'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -1588,7 +1588,7 @@ def main():
         50,
         19]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x17\x00\x18'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -1633,7 +1633,7 @@ def main():
         50,
         19]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x17\x00\x18'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -1676,7 +1676,7 @@ def main():
         50,
         19]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x17\x00\x18'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -1729,7 +1729,7 @@ def main():
         65279,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
@@ -1776,7 +1776,7 @@ def main():
         65279,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
@@ -1808,7 +1808,7 @@ def main():
         65279,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x002\x00\x01\x00\x02\x00\x03\x00\x04\x00\x05\x00\x06\x00\x07\x00\x08\x00\t\x00\n\x00\x0b\x00\x0c\x00\r\x00\x0e\x00\x0f\x00\x10\x00\x11\x00\x12\x00\x13\x00\x14\x00\x15\x00\x16\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
@@ -1856,7 +1856,7 @@ def main():
         65279,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
@@ -1903,7 +1903,7 @@ def main():
         65279,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -1952,7 +1952,7 @@ def main():
         65279,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
@@ -2000,7 +2000,7 @@ def main():
         65279,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
@@ -2048,7 +2048,7 @@ def main():
         65279,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
@@ -2084,7 +2084,7 @@ def main():
         5,
         4]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -2122,7 +2122,7 @@ def main():
         5,
         4]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -2160,7 +2160,7 @@ def main():
         5,
         4]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -2198,7 +2198,7 @@ def main():
         5,
         4]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -2236,7 +2236,7 @@ def main():
         5,
         4]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -2274,7 +2274,7 @@ def main():
         5,
         4]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -2305,7 +2305,7 @@ def main():
         5,
         4]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -2337,7 +2337,7 @@ def main():
         5,
         4]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -2364,7 +2364,7 @@ def main():
         53,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -2391,7 +2391,7 @@ def main():
         53,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -2418,7 +2418,7 @@ def main():
         53,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -2445,7 +2445,7 @@ def main():
         53,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -2472,7 +2472,7 @@ def main():
         53,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -2499,7 +2499,7 @@ def main():
         53,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -2526,7 +2526,7 @@ def main():
         53,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[23] = TLSExtension(extType=23).create(bytearray(b''))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
@@ -2556,7 +2556,7 @@ def main():
         53,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[23] = TLSExtension(extType=23).create(bytearray(b''))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
@@ -2588,7 +2588,7 @@ def main():
         53,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[23] = TLSExtension(extType=23).create(bytearray(b''))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
@@ -2620,7 +2620,7 @@ def main():
         53,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[23] = TLSExtension(extType=23).create(bytearray(b''))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
@@ -2658,7 +2658,7 @@ def main():
         56,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x1e\x06\x01\x06\x02\x06\x03\x05\x01\x05\x02\x05\x03\x04\x01\x04\x02\x04\x03\x03\x01\x03\x02\x03\x03\x02\x01\x02\x02\x02\x03'))
     ext[13172] = TLSExtension(extType=13172).create(bytearray(b''))
@@ -2689,7 +2689,7 @@ def main():
         56,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
     ext[13172] = TLSExtension(extType=13172).create(bytearray(b''))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x03\x00\x01\x02'))
@@ -2719,7 +2719,7 @@ def main():
         56,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x03\x00\x01\x02'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x002\x00\x0e\x00\r\x00\x19\x00\x0b\x00\x0c\x00\x18\x00\t\x00\n\x00\x16\x00\x17\x00\x08\x00\x06\x00\x07\x00\x14\x00\x15\x00\x04\x00\x05\x00\x12\x00\x13\x00\x01\x00\x02\x00\x03\x00\x0f\x00\x10\x00\x11'))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
@@ -2745,7 +2745,7 @@ def main():
         4]
     ext = OrderedDict()
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x17\x00\x18'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -2783,7 +2783,7 @@ def main():
         10,
         19]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x17\x00\x18'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -2827,7 +2827,7 @@ def main():
         50,
         19]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x17\x00\x18'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -2871,7 +2871,7 @@ def main():
         19]
     ext = OrderedDict()
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x17\x00\x18'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -2907,7 +2907,7 @@ def main():
         4]
     ext = OrderedDict()
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x17\x00\x18'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -2946,7 +2946,7 @@ def main():
         4]
     ext = OrderedDict()
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -2984,7 +2984,7 @@ def main():
         5,
         4]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -3025,7 +3025,7 @@ def main():
         5,
         4]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x17\x00\x18'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -3059,7 +3059,7 @@ def main():
         19]
     ext = OrderedDict()
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x17\x00\x18'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -3099,7 +3099,7 @@ def main():
         19]
     ext = OrderedDict()
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x17\x00\x18'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -3139,7 +3139,7 @@ def main():
         19]
     ext = OrderedDict()
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x17\x00\x18'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -3179,7 +3179,7 @@ def main():
         19]
     ext = OrderedDict()
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x17\x00\x18'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -3220,7 +3220,7 @@ def main():
         10,
         19]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x17\x00\x18'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -3257,7 +3257,7 @@ def main():
         19]
     ext = OrderedDict()
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x17\x00\x18'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -3297,7 +3297,7 @@ def main():
         19]
     ext = OrderedDict()
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x17\x00\x18'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -3371,7 +3371,7 @@ def main():
         19,
         4]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -3396,7 +3396,7 @@ def main():
         4]
     ext = OrderedDict()
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x17\x00\x18'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -3456,7 +3456,7 @@ def main():
         4]
     ext = OrderedDict()
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x17\x00\x18'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -3479,7 +3479,7 @@ def main():
         5,
         4]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -3504,7 +3504,7 @@ def main():
         4]
     ext = OrderedDict()
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x17\x00\x18'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -3564,7 +3564,7 @@ def main():
     ext = OrderedDict()
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x002\x00\x17\x00\x01\x00\x03\x00\x13\x00\x15\x00\x06\x00\x07\x00\t\x00\n\x00\x18\x00\x0b\x00\x0c\x00\x19\x00\r\x00\x0e\x00\x0f\x00\x10\x00\x11\x00\x02\x00\x12\x00\x04\x00\x05\x00\x14\x00\x08\x00\x16'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 1), compression=[0], extensions=ext))
     node = node.add_child(ExpectServerHello())
     conversations["26: Java 7u25 on unknown"] = conversation
@@ -3610,7 +3610,7 @@ def main():
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x002\x00\x17\x00\x01\x00\x03\x00\x13\x00\x15\x00\x06\x00\x07\x00\t\x00\n\x00\x18\x00\x0b\x00\x0c\x00\x19\x00\r\x00\x0e\x00\x0f\x00\x10\x00\x11\x00\x02\x00\x12\x00\x04\x00\x05\x00\x14\x00\x08\x00\x16'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x18\x06\x03\x06\x01\x05\x03\x05\x01\x04\x03\x04\x01\x03\x03\x03\x01\x02\x03\x02\x01\x02\x02\x01\x01'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 3), compression=[0], extensions=ext))
     node = node.add_child(ExpectServerHello())
     conversations["53: Java 8b132 on unknown"] = conversation
@@ -3656,7 +3656,7 @@ def main():
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x002\x00\x17\x00\x01\x00\x03\x00\x13\x00\x15\x00\x06\x00\x07\x00\t\x00\n\x00\x18\x00\x0b\x00\x0c\x00\x19\x00\r\x00\x0e\x00\x0f\x00\x10\x00\x11\x00\x02\x00\x12\x00\x04\x00\x05\x00\x14\x00\x08\x00\x16'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x18\x06\x03\x06\x01\x05\x03\x05\x01\x04\x03\x04\x01\x03\x03\x03\x01\x02\x03\x02\x01\x02\x02\x01\x01'))
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 3), compression=[0], extensions=ext))
     node = node.add_child(ExpectServerHello())
     conversations["86: Java 8u31 on unknown"] = conversation
@@ -3685,7 +3685,7 @@ def main():
         3,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
     node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 1), compression=[0], extensions=ext))
     node = node.add_child(ExpectServerHello())
@@ -3774,7 +3774,7 @@ def main():
         3,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x03\x00\x01\x02'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x002\x00\x0e\x00\r\x00\x19\x00\x0b\x00\x0c\x00\x18\x00\t\x00\n\x00\x16\x00\x17\x00\x08\x00\x06\x00\x07\x00\x14\x00\x15\x00\x04\x00\x05\x00\x12\x00\x13\x00\x01\x00\x02\x00\x03\x00\x0f\x00\x10\x00\x11'))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
@@ -3861,7 +3861,7 @@ def main():
         3,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x03\x00\x01\x02'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x002\x00\x0e\x00\r\x00\x19\x00\x0b\x00\x0c\x00\x18\x00\t\x00\n\x00\x16\x00\x17\x00\x08\x00\x06\x00\x07\x00\x14\x00\x15\x00\x04\x00\x05\x00\x12\x00\x13\x00\x01\x00\x02\x00\x03\x00\x0f\x00\x10\x00\x11'))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
@@ -3966,7 +3966,7 @@ def main():
         9,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x03\x00\x01\x02'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x1a\x00\x17\x00\x19\x00\x1c\x00\x1b\x00\x18\x00\x1a\x00\x16\x00\x0e\x00\r\x00\x0b\x00\x0c\x00\t\x00\n'))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
@@ -4007,7 +4007,7 @@ def main():
         16,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
     ext[13172] = TLSExtension(extType=13172).create(bytearray(b''))
@@ -4054,7 +4054,7 @@ def main():
         65279,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -4089,7 +4089,7 @@ def main():
         60,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -4124,7 +4124,7 @@ def main():
         60,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
@@ -4163,7 +4163,7 @@ def main():
         47,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x10\x04\x01\x02\x01\x05\x01\x06\x01\x04\x03\x02\x03\x05\x03\x06\x03'))
@@ -4201,7 +4201,7 @@ def main():
         47,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x10\x04\x01\x02\x01\x05\x01\x06\x01\x04\x03\x02\x03\x05\x03\x06\x03'))
@@ -4254,7 +4254,7 @@ def main():
         57,
         22]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\n\x05\x01\x04\x01\x02\x01\x04\x03\x02\x03'))
@@ -4300,7 +4300,7 @@ def main():
         18,
         17]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 1), compression=[0], extensions=ext))
@@ -4354,7 +4354,7 @@ def main():
         2,
         1]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\n\x05\x01\x04\x01\x02\x01\x04\x03\x02\x03'))
@@ -4390,7 +4390,7 @@ def main():
         57,
         22]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 1), compression=[0], extensions=ext))
@@ -4437,7 +4437,7 @@ def main():
         57,
         22]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\n\x05\x01\x04\x01\x02\x01\x04\x03\x02\x03'))
@@ -4485,7 +4485,7 @@ def main():
         57,
         22]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\n\x05\x01\x04\x01\x02\x01\x04\x03\x02\x03'))
@@ -4533,7 +4533,7 @@ def main():
         5,
         4]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\n\x05\x01\x04\x01\x02\x01\x04\x03\x02\x03'))
@@ -4582,7 +4582,7 @@ def main():
         5,
         4]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\n\x05\x01\x04\x01\x02\x01\x04\x03\x02\x03'))
@@ -4631,7 +4631,7 @@ def main():
         5,
         4]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\n\x05\x01\x04\x01\x02\x01\x04\x03\x02\x03'))
@@ -4669,7 +4669,7 @@ def main():
         5,
         4]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x0c\x05\x01\x04\x01\x02\x01\x05\x03\x04\x03\x02\x03'))
@@ -4710,7 +4710,7 @@ def main():
         5,
         4]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x0c\x05\x01\x04\x01\x02\x01\x05\x03\x04\x03\x02\x03'))
@@ -4761,7 +4761,7 @@ def main():
         65279,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[13172] = TLSExtension(extType=13172).create(bytearray(b''))
@@ -4846,7 +4846,7 @@ def main():
         3,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x03\x00\x01\x02'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x18\x00\x17'))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
@@ -4981,7 +4981,7 @@ def main():
         65279,
         10]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x17\x00\x18\x00\x19'))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
@@ -5072,7 +5072,7 @@ def main():
         3,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x03\x00\x01\x02'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x002\x00\x0e\x00\r\x00\x19\x00\x0b\x00\x0c\x00\x18\x00\t\x00\n\x00\x16\x00\x17\x00\x08\x00\x06\x00\x07\x00\x14\x00\x15\x00\x04\x00\x05\x00\x12\x00\x13\x00\x01\x00\x02\x00\x03\x00\x0f\x00\x10\x00\x11'))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
@@ -5106,7 +5106,7 @@ def main():
         3,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
     node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 1), compression=[0], extensions=ext))
     node = node.add_child(ExpectServerHello())
@@ -5186,7 +5186,7 @@ def main():
         3,
         255]
     ext = OrderedDict()
-    ext[0] = SNIExtension().create(host)
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
     ext[11] = TLSExtension(extType=11).create(bytearray(b'\x03\x00\x01\x02'))
     ext[10] = TLSExtension(extType=10).create(bytearray(b'\x002\x00\x0e\x00\r\x00\x19\x00\x0b\x00\x0c\x00\x18\x00\t\x00\n\x00\x16\x00\x17\x00\x08\x00\x06\x00\x07\x00\x14\x00\x15\x00\x04\x00\x05\x00\x12\x00\x13\x00\x01\x00\x02\x00\x03\x00\x0f\x00\x10\x00\x11'))
     ext[35] = TLSExtension(extType=35).create(bytearray(b''))
