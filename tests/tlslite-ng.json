@@ -8,11 +8,10 @@
      "environment": {"PYTHONPATH": "."},
      "tests" : [
          {"name" : "test-aes-gcm-nonces.py" },
-         {"name" : "test-alpn-negotiation.py"
+         {"name" : "test-alpn-negotiation.py",
           "arguments" : ["-e", "renegotiation 2nd handshake alpn",
                          "-e", "renegotiation with protocol change",
                          "-e", "renegotiation without protocol change",
-                         "-e", "resumption with alpn",
                          "-e", "resumption with alpn change"
          ],
           "comment": "tlslite-ng doesn't support renegotiation, only session id based resumption is supported"
@@ -33,13 +32,8 @@
           "exp_pass": false
          },
          {"name" : "test-alpn-negotiation.py",
-          "arguments" : ["resumption with alpn"],
-          "comment": "only session id based resumption is supported",
-          "exp_pass": false
-         },
-         {"name" : "test-alpn-negotiation.py",
           "arguments" : ["resumption with alpn change"],
-          "comment": "only session id based resumption is supported",
+          "comment": "http2 is not supported",
           "exp_pass": false
          },
          {"name" : "test-atypical-padding.py" },

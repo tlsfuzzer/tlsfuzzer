@@ -11,7 +11,8 @@ from itertools import chain
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator
+        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+        fuzz_message, ResetHandshakeHashes, Close, ResetRenegotiationInfo
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose
@@ -94,7 +95,7 @@ def main():
     ext = {ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.alpn: lambda _, ext: ext == ALPNExtension().create([bytearray(b'http/1.1')])}
+           ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
@@ -132,7 +133,7 @@ def main():
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.no_application_protocol))
     node.add_child(ExpectClose())
-    conversations["only http/1.1X"] = conversation
+    conversations["only http/1.X"] = conversation
 
     conversation = Connect(host, port)
     node = conversation
@@ -142,7 +143,7 @@ def main():
                                                        bytearray(b'http/1.1')])}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.alpn: lambda _, ext: ext == ALPNExtension().create([bytearray(b'http/1.1')])}
+           ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
@@ -192,6 +193,346 @@ def main():
                                       AlertDescription.decode_error))
     node.add_child(ExpectClose())
     conversations["empty extension"] = conversation
+
+    # underflow length of "protocol_name_list" test
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1'),
+                                                       bytearray(b'http/2')])}
+    msg = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    # -17 is position of second byte in 2 byte long length of "protocol_name_list"
+    # setting it to value of 9 (bytes) will hide the second item in the "protocol_name_list"    
+    node = node.add_child(fuzz_message(msg, substitutions={-17: 9}))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.decode_error))
+    node = node.add_child(ExpectClose())
+    conversations["underflow length of protocol_name_list"] = conversation
+
+    # overflow length of "protocol_name_list" test
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1'),
+                                                       bytearray(b'http/2')])}
+    msg = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    # -17 is position of second byte in 2 byte long length of "protocol_name_list"
+    # setting it to value of 18 (bytes) will raise the length value for 2 more bytes    
+    node = node.add_child(fuzz_message(msg, substitutions={-17: 18}))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.decode_error))
+    node = node.add_child(ExpectClose())
+    conversations["overflow length of protocol_name_list"] = conversation
+
+    # overflow length of last item in "protocol_name_list" test
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1'),
+                                                       bytearray(b'http/2')])}
+    msg = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    # -7 is position of a length (1 byte long) for the last item in "protocol_name_list"
+    # setting it to value of 8 (bytes) will raise the length value for 2 more bytes  
+    node = node.add_child(fuzz_message(msg, substitutions={-7: 8}))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.decode_error))
+    node = node.add_child(ExpectClose())
+    conversations["overflow length of last item"] = conversation
+
+    # renegotiation with protocol change
+    conversation = Connect(host, port)
+    node = conversation
+
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    ext = {ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')]),
+	   ExtensionType.renegotiation_info:None}
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    # 2nd handshake
+    node = node.add_child(ResetHandshakeHashes())
+    ext = {ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/2')]),
+	   ExtensionType.renegotiation_info:None}
+    node = node.add_child(ClientHelloGenerator(ciphers, session_id=bytearray(0), extensions=ext))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/2')])}
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["renegotiation with protocol change"] = conversation
+
+    # renegotiation without protocol change
+    conversation = Connect(host, port)
+    node = conversation
+
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    ext = {ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')]),
+	   ExtensionType.renegotiation_info:None}
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    # 2nd handshake
+    node = node.add_child(ResetHandshakeHashes())
+    ext = {ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')]),
+	   ExtensionType.renegotiation_info:None}
+    node = node.add_child(ClientHelloGenerator(ciphers, session_id=bytearray(0), extensions=ext))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["renegotiation without protocol change"] = conversation
+
+    # renegotiation 2nd handshake alpn
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    ext = {ExtensionType.renegotiation_info:None}
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    ext = {ExtensionType.renegotiation_info: None}
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    # 2nd handshake
+    node = node.add_child(ResetHandshakeHashes())
+    ext = {ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')]),
+	   ExtensionType.renegotiation_info:None}
+    node = node.add_child(ClientHelloGenerator(ciphers, session_id=bytearray(0), extensions=ext))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["renegotiation 2nd handshake alpn"] = conversation
+
+    # resumption without alpn change
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    ext = {ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')]),
+	   ExtensionType.renegotiation_info:None}
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    close = ExpectClose()
+    node.next_sibling = close
+    node = node.add_child(ExpectClose())
+    node = node.add_child(Close())
+    node = node.add_child(Connect(host, port))
+    close.add_child(node)
+
+    node = node.add_child(ResetHandshakeHashes())
+    node = node.add_child(ResetRenegotiationInfo())
+    ext = {ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')]),
+	   ExtensionType.renegotiation_info:None}
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    ext = {ExtensionType.renegotiation_info:None,
+           ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    node = node.add_child(ExpectServerHello(extensions=ext, resume=True))
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+
+    conversations["resumption without alpn change"] = conversation
+
+    # resumption with alpn change
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    ext = {ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')]),
+	   ExtensionType.renegotiation_info:None}
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    close = ExpectClose()
+    node.next_sibling = close
+    node = node.add_child(ExpectClose())
+    node = node.add_child(Close())
+    node = node.add_child(Connect(host, port))
+    close.add_child(node)
+
+    node = node.add_child(ResetHandshakeHashes())
+    node = node.add_child(ResetRenegotiationInfo())
+    ext = {ExtensionType.alpn: ALPNExtension().create([bytearray(b'h2')]),
+	   ExtensionType.renegotiation_info:None}
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    ext = {ExtensionType.renegotiation_info:None,
+           ExtensionType.alpn: ALPNExtension().create([bytearray(b'h2')])}
+    node = node.add_child(ExpectServerHello(extensions=ext, resume=True))
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+
+    conversations["resumption with alpn change"] = conversation
+
+    # resumption with alpn 
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    ext = {ExtensionType.renegotiation_info:None}
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    ext = {ExtensionType.renegotiation_info: None}
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    close = ExpectClose()
+    node.next_sibling = close
+    node = node.add_child(ExpectClose())
+    node = node.add_child(Close())
+    node = node.add_child(Connect(host, port))
+    close.add_child(node)
+
+    node = node.add_child(ResetHandshakeHashes())
+    node = node.add_child(ResetRenegotiationInfo())
+    ext = {ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')]),
+	   ExtensionType.renegotiation_info:None}
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    ext = {ExtensionType.renegotiation_info:None,
+           ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    node = node.add_child(ExpectServerHello(extensions=ext, resume=True))
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+
+    conversations["resumption with alpn"] = conversation
+
+    # 16269 byte long array and 255 byte long items test
+    # Client Hello longer than 2^14 bytes issue
+    conversation = Connect(host, port)
+    node = conversation
+    proto = bytearray(b"A" * 255)
+    lista = []
+    lista.append(proto)
+    # 63 items 255 bytes long + 1 item 195 bytes long + 1 item 8 byte long (http/1.1)
+    for p in range(1,63):
+        lista.append(proto)
+    # 195 + 1 byte to reproduce the issue 
+    lista.append(bytearray(b'B' * 196))
+    lista.append(bytearray(b'http/1.1'))
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {ExtensionType.alpn: ALPNExtension().create(lista)}
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["16269 byte long array"] = conversation
 
     # run the conversation
     good = 0
