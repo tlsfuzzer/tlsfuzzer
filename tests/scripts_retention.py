@@ -54,7 +54,10 @@ def wait_till_open(host, port):
         raise ValueError("Can't connect to server")
 
 
-def start_server(server_cmd, server_env=tuple()):
+def start_server(server_cmd, server_env=tuple(), server_host=None,
+                 server_port=4433):
+    if server_host is None:
+        server_host = "localhost"
     my_env = os.environ.copy()
     my_env.update(server_env)
     ret = Popen(server_cmd, env=my_env,
@@ -66,7 +69,7 @@ def start_server(server_cmd, server_env=tuple()):
     thr_stderr.daemon = True
     thr_stderr.start()
     try:
-        wait_till_open('localhost', 4433)
+        wait_till_open(server_host, server_port)
     except ValueError:
         print_all_from_queue()
         raise
@@ -155,8 +158,12 @@ def run_with_json(config_file, srv_path):
                 command[number] = srv_path
                 break
         environment = srv_conf.get("environment", tuple())
+        server_host = srv_conf.get("server_hostname", "localhost")
+        server_port = srv_conf.get("server_port", 4433)
 
-        srv, srv_out, srv_err = start_server(command, environment)
+        srv, srv_out, srv_err = start_server(command, environment,
+                                             server_host,
+                                             server_port)
         logger.info("Server process started")
 
         try:
