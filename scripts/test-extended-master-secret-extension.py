@@ -4,6 +4,9 @@
 from __future__ import print_function
 import traceback
 import sys
+import getopt
+import re
+from itertools import chain
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
@@ -17,12 +20,57 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType
 
+
+def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
+    return [int(text) if text.isdigit() else text.lower()
+            for text in re.split(_nsre, s)]
+
+
+def help_msg():
+    print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
+    print(" -h hostname    name of the host to run the test against")
+    print("                localhost by default")
+    print(" -p port        port number to use for connection, 4433 by default")
+    print(" probe-name     if present, will run only the probes with given")
+    print("                names and not all of them, e.g \"sanity\"")
+    print(" -e probe-name  exclude the probe from the list of the ones run")
+    print("                may be specified multiple times")
+    print(" --no-http      don't send HTTP query")
+    print(" --help         this message")
+
+
 def main():
-    http = False
+    host = "localhost"
+    port = 4433
+    run_exclude = set()
+    http = True
+
+    argv = sys.argv[1:]
+    opts, args = getopt.getopt(argv, "h:p:e:", ["help", "no-http"])
+    for opt, arg in opts:
+        if opt == '-h':
+            host = arg
+        elif opt == '-p':
+            port = int(arg)
+        elif opt == '-e':
+            run_exclude.add(arg)
+        elif opt == '--help':
+            help_msg()
+            sys.exit(0)
+        elif opt == '--no-http':
+            http = False
+        else:
+            raise ValueError("Unknown option: {0}".format(opt))
+
+    if args:
+        run_only = set(args)
+    else:
+        run_only = None
+
     conversations = {}
 
     # check if server works at all
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(
@@ -39,7 +87,7 @@ def main():
     node = node.add_child(ExpectFinished())
     if http:
         node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET / HTTP/1.0\n")))
+            bytearray(b"GET / HTTP/1.0\n\n")))
         node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -50,7 +98,7 @@ def main():
     conversations["sanity"] = conversation
 
     # check if server works with SHA384 PRF ciphersuite
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384]
     node = node.add_child(ClientHelloGenerator(
@@ -67,7 +115,7 @@ def main():
     node = node.add_child(ExpectFinished())
     if http:
         node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET / HTTP/1.0\n")))
+            bytearray(b"GET / HTTP/1.0\n\n")))
         node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -78,7 +126,7 @@ def main():
     conversations["sanity sha384 prf"] = conversation
 
     # check if server works at all (TLSv1.1)
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(
@@ -97,7 +145,7 @@ def main():
     node = node.add_child(ExpectFinished())
     if http:
         node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET / HTTP/1.0\n")))
+            bytearray(b"GET / HTTP/1.0\n\n")))
         node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -108,7 +156,7 @@ def main():
     conversations["sanity TLSv1.1"] = conversation
 
     # check if server supports extended master secret
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(
@@ -127,7 +175,7 @@ def main():
     node = node.add_child(ExpectFinished())
     if http:
         node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET / HTTP/1.0\n")))
+            bytearray(b"GET / HTTP/1.0\n\n")))
         node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -138,7 +186,7 @@ def main():
     conversations["extended master secret"] = conversation
 
     # check if server supports extended master secret with SHA384 PRF
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384]
     node = node.add_child(ClientHelloGenerator(
@@ -157,7 +205,7 @@ def main():
     node = node.add_child(ExpectFinished())
     if http:
         node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET / HTTP/1.0\n")))
+            bytearray(b"GET / HTTP/1.0\n\n")))
         node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -168,7 +216,7 @@ def main():
     conversations["extended master secret w/SHA384 PRF"] = conversation
 
     # check if server supports extended master secret
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(
@@ -189,7 +237,7 @@ def main():
     node = node.add_child(ExpectFinished())
     if http:
         node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET / HTTP/1.0\n")))
+            bytearray(b"GET / HTTP/1.0\n\n")))
         node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -200,7 +248,7 @@ def main():
     conversations["extended master secret in TLSv1.1"] = conversation
 
     # check if server doesn't default to extended master secret
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(
@@ -221,7 +269,7 @@ def main():
     conversations["no EMS by default"] = conversation
 
     # check if server uses EMS for resumed connections
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(
@@ -246,7 +294,7 @@ def main():
     node = node.add_child(ExpectClose())
     node = node.add_child(Close())
 
-    node = node.add_child(Connect("localhost", 4433))
+    node = node.add_child(Connect(host, port))
     close.add_child(node)
     node = node.add_child(ResetHandshakeHashes())
     node = node.add_child(ResetRenegotiationInfo())
@@ -264,7 +312,7 @@ def main():
     node = node.add_child(FinishedGenerator())
     if http:
         node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET / HTTP/1.0\n")))
+            bytearray(b"GET / HTTP/1.0\n\n")))
         node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -275,7 +323,7 @@ def main():
     conversations["EMS with session resume"] = conversation
 
     # check if server uses EMS for resumed connections and SHA384 PRF
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384]
     node = node.add_child(ClientHelloGenerator(
@@ -300,7 +348,7 @@ def main():
     node = node.add_child(ExpectClose())
     node = node.add_child(Close())
 
-    node = node.add_child(Connect("localhost", 4433))
+    node = node.add_child(Connect(host, port))
     close.add_child(node)
     node = node.add_child(ResetHandshakeHashes())
     node = node.add_child(ResetRenegotiationInfo())
@@ -318,7 +366,7 @@ def main():
     node = node.add_child(FinishedGenerator())
     if http:
         node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET / HTTP/1.0\n")))
+            bytearray(b"GET / HTTP/1.0\n\n")))
         node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -329,7 +377,7 @@ def main():
     conversations["EMS with session resume and SHA384 PRF"] = conversation
 
     # check if server aborts session resume without EMS extension
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(
@@ -354,7 +402,7 @@ def main():
     node = node.add_child(ExpectClose())
     node = node.add_child(Close())
 
-    node = node.add_child(Connect("localhost", 4433))
+    node = node.add_child(Connect(host, port))
     close.add_child(node)
     node = node.add_child(ResetHandshakeHashes())
     node = node.add_child(ResetRenegotiationInfo())
@@ -370,7 +418,7 @@ def main():
     conversations["EMS with session resume without extension"] = conversation
 
     # check if server does full handshake on resumed session without EMS
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(
@@ -393,7 +441,7 @@ def main():
     node = node.add_child(ExpectClose())
     node = node.add_child(Close())
 
-    node = node.add_child(Connect("localhost", 4433))
+    node = node.add_child(Connect(host, port))
     close.add_child(node)
     node = node.add_child(ResetHandshakeHashes())
     node = node.add_child(ResetRenegotiationInfo())
@@ -414,7 +462,7 @@ def main():
     node = node.add_child(ExpectFinished())
     if http:
         node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET / HTTP/1.0\n")))
+            bytearray(b"GET / HTTP/1.0\n\n")))
         node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -427,7 +475,7 @@ def main():
             conversation
 
     # EMS with renegotiation
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(
@@ -473,7 +521,7 @@ def main():
     conversations["extended master secret with renegotiation"] = conversation
 
     # renegotiation in non-EMS session
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(
@@ -517,7 +565,7 @@ def main():
     conversations["renegotiate with EMS in session without EMS"] = conversation
 
     # renegotiation of non-EMS session in EMS session
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(
@@ -561,14 +609,25 @@ def main():
 
     conversations["renegotiate without EMS in session with EMS"] = conversation
 
-
+    # run the conversation
     good = 0
     bad = 0
+    failed = []
 
-    for conversation_name, conversation in conversations.items():
-        print("{0} ...".format(conversation_name))
+    # make sure that sanity test is run first and last
+    # to verify that server was running and kept running throught
+    sanity_test = ('sanity', conversations['sanity'])
+    ordered_tests = chain([sanity_test],
+                          filter(lambda x: x[0] != 'sanity',
+                                 conversations.items()),
+                          [sanity_test])
 
-        runner = Runner(conversation)
+    for c_name, c_test in ordered_tests:
+        if run_only and c_name not in run_only or c_name in run_exclude:
+            continue
+        print("{0} ...".format(c_name))
+
+        runner = Runner(c_test)
 
         res = True
         try:
@@ -576,18 +635,20 @@ def main():
         except:
             print("Error while processing")
             print(traceback.format_exc())
-            print("")
             res = False
 
         if res:
-            good+=1
+            good += 1
             print("OK\n")
         else:
-            bad+=1
+            bad += 1
+            failed.append(c_name)
 
     print("Test end")
     print("successful: {0}".format(good))
     print("failed: {0}".format(bad))
+    failed_sorted = sorted(failed, key=natural_sort_keys)
+    print("  {0}".format('\n  '.join(repr(i) for i in failed_sorted)))
 
     if bad > 0:
         sys.exit(1)
