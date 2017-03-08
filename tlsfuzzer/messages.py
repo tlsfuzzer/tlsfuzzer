@@ -9,7 +9,8 @@ from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         ClientFinished, ServerKeyExchange
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
         ExtensionType, CertificateType, ClientCertificateType, HashAlgorithm, \
-        SignatureAlgorithm, CipherSuite
+        SignatureAlgorithm, CipherSuite, SignatureScheme
+import tlslite.utils.tlshashlib as hashlib
 from tlslite.extensions import TLSExtension, RenegotiationInfoExtension
 from tlslite.messagesocket import MessageSocket
 from tlslite.defragmenter import Defragmenter
@@ -618,7 +619,8 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
     """
 
     def __init__(self, private_key=None, msg_version=None, msg_alg=None,
-                 sig_version=None, sig_alg=None, signature=None):
+                 sig_version=None, sig_alg=None, signature=None,
+                 rsa_pss_salt_len=None):
         """Create object for generating Certificate Verify messages."""
         super(CertificateVerifyGenerator, self).__init__()
         self.private_key = private_key
@@ -627,6 +629,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         self.sig_version = sig_version
         self.sig_alg = sig_alg
         self.signature = signature
+        self.rsa_pss_salt_len = rsa_pss_salt_len
 
     def generate(self, status):
         """Create a CertificateVerify message."""
@@ -640,7 +643,8 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             if cert_req is not None:
                 self.msg_alg = next((sig for sig in
                                      cert_req.supported_signature_algs
-                                     if sig[1] == SignatureAlgorithm.rsa),
+                                     if sig[1] == SignatureAlgorithm.rsa or
+                                     sig[0] == 8 and sig[1] in (4, 5, 6)),
                                     None)
             if self.msg_alg is None:
                 self.msg_alg = (HashAlgorithm.sha1,
@@ -661,7 +665,25 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                                                        status.premaster_secret,
                                                        status.client_random,
                                                        status.server_random)
-            signature = self.private_key.sign(verify_bytes)
+
+            # we don't have to handle non pkcs1 padding because the
+            # calcVerifyBytes does everything
+            scheme = SignatureScheme.toRepr(self.sig_alg)
+            hashName = None
+            saltLen = 0
+            if scheme is None:
+                padding = "pkcs1"
+            else:
+                padding = SignatureScheme.getPadding(scheme)
+                if padding == 'pss':
+                    hashName = SignatureScheme.getHash(scheme)
+                    if self.rsa_pss_salt_len is None:
+                        self.rsa_pss_salt_len = \
+                                getattr(hashlib, hashName)().digest_size
+            signature = self.private_key.sign(verify_bytes,
+                                              padding,
+                                              hashName,
+                                              self.rsa_pss_salt_len)
 
         cert_verify = CertificateVerify(self.msg_version)
         cert_verify.create(signature, self.msg_alg)
