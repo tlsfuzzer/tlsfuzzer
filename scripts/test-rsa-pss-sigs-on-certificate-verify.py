@@ -24,6 +24,7 @@ from tlslite.extensions import SignatureAlgorithmsExtension, TLSExtension
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
+from tlslite.utils.cryptomath import numBytes
 
 
 def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
@@ -310,6 +311,44 @@ def main():
         node = node.add_child(ExpectClose())
         conversations["{0} in CertificateVerify with incorrect salt len"
                       .format(SignatureScheme.toRepr(scheme))] = conversation
+
+    # check if CertificateVerify with wrong salt size is rejected
+    for pos in range(numBytes(private_key.n)):
+        for xor in [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80]:
+            conversation = Connect(host, port)
+            node = conversation
+            sigs = [SignatureScheme.rsa_pss_sha256,
+                    SignatureScheme.rsa_pss_sha384,
+                    SignatureScheme.rsa_pss_sha512
+                    ]
+            ext = {ExtensionType.signature_algorithms:
+                    SignatureAlgorithmsExtension().create(sigs)}
+            ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+            node = node.add_child(ClientHelloGenerator(ciphers,
+                                                       extensions=ext))
+            node = node.add_child(ExpectServerHello(version=(3, 3)))
+            node = node.add_child(ExpectCertificate())
+            node = node.add_child(ExpectServerKeyExchange())
+            node = node.add_child(ExpectCertificateRequest())
+            node = node.add_child(ExpectServerHelloDone())
+            node = node.add_child(CertificateGenerator(X509CertChain([cert])))
+            node = node.add_child(ClientKeyExchangeGenerator())
+            scheme = SignatureScheme.rsa_pss_sha256
+            node = node.add_child(CertificateVerifyGenerator(private_key,
+                                                             msg_alg=scheme,
+                                                             padding_xors={pos:xor}))
+            node = node.add_child(ChangeCipherSpecGenerator())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                              AlertDescription.decrypt_error))
+            node.next_sibling = ExpectClose()
+            node = node.add_child(ExpectClose())
+            conversations["malformed rsa-pss in CertificateVerify - "
+                          "xor {1} at {0}"
+                          .format(pos, hex(xor))] = conversation
+
 
     conversation = Connect(host, port)
     node = conversation
