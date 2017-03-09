@@ -138,43 +138,38 @@ def main():
     # TODO: tlslite-ng nor tlsfuzzer doesn't support RSA-PSS
     conversations["with RSA-PSS"] = conversation
 
-    conversation = Connect(host, port)
-    node = conversation
-    sigs = [SignatureScheme.rsa_pss_sha256,
-            SignatureScheme.rsa_pss_sha384,
-            SignatureScheme.rsa_pss_sha512
-            ]
-    ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=ext))
-    node = node.add_child(ExpectServerHello(version=(3, 3)))
-    # in case RSA_PSS is not supported
-    node.next_sibling = ExpectAlert(AlertLevel.fatal,
-                                    AlertDescription.handshake_failure)
-    node.next_sibling.add_child(ExpectClose())
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerKeyExchange())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\n\n")))
-    node = node.add_child(ExpectApplicationData())
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                         AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
-    node = node.add_child(ExpectClose())
-    # TODO: tlslite-ng nor tlsfuzzer doesn't support RSA-PSS
-    conversations["RSA-PSS only"] = conversation
+    for sig in [SignatureScheme.rsa_pss_sha256,
+                SignatureScheme.rsa_pss_sha384,
+                SignatureScheme.rsa_pss_sha512
+                ]:
+        conversation = Connect(host, port)
+        node = conversation
+        ext = {ExtensionType.signature_algorithms:
+                SignatureAlgorithmsExtension().create([sig])}
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions=ext))
+        node = node.add_child(ExpectServerHello(version=(3, 3)))
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerKeyExchange())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ExpectApplicationData())
+        node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                             AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert())
+        node.next_sibling = ExpectClose()
+        node = node.add_child(ExpectClose())
+        conversations["{0} only"
+                      .format(SignatureScheme.toRepr(sig))] = conversation
 
     # MD5 not selected, even if first
     conversation = Connect(host, port)
