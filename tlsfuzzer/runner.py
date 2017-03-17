@@ -75,6 +75,10 @@ class ConnectionState(object):
         # secret calculation defined in RFC 7627
         self.extended_master_secret = False
 
+        # Whether the session we're currently using is using
+        # EncryptThenMAC extension defined in RFC 7366
+        self.encrypt_then_mac = False
+
     def get_server_public_key(self):
         """Extract server public key from server Certificate message"""
         certificates = (msg for msg in self.handshake_messages if\

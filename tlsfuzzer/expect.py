@@ -166,6 +166,7 @@ class ExpectServerHello(ExpectHandshake):
 
         # Reset value of the session-wide settings
         state.extended_master_secret = False
+        state.encrypt_then_mac = False
 
         # check if the message has expected values
         if self.extensions is not None:
@@ -179,6 +180,8 @@ class ExpectServerHello(ExpectHandshake):
                     self.extensions[ext_id](state, ext)
                 if ext_id == ExtensionType.extended_master_secret:
                     state.extended_master_secret = True
+                if ext_id == ExtensionType.encrypt_then_mac:
+                    state.encrypt_then_mac = True
             # not supporting any extensions is valid
             if srv_hello.extensions is not None:
                 for ext_id in (ext.extType for ext in srv_hello.extensions):
