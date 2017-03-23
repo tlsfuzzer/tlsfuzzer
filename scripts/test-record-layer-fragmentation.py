@@ -104,6 +104,12 @@ def main():
     for name, ext_len, record_len in [
                                 ("small hello", 20, None),
                                 ("medium hello", 1024, None),
+                                ("medium hello, pow2 fragmentation", 1024, 127),
+                                ("medium hello, pow2 fragmentation", 1024, 128),
+                                ("medium hello, pow2 fragmentation", 1024, 128),
+                                ("medium hello, pow2 fragmentation", 1024, 255),
+                                ("medium hello, pow2 fragmentation", 1024, 256),
+                                ("medium hello, pow2 fragmentation", 1024, 257),
                                 ("big, non fragmented", 2**12, None),
                                 ("big, needs fragmentation", 2**14-49, None),
                                 ("big, needs fragmentation", 2**14-48, None),
