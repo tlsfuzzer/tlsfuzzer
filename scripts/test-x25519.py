@@ -451,6 +451,39 @@ def main():
     node = node.add_child(ExpectClose())
     conversations["too small x25519 key share"] = conversation
 
+    # check if server will reject empty x25519 share
+    conversation = Connect(host, port)
+    node = conversation
+    sigs = [(HashAlgorithm.sha512, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
+    ext = {ExtensionType.signature_algorithms:
+            SignatureAlgorithmsExtension().create(sigs)}
+    groups = [GroupName.x25519]
+    ext[ExtensionType.supported_groups] = \
+            SupportedGroupsExtension().create(groups)
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=ext))
+    node = node.add_child(ExpectServerHello(version=(3, 3)))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientKeyExchangeGenerator(ecdh_Yc=bytearray()))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(TCPBufferingDisable())
+    # since the ECPoint is defined as <1..2^8-1>, zero length value is an
+    # incorrect encoding
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.decode_error))
+    node = node.add_child(ExpectClose())
+    conversations["empty x25519 key share"] = conversation
+
     # check if server will reject too big x25519 share
     # (one with too many bytes in the key share)
     conversation = Connect(host, port)
@@ -524,6 +557,39 @@ def main():
                                       AlertDescription.bad_record_mac))
     node = node.add_child(ExpectClose())
     conversations["x25519 key share with high bit set"] = conversation
+
+    # check if server will reject empty x448 share
+    conversation = Connect(host, port)
+    node = conversation
+    sigs = [(HashAlgorithm.sha512, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
+    ext = {ExtensionType.signature_algorithms:
+            SignatureAlgorithmsExtension().create(sigs)}
+    groups = [GroupName.x448]
+    ext[ExtensionType.supported_groups] = \
+            SupportedGroupsExtension().create(groups)
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=ext))
+    node = node.add_child(ExpectServerHello(version=(3, 3)))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientKeyExchangeGenerator(ecdh_Yc=bytearray()))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(TCPBufferingDisable())
+    # since the ECPoint is defined as <1..2^8-1>, zero length value is an
+    # incorrect encoding
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.decode_error))
+    node = node.add_child(ExpectClose())
+    conversations["empty x448 key share"] = conversation
 
     # check if server will reject too small x448 share
     conversation = Connect(host, port)
