@@ -15,8 +15,10 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ResetHandshakeHashes, ResetRenegotiationInfo
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectClose, ExpectApplicationData
+        ExpectAlert, ExpectClose, ExpectApplicationData, \
+        ExpectServerKeyExchange
 
+from tlslite.extensions import TLSExtension
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType
 
@@ -184,6 +186,85 @@ def main():
     node.add_child(Close())
 
     conversations["extended master secret"] = conversation
+
+    # check if server supports extended master secret with ECDHE
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(
+        ciphers,
+        extensions={ExtensionType.renegotiation_info:None,
+                    ExtensionType.extended_master_secret:None}))
+    node = node.add_child(ExpectServerHello(
+        extensions={ExtensionType.renegotiation_info:None,
+                    ExtensionType.extended_master_secret:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    if http:
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    node.add_child(Close())
+
+    conversations["extended master secret w/ECDHE"] = conversation
+
+    # check if server supports extended master secret with DHE
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(
+        ciphers,
+        extensions={ExtensionType.renegotiation_info:None,
+                    ExtensionType.extended_master_secret:None}))
+    node = node.add_child(ExpectServerHello(
+        extensions={ExtensionType.renegotiation_info:None,
+                    ExtensionType.extended_master_secret:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    if http:
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    node.add_child(Close())
+
+    conversations["extended master secret w/DHE"] = conversation
+
+    # check if server rejects malformed EMS extension
+    # (extension must be empty)
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    ext = {ExtensionType.renegotiation_info:None}
+    ext[ExtensionType.extended_master_secret] = \
+            TLSExtension(extType=ExtensionType.extended_master_secret).\
+            create(bytearray(b'\x00'))
+    node = node.add_child(ClientHelloGenerator(
+        ciphers,
+        extensions=ext))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.decode_error))
+    node.next_sibling = ExpectClose()
+    conversations["malformed extended master secret ext"] = conversation
 
     # check if server supports extended master secret with SHA384 PRF
     conversation = Connect(host, port)
