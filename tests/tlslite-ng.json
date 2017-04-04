@@ -171,6 +171,10 @@
           "arguments" : ["-k", "tests/clientX509Key.pem",
                          "-c", "tests/clientX509Cert.pem"]
           },
+         {"name" : "test-extended-master-secret-extension-with-client-cert.py",
+          "arguments" : ["-k", "tests/clientX509Key.pem",
+                         "-c", "tests/clientX509Cert.pem"]
+          },
          {"name" : "test-rsa-sigs-on-certificate-verify.py",
           "arguments" : ["-k", "tests/clientX509Key.pem",
                          "-c", "tests/clientX509Cert.pem"]
