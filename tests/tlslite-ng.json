@@ -35,6 +35,7 @@
          },
          {"name" : "test-conversation.py"},
          {"name" : "test-cve-2016-2107.py"},
+         {"name" : "test-cve-2016-7054.py"},
          {"name" : "test-dhe-rsa-key-exchange.py"},
          {"name" : "test-dhe-rsa-key-exchange-signatures.py"},
          {"name" : "test-dhe-rsa-key-exchange-with-bad-messages.py"},
