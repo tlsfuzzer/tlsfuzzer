@@ -66,7 +66,7 @@ def main():
     opts, args = getopt.getopt(argv, "h:p:e:s:k:c:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
-            host = arg
+            hostname = arg
         elif opt == '-p':
             port = int(arg)
         elif opt == '-e':
