@@ -343,7 +343,8 @@ def main():
     node = node.add_child(ChangeCipherSpecGenerator(
         extended_master_secret=True))
     node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectAlert(level=AlertLevel.fatal))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.bad_record_mac))
     node = node.add_child(ExpectClose())
     node = node.add_child(Close())
 
