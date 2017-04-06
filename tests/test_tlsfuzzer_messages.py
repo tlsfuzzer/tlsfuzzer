@@ -23,7 +23,7 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         ResetRenegotiationInfo, fuzz_plaintext, Connect, \
         ClientMasterKeyGenerator, TCPBufferingEnable, TCPBufferingDisable, \
         TCPBufferingFlush, fuzz_encrypted_message, fuzz_pkcs1_padding, \
-        CollectNonces, AlertGenerator
+        CollectNonces, AlertGenerator, PlaintextMessageGenerator
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
@@ -232,6 +232,43 @@ class TestConnect(unittest.TestCase):
         instance = mock_sock.return_value
         instance.connect.assert_called_once_with((1, 2))
         self.assertIs(state.msg_sock.sock.socket, instance)
+
+
+class TestPlaintextMessageGenerator(unittest.TestCase):
+    def test___init__(self):
+        msg_gen = PlaintextMessageGenerator(12, bytearray(b'\x00\x00'))
+
+        self.assertIsNotNone(msg_gen)
+        self.assertTrue(msg_gen.is_command())
+        self.assertFalse(msg_gen.is_expect())
+        self.assertFalse(msg_gen.is_generator())
+
+    def test___repr__(self):
+        msg_gen = PlaintextMessageGenerator(12, bytearray(b'\x00\x00'))
+
+        self.assertEqual(repr(msg_gen),
+                         "PlaintextMessageGenerator(content_type=12, "
+                         "data=bytearray(b'\\x00\\x00'))")
+
+    def test___repr___with_description(self):
+        msg_gen = PlaintextMessageGenerator(12, bytearray(b'\x00\x00'),
+                                            description="some message")
+
+        self.assertEqual(repr(msg_gen),
+                         "PlaintextMessageGenerator(content_type=12, "
+                         "data=bytearray(b'\\x00\\x00'), "
+                         "description='some message')")
+
+    def test_process(self):
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        msg_gen = PlaintextMessageGenerator(12, bytearray(b'\x00\x00'))
+
+        msg_gen.process(state)
+
+        self.assertTrue(state.msg_sock._recordSocket.send.called)
+
 
 class TestRawMessageGenerator(unittest.TestCase):
     def test___init__(self):

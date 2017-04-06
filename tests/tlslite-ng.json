@@ -10,6 +10,7 @@
          {"name" : "test-aes-gcm-nonces.py" },
          {"name" : "test-atypical-padding.py" },
          {"name" : "test-bleichenbacher-workaround.py" },
+         {"name" : "test-chacha20.py" },
          {"name" : "test-clienthello-md5.py"},
          {"name" : "test-client-compatibility.py",
           "arguments" : ["-e", "18: IE 6 on XP",
