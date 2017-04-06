@@ -672,6 +672,18 @@ class TestExpectAlert(unittest.TestCase):
         with self.assertRaises(AssertionError):
             exp.process(state, msg)
 
+    def test_process_with_multiple_values_one_matching_description(self):
+        exp = ExpectAlert(AlertLevel.fatal,
+                          [AlertDescription.record_overflow,
+                           AlertDescription.decompression_failure])
+
+        state = ConnectionState()
+        msg = Message(ContentType.alert,
+                      bytearray(b'\x02\x16'))
+
+        # does NOT raise exception
+        exp.process(state, msg)
+
     def test_process_with_values_and_not_matching_description(self):
         exp = ExpectAlert(AlertLevel.warning,
                           AlertDescription.bad_record_mac)

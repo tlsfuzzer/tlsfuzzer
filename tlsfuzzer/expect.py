@@ -17,6 +17,7 @@ from tlslite.keyexchange import KeyExchange, DHE_RSAKeyExchange, \
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 from .tree import TreeNode
+import collections
 
 
 class Expect(TreeNode):
@@ -533,12 +534,16 @@ class ExpectAlert(Expect):
         if self.level is not None and alert.level != self.level:
             problem_desc += "Alert level {0} != {1}".format(alert.level,
                                                             self.level)
-        if self.description is not None \
-                and alert.description != self.description:
-            if problem_desc:
-                problem_desc += ", "
-            problem_desc += ("Alert description {0} != {1}"
-                             .format(alert.description, self.description))
+        if self.description is not None:
+            # allow for multiple choice for description
+            if not isinstance(self.description, collections.Iterable):
+                self.description = tuple([self.description])
+
+            if alert.description not in self.description:
+                if problem_desc:
+                    problem_desc += ", "
+                problem_desc += ("Alert description {0} != {1}"
+                                 .format(alert.description, self.description))
         if problem_desc:
             raise AssertionError(problem_desc)
 
