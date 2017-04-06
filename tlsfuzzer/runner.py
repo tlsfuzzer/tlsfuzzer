@@ -146,6 +146,7 @@ class Runner(object):
                         close_node = next((n for n in node.get_all_siblings() \
                                            if isinstance(n, ExpectClose)), None)
                         if close_node:
+                            close_node.process(self.state, None)
                             node = close_node.child
                             continue
                         else:
@@ -173,7 +174,14 @@ class Runner(object):
                     # send message to peer
                     msg = node.generate(self.state)
                     try:
-                        self.state.msg_sock.sendMessageBlocking(msg)
+                        if msg.write():
+                            # sendMessageBlocking is buffered and fragmenting
+                            # that means that 0-length messages would get lost
+                            self.state.msg_sock.sendMessageBlocking(msg)
+                        else:
+                            for _ in self.state.msg_sock.sendRecord(msg):
+                                # make the method into a blocking one
+                                pass
                     except socket.error:
                         close_node = next((n for n in node.get_all_siblings()
                                            if isinstance(n, ExpectClose)), None)
@@ -182,6 +190,8 @@ class Runner(object):
                             continue
                         else:
                             raise AssertionError("Unexpected closure from peer")
+                    # allow generators to perform actions after the message
+                    # was sent like updating handshake hashes
                     node.post_send(self.state)
 
                     node = node.child

@@ -147,7 +147,7 @@ class TCPBufferingEnable(Command):
     """
     Start buffering all writes on the TCP level of connection.
 
-    You will need to call an explicit flush to send the messages
+    You will need to call an explicit flush to send the messages.
     """
 
     def process(self, state):
