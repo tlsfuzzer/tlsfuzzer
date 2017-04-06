@@ -110,6 +110,9 @@ class TestRunner(unittest.TestCase):
         node.is_expect = mock.Mock(return_value=False)
         node.is_generator = mock.Mock(return_value=True)
         node.child = None
+        msg = mock.MagicMock()
+        msg.write = mock.Mock(return_value=bytearray(b'\x01\x00'))
+        node.generate = mock.Mock(return_value=msg)
 
         runner = Runner(node)
 
@@ -119,6 +122,29 @@ class TestRunner(unittest.TestCase):
 
         node.generate.assert_called_once_with(runner.state)
         self.assertTrue(runner.state.msg_sock.sendMessageBlocking.called)
+        runner.state.msg_sock.sendMessageBlocking.assert_called_once_with(msg)
+        node.post_send.assert_called_once_with(runner.state)
+
+    def test_run_with_zero_generator_node(self):
+        node = mock.MagicMock()
+        node.is_command = mock.Mock(return_value=False)
+        node.is_expect = mock.Mock(return_value=False)
+        node.is_generator = mock.Mock(return_value=True)
+        node.child = None
+        msg = mock.MagicMock()
+        msg.write = mock.Mock(return_value=bytearray(b''))
+        node.generate = mock.Mock(return_value=msg)
+
+        runner = Runner(node)
+
+        runner.state.msg_sock = mock.MagicMock()
+
+        runner.run()
+
+        node.generate.assert_called_once_with(runner.state)
+        self.assertFalse(runner.state.msg_sock.sendMessageBlocking.called)
+        self.assertTrue(runner.state.msg_sock.sendRecord.called)
+        runner.state.msg_sock.sendRecord.assert_called_once_with(msg)
         node.post_send.assert_called_once_with(runner.state)
 
     def test_run_with_expect_node(self):
