@@ -587,6 +587,10 @@ class ExpectClose(Expect):
     def __init__(self):
         super(ExpectClose, self).__init__(None)
 
+    def process(self, state, msg):
+        """Close our side"""
+        state.msg_sock.sock.close()
+
 
 class ExpectCertificateStatus(ExpectHandshake):
     """Processing of CertificateStatus message from RFC 6066."""

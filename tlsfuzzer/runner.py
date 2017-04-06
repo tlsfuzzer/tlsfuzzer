@@ -146,6 +146,7 @@ class Runner(object):
                         close_node = next((n for n in node.get_all_siblings() \
                                            if isinstance(n, ExpectClose)), None)
                         if close_node:
+                            close_node.process(self.state, None)
                             node = close_node.child
                             continue
                         else:
