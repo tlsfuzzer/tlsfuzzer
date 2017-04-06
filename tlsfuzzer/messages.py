@@ -209,6 +209,39 @@ class CollectNonces(Command):
         state.msg_sock._writeState.encContext.seal = collector
 
 
+class PlaintextMessageGenerator(Command):
+    """
+    Send a plaintext data record even if encryption is already negotiated.
+
+    Do not update handshake hashes, record layer state, do not fragment, etc.
+    """
+
+    def __init__(self, content_type, data, description=None):
+        """Set the record layer type and payload to send."""
+        super(PlaintextMessageGenerator, self).__init__()
+        self.content_type = content_type
+        self.data = data
+        self.description = description
+
+    def __repr__(self):
+        """Return human readable representation of the object."""
+        vals = []
+        vals.append(('content_type', self.content_type))
+        vals.append(('data', repr(self.data)))
+        if self.description:
+            vals.append(('description', repr(self.description)))
+
+        return "PlaintextMessageGenerator({0})".format(
+                ", ".join("{0}={1}".format(i[0], i[1]) for i in vals))
+
+    def process(self, state):
+        """Send the message over the socket."""
+        msg = Message(self.content_type, self.data)
+
+        for _ in state.msg_sock._recordSocket.send(msg):
+            pass
+
+
 class MessageGenerator(TreeNode):
     """Message generator objects."""
 
@@ -241,7 +274,12 @@ class MessageGenerator(TreeNode):
 
 
 class RawMessageGenerator(MessageGenerator):
-    """Generator for arbitrary record layer messages."""
+    """
+    Generator for arbitrary record layer messages.
+
+    Can generate message with any content_type and any payload. Will
+    be encrypted if encryption is negotiated in the connection.
+    """
 
     def __init__(self, content_type, data, description=None):
         """Set the record layer type and payload to send."""
