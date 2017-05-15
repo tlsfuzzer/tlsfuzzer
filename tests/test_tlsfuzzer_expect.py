@@ -28,7 +28,7 @@ from tlslite.messages import Message, ServerHello, CertificateRequest, \
         ClientHello, Certificate, ServerHello2, ServerFinished, \
         ServerKeyExchange, CertificateStatus
 from tlslite.extensions import SNIExtension, TLSExtension, \
-        SupportedGroupsExtension
+        SupportedGroupsExtension, ALPNExtension
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509certchain import X509CertChain, X509
 from tlslite.extensions import SNIExtension, SignatureAlgorithmsExtension
@@ -194,6 +194,75 @@ class TestExpectServerHello(unittest.TestCase):
         self.assertTrue(exp.is_match(msg))
 
         with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
+    def test_process_with_no_matching_extension(self):
+        exps = {ExtensionType.renegotiation_info: None,
+                ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])
+               }
+        exp = ExpectServerHello(extensions=exps)
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        exts = []
+        exts.append(RenegotiationInfoExtension().create(None))
+        exts.append(ALPNExtension().create([bytearray(b'http/1.2')]))
+        msg = ServerHello().create(version=(3, 3),
+                                   random=bytearray(32),
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=exts)
+
+        self.assertTrue(exp.is_match(msg))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
+    def test_process_with_matching_extension(self):
+        exps = {ExtensionType.renegotiation_info: None,
+                ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])
+               }
+        exp = ExpectServerHello(extensions=exps)
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        exts = []
+        exts.append(RenegotiationInfoExtension().create(None))
+        exts.append(ALPNExtension().create([bytearray(b'http/1.1')]))
+        msg = ServerHello().create(version=(3, 3),
+                                   random=bytearray(32),
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=exts)
+
+        self.assertTrue(exp.is_match(msg))
+
+        exp.process(state, msg)
+        self.assertIsInstance(state.handshake_messages[0], ServerHello)
+
+    def test_process_with_bad_extension(self):
+        exps = {ExtensionType.renegotiation_info: None,
+                ExtensionType.alpn: 'BAD_EXTENSION'
+               }
+        exp = ExpectServerHello(extensions=exps)
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        exts = []
+        exts.append(RenegotiationInfoExtension().create(None))
+        exts.append(ALPNExtension().create([bytearray(b'http/1.1')]))
+        msg = ServerHello().create(version=(3, 3),
+                                   random=bytearray(32),
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=exts)
+
+        self.assertTrue(exp.is_match(msg))
+
+        with self.assertRaises(ValueError):
             exp.process(state, msg)
 
     def test_process_with_unexpected_extensions(self):
