@@ -9,6 +9,7 @@ from tlslite.constants import ContentType, HandshakeType, CertificateType,\
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
         ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus
+from tlslite.extensions import TLSExtension
 from tlslite.utils.codec import Parser
 from tlslite.mathtls import calcFinished, RFC7919_GROUPS
 from .handshake_helpers import calc_pending_states
@@ -177,7 +178,17 @@ class ExpectServerHello(ExpectHandshake):
                                          .format(ExtensionType.toStr(ext_id)))
                 # run extension-specific checker if present
                 if self.extensions[ext_id] is not None:
-                    self.extensions[ext_id](state, ext)
+                    if callable(self.extensions[ext_id]):
+                        self.extensions[ext_id](state, ext)
+                    elif isinstance(self.extensions[ext_id], TLSExtension):
+                        if not self.extensions[ext_id] == ext:
+                            raise AssertionError("Expected extension "
+                                                 "not matched, received: {0}"
+                                                 .format(ext))
+                    else:
+                        raise ValueError("Bad extension, id: {0}"
+                                         .format(ext_id))
+                    continue
                 if ext_id == ExtensionType.extended_master_secret:
                     state.extended_master_secret = True
             # not supporting any extensions is valid
