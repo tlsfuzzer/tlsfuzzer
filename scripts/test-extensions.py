@@ -119,10 +119,10 @@ def main():
         node = conversation
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
         ext = OrderedDict((i, TLSExtension(extType=i))
-                          for i in range(40, 40 + ext_n - 1))
+                          for i in range(90, 90 + ext_n - 1))
         if ExtensionType.supports_npn in ext:
             del ext[ExtensionType.supports_npn]
-            ext[40+ext_n] = TLSExtension(extType=40+ext_n)
+            ext[90+ext_n] = TLSExtension(extType=90+ext_n)
         ext[ExtensionType.renegotiation_info] = None
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         ext = {ExtensionType.renegotiation_info: None}
@@ -149,12 +149,12 @@ def main():
         node = conversation
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
         ext = OrderedDict((i, TLSExtension(extType=i))
-                          for i in range(41, 40 + ext_n - 1))
+                          for i in range(91, 90 + ext_n - 1))
         if ExtensionType.supports_npn in ext:
             del ext[ExtensionType.supports_npn]
-            ext[40+ext_n] = TLSExtension(extType=40+ext_n)
+            ext[90+ext_n] = TLSExtension(extType=90+ext_n)
         ext[ExtensionType.renegotiation_info] = None
-        ext[40] = TLSExtension(extType=40)
+        ext[90] = TLSExtension(extType=90)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         ext = {ExtensionType.renegotiation_info: None}
         node = node.add_child(ExpectServerHello(extensions=ext))
@@ -179,7 +179,7 @@ def main():
         node = conversation
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
         ext = OrderedDict(chain(
-            ((j, TLSExtension(extType=j)) for j in range(40, 49)),
+            ((j, TLSExtension(extType=j)) for j in range(90, 99)),
             [(ExtensionType.renegotiation_info, None)]))
         hello = ClientHelloGenerator(ciphers, extensions=ext)
         node = node.add_child(fuzz_message(hello, xors={-42:i}))
