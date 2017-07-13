@@ -14,14 +14,14 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, \
         CertificateGenerator, CertificateVerifyGenerator, \
-        AlertGenerator
+        AlertGenerator, Close, ResetHandshakeHashes, ResetRenegotiationInfo
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectCertificateRequest, \
         ExpectApplicationData
 from tlslite.extensions import SignatureAlgorithmsExtension
 from tlslite.constants import CipherSuite, AlertDescription, \
-        HashAlgorithm, SignatureAlgorithm, ExtensionType
+        HashAlgorithm, SignatureAlgorithm, ExtensionType, AlertLevel
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
@@ -166,6 +166,74 @@ def main():
         node.next_sibling.add_child(ExpectClose())
 
         conversations["with certificate"] = conversation
+
+        # resume session with client certificates
+        conversation = Connect(hostname, port)
+        node = conversation
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        ext = {ExtensionType.signature_algorithms :
+               SignatureAlgorithmsExtension().create([
+                 (getattr(HashAlgorithm, x),
+                  SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                    'sha224', 'sha1', 'md5']])}
+        ext[ExtensionType.extended_master_secret] = None
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+        ext = {ExtensionType.renegotiation_info:None,
+               ExtensionType.extended_master_secret:None}
+        node = node.add_child(ExpectServerHello(version=(3, 3), extensions=ext))
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectCertificateRequest())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(CertificateGenerator(X509CertChain([cert])))
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(CertificateVerifyGenerator(private_key))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(ApplicationDataGenerator(b"GET / HTTP/1.0\n\n"))
+        node = node.add_child(ExpectApplicationData())
+        node = node.add_child(AlertGenerator(AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert())
+        close = ExpectClose()
+        node.next_sibling = close
+        node = node.add_child(ExpectClose())
+        node = node.add_child(Close())
+
+        node = node.add_child(Connect(hostname, port))
+        close.add_child(node)
+        node = node.add_child(ResetHandshakeHashes())
+        node = node.add_child(ResetRenegotiationInfo())
+
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+        ext = {ExtensionType.signature_algorithms :
+               SignatureAlgorithmsExtension().create([
+                 (getattr(HashAlgorithm, x),
+                  SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                    'sha224', 'sha1', 'md5']])}
+        ext[ExtensionType.extended_master_secret] = None
+        ext[ExtensionType.renegotiation_info] = None
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+        ext = {ExtensionType.renegotiation_info:None,
+               ExtensionType.extended_master_secret:None}
+        node = node.add_child(ExpectServerHello(version=(3, 3),
+                              extensions=ext,
+                              resume=True))
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ExpectApplicationData())
+        node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                             AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert())
+        node.next_sibling = ExpectClose()
+        node.add_child(Close())
+
+        conversations["resume with certificate and EMS"] = conversation
 
     # run the conversation
     good = 0
