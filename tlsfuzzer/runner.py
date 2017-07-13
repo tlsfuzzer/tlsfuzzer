@@ -40,6 +40,11 @@ class ConnectionState(object):
 
         # hashes of all handshake messages exchanged so far
         self.handshake_hashes = HandshakeHashes()
+
+        # hash of all messages exchanged up to Certificate Verify, if CV was
+        # used on connection
+        self.certificate_verify_handshake_hashes = None
+
         # all handshake messages exchanged so far
         self.handshake_messages = []
 

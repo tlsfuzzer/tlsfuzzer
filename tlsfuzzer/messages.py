@@ -654,6 +654,11 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                                 SignatureAlgorithm.rsa)
         if self.sig_alg is None:
             self.sig_alg = self.msg_alg
+
+        # we need a copy of the handshake hashes for use in Extended Master
+        # Secret calculation
+        status.certificate_verify_handshake_hashes = \
+            status.handshake_hashes.copy()
         # TODO: generate a random key if none provided
         if self.signature is not None:
             signature = self.signature
@@ -732,11 +737,16 @@ class ChangeCipherSpecGenerator(MessageGenerator):
 
         if not status.resuming:
             if self.extended_master_secret:
+                # in case client certificates are used, we need to omit
+                # certificate verify message
+                hh = status.certificate_verify_handshake_hashes
+                if not hh:
+                    hh = status.handshake_hashes
                 master_secret = \
                     calcExtendedMasterSecret(status.version,
                                              cipher_suite,
                                              status.premaster_secret,
-                                             status.handshake_hashes)
+                                             hh)
             else:
                 master_secret = calcMasterSecret(status.version,
                                                  cipher_suite,
