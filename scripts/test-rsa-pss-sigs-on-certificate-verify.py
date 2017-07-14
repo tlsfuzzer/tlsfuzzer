@@ -12,7 +12,8 @@ from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        fuzz_message, CertificateGenerator, CertificateVerifyGenerator
+        fuzz_message, CertificateGenerator, CertificateVerifyGenerator, \
+        TCPBufferingEnable, TCPBufferingDisable, TCPBufferingFlush
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
@@ -298,6 +299,7 @@ def main():
         node = node.add_child(ExpectServerKeyExchange())
         node = node.add_child(ExpectCertificateRequest())
         node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
         node = node.add_child(CertificateGenerator(X509CertChain([cert])))
         node = node.add_child(ClientKeyExchangeGenerator())
         node = node.add_child(CertificateVerifyGenerator(private_key,
@@ -305,6 +307,8 @@ def main():
                                                          rsa_pss_salt_len=20))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                           AlertDescription.decrypt_error))
         node.next_sibling = ExpectClose()
@@ -333,6 +337,7 @@ def main():
             node = node.add_child(ExpectServerKeyExchange())
             node = node.add_child(ExpectCertificateRequest())
             node = node.add_child(ExpectServerHelloDone())
+            node = node.add_child(TCPBufferingEnable())
             node = node.add_child(CertificateGenerator(X509CertChain([cert])))
             node = node.add_child(ClientKeyExchangeGenerator())
             scheme = SignatureScheme.rsa_pss_sha256
@@ -341,6 +346,8 @@ def main():
                                                              padding_xors={pos:xor}))
             node = node.add_child(ChangeCipherSpecGenerator())
             node = node.add_child(FinishedGenerator())
+            node = node.add_child(TCPBufferingDisable())
+            node = node.add_child(TCPBufferingFlush())
             node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                               AlertDescription.decrypt_error))
             node.next_sibling = ExpectClose()
@@ -368,6 +375,7 @@ def main():
     node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectCertificateRequest())
     node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(CertificateVerifyGenerator(private_key,
@@ -375,6 +383,8 @@ def main():
                                                      sig_alg=SignatureScheme.rsa_pss_sha256))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decrypt_error))
     node.next_sibling = ExpectClose()
@@ -400,6 +410,7 @@ def main():
     node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectCertificateRequest())
     node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(ClientKeyExchangeGenerator())
     scheme = SignatureScheme.rsa_pss_sha256
@@ -409,6 +420,8 @@ def main():
                                                      signature=sig))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decrypt_error))
     node.next_sibling = ExpectClose()
