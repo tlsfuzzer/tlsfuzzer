@@ -19,7 +19,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerKeyExchange
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType, HashAlgorithm, SignatureAlgorithm
+        ExtensionType, HashAlgorithm, SignatureAlgorithm, SignatureScheme
 from tlslite.extensions import SignatureAlgorithmsExtension, TLSExtension
 
 
@@ -103,9 +103,9 @@ def main():
     # now with RSA-PSS
     conversation = Connect(host, port)
     node = conversation
-    sigs = [(8, 4),  # rsa_pss_sha256
-            (8, 5),  # rsa_pss_sha384
-            (8, 6),  # rsa_pss_sha512
+    sigs = [SignatureScheme.rsa_pss_sha256,
+            SignatureScheme.rsa_pss_sha384,
+            SignatureScheme.rsa_pss_sha512,
             (HashAlgorithm.sha512, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
@@ -136,13 +136,13 @@ def main():
     node.next_sibling = ExpectClose()
     node = node.add_child(ExpectClose())
     # TODO: tlslite-ng nor tlsfuzzer doesn't support RSA-PSS
-    conversations["with RSA-PSS - fails in verify if server selects PSS"] = conversation
+    conversations["with RSA-PSS"] = conversation
 
     conversation = Connect(host, port)
     node = conversation
-    sigs = [(8, 4),  # rsa_pss_sha256
-            (8, 5),  # rsa_pss_sha384
-            (8, 6)  # rsa_pss_sha512
+    sigs = [SignatureScheme.rsa_pss_sha256,
+            SignatureScheme.rsa_pss_sha384,
+            SignatureScheme.rsa_pss_sha512
             ]
     ext = {ExtensionType.signature_algorithms:
             SignatureAlgorithmsExtension().create(sigs)}
@@ -174,7 +174,7 @@ def main():
     node.next_sibling = ExpectClose()
     node = node.add_child(ExpectClose())
     # TODO: tlslite-ng nor tlsfuzzer doesn't support RSA-PSS
-    conversations["RSA-PSS only - fails in verify if server selects PSS"] = conversation
+    conversations["RSA-PSS only"] = conversation
 
     # MD5 not selected, even if first
     conversation = Connect(host, port)
