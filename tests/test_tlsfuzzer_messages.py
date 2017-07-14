@@ -794,6 +794,24 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
                          (constants.HashAlgorithm.sha256,
                           constants.SignatureAlgorithm.rsa))
 
+    def test_generate_with_rsa_pss_alg(self):
+        priv_key = generateRSAKey(1024)
+        cert_ver_g = CertificateVerifyGenerator(priv_key)
+        state = ConnectionState()
+        state.version = (3, 3)
+        req = CertificateRequest((3, 3)).create([], [],
+            [constants.SignatureScheme.rsa_pss_sha256,
+             (constants.HashAlgorithm.sha1,
+              constants.SignatureAlgorithm.rsa)])
+        state.handshake_messages = [req]
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertEqual(len(msg.signature), 128)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.rsa_pss_sha256)
+
     def test_generate_with_mismatched_version(self):
         priv_key = generateRSAKey(1024)
         cert_ver_g = CertificateVerifyGenerator(priv_key, sig_version=(3, 0))

@@ -21,7 +21,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectApplicationData
 from tlslite.extensions import SignatureAlgorithmsExtension
 from tlslite.constants import CipherSuite, AlertDescription, \
-        HashAlgorithm, SignatureAlgorithm, ExtensionType
+        HashAlgorithm, SignatureAlgorithm, ExtensionType, SignatureScheme
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
@@ -54,7 +54,10 @@ def main():
     hostname = "localhost"
     port = 4433
     run_exclude = set()
-    sigalgs = [(HashAlgorithm.sha512, SignatureAlgorithm.rsa),
+    sigalgs = [SignatureScheme.rsa_pss_sha512,
+               SignatureScheme.rsa_pss_sha384,
+               SignatureScheme.rsa_pss_sha256,
+               (HashAlgorithm.sha512, SignatureAlgorithm.rsa),
                (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
                (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
                (HashAlgorithm.sha224, SignatureAlgorithm.rsa),
