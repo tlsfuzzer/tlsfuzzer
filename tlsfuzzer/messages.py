@@ -19,12 +19,13 @@ from tlslite.mathtls import calcMasterSecret, calcFinished, \
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.utils.codec import Writer
 from tlslite.utils.cryptomath import getRandomBytes, numBytes, \
-    numberToByteArray
+    numberToByteArray, bytesToNumber
 from tlslite.keyexchange import KeyExchange
 from tlslite.bufferedsocket import BufferedSocket
 from .handshake_helpers import calc_pending_states
 from .tree import TreeNode
 import socket
+from functools import partial
 
 
 class Command(TreeNode):
@@ -620,7 +621,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
 
     def __init__(self, private_key=None, msg_version=None, msg_alg=None,
                  sig_version=None, sig_alg=None, signature=None,
-                 rsa_pss_salt_len=None):
+                 rsa_pss_salt_len=None, padding_xors=None, padding_subs=None):
         """Create object for generating Certificate Verify messages."""
         super(CertificateVerifyGenerator, self).__init__()
         self.private_key = private_key
@@ -630,6 +631,8 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         self.sig_alg = sig_alg
         self.signature = signature
         self.rsa_pss_salt_len = rsa_pss_salt_len
+        self.padding_xors = padding_xors
+        self.padding_subs = padding_subs
 
     def generate(self, status):
         """Create a CertificateVerify message."""
@@ -680,10 +683,26 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                     if self.rsa_pss_salt_len is None:
                         self.rsa_pss_salt_len = \
                                 getattr(hashlib, hashName)().digest_size
+
+            def _newRawPrivateKeyOp(self, m, original_rawPrivateKeyOp,
+                                    subs=None, xors=None):
+                signBytes = numberToByteArray(m, numBytes(self.n))
+                signBytes = substitute_and_xor(signBytes, subs, xors)
+                m = bytesToNumber(signBytes)
+                return original_rawPrivateKeyOp(m)
+
+            oldPrivateKeyOp = self.private_key._rawPrivateKeyOp
+            self.private_key._rawPrivateKeyOp = \
+                partial(_newRawPrivateKeyOp,
+                        self.private_key,
+                        original_rawPrivateKeyOp=oldPrivateKeyOp,
+                        subs=self.padding_subs,
+                        xors=self.padding_xors)
             signature = self.private_key.sign(verify_bytes,
                                               padding,
                                               hashName,
                                               self.rsa_pss_salt_len)
+            self.private_key._rawPrivateKeyOp = oldPrivateKeyOp
 
         cert_verify = CertificateVerify(self.msg_version)
         cert_verify.create(signature, self.msg_alg)
