@@ -30,7 +30,7 @@ def main():
                CipherSuite.TLS_DHE_RSA_WITH_AES_256_GCM_SHA384]
     ext = {ExtensionType.renegotiation_info:None,
            ExtensionType.supported_groups:SupportedGroupsExtension()
-                .create([GroupName.secp192r1])}
+                .create([GroupName.secp160k1])}
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext))
     node = node.add_child(ExpectServerHello(cipher=CipherSuite.
