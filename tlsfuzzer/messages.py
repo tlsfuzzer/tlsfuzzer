@@ -732,6 +732,7 @@ class ChangeCipherSpecGenerator(MessageGenerator):
     def post_send(self, status):
         """Generate new encryption keys for connection."""
         cipher_suite = status.cipher
+        status.msg_sock.encryptThenMAC = status.encrypt_then_mac
         if self.extended_master_secret is None:
             self.extended_master_secret = status.extended_master_secret
 
