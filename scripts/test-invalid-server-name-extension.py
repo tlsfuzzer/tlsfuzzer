@@ -134,6 +134,61 @@ def main():
     node.next_sibling.add_child(ExpectClose())
     conversations["Sanity check, SNI"] = conversation
 
+    # empty SNI extension
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {ExtensionType.signature_algorithms :
+           SignatureAlgorithmsExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1']])}
+    sni = TLSExtension(extType=ExtensionType.server_name).create(bytearray(0))
+    ext[ExtensionType.server_name] = sni
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.decode_error))
+    node.add_child(ExpectClose())
+    conversations["Empty SNI extension"] = conversation
+
+    # empty host list
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {ExtensionType.signature_algorithms :
+           SignatureAlgorithmsExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1']])}
+    sni = SNIExtension().create(serverNames=[])
+    ext[ExtensionType.server_name] = sni
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.decode_error))
+    node.add_child(ExpectClose())
+    conversations["Empty host list in SNI extension"] = conversation
+
+    # empty host name
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {ExtensionType.signature_algorithms :
+           SignatureAlgorithmsExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1']])}
+    sni = SNIExtension().create(hostNames=[bytearray(0)])
+    ext[ExtensionType.server_name] = sni
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.decode_error))
+    node.add_child(ExpectClose())
+    conversations["Empty hostname in SNI extension"] = conversation
+
+
     # incorrect host name
     conversation = Connect(host, port)
     node = conversation
