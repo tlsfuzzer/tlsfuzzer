@@ -6,6 +6,9 @@
 from __future__ import print_function
 import traceback
 import sys
+import getopt
+import re
+from itertools import chain
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
@@ -22,12 +25,51 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
 from tlslite.extensions import SupportedGroupsExtension, \
         ECPointFormatsExtension
 
+def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
+    return [int(text) if text.isdigit() else text.lower()
+            for text in re.split(_nsre, s)]
+
+def help_msg():
+    print("Usage: <script-name> [-h hostname] [OPTIONS] [[probe-name] ...]")
+    print(" -h hostname    name of the host to run the test against")
+    print("                localhost by default")
+    print(" -p port        port number to use for connection, 4433 by default")
+    print(" probe-name     if present, will run only the probes with given")
+    print("                names and not all of them, e.g \"sanity\"")
+    print(" -e probe-name  exclude the probe from the list of the ones run")
+    print("                may be specified multiple times")
+    print(" --help         this message")
+
 
 def main():
+    host = "localhost"
+    port = 4433
+    run_exclude = set()
+
+    argv = sys.argv[1:]
+    opts, args = getopt.getopt(argv, "h:p:e:", ["help"])
+    for opt, arg in opts:
+        if opt == '-h':
+            host = arg
+        elif opt == '-p':
+            port = int(arg)
+        elif opt == '-e':
+            run_exclude.add(arg)
+        elif opt == '--help':
+            help_msg()
+            sys.exit(0)
+        else:
+            raise ValueError("Unknown option: {0}".format(opt))
+
+    if args:
+        run_only = set(args)
+    else:
+        run_only = None
+
     """Test if server supports the ECDHE_RSA key exchange"""
     conversations = {}
 
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA]
     ext = {ExtensionType.renegotiation_info: None,
@@ -56,9 +98,9 @@ def main():
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
 
-    conversations["sanity check ECDHE_RSA_AES_128"] = conversation
+    conversations["sanity"] = conversation
 
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(
@@ -80,15 +122,26 @@ def main():
     node.next_sibling = ExpectClose()
     node.add_child(Close())
 
-    conversations["sanity check ECDHE w/o extension"] = conversation
+    conversations["ECDHE w/o extension"] = conversation
 
     good = 0
     bad = 0
+    failed = []
 
-    for conversation_name, conversation in conversations.items():
-        print("{0} ...".format(conversation_name))
+    # make sure that sanity test is run first and last
+    # to verify that server was running and kept running throught
+    sanity_test = ('sanity', conversations['sanity'])
+    ordered_tests = chain([sanity_test],
+                          filter(lambda x: x[0] != 'sanity',
+                                 conversations.items()),
+                          [sanity_test])
 
-        runner = Runner(conversation)
+    for c_name, c_test in ordered_tests:
+        if run_only and c_name not in run_only or c_name in run_exclude:
+            continue
+        print("{0} ...".format(c_name))
+
+        runner = Runner(c_test)
 
         res = True
         try:
@@ -96,18 +149,20 @@ def main():
         except:
             print("Error while processing")
             print(traceback.format_exc())
-            print("")
             res = False
 
         if res:
-            good += 1
-            print("OK\n")
+            good+=1
+            print("OK")
         else:
-            bad += 1
+            bad+=1
+            failed.append(c_name)
 
     print("Test end")
     print("successful: {0}".format(good))
     print("failed: {0}".format(bad))
+    failed_sorted = sorted(failed, key=natural_sort_keys)
+    print("  {0}".format('\n  '.join(repr(i) for i in failed_sorted)))
 
     if bad > 0:
         sys.exit(1)
