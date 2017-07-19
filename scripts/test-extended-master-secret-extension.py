@@ -19,8 +19,9 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerKeyExchange
 
 from tlslite.extensions import TLSExtension
+from tlslite.extensions import SupportedGroupsExtension
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType
+        ExtensionType, GroupName
 
 
 def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
@@ -194,7 +195,9 @@ def main():
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret:None}))
+                    ExtensionType.extended_master_secret:None,
+                    ExtensionType.supported_groups:SupportedGroupsExtension().
+                    create([GroupName.secp256r1])}))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
