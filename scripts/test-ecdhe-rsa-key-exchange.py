@@ -10,7 +10,8 @@ import sys
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator
+        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+        Close
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectServerKeyExchange, \
@@ -56,6 +57,30 @@ def main():
     node.next_sibling = ExpectClose()
 
     conversations["sanity check ECDHE_RSA_AES_128"] = conversation
+
+    conversation = Connect("localhost", 4433)
+    node = conversation
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(
+        ciphers,
+        extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectServerHello(
+        extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    node.add_child(Close())
+
+    conversations["sanity check ECDHE w/o extension"] = conversation
 
     good = 0
     bad = 0
