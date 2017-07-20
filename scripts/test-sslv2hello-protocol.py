@@ -9,13 +9,14 @@ import getopt
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator
+        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+        RawMessageGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectApplicationData
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType
+        ExtensionType, ContentType
 
 def help_msg():
     """Usage information"""
@@ -80,6 +81,65 @@ def main():
     node.next_sibling = ExpectClose()
 
     conversations["SSLv2 Client Hello"] = conversation
+
+    conversation = Connect(host, port, version=(0, 2))
+    node = conversation
+    node = node.add_child(RawMessageGenerator(ContentType.handshake,
+                                              bytearray()))
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               ssl2=True))
+    # SSLv2 does not have well defined error handling, so usually errors
+    # just cause connection close. But sending TLS alert is correct too.
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+
+    conversations["Empty SSLv2 record"] = conversation
+
+    conversation = Connect(host, port, version=(0, 2))
+    node = conversation
+    node = node.add_child(RawMessageGenerator(ContentType.handshake,
+                                              bytearray(1)))
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               ssl2=True))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+
+    conversations["Empty SSLv2 record - type 0"] = conversation
+
+    conversation = Connect(host, port, version=(0, 2))
+    node = conversation
+    node = node.add_child(RawMessageGenerator(ContentType.handshake,
+                                              bytearray([1])))
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               ssl2=True))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+
+    conversations["Empty SSLv2 record - type 1"] = conversation
+
+    conversation = Connect(host, port, version=(0, 2))
+    node = conversation
+    node = node.add_child(RawMessageGenerator(ContentType.handshake,
+                                              bytearray(b'\x01\x03\x03')))
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               ssl2=True))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+
+    conversations["Just version in SSLv2 hello"] = conversation
+
 
     good = 0
     bad = 0
