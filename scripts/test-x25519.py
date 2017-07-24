@@ -12,7 +12,8 @@ from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        fuzz_message
+        fuzz_message, TCPBufferingEnable, TCPBufferingFlush, \
+        TCPBufferingDisable
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
@@ -20,6 +21,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType, HashAlgorithm, SignatureAlgorithm, GroupName
+from tlslite.utils.x25519 import X25519_ORDER_SIZE, X448_ORDER_SIZE
 from tlslite.extensions import SignatureAlgorithmsExtension, TLSExtension, \
         SupportedGroupsExtension
 
@@ -222,7 +224,7 @@ def main():
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
             SignatureAlgorithmsExtension().create(sigs)}
-    groups = [11200]
+    groups = [11200]  # unknown ECDHE group
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
@@ -282,8 +284,8 @@ def main():
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
             SignatureAlgorithmsExtension().create(sigs)}
-    groups = [29,  # ecdh_x25519
-              30]  # ecdh_x448
+    groups = [GroupName.x25519,
+              GroupName.x448]
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
@@ -291,8 +293,6 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext))
-    # don't specify cipher, let it fail in ServerKeyExchange - it will
-    # work out once x25519 is supported
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
@@ -310,7 +310,7 @@ def main():
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
     node = node.add_child(ExpectClose())
-    conversations["only x25519 and x448 groups - fallback to DHE - fails if x25519 supported"] = conversation
+    conversations["only x25519 and x448 groups - allow for DHE fallback"] = conversation
 
     # check if server will abort if x25519 is not support
     conversation = Connect(host, port)
@@ -321,18 +321,273 @@ def main():
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
             SignatureAlgorithmsExtension().create(sigs)}
-    groups = [29,  # ecdh_x25519
-              30]  # ecdh_x448
+    groups = [GroupName.x25519,
+              GroupName.x448]
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext))
-    node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                      AlertDescription.handshake_failure))
+    node = node.add_child(ExpectServerHello(version=(3, 3)))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
     node = node.add_child(ExpectClose())
-    conversations["only x25519 and x448 groups - no fallback to DHE possible - fails if x25519 supported"] = conversation
+    conversations["only x25519 and x448 groups - no fallback to DHE possible"] = conversation
+
+    # check if server will negotiate X25519
+    conversation = Connect(host, port)
+    node = conversation
+    sigs = [(HashAlgorithm.sha512, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
+    ext = {ExtensionType.signature_algorithms:
+            SignatureAlgorithmsExtension().create(sigs)}
+    groups = [GroupName.x25519]
+    ext[ExtensionType.supported_groups] = \
+            SupportedGroupsExtension().create(groups)
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=ext))
+    node = node.add_child(ExpectServerHello(version=(3, 3)))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+    conversations["sanity - negotiate x25519"] = conversation
+
+    # check if server will negotiate X448
+    conversation = Connect(host, port)
+    node = conversation
+    sigs = [(HashAlgorithm.sha512, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
+    ext = {ExtensionType.signature_algorithms:
+            SignatureAlgorithmsExtension().create(sigs)}
+    groups = [GroupName.x448]
+    ext[ExtensionType.supported_groups] = \
+            SupportedGroupsExtension().create(groups)
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=ext))
+    node = node.add_child(ExpectServerHello(version=(3, 3)))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+    conversations["sanity - negotiate x448"] = conversation
+
+    # check if server will reject too small x25519 share
+    # (one with too few bytes in the key share)
+    conversation = Connect(host, port)
+    node = conversation
+    sigs = [(HashAlgorithm.sha512, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
+    ext = {ExtensionType.signature_algorithms:
+            SignatureAlgorithmsExtension().create(sigs)}
+    groups = [GroupName.x25519]
+    ext[ExtensionType.supported_groups] = \
+            SupportedGroupsExtension().create(groups)
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=ext))
+    node = node.add_child(ExpectServerHello(version=(3, 3)))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientKeyExchangeGenerator(
+        ecdh_Yc=bytearray([55] * (X25519_ORDER_SIZE - 1))))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.illegal_parameter))
+    node = node.add_child(ExpectClose())
+    conversations["too small x25519 key share"] = conversation
+
+    # check if server will reject too big x25519 share
+    # (one with too many bytes in the key share)
+    conversation = Connect(host, port)
+    node = conversation
+    sigs = [(HashAlgorithm.sha512, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
+    ext = {ExtensionType.signature_algorithms:
+            SignatureAlgorithmsExtension().create(sigs)}
+    groups = [GroupName.x25519]
+    ext[ExtensionType.supported_groups] = \
+            SupportedGroupsExtension().create(groups)
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=ext))
+    node = node.add_child(ExpectServerHello(version=(3, 3)))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientKeyExchangeGenerator(
+        ecdh_Yc=bytearray([55] * (X25519_ORDER_SIZE + 1))))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.illegal_parameter))
+    node = node.add_child(ExpectClose())
+    conversations["too big x25519 key share"] = conversation
+
+    # check if server will reject x25519 share with high order bit set
+    # per draft-ietf-tls-rfc4492bis:
+    #
+    # Since there are some implementation of the X25519 function that
+    # impose this restriction on their input and others that don't,
+    # implementations of X25519 in TLS SHOULD reject public keys when the
+    # high-order bit of the final byte is set
+    conversation = Connect(host, port)
+    node = conversation
+    sigs = [(HashAlgorithm.sha512, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
+    ext = {ExtensionType.signature_algorithms:
+            SignatureAlgorithmsExtension().create(sigs)}
+    groups = [GroupName.x25519]  # ecdh_x25519
+    ext[ExtensionType.supported_groups] = \
+            SupportedGroupsExtension().create(groups)
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=ext))
+    node = node.add_child(ExpectServerHello(version=(3, 3)))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientKeyExchangeGenerator(
+        ecdh_Yc=bytearray([55] * (X25519_ORDER_SIZE - 1) + [0x80])))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(TCPBufferingDisable())
+    # Because we are sending a key exchange with a public value for which
+    # we do not know the private valye, the Finished message will be encrypted
+    # using incorrect keys, so expect a failure that shows that
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.bad_record_mac))
+    node = node.add_child(ExpectClose())
+    conversations["x25519 key share with high bit set"] = conversation
+
+    # check if server will reject too small x448 share
+    conversation = Connect(host, port)
+    node = conversation
+    sigs = [(HashAlgorithm.sha512, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
+    ext = {ExtensionType.signature_algorithms:
+            SignatureAlgorithmsExtension().create(sigs)}
+    groups = [GroupName.x448]
+    ext[ExtensionType.supported_groups] = \
+            SupportedGroupsExtension().create(groups)
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=ext))
+    node = node.add_child(ExpectServerHello(version=(3, 3)))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientKeyExchangeGenerator(
+        ecdh_Yc=bytearray([55] * (X448_ORDER_SIZE - 1))))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.illegal_parameter))
+    node = node.add_child(ExpectClose())
+    conversations["too small x448 key share"] = conversation
+
+    # check if server will reject too big x448 share
+    conversation = Connect(host, port)
+    node = conversation
+    sigs = [(HashAlgorithm.sha512, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
+    ext = {ExtensionType.signature_algorithms:
+            SignatureAlgorithmsExtension().create(sigs)}
+    groups = [GroupName.x448]  # ecdh_x448
+    ext[ExtensionType.supported_groups] = \
+            SupportedGroupsExtension().create(groups)
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=ext))
+    node = node.add_child(ExpectServerHello(version=(3, 3)))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientKeyExchangeGenerator(
+        ecdh_Yc=bytearray([55] * (X448_ORDER_SIZE + 1))))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.illegal_parameter))
+    node = node.add_child(ExpectClose())
+    conversations["too big x448 key share"] = conversation
 
     # run the conversation
     good = 0
