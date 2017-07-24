@@ -20,10 +20,11 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerKeyExchange
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType, HashAlgorithm, SignatureAlgorithm, GroupName
+        ExtensionType, HashAlgorithm, SignatureAlgorithm, GroupName, \
+        ECPointFormat
 from tlslite.utils.x25519 import X25519_ORDER_SIZE, X448_ORDER_SIZE
 from tlslite.extensions import SignatureAlgorithmsExtension, TLSExtension, \
-        SupportedGroupsExtension
+        SupportedGroupsExtension, ECPointFormatsExtension
 
 
 def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
@@ -347,6 +348,82 @@ def main():
     node.next_sibling = ExpectClose()
     node = node.add_child(ExpectClose())
     conversations["only x25519 and x448 groups - no fallback to DHE possible"] = conversation
+
+    # check if server will negotiate X25519 with compression supported
+    conversation = Connect(host, port)
+    node = conversation
+    sigs = [(HashAlgorithm.sha512, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
+    ext = {ExtensionType.signature_algorithms:
+            SignatureAlgorithmsExtension().create(sigs)}
+    ext[ExtensionType.ec_point_formats] = \
+            ECPointFormatsExtension().create([ECPointFormat.ansiX962_compressed_prime,
+                                              ECPointFormat.ansiX962_compressed_char2,
+                                              ECPointFormat.uncompressed])
+    groups = [GroupName.x25519]
+    ext[ExtensionType.supported_groups] = \
+            SupportedGroupsExtension().create(groups)
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=ext))
+    node = node.add_child(ExpectServerHello(version=(3, 3)))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+    conversations["EC point format - all types - x25519"] = conversation
+
+    # check if server will negotiate X25519 with typical EC point format ext
+    conversation = Connect(host, port)
+    node = conversation
+    sigs = [(HashAlgorithm.sha512, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
+    ext = {ExtensionType.signature_algorithms:
+            SignatureAlgorithmsExtension().create(sigs)}
+    ext[ExtensionType.ec_point_formats] = \
+            ECPointFormatsExtension().create([ECPointFormat.uncompressed])
+    groups = [GroupName.x25519]
+    ext[ExtensionType.supported_groups] = \
+            SupportedGroupsExtension().create(groups)
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=ext))
+    node = node.add_child(ExpectServerHello(version=(3, 3)))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+    conversations["EC point format - only uncompressed - x25519"] = conversation
 
     # check if server will negotiate X25519
     conversation = Connect(host, port)
