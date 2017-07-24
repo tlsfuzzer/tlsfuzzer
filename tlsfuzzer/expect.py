@@ -3,6 +3,8 @@
 
 """Parsing and processing of received TLS messages"""
 
+import collections
+import itertools
 from tlslite.constants import ContentType, HandshakeType, CertificateType,\
         HashAlgorithm, SignatureAlgorithm, ExtensionType,\
         SSL2HandshakeType, CipherSuite, GroupName, AlertDescription
@@ -18,7 +20,6 @@ from tlslite.keyexchange import KeyExchange, DHE_RSAKeyExchange, \
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 from .tree import TreeNode
-import collections
 
 
 class Expect(TreeNode):
@@ -556,9 +557,14 @@ class ExpectAlert(Expect):
             if alert.description not in self.description:
                 if problem_desc:
                     problem_desc += ", "
-                expected = AlertDescription.toStr(self.description)
+                descriptions = ["\"{0}\"".format(AlertDescription.toStr(i))
+                                for i in self.description]
+                expected = ", ".join(
+                    itertools.chain((i for i in descriptions[:-2]),
+                                    [" or ".join(i for i in descriptions[-2:])]
+                                   ))
                 received = AlertDescription.toStr(alert.description)
-                problem_desc += ("Expected alert description \"{0}\" does not "
+                problem_desc += ("Expected alert description {0} does not "
                                  "match received \"{1}\""
                                  .format(expected, received))
         if problem_desc:

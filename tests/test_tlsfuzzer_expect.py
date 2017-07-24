@@ -771,8 +771,33 @@ class TestExpectAlert(unittest.TestCase):
         msg = Message(ContentType.alert,
                       bytearray(b'\xff\xff'))
 
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(AssertionError) as e:
             exp.process(state, msg)
+
+        self.assertEqual(str(e.exception),
+                         "Alert level 255 != 1, "
+                         "Expected alert description "
+                         "\"bad_record_mac\" does not match received "
+                         "\"255\"")
+
+    def test_process_with_multiple_values_not_matching_anything(self):
+        exp = ExpectAlert(AlertLevel.warning,
+                          [AlertDescription.bad_record_mac,
+                           AlertDescription.illegal_parameter])
+        state = ConnectionState()
+        msg = Message(ContentType.alert,
+                      bytearray(b'\xff\xff'))
+
+        with self.assertRaises(AssertionError) as e:
+            exp.process(state, msg)
+
+        self.assertEqual(str(e.exception),
+                         "Alert level 255 != 1, "
+                         "Expected alert description "
+                         "\"bad_record_mac\" or \"illegal_parameter\" does "
+                         "not match received "
+                         "\"255\"")
+
 
 class TestExpectSSL2Alert(unittest.TestCase):
     def test___init__(self):
