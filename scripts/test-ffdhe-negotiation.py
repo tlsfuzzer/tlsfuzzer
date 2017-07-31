@@ -197,13 +197,14 @@ def main():
             ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
             ext = {ExtensionType.renegotiation_info: None}
             ext[ExtensionType.supported_groups] = \
-                    SupportedGroupsExtension().create([511, group])
+                    SupportedGroupsExtension().create([511, group, group2])
             node = node.add_child(ClientHelloGenerator(ciphers,
                                                        extensions=ext))
             node = node.add_child(ExpectServerHello(extensions={ExtensionType.
                 renegotiation_info:None}))
             node = node.add_child(ExpectCertificate())
-            node = node.add_child(ExpectServerKeyExchange(valid_groups=[group]))
+            node = node.add_child(ExpectServerKeyExchange(
+                valid_groups=[group, group2]))
             node = node.add_child(ExpectServerHelloDone())
             node = node.add_child(ClientKeyExchangeGenerator())
             node = node.add_child(ChangeCipherSpecGenerator())
