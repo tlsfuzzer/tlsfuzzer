@@ -8,6 +8,7 @@ import sys
 import socket
 import threading
 import json
+import time
 try:
     import queue
 except ImportError:
@@ -115,6 +116,7 @@ def run_clients(tests, srv):
     for params in tests:
         script = params["name"]
         logger.info("{0}:started".format(script))
+        start_time = time.time()
         proc_args = ['python', '-u',
                      'scripts/{0}'.format(script)]
         proc_args.extend(params.get("arguments", []))
@@ -132,15 +134,19 @@ def run_clients(tests, srv):
         ret = proc.returncode
         if srv.returncode is not None:
             logger.critical("Server process not active")
+        end_time = time.time()
         if ret == 0 and params.get("exp_pass", True) or \
                 ret != 0 and not params.get("exp_pass", True):
             good += 1
-            logger.info("{0}:finished".format(script))
+            logger.info("{0}:finished:{1:.2f}s".format(script,
+                                                   end_time - start_time))
             flush_queue()
         else:
             bad += 1
             print_all_from_queue()
-            logger.error("{0}:failure:{1}".format(script, ret))
+            logger.error("{0}:failure:{1:.2f}s:{2}".format(script,
+                                                       end_time - start_time,
+                                                       ret))
     return good, bad
 
 

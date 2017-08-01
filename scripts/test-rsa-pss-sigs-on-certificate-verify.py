@@ -6,7 +6,7 @@ import traceback
 import sys
 import getopt
 import re
-from itertools import chain
+from itertools import chain, islice
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
@@ -42,6 +42,8 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -n num         only run `num` random tests instead of a full set")
+    print("                (excluding \"sanity\" tests)")
     print(" -s sigalgs     signature algorithms expected in")
     print("                CertificateRequest. Format is either the new")
     print("                signature scheme (rsa_pss_sha256) or old one")
@@ -66,6 +68,7 @@ def sig_algs_to_ids(names):
 def main():
     host = "localhost"
     port = 4433
+    num_limit = None
     run_exclude = set()
     private_key = None
     cert = None
@@ -80,7 +83,7 @@ def main():
                (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:k:c:s:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:k:c:s:", ["help"])
     for opt, arg in opts:
         if opt == '-k':
             text_key = open(arg, 'rb').read()
@@ -102,6 +105,8 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-n':
+            num_limit = int(arg)
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -434,13 +439,15 @@ def main():
     good = 0
     bad = 0
     failed = []
+    if not num_limit:
+        num_limit = len(conversations)
 
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throught
     sanity_test = ('sanity', conversations['sanity'])
     ordered_tests = chain([sanity_test],
-                          filter(lambda x: x[0] != 'sanity',
-                                 conversations.items()),
+                          islice(filter(lambda x: x[0] != 'sanity',
+                                        conversations.items()), num_limit),
                           [sanity_test])
 
     for c_name, c_test in ordered_tests:

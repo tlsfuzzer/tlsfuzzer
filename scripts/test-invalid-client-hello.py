@@ -6,7 +6,7 @@ import traceback
 import sys
 import getopt
 import re
-from itertools import chain
+from itertools import chain, islice
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
@@ -33,20 +33,30 @@ def help_msg():
     print(" -p port        port number to use for connection, 4433 by default")
     print(" probe-name     if present, will run only the probes with given")
     print("                names and not all of them, e.g \"sanity\"")
+    print(" -e probe-name  exclude the probe from the list of the ones run")
+    print("                may be specified multiple times")
+    print(" -n num         only run `num` random tests instead of a full set")
+    print("                (excluding \"sanity\" tests)")
     print(" --help         this message")
 
 
 def main():
     host = "localhost"
     port = 4433
+    num_limit = None
+    run_exclude = set()
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
         elif opt == '-p':
             port = int(arg)
+        elif opt == '-e':
+            run_exclude.add(arg)
+        elif opt == '-n':
+            num_limit = int(arg)
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -259,17 +269,19 @@ def main():
     good = 0
     bad = 0
     failed = []
+    if not num_limit:
+        num_limit = len(conversations)
 
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throught
     sanity_test = ('sanity', conversations['sanity'])
     ordered_tests = chain([sanity_test],
-                          filter(lambda x: x[0] != 'sanity',
-                                 conversations.items()),
+                          islice(filter(lambda x: x[0] != 'sanity',
+                                        conversations.items()), num_limit),
                           [sanity_test])
 
     for c_name, c_test in ordered_tests:
-        if run_only and c_name not in run_only:
+        if run_only and c_name not in run_only or c_name in run_exclude:
             continue
         print("{0} ...".format(c_name))
 
@@ -284,10 +296,10 @@ def main():
             res = False
 
         if res:
-            good+=1
-            print("OK")
+            good += 1
+            print("OK\n")
         else:
-            bad+=1
+            bad += 1
             failed.append(c_name)
 
     print("Test end")
