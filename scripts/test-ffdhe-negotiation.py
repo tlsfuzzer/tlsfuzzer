@@ -189,6 +189,38 @@ def main():
         conversations["unassigned tolerance, {0} negotiation".format(GroupName.toStr(group))] = \
                 conversation
 
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+        ext = {ExtensionType.renegotiation_info: None}
+        ext[ExtensionType.supported_groups] = \
+                SupportedGroupsExtension().create([GroupName.secp256r1, group])
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions=ext))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.
+            renegotiation_info:None}))
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerKeyExchange(valid_groups=[group]))
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ExpectApplicationData())
+        node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                             AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert(AlertLevel.warning,
+                                          AlertDescription.close_notify))
+        node.next_sibling = ExpectClose()
+        node.add_child(ExpectClose())
+
+        conversations["tolerate ECC curve in groups without ECC cipher, "
+                      "negotiate {0} ".format(GroupName.toStr(group))] = \
+                conversation
+
         for group2 in GroupName.allFF:
             if group == group2:
                 continue
@@ -254,6 +286,37 @@ def main():
     node.add_child(ExpectClose())
 
     conversations["fallback to non-ffdhe"] = conversation
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    ext = {ExtensionType.renegotiation_info: None}
+    ext[ExtensionType.supported_groups] = \
+            SupportedGroupsExtension().create([GroupName.secp256r1, 511])
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=ext))
+    node = node.add_child(ExpectServerHello(cipher=CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                                            extensions={ExtensionType.
+                                                     renegotiation_info:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert(AlertLevel.warning,
+                                      AlertDescription.close_notify))
+    node.next_sibling = ExpectClose()
+    node.add_child(ExpectClose())
+
+    conversations["fallback to non-ffdhe with secp256r1 advertised"] = conversation
 
     # first paragraph of section 4 in RFC 7919
     conversation = Connect(host, port)
