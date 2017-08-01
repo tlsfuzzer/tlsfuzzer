@@ -124,6 +124,7 @@
           "comment" : "session id is not verified correctly by tlslite-ng",
           "exp_pass" : false},
          {"name" : "test-invalid-version.py"},
+         {"name" : "test-large-hello.py"},
          {"name" : "test-large-number-of-extensions.py"},
          {"name" : "test-message-duplication.py"},
          {"name" : "test-message-skipping.py"},
