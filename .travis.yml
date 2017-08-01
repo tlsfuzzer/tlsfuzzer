@@ -53,7 +53,7 @@ script:
           coverage run --branch --source tlsfuzzer -m unittest discover;
       fi
   - coverage report -m
-  - travis_wait 30 python tests/scripts_retention.py tests/tlslite-ng.json `which tls.py`
+  - travis_wait 30 python tests/scripts_retention.py tests/tlslite-ng-random-subset.json `which tls.py`
   # pylint doesn't work on 2.6: https://bitbucket.org/logilab/pylint/issue/390/py26-compatiblity-broken
   # diff-quality doesn't work on 3.2: https://github.com/edx/diff-cover/issues/94
   - |
