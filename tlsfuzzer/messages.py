@@ -694,6 +694,12 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                 signBytes = numberToByteArray(m, numBytes(self.n))
                 signBytes = substitute_and_xor(signBytes, subs, xors)
                 m = bytesToNumber(signBytes)
+                # RSA operations are defined only on numbers that are smaller
+                # than the modulus, so ensure the XORing or substitutions
+                # didn't break it (especially necessary for pycrypto as
+                # it raises exception in such case)
+                if m > self.n:
+                    m %= self.n
                 return original_rawPrivateKeyOp(m)
 
             oldPrivateKeyOp = self.private_key._rawPrivateKeyOp
