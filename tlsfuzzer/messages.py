@@ -703,11 +703,14 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                         original_rawPrivateKeyOp=oldPrivateKeyOp,
                         subs=self.padding_subs,
                         xors=self.padding_xors)
-            signature = self.private_key.sign(verify_bytes,
-                                              padding,
-                                              hashName,
-                                              self.rsa_pss_salt_len)
-            self.private_key._rawPrivateKeyOp = oldPrivateKeyOp
+            try:
+                signature = self.private_key.sign(verify_bytes,
+                                                  padding,
+                                                  hashName,
+                                                  self.rsa_pss_salt_len)
+            finally:
+                # make sure the changes are undone even if the signing fails
+                self.private_key._rawPrivateKeyOp = oldPrivateKeyOp
 
         cert_verify = CertificateVerify(self.msg_version)
         cert_verify.create(signature, self.msg_alg)
