@@ -29,6 +29,7 @@ import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
 import tlslite.extensions as extensions
 import tlslite.utils.keyfactory as keyfactory
+from tlslite.utils.cryptomath import bytesToNumber, numberToByteArray
 import tlslite.constants as constants
 import tlslite.defragmenter as defragmenter
 from tlslite.utils.codec import Parser
@@ -809,6 +810,30 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
 
         self.assertIsNotNone(msg)
         self.assertEqual(len(msg.signature), 128)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.rsa_pss_sha256)
+
+    def test_generate_with_subs(self):
+        priv_key = generateRSAKey(1024)
+        cert_ver_g = CertificateVerifyGenerator(priv_key,
+                                                padding_subs={1: 0xff})
+        state = ConnectionState()
+        state.version = (3, 3)
+        req = CertificateRequest((3, 3)).create([], [],
+            [constants.SignatureScheme.rsa_pss_sha256,
+             (constants.HashAlgorithm.sha1,
+              constants.SignatureAlgorithm.rsa)])
+        state.handshake_messages = [req]
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertEqual(len(msg.signature), 128)
+        dec_sig = numberToByteArray(priv_key._rawPublicKeyOp(
+                                                bytesToNumber(msg.signature)))
+        self.assertEqual(dec_sig[1],
+                         0xff)
+        self.assertEqual(dec_sig[-1], 0xbc)
         self.assertEqual(msg.signatureAlgorithm,
                          constants.SignatureScheme.rsa_pss_sha256)
 
