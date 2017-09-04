@@ -18,6 +18,7 @@ from tlsfuzzer.expect import ExpectClose
 from tlsfuzzer.messages import ClientHelloGenerator
 import tlslite.messages as messages
 import tlslite.constants as constants
+from tlslite.x509certchain import X509CertChain
 from tlslite.errors import TLSAbruptCloseError
 import socket
 
@@ -37,7 +38,8 @@ class TestConnectionState(unittest.TestCase):
         state = ConnectionState()
 
         msg = messages.Certificate(constants.CertificateType.x509)
-        cert_list = mock.MagicMock()
+        cert_list = mock.MagicMock(spec=X509CertChain)
+        cert_list.x509List = []
         msg.create(cert_list)
 
         state.handshake_messages.append(msg)
