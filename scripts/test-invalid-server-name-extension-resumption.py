@@ -6,7 +6,7 @@ import traceback
 import sys
 import getopt
 import re
-from itertools import chain
+from itertools import chain, islice
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
@@ -21,11 +21,7 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType, HashAlgorithm, SignatureAlgorithm, NameType
 from tlslite.extensions import TLSExtension, SignatureAlgorithmsExtension, \
         SNIExtension
-
-
-def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
-    return [int(text) if text.isdigit() else text.lower()
-            for text in re.split(_nsre, s)]
+from tlsfuzzer.utils.lists import natural_sort_keys
 
 
 def help_msg():
@@ -37,6 +33,8 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -n num         only run `num` random tests instead of a full set")
+    print("                (excluding \"sanity\" tests)")
     print(" --sni hostname name of host used in SNI extension, \"localhost4\"")
     print("                by default")
     print(" --help         this message")
@@ -46,10 +44,11 @@ def main():
     host = "localhost"
     hostname = "localhost4"
     port = 4433
+    num_limit = None
     run_exclude = set()
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:", ["help", "sni="])
+    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help", "sni="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -57,6 +56,8 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-n':
+            num_limit = int(arg)
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -150,7 +151,7 @@ def main():
     conversations["Sanity check, bad SNI"] = conversation
 
     # session resume with malformed SNI
-    conversation = Connect(host, 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     ext = {ExtensionType.renegotiation_info : None,
@@ -177,7 +178,7 @@ def main():
     node.next_sibling = close
     node = node.add_child(ExpectClose())
     node = node.add_child(Close())
-    node = node.add_child(Connect(host, 4433))
+    node = node.add_child(Connect(host, port))
     close.add_child(node)
 
     node = node.add_child(ResetHandshakeHashes())
@@ -211,7 +212,7 @@ def main():
     conversations["session resume with malformed SNI"] = conversation
 
     # session resume with malformed SNI
-    conversation = Connect(host, 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     ext = {ExtensionType.renegotiation_info : None,
@@ -238,7 +239,7 @@ def main():
     node.next_sibling = close
     node = node.add_child(ExpectClose())
     node = node.add_child(Close())
-    node = node.add_child(Connect(host, 4433))
+    node = node.add_child(Connect(host, port))
     close.add_child(node)
 
     node = node.add_child(ResetHandshakeHashes())
@@ -276,13 +277,15 @@ def main():
     good = 0
     bad = 0
     failed = []
+    if not num_limit:
+        num_limit = len(conversations)
 
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throught
     sanity_test = ('sanity', conversations['sanity'])
     ordered_tests = chain([sanity_test],
-                          filter(lambda x: x[0] != 'sanity',
-                                 conversations.items()),
+                          islice(filter(lambda x: x[0] != 'sanity',
+                                        conversations.items()), num_limit),
                           [sanity_test])
 
     for c_name, c_test in ordered_tests:
