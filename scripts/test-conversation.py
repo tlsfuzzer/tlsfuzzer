@@ -17,11 +17,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectAlert, ExpectApplicationData, ExpectClose
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription
-
-
-def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
-    return [int(text) if text.isdigit() else text.lower()
-            for text in re.split(_nsre, s)]
+from tlsfuzzer.utils.lists import natural_sort_keys
 
 
 def help_msg():
