@@ -34,6 +34,8 @@ def help_msg():
     print("                may be specified multiple times")
     print(" -n num         only run `num` random tests instead of a full set")
     print("                (excluding \"sanity\" tests)")
+    print(" -m min-ext-no  the minimum extension number to use (default=50)")
+    print("                (the test uses random extensions past this number)")
     print(" --help         this message")
 
 
@@ -41,10 +43,11 @@ def main():
     host = "localhost"
     port = 4433
     num_limit = None
+    min_ext = 50
     run_exclude = set()
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:m:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -54,6 +57,8 @@ def main():
             run_exclude.add(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '-m':
+            min_ext = int(arg)
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -184,9 +189,10 @@ def main():
                         ExtensionType.tack,
                         ExtensionType.renegotiation_info)
         for num in high_num_ext:
-            if i+50 > num:
+            if i+min_ext > num:
                 i+=1
-        ext = dict((i, TLSExtension(extType=i)) for i in range(50, 50+i)
+        ext = dict((i, TLSExtension(extType=i))
+                    for i in range(min_ext, min_ext+i)
                     if i not in high_num_ext)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
