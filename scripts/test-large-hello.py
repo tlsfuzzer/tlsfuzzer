@@ -184,9 +184,9 @@ def main():
                         ExtensionType.tack,
                         ExtensionType.renegotiation_info)
         for num in high_num_ext:
-            if i+40 > num:
+            if i+50 > num:
                 i+=1
-        ext = dict((i, TLSExtension(extType=i)) for i in range(40, 40+i)
+        ext = dict((i, TLSExtension(extType=i)) for i in range(50, 50+i)
                     if i not in high_num_ext)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
