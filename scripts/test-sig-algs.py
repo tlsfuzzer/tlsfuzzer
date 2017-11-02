@@ -135,7 +135,6 @@ def main():
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
     node = node.add_child(ExpectClose())
-    # TODO: tlslite-ng nor tlsfuzzer doesn't support RSA-PSS
     conversations["with RSA-PSS"] = conversation
 
     for sig in [SignatureScheme.rsa_pss_sha256,
