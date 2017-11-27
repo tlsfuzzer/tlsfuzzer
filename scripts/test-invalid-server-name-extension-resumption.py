@@ -189,23 +189,8 @@ def main():
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         extensions=ext))
-    node = node.add_child(ExpectServerHello(
-        extensions={ExtensionType.renegotiation_info:None},
-        resume=True))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\n\n")))
-    node = node.add_child(ExpectApplicationData())
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                         AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert(AlertLevel.warning,
-                                      AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.illegal_parameter))
     node.next_sibling = ExpectClose()
     node = node.add_child(ExpectClose())
 
@@ -252,7 +237,7 @@ def main():
         extensions=ext))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None},
-        resume=True))
+        resume=False))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
