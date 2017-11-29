@@ -5,6 +5,7 @@
 from __future__ import print_function
 import traceback
 import sys
+import getopt
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
@@ -17,8 +18,46 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription
 
+
+def help_msg():
+    print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
+    print(" -h hostname    name of the host to run the test against")
+    print("                localhost by default")
+    print(" -p port        port number to use for connection, 4433 by default")
+    print(" probe-name     if present, will run only the probes with given")
+    print("                names and not all of them, e.g \"sanity\"")
+    print(" -e probe-name  exclude the probe from the list of the ones run")
+    print("                may be specified multiple times")
+    print(" --help         this message")
+
+
 def main():
     """check if incorrect MAC hash is rejected by server"""
+    host = "localhost"
+    port = 4433
+    num_limit = None
+    run_exclude = set()
+
+    argv = sys.argv[1:]
+    opts, args = getopt.getopt(argv, "h:p:e:", ["help"])
+    for opt, arg in opts:
+        if opt == '-h':
+            host = arg
+        elif opt == '-p':
+            port = int(arg)
+        elif opt == '-e':
+            run_exclude.add(arg)
+        elif opt == '--help':
+            help_msg()
+            sys.exit(0)
+        else:
+            raise ValueError("Unknown option: {0}".format(opt))
+
+    if args:
+        run_only = set(args)
+    else:
+        run_only = None
+
     conversations = {}
 
     for pos, val in [
@@ -34,7 +73,7 @@ def main():
                      (-20, 0xff),
                      # SHA-1 HMAC has just 20 bytes
                      ]:
-        conversation = Connect("localhost", 4433)
+        conversation = Connect(host, port)
         node = conversation
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -62,12 +101,12 @@ def main():
     good = 0
     bad = 0
 
-    for conversation_name in conversations:
-        conversation = conversations[conversation_name]
+    for c_name, c_test in conversations.items():
+        if run_only and c_name not in run_only or c_name in run_exclude:
+            continue
+        print("{0} ...".format(c_name))
 
-        print(conversation_name + "...")
-
-        runner = Runner(conversation)
+        runner = Runner(c_test)
 
         res = True
         #because we don't want to abort the testing and we are reporting

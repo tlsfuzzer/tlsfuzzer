@@ -4,6 +4,7 @@
 from __future__ import print_function
 import traceback
 import sys
+import getopt
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
@@ -17,11 +18,49 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType
 
+
+def help_msg():
+    print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
+    print(" -h hostname    name of the host to run the test against")
+    print("                localhost by default")
+    print(" -p port        port number to use for connection, 4433 by default")
+    print(" probe-name     if present, will run only the probes with given")
+    print("                names and not all of them, e.g \"sanity\"")
+    print(" -e probe-name  exclude the probe from the list of the ones run")
+    print("                may be specified multiple times")
+    print(" --help         this message")
+
+
 def main():
     """Check if server is not vulnerable to Bleichenbacher attack"""
+    host = "localhost"
+    port = 4433
+    num_limit = None
+    run_exclude = set()
+
+    argv = sys.argv[1:]
+    opts, args = getopt.getopt(argv, "h:p:e:", ["help"])
+    for opt, arg in opts:
+        if opt == '-h':
+            host = arg
+        elif opt == '-p':
+            port = int(arg)
+        elif opt == '-e':
+            run_exclude.add(arg)
+        elif opt == '--help':
+            help_msg()
+            sys.exit(0)
+        else:
+            raise ValueError("Unknown option: {0}".format(opt))
+
+    if args:
+        run_only = set(args)
+    else:
+        run_only = None
+
     conversations = {}
 
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -44,7 +83,7 @@ def main():
 
     conversations["sanity"] = conversation
 
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -68,7 +107,7 @@ def main():
     conversations["static non-zero byte in random padding"] = conversation
 
     # set 2nd byte of padding to 3 (invalid value)
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -90,7 +129,7 @@ def main():
     conversations["set PKCS#1 padding type to 3"] = conversation
 
     # set 2nd byte of padding to 1 (signing)
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -112,7 +151,7 @@ def main():
     conversations["set PKCS#1 padding type to 1"] = conversation
 
     # test early zero in random data
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -133,7 +172,7 @@ def main():
 
     conversations["zero byte in random padding"] = conversation
 
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -154,7 +193,7 @@ def main():
 
     conversations["zero byte in last byte of random padding"] = conversation
 
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -175,7 +214,7 @@ def main():
 
     conversations["zero byte in first byte of random padding"] = conversation
 
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -199,10 +238,12 @@ def main():
     good = 0
     bad = 0
 
-    for conversation_name, conversation in conversations.items():
-        print("{0} ...".format(conversation_name))
+    for c_name, c_test in conversations.items():
+        if run_only and c_name not in run_only or c_name in run_exclude:
+            continue
+        print("{0} ...".format(c_name))
 
-        runner = Runner(conversation)
+        runner = Runner(c_test)
 
         res = True
         try:
