@@ -361,6 +361,41 @@ def main():
                           "xor {1} at {0}"
                           .format(pos, hex(xor))] = conversation
 
+    if cert.certAlg == "rsa-pss":
+        conversation = Connect(host, port)
+        node = conversation
+        sigs = [SignatureScheme.rsa_pss_sha256,
+                SignatureScheme.rsa_pss_sha384,
+                SignatureScheme.rsa_pss_sha512
+                ]
+        ext = {ExtensionType.signature_algorithms:
+                SignatureAlgorithmsExtension().create(sigs)}
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions=ext))
+        node = node.add_child(ExpectServerHello(version=(3, 3)))
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerKeyExchange())
+        node = node.add_child(ExpectCertificateRequest())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
+        node = node.add_child(CertificateGenerator(X509CertChain([cert])))
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(CertificateVerifyGenerator(private_key,
+                                                         msg_alg=SignatureScheme.rsa_pkcs1_sha256,
+                                                         sig_alg=SignatureScheme.rsa_pkcs1_sha256))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.decrypt_error))
+        node.next_sibling = ExpectClose()
+        node = node.add_child(ExpectClose())
+        conversations["rsa_pkcs1_sha256 signature in CertificateVerify "
+                      "with rsa-pss key"] = conversation
 
     conversation = Connect(host, port)
     node = conversation
