@@ -67,6 +67,8 @@ class Connect(Command):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(5)
         sock.connect((self.hostname, self.port))
+        # disable Nagle - we handle buffering and flushing ourselves
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
         # allow for later buffering of writes to the socket
         sock = BufferedSocket(sock)
