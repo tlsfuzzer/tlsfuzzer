@@ -6,6 +6,8 @@
 from __future__ import print_function
 import traceback
 import sys
+import getopt
+from itertools import chain, islice
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
@@ -18,13 +20,56 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType
+from tlsfuzzer.utils.lists import natural_sort_keys
+
+
+def help_msg():
+    print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
+    print(" -h hostname    name of the host to run the test against")
+    print("                localhost by default")
+    print(" -p port        port number to use for connection, 4433 by default")
+    print(" probe-name     if present, will run only the probes with given")
+    print("                names and not all of them, e.g \"sanity\"")
+    print(" -e probe-name  exclude the probe from the list of the ones run")
+    print("                may be specified multiple times")
+    print(" -n num         only run `num` random tests instead of a full set")
+    print("                (excluding \"sanity\" tests)")
+    print(" --help         this message")
+
 
 def main():
     """Test if server supports the DHE_RSA key exchange"""
+    host = "localhost"
+    port = 4433
+    num_limit = None
+    run_exclude = set()
+
+    argv = sys.argv[1:]
+    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help"])
+    for opt, arg in opts:
+        if opt == '-h':
+            host = arg
+        elif opt == '-p':
+            port = int(arg)
+        elif opt == '-e':
+            run_exclude.add(arg)
+        elif opt == '-n':
+            num_limit = int(arg)
+        elif opt == '--help':
+            help_msg()
+            sys.exit(0)
+        else:
+            raise ValueError("Unknown option: {0}".format(opt))
+
+    if args:
+        run_only = set(args)
+    else:
+        run_only = None
+
     conversations = {}
 
     # sanity check
-    conversation = Connect("localhost", 4433)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -49,7 +94,7 @@ def main():
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
 
-    conversations["sanity check"] = conversation
+    conversations["sanity"] = conversation
 
     # check TLSv1.2 ciphers without TLSv1.2 client hello
     for cipher in [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
@@ -60,7 +105,7 @@ def main():
                    CipherSuite.TLS_RSA_WITH_AES_256_CBC_SHA256,
                    CipherSuite.TLS_RSA_WITH_AES_128_GCM_SHA256,
                    CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384]:
-        conversation = Connect("localhost", 4433)
+        conversation = Connect(host, port)
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
@@ -73,13 +118,27 @@ def main():
         conversations[CipherSuite.ietfNames[cipher] + " in TLSv1.1"] =\
                 conversation
 
+    # run the conversation
     good = 0
     bad = 0
+    failed = []
+    if not num_limit:
+        num_limit = len(conversations)
 
-    for conversation_name, conversation in conversations.items():
-        print("{0} ...".format(conversation_name))
+    # make sure that sanity test is run first and last
+    # to verify that server was running and kept running throught
+    sanity_test = ('sanity', conversations['sanity'])
+    ordered_tests = chain([sanity_test],
+                          islice(filter(lambda x: x[0] != 'sanity',
+                                        conversations.items()), num_limit),
+                          [sanity_test])
 
-        runner = Runner(conversation)
+    for c_name, c_test in ordered_tests:
+        if run_only and c_name not in run_only or c_name in run_exclude:
+            continue
+        print("{0} ...".format(c_name))
+
+        runner = Runner(c_test)
 
         res = True
         try:
@@ -87,18 +146,20 @@ def main():
         except:
             print("Error while processing")
             print(traceback.format_exc())
-            print("")
             res = False
 
         if res:
-            good+=1
+            good += 1
             print("OK\n")
         else:
-            bad+=1
+            bad += 1
+            failed.append(c_name)
 
     print("Test end")
     print("successful: {0}".format(good))
     print("failed: {0}".format(bad))
+    failed_sorted = sorted(failed, key=natural_sort_keys)
+    print("  {0}".format('\n  '.join(repr(i) for i in failed_sorted)))
 
     if bad > 0:
         sys.exit(1)
