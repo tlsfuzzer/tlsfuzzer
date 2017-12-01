@@ -1,5 +1,7 @@
-# Author: Hubert Kario, (c) 2015
+# Author: Hubert Kario, (c) 2016
 # Released under Gnu GPL v2.0, see LICENSE file for details
+
+"""Minimal test for verifying ecdhe curve fallback"""
 
 from __future__ import print_function
 import traceback
@@ -10,14 +12,15 @@ from itertools import chain, islice
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        ResetHandshakeHashes, pad_handshake, truncate_handshake
+        FinishedGenerator, ApplicationDataGenerator, AlertGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose
+        ExpectAlert, ExpectClose, ExpectServerKeyExchange, \
+        ExpectApplicationData
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType
+        ExtensionType, GroupName
+from tlslite.extensions import SupportedGroupsExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
@@ -36,6 +39,7 @@ def help_msg():
 
 
 def main():
+    """Test if server supports unsupported curve fallback"""
     host = "localhost"
     port = 4433
     num_limit = None
@@ -67,11 +71,44 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+               CipherSuite.TLS_DHE_RSA_WITH_AES_256_GCM_SHA384]
+    ext = {ExtensionType.renegotiation_info:None,
+           ExtensionType.supported_groups:SupportedGroupsExtension()
+                .create([GroupName.secp160k1])}
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=ext))
+    node = node.add_child(ExpectServerHello(cipher=CipherSuite.
+                                            TLS_DHE_RSA_WITH_AES_256_GCM_SHA384
+                                            , extensions={ExtensionType.
+                                                     renegotiation_info:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+
+    conversations["check for unsupported curve fallback"] = conversation
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+               CipherSuite.TLS_DHE_RSA_WITH_AES_256_GCM_SHA384,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -86,52 +123,6 @@ def main():
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
     conversations["sanity"] = conversation
-
-    #
-    # Test sending invalid (too short or too long) Client Key Exchange messages
-    #
-
-    conver = Connect(host, port)
-    node = conver
-    #ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-    #           CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions={ExtensionType.renegotiation_info:None}))
-    node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(pad_handshake(ClientKeyExchangeGenerator(), 1))
-    #node = node.add_child(ChangeCipherSpecGenerator())
-    #node = node.add_child(FinishedGenerator())
-    #node = node.add_child(ExpectChangeCipherSpec())
-    #node = node.add_child(ExpectFinished())
-    #node = node.add_child(AlertGenerator(AlertLevel.warning, AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
-
-    conversations["padded Client Key Exchange"] = conver
-
-    conver = Connect(host, port)
-    node = conver
-    #ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-    #           CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions={ExtensionType.renegotiation_info:None}))
-    node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(truncate_handshake(ClientKeyExchangeGenerator(), 1))
-    #node = node.add_child(ChangeCipherSpecGenerator())
-    #node = node.add_child(FinishedGenerator())
-    #node = node.add_child(ExpectChangeCipherSpec())
-    #node = node.add_child(ExpectFinished())
-    #node = node.add_child(AlertGenerator(AlertLevel.warning, AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
-
-    conversations["truncated Client Key Exchange"] = conver
 
     # run the conversation
     good = 0

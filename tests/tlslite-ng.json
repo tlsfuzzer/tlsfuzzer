@@ -155,7 +155,7 @@
          {"name" : "test-truncating-of-client-hello.py"},
          {"name" : "test-truncating-of-finished.py"},
          {"name" : "test-truncating-of-kRSA-client-key-exchange.py"},
-         {"name" : "test-unsupported-cuve-fallback.py"},
+         {"name" : "test-unsupported-curve-fallback.py"},
          {"name" : "test-version-numbers.py"},
          {"name" : "test-x25519.py"},
          {"name" : "test-zero-length-data.py"}
