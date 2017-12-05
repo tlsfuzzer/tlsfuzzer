@@ -18,7 +18,7 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         ExpectFinished, ExpectAlert, ExpectApplicationData, \
         ExpectCertificateRequest, ExpectServerKeyExchange, \
         ExpectServerHello2, ExpectVerify, ExpectSSL2Alert, \
-        ExpectCertificateStatus
+        ExpectCertificateStatus, ExpectNoMessage
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
@@ -86,6 +86,24 @@ class TestExpect(unittest.TestCase):
 
         with self.assertRaises(NotImplementedError):
             exp.process(None, None)
+
+
+class TestExpectNoMessage(unittest.TestCase):
+    def test___init__(self):
+        timeout = mock.Mock()
+        exp = ExpectNoMessage(timeout)
+
+        self.assertIsNotNone(exp)
+        self.assertTrue(exp.is_expect())
+        self.assertFalse(exp.is_command())
+        self.assertFalse(exp.is_generator())
+        self.assertIs(exp.timeout, timeout)
+
+    def test_process(self):
+        exp = ExpectNoMessage()
+
+        exp.process(None, None)
+
 
 class TestExpectHandshake(unittest.TestCase):
     def test_process(self):

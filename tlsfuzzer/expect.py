@@ -608,6 +608,23 @@ class ExpectApplicationData(Expect):
             assert self.data == data
 
 
+class ExpectNoMessage(Expect):
+    """
+    Virtual message signifying timeout on message listen.
+
+    :ivar timeout: how long to wait for message before giving up, in seconds,
+    can be float
+    """
+
+    def __init__(self, timeout=0.1):
+        super(ExpectNoMessage, self).__init__(None)
+        self.timeout = timeout
+
+    def process(self, state, msg):
+        """Do nothing."""
+        pass
+
+
 class ExpectClose(Expect):
 
     """Virtual message signifying closing of TCP connection"""

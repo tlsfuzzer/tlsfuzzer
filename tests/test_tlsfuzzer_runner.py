@@ -14,7 +14,7 @@ except ImportError:
     from unittest.mock import call
 
 from tlsfuzzer.runner import ConnectionState, Runner, guess_response
-from tlsfuzzer.expect import ExpectClose
+from tlsfuzzer.expect import ExpectClose, ExpectNoMessage
 from tlsfuzzer.messages import ClientHelloGenerator
 import tlslite.messages as messages
 import tlslite.constants as constants
@@ -191,6 +191,28 @@ class TestRunner(unittest.TestCase):
         runner.state.msg_sock = mock.MagicMock()
         runner.state.msg_sock.recvMessageBlocking = \
                 mock.MagicMock(side_effect=TLSAbruptCloseError())
+
+        with self.assertRaises(AssertionError):
+            runner.run()
+
+    def test_run_with_expect_and_no_message(self):
+        node = ExpectNoMessage()
+
+        runner = Runner(node)
+        runner.state.msg_sock = mock.MagicMock()
+        runner.state.msg_sock.recvMessageBlocking = \
+                mock.MagicMock(side_effect=socket.timeout)
+
+        runner.run()
+
+    def test_run_with_expect_no_message_and_message_received(self):
+        node = ExpectNoMessage()
+
+        runner = Runner(node)
+        runner.state.msg_sock = mock.MagicMock()
+        runner.state.msg_sock.recvMessageBlocking = \
+                mock.MagicMock(return_value=(mock.MagicMock(),
+                                             mock.MagicMock()))
 
         with self.assertRaises(AssertionError):
             runner.run()

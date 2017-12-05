@@ -10,7 +10,7 @@ from tlslite.handshakehashes import HandshakeHashes
 from tlslite.errors import TLSAbruptCloseError
 from tlslite.constants import ContentType, HandshakeType, AlertLevel, \
         AlertDescription, SSL2HandshakeType
-from .expect import ExpectClose
+from .expect import ExpectClose, ExpectNoMessage
 
 class ConnectionState(object):
 
@@ -148,10 +148,20 @@ class Runner(object):
                     node = node.child
                     continue
                 elif node.is_expect():
+                    if isinstance(node, ExpectNoMessage):
+                        old_timeout = self.state.msg_sock.sock.gettimeout()
+                        self.state.msg_sock.sock.settimeout(node.timeout)
                     # check peer response
                     try:
                         header, parser = self.state.msg_sock.recvMessageBlocking()
-                    except (TLSAbruptCloseError, socket.error):
+                    except (TLSAbruptCloseError, socket.error) as exc:
+                        if isinstance(exc, socket.timeout) and \
+                                isinstance(node, ExpectNoMessage):
+                            # for ExpectNoMessage we have nothing to do
+                            # but to continue
+                            self.state.msg_sock.sock.settimeout(old_timeout)
+                            node = node.child
+                            continue
                         close_node = next((n for n in node.get_all_siblings() \
                                            if isinstance(n, ExpectClose)), None)
                         if close_node:
