@@ -13,7 +13,7 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         TCPBufferingEnable, TCPBufferingDisable, TCPBufferingFlush
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectClose, ExpectApplicationData
+        ExpectAlert, ExpectClose, ExpectApplicationData, ExpectNoMessage
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType
@@ -28,6 +28,8 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -t timeout     how long to wait before assuming the server won't")
+    print("                send a message at incorrect time, 1.0s by default")
     print(" --help         this message")
 
 
@@ -37,9 +39,10 @@ def main():
     port = 4433
     num_limit = None
     run_exclude = set()
+    timeout = 1.0
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:t:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -50,6 +53,8 @@ def main():
         elif opt == '--help':
             help_msg()
             sys.exit(0)
+        elif opt == '-t':
+            timeout = float(arg)
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -83,6 +88,8 @@ def main():
 
     conversations["sanity"] = conversation
 
+    # check if a certain number doesn't trip up the server
+    # (essentially a second sanity test)
     conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
@@ -128,6 +135,26 @@ def main():
 
     conversations["set PKCS#1 padding type to 3"] = conversation
 
+    # set 2nd byte of padding to 3 (invalid value)
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1:3}))
+    node = node.add_child(ExpectNoMessage(timeout))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(ExpectNoMessage(timeout))
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.bad_record_mac))
+    node.add_child(ExpectClose())
+
+    conversations["set PKCS#1 padding type to 3 - with wait"] = conversation
+
     # set 2nd byte of padding to 1 (signing)
     conversation = Connect(host, port)
     node = conversation
@@ -149,6 +176,26 @@ def main():
     node.add_child(ExpectClose())
 
     conversations["set PKCS#1 padding type to 1"] = conversation
+
+    # set 2nd byte of padding to 1 (signing)
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1:1}))
+    node = node.add_child(ExpectNoMessage(timeout))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(ExpectNoMessage(timeout))
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.bad_record_mac))
+    node.add_child(ExpectClose())
+
+    conversations["set PKCS#1 padding type to 1 - with wait"] = conversation
 
     # test early zero in random data
     conversation = Connect(host, port)
@@ -172,6 +219,27 @@ def main():
 
     conversations["zero byte in random padding"] = conversation
 
+    # test early zero in random data
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={4:0}))
+    node = node.add_child(ExpectNoMessage(timeout))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(ExpectNoMessage(timeout))
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.bad_record_mac))
+    node.add_child(ExpectClose())
+
+    conversations["zero byte in random padding - with wait"] = conversation
+
+    # check if early padding separator is detected
     conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
@@ -193,6 +261,27 @@ def main():
 
     conversations["zero byte in last byte of random padding"] = conversation
 
+    # check if early padding separator is detected
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-2:0}))
+    node = node.add_child(ExpectNoMessage(timeout))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(ExpectNoMessage(timeout))
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.bad_record_mac))
+    node.add_child(ExpectClose())
+
+    conversations["zero byte in last byte of random padding - with wait"] = conversation
+
+    # check if separator without any random padding is detected
     conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
@@ -214,6 +303,27 @@ def main():
 
     conversations["zero byte in first byte of random padding"] = conversation
 
+    # check if separator without any random padding is detected
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={2:0}))
+    node = node.add_child(ExpectNoMessage(timeout))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(ExpectNoMessage(timeout))
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.bad_record_mac))
+    node.add_child(ExpectClose())
+
+    conversations["zero byte in first byte of random padding - with wait"] = conversation
+
+    # check if invalid first byte of encoded value is correctly detected
     conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
@@ -233,7 +343,27 @@ def main():
                                       AlertDescription.bad_record_mac))
     node.add_child(ExpectClose())
 
-    conversations["invalid version number in padding"] = conversation
+    conversations["invalid PKCS#1 version number in padding"] = conversation
+
+    # check if invalid first byte of encoded value is correctly detected
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={0:1}))
+    node = node.add_child(ExpectNoMessage(timeout))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(ExpectNoMessage(timeout))
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.bad_record_mac))
+    node.add_child(ExpectClose())
+
+    conversations["invalid PKCS#1 version number in padding - with wait"] = conversation
 
     good = 0
     bad = 0
