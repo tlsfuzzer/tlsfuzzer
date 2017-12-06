@@ -445,6 +445,110 @@ def main():
 
         conversations["invalid version number in padding - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
 
+        # check if no null separator in padding is detected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1:1}))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node.add_child(ExpectClose())
+
+        conversations["no null separator in padding - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+        # check if no null separator in padding is detected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1:1}))
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node.add_child(ExpectClose())
+
+        conversations["no null separator in padding - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+        # check if no null separator in padding is detected
+        # but with PMS set to non-zero
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1:1},
+                                                         premaster_secret=bytearray([1]*48)))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node.add_child(ExpectClose())
+
+        conversations["no null separator in encrypted value - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+        # check if no null separator in padding is detected
+        # but with PMS set to non-zero
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1:1},
+                                                         premaster_secret=bytearray([1]*48)))
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node.add_child(ExpectClose())
+
+        conversations["no null separator in encrypted value - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
     good = 0
     bad = 0
 
