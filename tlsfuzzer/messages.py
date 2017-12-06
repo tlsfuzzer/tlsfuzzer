@@ -425,13 +425,16 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
                  dh_Yc=None, padding_subs=None, padding_xors=None,
                  ecdh_Yc=None, encrypted_premaster=None,
                  modulus_as_encrypted_premaster=False, p_as_share=False,
-                 p_1_as_share=False):
+                 p_1_as_share=False, premaster_secret=None):
         """Set settings of the Client Key Exchange to be sent."""
         super(ClientKeyExchangeGenerator, self).__init__()
         self.cipher = cipher
         self.version = version
         self.client_version = client_version
-        self.premaster_secret = bytearray(48)
+        if premaster_secret is None:
+            self.premaster_secret = bytearray(48)
+        else:
+            self.premaster_secret = premaster_secret
         self.dh_Yc = dh_Yc
         self.padding_subs = padding_subs
         self.padding_xors = padding_xors

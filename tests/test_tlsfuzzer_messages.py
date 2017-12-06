@@ -463,6 +463,22 @@ class TestClientKeyExchangeGenerator(unittest.TestCase):
         decrypt = self.priv_key.decrypt(ret.encryptedPreMasterSecret)
 
         self.assertEqual(decrypt[:2], bytearray([3, 3]))
+        self.assertEqual(decrypt[2:], bytearray([0]*46))
+
+    def test_generate_with_custom_premaster_secret(self):
+        state = ConnectionState()
+        state.get_server_public_key = lambda : self.priv_key
+        cke = ClientKeyExchangeGenerator(
+                cipher=constants.CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                premaster_secret=bytearray([1]*10))
+
+        ret = cke.generate(state)
+
+        self.assertEqual(len(ret.encryptedPreMasterSecret), 128)
+        decrypt = self.priv_key.decrypt(ret.encryptedPreMasterSecret)
+
+        self.assertEqual(decrypt[:2], bytearray([3, 3]))
+        self.assertEqual(decrypt[2:], bytearray([1]*8))
 
     def test_generate_with_dhe(self):
         state = ConnectionState()
