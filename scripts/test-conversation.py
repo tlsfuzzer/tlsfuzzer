@@ -77,7 +77,7 @@ def main():
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
     node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\n\n")))
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))

@@ -78,7 +78,7 @@ def main():
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
-    node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -106,7 +106,7 @@ def main():
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectFinished())
-        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
         node = node.add_child(ExpectApplicationData())
         node = node.add_child(AlertGenerator(AlertLevel.warning,
                                              AlertDescription.close_notify))
@@ -135,7 +135,7 @@ def main():
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectFinished())
-        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
         node = node.add_child(ExpectApplicationData())
         node = node.add_child(AlertGenerator(AlertLevel.warning,
                                              AlertDescription.close_notify))
@@ -162,7 +162,7 @@ def main():
         node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1:3}))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
-        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
@@ -212,7 +212,7 @@ def main():
         node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1:1}))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
-        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
@@ -262,7 +262,7 @@ def main():
         node = node.add_child(ClientKeyExchangeGenerator(padding_subs={4:0}))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
-        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
@@ -312,7 +312,7 @@ def main():
         node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-2:0}))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
-        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
@@ -362,7 +362,7 @@ def main():
         node = node.add_child(ClientKeyExchangeGenerator(padding_subs={2:0}))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
-        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
@@ -412,7 +412,7 @@ def main():
         node = node.add_child(ClientKeyExchangeGenerator(padding_subs={0:1}))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
-        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
@@ -462,7 +462,7 @@ def main():
         node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1:1}))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
-        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
@@ -514,7 +514,7 @@ def main():
                                                          premaster_secret=bytearray([1]*48)))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
-        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
