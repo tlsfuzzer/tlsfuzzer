@@ -73,7 +73,8 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    # don't care which cipher, as long as it uses RSA key exchange
+    ciphers = list(CipherSuite.certSuites)
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
