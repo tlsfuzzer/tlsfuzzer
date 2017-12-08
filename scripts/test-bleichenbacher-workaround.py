@@ -549,6 +549,430 @@ def main():
 
         conversations["no null separator in encrypted value - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
 
+        # check if too short PMS is detected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
+        node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1, 1])))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node.add_child(ExpectClose())
+
+        conversations["two byte long PMS (TLS version only) - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+        # check if too short PMS is detected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1, 1])))
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node.add_child(ExpectClose())
+
+        conversations["two byte long PMS (TLS version only) - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+        # check if no encrypted payload is detected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
+        # the TLS version is always set, so we mask the real padding separator
+        # and set the last byte of PMS to 0
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1:1},
+                                                         premaster_secret=bytearray([1, 1, 0])))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node.add_child(ExpectClose())
+
+        conversations["no encrypted value - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+        # check if no encrypted payload is detected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        # the TLS version is always set, so we mask the real padding separator
+        # and set the last byte of PMS to 0
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1:1},
+                                                         premaster_secret=bytearray([1, 1, 0])))
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node.add_child(ExpectClose())
+
+        conversations["no encrypted value - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+        # check if too short encrypted payload is detected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
+        # the TLS version is always set, so we mask the real padding separator
+        # and set the last byte of PMS to 0
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1:1},
+                                                         premaster_secret=bytearray([1, 1, 0, 3])))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node.add_child(ExpectClose())
+
+        conversations["one byte encrypted value - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+        # check if too short encrypted payload is detected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        # the TLS version is always set, so we mask the real padding separator
+        # and set the last byte of PMS to 0
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1:1},
+                                                         premaster_secret=bytearray([1, 1, 0, 3])))
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node.add_child(ExpectClose())
+
+        conversations["one byte encrypted value - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+        # check if too short PMS is detected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
+        node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1]*47)))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node.add_child(ExpectClose())
+
+        conversations["too short (47-byte) pre master secret - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+        # check if too short PMS is detected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1]*47)))
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node.add_child(ExpectClose())
+
+        conversations["too short (47-byte) pre master secret - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+        # check if too long PMS is detected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
+        node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1]*49)))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node.add_child(ExpectClose())
+
+        conversations["too long (49-byte) pre master secret - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+        # check if too long PMS is detected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1]*49)))
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node.add_child(ExpectClose())
+
+        conversations["too long (49-byte) pre master secret - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+        # check if wrong TLS version number is rejected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
+        node = node.add_child(ClientKeyExchangeGenerator(client_version=(2, 2)))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node.add_child(ExpectClose())
+
+        conversations["wrong TLS version in pre master secret - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+        # check if wrong TLS version number is rejected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator(client_version=(2, 2)))
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node.add_child(ExpectClose())
+
+        conversations["wrong TLS version in pre master secret - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+        # check if too short PKCS padding is detected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
+        # move the start of the padding forward, essentially encrypting two 0 bytes
+        # at the beggining of the padding, but since those are transformed into a number
+        # their existence is lost and it just like the padding was too small
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1:0, 2:2}))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node.add_child(ExpectClose())
+
+        conversations["too short PKCS padding - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+        # check if too short PKCS padding is detected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        # move the start of the padding forward, essentially encrypting two 0 bytes
+        # at the beggining of the padding, but since those are transformed into a number
+        # their existence is lost and it just like the padding was too small
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1:0, 2:2}))
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node.add_child(ExpectClose())
+
+        conversations["too short PKCS padding - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+        # check if too long PKCS padding is detected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
+        # move the start of the padding backward, essentially encrypting no 0 bytes
+        # at the beggining of the padding, but since those are transformed into a number
+        # its lack is lost and it just like the padding was too big
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={0:2}))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node.add_child(ExpectClose())
+
+        conversations["too long PKCS padding - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+        # check if too long PKCS padding is detected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        # move the start of the padding backward, essentially encrypting no 0 bytes
+        # at the beggining of the padding, but since those are transformed into a number
+        # its lack is lost and it just like the padding was too big
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={0:2}))
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node.add_child(ExpectClose())
+
+        conversations["too long PKCS padding - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
     good = 0
     bad = 0
 
