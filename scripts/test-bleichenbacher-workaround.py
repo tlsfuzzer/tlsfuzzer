@@ -18,6 +18,8 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType
+from tlslite.utils.dns_utils import is_valid_hostname
+from tlslite.extensions import SNIExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
@@ -42,6 +44,9 @@ def help_msg():
     print("                Note: other values are NOT RFC compliant!")
     print(" --no-safe-renego  Allow the server not to support safe")
     print("                renegotiation extension")
+    print(" --no-sni       do not send server name extension.")
+    print("                Sends extension by default if the hostname is a")
+    print("                valid DNS name, not an IP address")
     print(" --help         this message")
 
 
@@ -55,10 +60,12 @@ def main():
     alert = AlertDescription.bad_record_mac
     level = AlertLevel.fatal
     srv_extensions = {ExtensionType.renegotiation_info:None}
+    no_sni = False
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "h:p:e:t:n:a:l:", ["help",
-                                                        "no-safe-renego"])
+                                                        "no-safe-renego",
+                                                        "no-sni"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -79,6 +86,8 @@ def main():
             level = int(arg)
         elif opt == "--no-safe-renego":
             srv_extensions = None
+        elif opt == "--no-sni":
+            no_sni = True
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -87,6 +96,11 @@ def main():
     else:
         run_only = None
 
+    cln_extensions = {ExtensionType.renegotiation_info:None}
+    if is_valid_hostname(host) and not no_sni:
+        cln_extensions[ExtensionType.server_name] = \
+                SNIExtension().create(bytearray(host, 'ascii'))
+
     conversations = {}
 
     conversation = Connect(host, port)
@@ -94,7 +108,7 @@ def main():
     # don't care which cipher, as long as it uses RSA key exchange
     ciphers = list(CipherSuite.certSuites)
     node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions={ExtensionType.renegotiation_info:None}))
+                                               extensions=cln_extensions))
     node = node.add_child(ExpectServerHello(extensions=srv_extensions))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
@@ -118,7 +132,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -147,7 +161,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -175,7 +189,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -201,7 +215,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -225,7 +239,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -251,7 +265,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -275,7 +289,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -301,7 +315,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -325,7 +339,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -351,7 +365,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -375,7 +389,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -401,7 +415,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -425,7 +439,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -451,7 +465,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -475,7 +489,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -501,7 +515,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -526,7 +540,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -554,7 +568,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -579,7 +593,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -605,7 +619,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -629,7 +643,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -658,7 +672,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -685,7 +699,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -714,7 +728,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -741,7 +755,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -767,7 +781,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -791,7 +805,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -817,7 +831,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -842,7 +856,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -868,7 +882,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -892,7 +906,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -918,7 +932,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -942,7 +956,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -968,7 +982,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -992,7 +1006,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -1021,7 +1035,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -1048,7 +1062,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
@@ -1077,7 +1091,7 @@ def main():
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=cln_extensions))
         node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
