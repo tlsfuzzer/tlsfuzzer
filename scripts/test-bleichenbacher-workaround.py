@@ -911,7 +911,7 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["wrong TLS version in pre master secret - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations["wrong TLS version (2, 2) in pre master secret - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
 
         # check if wrong TLS version number is rejected
         conversation = Connect(host, port)
@@ -935,8 +935,57 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["wrong TLS version in pre master secret - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations["wrong TLS version (2, 2) in pre master secret - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
 
+        # check if wrong TLS version number is rejected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
+        node = node.add_child(ClientKeyExchangeGenerator(client_version=(0, 0)))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
+        node = node.add_child(ExpectAlert(level,
+                                          alert))
+        node.add_child(ExpectClose())
+
+        conversations["wrong TLS version (0, 0) in pre master secret - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+        # check if wrong TLS version number is rejected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator(client_version=(0, 0)))
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectAlert(level,
+                                          alert))
+        node.add_child(ExpectClose())
+
+        conversations["wrong TLS version (0, 0) in pre master secret - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
 
         # check if too short PKCS padding is detected
         conversation = Connect(host, port)
