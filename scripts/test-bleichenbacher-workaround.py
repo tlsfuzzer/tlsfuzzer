@@ -774,6 +774,57 @@ def main():
 
         conversations["too short (47-byte) pre master secret - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
 
+        # check if too short PMS is detected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
+        node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1]*4)))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          alert))
+        node.add_child(ExpectClose())
+
+        conversations["very short (4-byte) pre master secret - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+        # check if too short PMS is detected
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        # in case the server does not support given cipher, it is acceptable
+        # to abort connection here
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1]*4)))
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(ExpectNoMessage(timeout))
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          alert))
+        node.add_child(ExpectClose())
+
+        conversations["very short (4-byte) pre master secret - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+
         # check if too long PMS is detected
         conversation = Connect(host, port)
         node = conversation
