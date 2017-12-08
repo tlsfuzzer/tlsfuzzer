@@ -37,6 +37,8 @@ def help_msg():
     print(" -a desc        the expected alert description for invalid Finished")
     print("                messages - 20 (bad_record_mac) by default")
     print("                Note: other values are NOT RFC compliant!")
+    print(" --no-safe-renego  Allow the server not to support safe")
+    print("                renegotiation extension")
     print(" --help         this message")
 
 
@@ -48,9 +50,11 @@ def main():
     run_exclude = set()
     timeout = 1.0
     alert = AlertDescription.bad_record_mac
+    srv_extensions = {ExtensionType.renegotiation_info:None}
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:t:n:a:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:t:n:a:", ["help",
+                                                      "no-safe-renego"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -67,6 +71,8 @@ def main():
             timeout = float(arg)
         elif opt == '-a':
             alert = int(arg)
+        elif opt == "--no-safe-renego":
+            srv_extensions = None
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -83,7 +89,7 @@ def main():
     ciphers = list(CipherSuite.certSuites)
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions={ExtensionType.renegotiation_info:None}))
-    node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
@@ -107,7 +113,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -136,7 +142,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -164,7 +170,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -190,7 +196,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -214,7 +220,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -240,7 +246,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -264,7 +270,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -290,7 +296,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -314,7 +320,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -340,7 +346,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -364,7 +370,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -390,7 +396,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -414,7 +420,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -440,7 +446,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -464,7 +470,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -490,7 +496,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -515,7 +521,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -543,7 +549,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -568,7 +574,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -594,7 +600,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -618,7 +624,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -647,7 +653,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -674,7 +680,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -703,7 +709,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -730,7 +736,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -756,7 +762,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -780,7 +786,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -806,7 +812,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -831,7 +837,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -857,7 +863,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -881,7 +887,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -907,7 +913,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -931,7 +937,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -960,7 +966,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -987,7 +993,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
@@ -1016,7 +1022,7 @@ def main():
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info:None}))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
         # in case the server does not support given cipher, it is acceptable
         # to abort connection here
         node.next_sibling = ExpectAlert(AlertLevel.fatal,
