@@ -161,6 +161,9 @@ class TestExpectServerHello(unittest.TestCase):
                                             extension_process})
 
         state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.cipher_suites = [4]
+        state.handshake_messages.append(client_hello)
         state.msg_sock = mock.MagicMock()
 
         ext = RenegotiationInfoExtension().create(None)
@@ -214,6 +217,48 @@ class TestExpectServerHello(unittest.TestCase):
         with self.assertRaises(AssertionError):
             exp.process(state, msg)
 
+    def test_process_with_unexpected_cipher(self):
+        exp = ExpectServerHello()
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.cipher_suites = [4]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        ext = RenegotiationInfoExtension().create(None)
+
+        msg = ServerHello().create(version=(3, 3),
+                                   random=bytearray(32),
+                                   session_id=bytearray(0),
+                                   cipher_suite=5)
+
+        self.assertTrue(exp.is_match(msg))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
+    def test_process_with_udefined_cipher(self):
+        exp = ExpectServerHello()
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.cipher_suites = [4]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        ext = RenegotiationInfoExtension().create(None)
+
+        msg = ServerHello().create(version=(3, 3),
+                                   random=bytearray(32),
+                                   session_id=bytearray(0),
+                                   cipher_suite=0xfff0)
+
+        self.assertTrue(exp.is_match(msg))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
     def test_process_with_no_matching_extension(self):
         exps = {ExtensionType.renegotiation_info: None,
                 ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])
@@ -221,6 +266,9 @@ class TestExpectServerHello(unittest.TestCase):
         exp = ExpectServerHello(extensions=exps)
 
         state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.cipher_suites = [4]
+        state.handshake_messages.append(client_hello)
         state.msg_sock = mock.MagicMock()
 
         exts = []
@@ -244,6 +292,9 @@ class TestExpectServerHello(unittest.TestCase):
         exp = ExpectServerHello(extensions=exps)
 
         state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.cipher_suites = [4]
+        state.handshake_messages.append(client_hello)
         state.msg_sock = mock.MagicMock()
 
         exts = []
@@ -258,7 +309,7 @@ class TestExpectServerHello(unittest.TestCase):
         self.assertTrue(exp.is_match(msg))
 
         exp.process(state, msg)
-        self.assertIsInstance(state.handshake_messages[0], ServerHello)
+        self.assertIsInstance(state.handshake_messages[1], ServerHello)
 
     def test_process_with_bad_extension(self):
         exps = {ExtensionType.renegotiation_info: None,
@@ -267,6 +318,9 @@ class TestExpectServerHello(unittest.TestCase):
         exp = ExpectServerHello(extensions=exps)
 
         state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.cipher_suites = [4]
+        state.handshake_messages.append(client_hello)
         state.msg_sock = mock.MagicMock()
 
         exts = []
@@ -288,6 +342,9 @@ class TestExpectServerHello(unittest.TestCase):
                                            None})
 
         state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.cipher_suites = [4]
+        state.handshake_messages.append(client_hello)
         state.msg_sock = mock.MagicMock()
 
         exts = []
@@ -308,6 +365,9 @@ class TestExpectServerHello(unittest.TestCase):
         exp = ExpectServerHello()
 
         state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.cipher_suites = [4]
+        state.handshake_messages.append(client_hello)
         state.msg_sock = mock.MagicMock()
         state.session_id = bytearray(b'\xaa\xaa\xaa')
         state.cipher = 4
@@ -330,6 +390,9 @@ class TestExpectServerHello(unittest.TestCase):
         exp = ExpectServerHello(resume=True)
 
         state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.cipher_suites = [4]
+        state.handshake_messages.append(client_hello)
         state.msg_sock = mock.MagicMock()
         state.session_id = bytearray(b'\xaa\xaa\xaa')
         state.cipher = 4
@@ -375,6 +438,9 @@ class TestExpectServerHello(unittest.TestCase):
                 extensions={ExtensionType.extended_master_secret:None})
 
         state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.cipher_suites = [4]
+        state.handshake_messages.append(client_hello)
         state.msg_sock = mock.MagicMock()
         self.assertFalse(state.extended_master_secret)
 
