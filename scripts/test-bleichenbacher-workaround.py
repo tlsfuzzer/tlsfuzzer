@@ -34,6 +34,9 @@ def help_msg():
     print("                send a message at incorrect time, 1.0s by default")
     print(" -n num         only run `num` random tests instead of a full set")
     print("                (excluding \"sanity\" tests)")
+    print(" -a desc        the expected alert description for invalid Finished")
+    print("                messages - 20 (bad_record_mac) by default")
+    print("                Note: other values are NOT RFC compliant!")
     print(" --help         this message")
 
 
@@ -44,9 +47,10 @@ def main():
     num_limit = None
     run_exclude = set()
     timeout = 1.0
+    alert = AlertDescription.bad_record_mac
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:t:n:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:t:n:a:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -61,6 +65,8 @@ def main():
             sys.exit(0)
         elif opt == '-t':
             timeout = float(arg)
+        elif opt == '-a':
+            alert = int(arg)
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -173,7 +179,7 @@ def main():
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["set PKCS#1 padding type to 3 - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -197,7 +203,7 @@ def main():
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["set PKCS#1 padding type to 3 - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -223,7 +229,7 @@ def main():
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["set PKCS#1 padding type to 1 - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -247,7 +253,7 @@ def main():
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["set PKCS#1 padding type to 1 - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -273,7 +279,7 @@ def main():
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["zero byte in random padding - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -297,7 +303,7 @@ def main():
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["zero byte in random padding - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -323,7 +329,7 @@ def main():
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["zero byte in last byte of random padding - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -347,7 +353,7 @@ def main():
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["zero byte in last byte of random padding - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -373,7 +379,7 @@ def main():
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["zero byte in first byte of random padding - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -397,7 +403,7 @@ def main():
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["zero byte in first byte of random padding - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -423,7 +429,7 @@ def main():
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["invalid version number in padding - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -447,7 +453,7 @@ def main():
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["invalid version number in padding - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -473,7 +479,7 @@ def main():
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["no null separator in padding - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -497,7 +503,7 @@ def main():
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["no null separator in padding - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -525,7 +531,7 @@ def main():
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["no null separator in encrypted value - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -551,7 +557,7 @@ def main():
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["no null separator in encrypted value - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -577,7 +583,7 @@ def main():
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["two byte long PMS (TLS version only) - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -601,7 +607,7 @@ def main():
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["two byte long PMS (TLS version only) - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -630,7 +636,7 @@ def main():
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["no encrypted value - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -657,7 +663,7 @@ def main():
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["no encrypted value - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -686,7 +692,7 @@ def main():
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["one byte encrypted value - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -713,7 +719,7 @@ def main():
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["one byte encrypted value - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -739,7 +745,7 @@ def main():
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["too short (47-byte) pre master secret - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -763,7 +769,7 @@ def main():
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["too short (47-byte) pre master secret - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -789,7 +795,7 @@ def main():
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["too long (49-byte) pre master secret - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -813,7 +819,7 @@ def main():
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["too long (49-byte) pre master secret - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -839,7 +845,7 @@ def main():
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["wrong TLS version in pre master secret - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -863,7 +869,7 @@ def main():
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["wrong TLS version in pre master secret - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -892,7 +898,7 @@ def main():
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["too short PKCS padding - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -919,7 +925,7 @@ def main():
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["too short PKCS padding - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -948,7 +954,7 @@ def main():
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["too long PKCS padding - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
@@ -975,7 +981,7 @@ def main():
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
+                                          alert))
         node.add_child(ExpectClose())
 
         conversations["too long PKCS padding - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
