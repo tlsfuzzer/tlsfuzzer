@@ -37,7 +37,10 @@
           "exp_pass": false
          },
          {"name" : "test-atypical-padding.py" },
-         {"name" : "test-bleichenbacher-workaround.py" },
+         {"name" : "test-bleichenbacher-workaround.py",
+          "arguments" : ["-n", "50",
+                         "-t", "0.01"],
+          "comment" : "test over loopack, so 10ms RTT is entirely reasonable"},
          {"name" : "test-chacha20.py",
           "arguments" : ["-n", "50"],
           "comment" : "over 150 test cases in script"},

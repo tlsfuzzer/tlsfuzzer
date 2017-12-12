@@ -158,6 +158,19 @@ class ExpectServerHello(ExpectHandshake):
         if self.cipher is not None:
             assert self.cipher == srv_hello.cipher_suite
 
+        # check if server sent cipher matches what we advertised in CH
+        if srv_hello.cipher_suite not in \
+                state.get_last_message_of_type(ClientHello).\
+                cipher_suites:
+            cipher = srv_hello.cipher_suite
+            if cipher in CipherSuite.ietfNames:
+                name = "{0} ({1:#06x})".format(CipherSuite.ietfNames[cipher],
+                                               cipher)
+            else:
+                name = "{0:#06x}".format(cipher)
+            raise AssertionError("Server responded with cipher we did"
+                                 " not advertise: {0}".format(name))
+
         state.cipher = srv_hello.cipher_suite
         state.version = srv_hello.server_version
 
@@ -606,6 +619,23 @@ class ExpectApplicationData(Expect):
 
         if self.data:
             assert self.data == data
+
+
+class ExpectNoMessage(Expect):
+    """
+    Virtual message signifying timeout on message listen.
+
+    :ivar timeout: how long to wait for message before giving up, in seconds,
+    can be float
+    """
+
+    def __init__(self, timeout=0.1):
+        super(ExpectNoMessage, self).__init__(None)
+        self.timeout = timeout
+
+    def process(self, state, msg):
+        """Do nothing."""
+        pass
 
 
 class ExpectClose(Expect):

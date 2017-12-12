@@ -65,6 +65,9 @@ If test has additional requirements, it will output them to console. No errors
 printed means that all expecations were met (so for tests with bad data the
 server rejected our messages).
 
+See [USAGE.md](https://github.com/tomato42/tlsfuzzer/blob/master/USAGE.md) for
+more info and how to interpret errors.
+
 ## Server under test configuration
 
 In general, the server under test requires just a RSA certificate, you
@@ -74,6 +77,13 @@ can create it using the following OpenSSL command:
 openssl req -x509 -newkey rsa -keyout localhost.key -out localhost.crt -subj \
 /CN=localhost -nodes -batch
 ```
+
+**Note**: tlsfuzzer verifies only TLS level behaviour, it does not perform
+any checks on the certificate (like hostname validation, CA signatures or
+key usage). It does however verify if the signatures made on TLS message
+by the server (like in Server Key Exchange message) match the certificate
+sent by the server.
+
 
 ### OpenSSL
 
