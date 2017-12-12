@@ -830,7 +830,8 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
         self.assertIsNotNone(msg)
         self.assertEqual(len(msg.signature), 128)
         dec_sig = numberToByteArray(priv_key._rawPublicKeyOp(
-                                                bytesToNumber(msg.signature)))
+                                                bytesToNumber(msg.signature)),
+                                    128)
         self.assertEqual(dec_sig[1],
                          0xff)
         self.assertEqual(dec_sig[-1], 0xbc)
