@@ -393,7 +393,8 @@ ciphers enabled).
 The test is tuned for testing over a WAN link. If the server is on a local
 network, it is possible to speed up test execution significantly by passing the
 option `-t 0.01` (in general, that number should be twice as big as the RTT to
-the server). Setting it too low can cause the test case to report false
+the server, in seconds). Setting it too low can cause the test case to report
+false
 negatives!
 
 While the test allows for setting the expected alert response to a Finished
