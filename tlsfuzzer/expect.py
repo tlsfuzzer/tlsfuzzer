@@ -2,9 +2,11 @@
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 """Parsing and processing of received TLS messages"""
+from __future__ import print_function
 
 import collections
 import itertools
+import sys
 from tlslite.constants import ContentType, HandshakeType, CertificateType,\
         HashAlgorithm, SignatureAlgorithm, ExtensionType,\
         SSL2HandshakeType, CipherSuite, GroupName, AlertDescription
@@ -13,12 +15,14 @@ from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus
 from tlslite.extensions import TLSExtension
 from tlslite.utils.codec import Parser
+from tlslite.utils.compat import b2a_hex
 from tlslite.mathtls import calcFinished, RFC7919_GROUPS
-from .handshake_helpers import calc_pending_states
 from tlslite.keyexchange import KeyExchange, DHE_RSAKeyExchange, \
         ECDHE_RSAKeyExchange
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
+from tlslite.errors import TLSDecryptionFailed
+from .handshake_helpers import calc_pending_states
 from .tree import TreeNode
 
 
@@ -351,11 +355,19 @@ class ExpectServerKeyExchange(ExpectHandshake):
                 # no advertised means support for sha1 only
                 valid_sig_algs = [(HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
 
-        KeyExchange.verifyServerKeyExchange(server_key_exchange,
-                                            public_key,
-                                            client_random,
-                                            server_random,
-                                            valid_sig_algs)
+        try:
+            KeyExchange.verifyServerKeyExchange(server_key_exchange,
+                                                public_key,
+                                                client_random,
+                                                server_random,
+                                                valid_sig_algs)
+        except TLSDecryptionFailed:
+            # very rarely validation of signature fails, print it so that
+            # we have a chance in debugging it
+            print("Bad signature: {0}"
+                  .format(b2a_hex(server_key_exchange.signature)),
+                  file=sys.stderr)
+            raise
 
         if self.cipher_suite in CipherSuite.dhAllSuites:
             if valid_groups and any(i in range(256, 512)
