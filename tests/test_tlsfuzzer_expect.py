@@ -1,6 +1,8 @@
 # Author: Hubert Kario, (c) 2015
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
+from __future__ import print_function
+
 try:
     import unittest2 as unittest
 except ImportError:
@@ -12,6 +14,7 @@ try:
 except ImportError:
     import unittest.mock as mock
     from unittest.mock import call
+import sys
 
 from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         ExpectCertificate, ExpectServerHelloDone, ExpectChangeCipherSpec, \
@@ -33,7 +36,7 @@ from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509certchain import X509CertChain, X509
 from tlslite.extensions import SNIExtension, SignatureAlgorithmsExtension
 from tlslite.keyexchange import DHE_RSAKeyExchange, ECDHE_RSAKeyExchange
-from tlslite.errors import TLSIllegalParameterException
+from tlslite.errors import TLSIllegalParameterException, TLSDecryptionFailed
 from tlsfuzzer.runner import ConnectionState
 from tlslite.extensions import RenegotiationInfoExtension
 
@@ -1033,6 +1036,45 @@ class TestExpectServerKeyExchange(unittest.TestCase):
         msg = srv_key_exchange.makeServerKeyExchange('sha256')
 
         exp.process(state, msg)
+
+    def test_process_with_ECDHE_RSA_bad_signature(self):
+        exp = ExpectServerKeyExchange()
+
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA
+
+        cert = Certificate(CertificateType.x509).\
+                create(X509CertChain([X509().parse(srv_raw_certificate)]))
+
+        private_key = parsePEMKey(srv_raw_key, private=True)
+        client_hello = ClientHello()
+        client_hello.client_version = (3, 3)
+        client_hello.random = bytearray(32)
+        client_hello.extensions = [SignatureAlgorithmsExtension().create(
+            [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)]),
+            SupportedGroupsExtension().create([GroupName.secp256r1])]
+        state.client_random = client_hello.random
+        state.handshake_messages.append(client_hello)
+        server_hello = ServerHello()
+        server_hello.server_version = (3, 3)
+        server_hello.random = bytearray(32)
+        state.server_random = server_hello.random
+        # server hello is not necessary for the test to work
+        #state.handshake_messages.append(server_hello)
+        state.handshake_messages.append(cert)
+        srv_key_exchange = ECDHE_RSAKeyExchange(
+                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                client_hello,
+                server_hello,
+                private_key,
+                [GroupName.secp256r1])
+
+        msg = srv_key_exchange.makeServerKeyExchange('sha256')
+        msg.signature[-1] ^= 1
+
+        print("Error printed below is expected", file=sys.stderr)
+        with self.assertRaises(TLSDecryptionFailed):
+            exp.process(state, msg)
 
     def test_process_with_default_signature_algorithm(self):
         exp = ExpectServerKeyExchange()
