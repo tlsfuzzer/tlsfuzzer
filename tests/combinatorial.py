@@ -415,19 +415,23 @@ def server_config(conf):
         params += ["-verify", "1"]
 
     dh_param = conf['SKE_dh_group']
+    # XXX assuming that if second handshake is also using DHE group
+    # that it is the same group
     if "ffdhe" in dh_param:
         params += ["-dhparam", dh_param + ".pem"]
     # only really needed for OpenSSL 1.0.1, later select curve automatically
-    elif dh_param != "no_message":
-        if dh_param != "x25519" and dh_param != "x448":
-            dh_param = dh_param.replace("secp256r1", "prime256v1")
-            params += ["-named_curve", dh_param]
+    #elif dh_param != "no_message":
+    #    if dh_param != "x25519" and dh_param != "x448":
+    #        dh_param = dh_param.replace("secp256r1", "prime256v1")
+    #        params += ["-named_curve", dh_param]
 
     if conf['SH_session_ticket_ext'] == "false":
         params += ["-no_ticket"]
 
     if conf['SH_compression'] == "deflate":
         params += ["-comp"]
+
+    # TODO OCSP stapling
 
     return params
 
