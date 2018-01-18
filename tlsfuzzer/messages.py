@@ -514,6 +514,14 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
         public_key._addPKCS1Padding = old_addPKCS1Padding
         return ret
 
+    def post_send(self, state):
+        """Save intermediate handshake hash value."""
+        # for EMS all messages up to and including CKE are part of
+        # "session_hash"
+        super(ClientKeyExchangeGenerator, self).post_send(state)
+        state.certificate_verify_handshake_hashes = \
+            state.handshake_hashes.copy()
+
 
 class ClientMasterKeyGenerator(HandshakeProtocolMessageGenerator):
     """Generator for SSLv2 Handshake Protocol CLIENT-MASTER-KEY message."""
@@ -660,10 +668,6 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         if self.sig_alg is None:
             self.sig_alg = self.msg_alg
 
-        # we need a copy of the handshake hashes for use in Extended Master
-        # Secret calculation
-        status.certificate_verify_handshake_hashes = \
-            status.handshake_hashes.copy()
         # TODO: generate a random key if none provided
         if self.signature is not None:
             signature = self.signature
