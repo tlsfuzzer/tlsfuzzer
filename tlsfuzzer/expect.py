@@ -595,6 +595,7 @@ class ExpectChangeCipherSpec(Expect):
         assert ccs.type == 1
 
         if state.resuming:
+            state.msg_sock.encryptThenMAC = state.encrypt_then_mac
             calc_pending_states(state)
 
         state.msg_sock.changeReadState()
