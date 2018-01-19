@@ -1,0 +1,479 @@
+[System]
+-- Combinatorial testing parameters for TLS 1.2 protocol implementations (generic)
+Name: TLS 1.2
+
+[Parameter]
+-- prefix of 2 means that the value is for the 2nd handshake (either the
+-- resumption or renegotiation one)
+
+--
+-- Generic Connection parameters
+--
+Key_exchange (enum) : RSA, ECDHE, DHE
+H2Key_exchange (enum) : RSA, ECDHE, DHE
+Server_authentication (enum) : RSA, ECDSA, DSA, anon
+H2Server_authentication (enum) : RSA, ECDSA, DSA, anon
+Cipher (enum) : AES_128_CBC, AES_256_CBC, 3DES_EDE_CBC, AES_128_GCM, AES_256_GCM, RC4, Chacha20_Poly1305, Camellia_128_CBC, Camellia_256_CBC
+H2Cipher (enum) : AES_128_CBC, AES_256_CBC, 3DES_EDE_CBC, AES_128_GCM, AES_256_GCM, RC4, Chacha20_Poly1305, Camellia_128_CBC, Camellia_256_CBC
+Integrity (enum) : MD5_HMAC, SHA1_HMAC, SHA256_HMAC, SHA384_HMAC, AEAD
+H2Integrity (enum) : MD5_HMAC, SHA1_HMAC, SHA256_HMAC, SHA384_HMAC, AEAD
+-- PRF="protocol" means that the cipher uses protocol defined PRF, essentially
+-- it means the cipher is defined for TLS 1.1 or earlier but can be used with
+-- TLS 1.2 where it uses SHA256 implicitly not explicitly
+PRF (enum) : protocol, SHA256, SHA384
+H2PRF (enum) : protocol, SHA256, SHA384
+-- "anon" is used both when we don't want to send certificate and the server
+-- asked for it and when the server will not ask for certificate
+Client_authentication (enum) : RSA, ECDSA, DSA, anon
+H2Client_authentication (enum) : RSA, ECDSA, DSA, anon
+-- key sizes of certificates
+-- "none" is used for no authentication
+Server_key (enum) : rsa1024, rsa2048, rsa3072, rsa4096, rsa6144, rsa8192, dsa1024, dsa2048, dsa3072, dsa4096, ecdsaP256, ecdsaP384, ecdsaP521, none
+H2Server_key (enum) : rsa1024, rsa2048, rsa3072, rsa4096, rsa6144, rsa8192, dsa1024, dsa2048, dsa3072, dsa4096, ecdsaP256, ecdsaP384, ecdsaP521, none
+-- type of certificate used by client
+Client_key (enum) : rsa1024, rsa2048, rsa3072, rsa4096, rsa6144, rsa8192, dsa1024, dsa2048, dsa3072, dsa4096, ecdsaP256, ecdsaP384, ecdsaP521, none
+H2Client_key (enum) : rsa1024, rsa2048, rsa3072, rsa4096, rsa6144, rsa8192, dsa1024, dsa2048, dsa3072, dsa4096, ecdsaP256, ecdsaP384, ecdsaP521, none
+-- Whether we should disconnect and resume session or do renegotiation (and
+-- resume)
+Disconnect (boolean) : true, false
+-- Whether the renegotiation is server initiated or not
+Hello_Request (boolean) : true, false
+H2Ticket_resume (boolean) : true, false
+
+--
+-- Client Hello settings
+--
+-- what value does the Client Hello SessionID includes
+-- "random" means it's a value not assigned by server but selected at random by client
+-- "resume" means that it's the value provided by server in 1st Client Hello
+CH_SessionID (enum) : empty, random
+H2CH_SessionID (enum) : empty, random, resume
+-- contents of Client Hello compression methods list
+-- "null_only" means that only a "no compression" (i.e. null compression) is supported
+CH_compression (enum) : null_only, null_and_deflate
+H2CH_compression (enum) : null_only, null_and_deflate
+-- whether the Client Hello includes the extensions field (even if empty)
+CH_extensions_present (boolean) : true, false
+H2CH_extensions_present (boolean) : true, false
+
+-- Client Hello session ticket contents
+CH_session_ticket (enum) : empty, invalid, no_ext
+H2CH_session_ticket (enum) : empty, resume, invalid, no_ext
+-- Renegotiation Info (Secure Renegotiation)
+CH_renegotiation_info_SCSV (enum) : first, second, last, absent
+H2CH_renegotiation_info_SCSV (enum) : first, second, last, absent
+CH_renegotiation_info_ext (boolean) : true, false
+H2CH_renegotiation_info_ext (boolean) : true, false
+
+CH_signature_algorithms_ext (boolean) : true, false
+H2CH_signature_algorithms_ext (boolean) : true, false
+CH_supported_groups_ext (boolean) : true, false
+H2CH_supported_groups_ext (boolean) : true, false
+CH_encrypt_then_mac_ext (boolean) : true, false
+H2CH_encrypt_then_mac_ext (boolean) : true, false
+
+-- value of the server_name extension in Client Hello
+CH_server_name (enum) : no_ext, correct, mismatch
+H2CH_server_name (enum) : no_ext, correct, mismatch
+
+CH_status_request_ext (boolean) : true, false
+H2CH_status_request_ext (boolean) : true, false
+
+CH_extended_master_secret_ext (boolean) : true, false
+H2CH_extended_master_secret_ext (boolean) : true, false
+
+--
+-- Server Hello settings
+--
+-- when sessionID is "present", it means that the session is resumable and is a
+-- new session
+-- when sessionID is "resume", it means the session was actually resumed
+-- (the value comes from the value provided by Client)
+SH_SessionID (enum) : empty, present
+H2SH_SessionID (enum) : empty, present, resume
+-- "null" means no compression, not no value
+SH_compression (enum) : null, deflate
+H2SH_compression (enum) : null, deflate
+-- whether the Server Hello includes the extensions field (even if empty)
+SH_extensions_present (boolean) : true, false
+H2SH_extensions_present (boolean) : true, false
+
+SH_renegotiation_info_ext (boolean) : true, false
+H2SH_renegotiation_info_ext (boolean) : true, false
+
+SH_status_request_ext (boolean) : true, false
+H2SH_status_request_ext (boolean) : true, false
+
+-- whether the server sends the session ticket extension
+SH_session_ticket_ext (boolean) : true, false
+H2SH_session_ticket_ext (boolean) : true, false
+
+SH_encrypt_then_mac_ext (boolean) : true, false
+H2SH_encrypt_then_mac_ext (boolean) : true, false
+
+SH_extended_master_secret_ext (boolean) : true, false
+H2SH_extended_master_secret_ext (boolean) : true, false
+
+--
+-- Server Key Exchange settings
+--
+-- "no_message" means that the message is not exchanged (e.g. RSA kex)
+SKE_dh_group (enum) : ffdhe1024, ffdhe2048, ffdhe3072, ffdhe4096, ffdhe6144, ffdhe8192, secp256r1, secp384r1, secp521r1, x25519, x448, no_message
+H2SKE_dh_group (enum) : ffdhe1024, ffdhe2048, ffdhe3072, ffdhe4096, ffdhe6144, ffdhe8192, secp256r1, secp384r1, secp521r1, x25519, x448, no_message
+-- SKE_signature_scheme="no_message" means that the message is not exchanged (e.g. RSA kex)
+-- SKE_signature_scheme="none" means that the SKE does not include signature (i.e. it's an anonymous ciphersuite)
+SKE_signature_scheme (enum) : rsa_sha1, rsa_sha224, rsa_sha256, rsa_sha384, rsa_sha512, ecdsa_sha1, ecdsa_sha224, ecdsa_sha256, ecdsa_sha384, ecdsa_sha512, dsa_sha1, dsa_sha224, dsa_sha256, dsa_sha384, dsa_sha512, rsapss_sha256, rsapss_sha384, rsapss_sha512, none, no_message
+H2SKE_signature_scheme (enum) : rsa_sha1, rsa_sha224, rsa_sha256, rsa_sha384, rsa_sha512, ecdsa_sha1, ecdsa_sha224, ecdsa_sha256, ecdsa_sha384, ecdsa_sha512, dsa_sha1, dsa_sha224, dsa_sha256, dsa_sha384, dsa_sha512, rsapss_sha256, rsapss_sha384, rsapss_sha512, none, no_message
+
+--
+-- Certificate Request message
+--
+-- whether the server sent Certificate Request message
+CR_sent (boolean) : true, false
+H2CR_sent (boolean) : true, false
+
+--
+-- Client Certificate message
+--
+-- Client Certificate is mandated by CR_sent, certificate inside by Client_key
+
+--
+-- Certificate Verify message
+--
+-- CV_signature_scheme = "no_message" is used when the client did not sent Certificate (irrespective if it was asked to do that)
+-- Certificate Verify signatures
+CV_signature_scheme (enum) : rsa_sha1, rsa_sha224, rsa_sha256, rsa_sha384, rsa_sha512, ecdsa_sha1, ecdsa_sha224, ecdsa_sha256, ecdsa_sha384, ecdsa_sha512, dsa_sha1, dsa_sha224, dsa_sha256, dsa_sha384, dsa_sha512, rsapss_sha256, rsapss_sha384, rsapss_sha512, no_message
+H2CV_signature_scheme (enum) : rsa_sha1, rsa_sha224, rsa_sha256, rsa_sha384, rsa_sha512, ecdsa_sha1, ecdsa_sha224, ecdsa_sha256, ecdsa_sha384, ecdsa_sha512, dsa_sha1, dsa_sha224, dsa_sha256, dsa_sha384, dsa_sha512, rsapss_sha256, rsapss_sha384, rsapss_sha512, no_message
+
+--
+-- Messages Introduced by extensions
+--
+New_Session_Ticket_msg (boolean) : true, false
+H2New_Session_Ticket_msg (boolean) : true, false
+Certificate_Status_msg (boolean) : true, false
+H2Certificate_Status_msg (boolean) : true, false
+
+[Relation]
+-- this section is optional
+-- general format Rx : (p1, p2, ..., pk, Strength)
+
+[Constraint]
+--
+-- Ciphersuite limitations
+--
+-- RSA KEX requires RSA server key
+Key_exchange == "RSA" => Server_authentication = "RSA"
+H2Key_exchange == "RSA" => H2Server_authentication = "RSA"
+-- ECDHE can be used only with RSA or ECDHE
+Key_exchange == "ECDHE" => Server_authentication != "DSA"
+H2Key_exchange == "ECDHE" => H2Server_authentication != "DSA"
+-- DSA requires DHE
+Server_authentication == "DSA" => Key_exchange == "DHE"
+H2Server_authentication == "DSA" => H2Key_exchange == "DHE"
+-- GCM ciphers use AEAD
+(Cipher == "AES_128_GCM" || Cipher == "AES_256_GCM" || Cipher == "Chacha20_Poly1305") => Integrity = "AEAD"
+(H2Cipher == "AES_128_GCM" || H2Cipher == "AES_256_GCM" || H2Cipher == "Chacha20_Poly1305") => H2Integrity = "AEAD"
+-- all TLS 1.2 ciphers specify SHA256 or SHA384 HMAC, only TLS 1.1 ciphers
+-- don't, but they are redefined to use protocol default PRF
+(Integrity == "SHA1_HMAC" || Integrity == "MD5_HMAC") => PRF = "protocol"
+(H2Integrity == "SHA1_HMAC" || H2Integrity == "MD5_HMAC") => H2PRF = "protocol"
+-- RC4 is specified only with MD5 and SHA1 HMAC
+Cipher == "RC4" => (Integrity == "MD5_HMAC" || Integrity == "SHA1_HMAC")
+H2Cipher == "RC4" => (H2Integrity == "MD5_HMAC" || H2Integrity == "SHA1_HMAC")
+-- for new CBC ciphers, PRF must match
+Integrity == "SHA256_HMAC" => PRF = "SHA256"
+H2Integrity == "SHA256_HMAC" => H2PRF = "SHA256"
+Integrity == "SHA384_HMAC" => PRF = "SHA384"
+H2Integrity == "SHA384_HMAC" => H2PRF = "SHA384"
+-- ECDSA can be used only with ECDH or ECDHE, no other ciphersuites and we don't model ECDH
+Server_authentication = "ECDSA" => Key_exchange = "ECDHE"
+H2Server_authentication = "ECDSA" => H2Key_exchange = "ECDHE"
+Server_authentication == "anon" => (Key_exchange = "DHE" || Key_exchange = "ECDHE")
+H2Server_authentication == "anon" => (H2Key_exchange = "DHE" || H2Key_exchange = "ECDHE")
+-- 3DES is only specified with SHA1 HMAC
+Cipher == "3DES_EDE_CBC" => Integrity  = "SHA1_HMAC"
+H2Cipher == "3DES_EDE_CBC" => H2Integrity  = "SHA1_HMAC"
+-- all GCM ciphersuites specifiy PRF
+Cipher == "AES_128_GCM" => PRF == "sha256"
+H2Cipher == "AES_128_GCM" => H2PRF == "sha256"
+Cipher == "AES_256_GCM" => PRF == "sha384"
+H2Cipher == "AES_256_GCM" => H2PRF == "sha384"
+Cipher == "Chacha20_Poly1305" => PRF == "sha256"
+H2Cipher == "Chacha20_Poly1305" => H2PRF == "sha256"
+-- aes cbc ciphersuites are specified with SHA1, sha256 and sha384 HMACs
+(Cipher == "AES_128_CBC" || Cipher == "AES_256_CBC" || Cipher == "Camellia_128_CBC" || Cipher == "Camellia_256_CBC") => (Integrity != "AEAD" && Integrity != "MD5_HMAC")
+(H2Cipher == "AES_128_CBC" || H2Cipher == "AES_256_CBC" || H2Cipher == "Camellia_128_CBC" || H2Cipher == "Camellia_256_CBC") => (H2Integrity != "AEAD" && H2Integrity != "MD5_HMAC")
+-- but AES-128-cbc nor camellia doesn't have a ciphersuite with SHA384
+(Cipher = "AES_128_CBC" || Cipher == "Camellia_128_CBC") => Integrity != "SHA384_HMAC"
+(H2Cipher = "AES_128_CBC" || H2Cipher == "Camellia_128_CBC") => H2Integrity != "SHA384_HMAC"
+-- SHA384 HMAC with AES 256 CBC ciphers are rather unique and aren't defined with all key exchanges
+Key_exchange = "ECDHE" && (Cipher = "AES_256_CBC" || Cipher = "Camellia_256_CBC") => (Integrity = "SHA384_HMAC" || Integrity = "SHA1_HMAC")
+H2Key_exchange = "ECDHE" && (H2Cipher = "AES_256_CBC" || H2Cipher = "Camellia_256_CBC") => (H2Integrity = "SHA384_HMAC" || H2Integrity = "SHA1_HMAC")
+(Key_exchange = "RSA" || Key_exchange = "DHE") && Cipher = "AES_256_CBC" => (Integrity = "SHA256_HMAC" || Integrity = "SHA1_HMAC")
+(H2Key_exchange = "RSA" || H2Key_exchange = "DHE") && H2Cipher = "AES_256_CBC" => (H2Integrity = "SHA256_HMAC" || H2Integrity = "SHA1_HMAC")
+-- only CBC ciphers with ECDHE_anon
+Server_authentication = "anon" && Key_exchange = "ECDHE" => (Cipher = "AES_128_CBC" || Cipher = "AES_256_CBC")
+Server_authentication = "anon" && Key_exchange = "ECDHE" => Integrity = "SHA1_HMAC"
+H2Server_authentication = "anon" && H2Key_exchange = "ECDHE" => (H2Cipher = "AES_128_CBC" || H2Cipher = "AES_256_CBC")
+H2Server_authentication = "anon" && H2Key_exchange = "ECDHE" => H2Integrity = "SHA1_HMAC"
+-- DH_anon has CBC with two HMACs and only one option for AEAD
+Server_authentication = "anon" && Key_exchange = "DHE" && (Cipher = "AES_128_CBC" || Cipher = "AES_256_CBC") => (Integrity = "SHA1_HMAC" || Integrity = "SHA256_HMAC")
+H2Server_authentication = "anon" && H2Key_exchange = "DHE" && (H2Cipher = "AES_128_CBC" || H2Cipher = "AES_256_CBC") => (H2Integrity = "SHA1_HMAC" || H2Integrity = "SHA256_HMAC")
+-- all AES_128_CBC are used either with SHA1 or SHA256 HMAC
+Cipher = "AES_128_CBC" => (Integrity = "SHA1_HMAC" || Integrity = "SHA256_HMAC")
+H2Cipher = "AES_128_CBC" => (H2Integrity = "SHA1_HMAC" || H2Integrity = "SHA256_HMAC")
+-- no chacha20 ciphers with anonymous Diffie-Hellman, DSA auth or RSA key exchange
+Cipher == "Chacha20_Poly1305" => (Server_authentication != "anon" && Server_authentication != "DSA")
+Cipher == "Chacha20_Poly1305" => Key_exchange != "RSA"
+H2Cipher == "Chacha20_Poly1305" => (H2Server_authentication != "anon" && H2Server_authentication != "DSA")
+H2Cipher == "Chacha20_Poly1305" => H2Key_exchange != "RSA"
+-- RC4 is special in that there is no authenticated DHE option and for ECDHE only SHA1 is used
+Cipher == "RC4" && Key_exchange == "DHE" => Server_authentication == "anon" && Integrity == "MD5_HMAC"
+H2Cipher == "RC4" && H2Key_exchange == "DHE" => H2Server_authentication == "anon" && H2Integrity == "MD5_HMAC"
+Cipher == "RC4" => Server_authentication != "DSA"
+H2Cipher == "RC4" => H2Server_authentication != "DSA"
+Cipher == "RC4" && Key_exchange == "ECDHE" => Integrity == "SHA1_HMAC"
+H2Cipher == "RC4" && H2Key_exchange == "ECDHE" => H2Integrity == "SHA1_HMAC"
+
+--
+-- Reconnect limitations
+--
+-- If we want to renegotiatie from server side, we can't disconnect
+-- (this applies only to the first handshake)
+Hello_Request = true => Disconnect = false
+
+-- there is no signalling mechanism for session resumption
+-- inclusion of extension in server hello does not mean that the session
+-- will be resumed, only if the ticket will be sent
+H2Ticket_resume = true => H2CH_session_ticket == "resume"
+
+-- if we are not doing renegotiation nor resumption, there is no need for
+-- extensive testing of second handshake, it would just duplicate the work done
+-- with first handshakes
+-- DON'T do it as we need to see if the server correctly negotiated new session
+-- if the EMS wasn't present in first connection but is in second
+-- Disconnect = true && H2Ticket_resume = false && H2SH_SessionID != "resume" => H2Key_exchange = "RSA" && H2Server_authentication = "RSA" && H2Cipher = "AES_128_CBC" && H2Integrity = "SHA1_HMAC" && H2PRF = "protocol" && H2Client_authentication = "anon" && H2Server_key = "rsa2048" && H2SH_extensions_present = false
+
+-- if we are doing resumption client has to have sent the session ID
+H2SH_SessionID == "resume" => H2CH_SessionID == "resume"
+
+-- When a session is resumed then the second client hello MUST include cipher from the previous session
+-- while some other things aren't actually negotiated (or can't be changed as a virtue of resumption)
+-- make them required match as this way we won't skip tuples unnecesairly
+(H2SH_SessionID == "resume" || H2Ticket_resume == true) => (H2Key_exchange = Key_exchange && H2Server_authentication = Server_authentication && H2Cipher = Cipher && H2Integrity = Integrity && H2PRF = PRF && H2Client_authentication = Client_authentication && H2Server_key = Server_key && H2Client_key = Client_key && H2SH_compression = SH_compression && H2SKE_dh_group = SKE_dh_group && H2SKE_signature_scheme = SKE_signature_scheme && H2CV_signature_scheme = CV_signature_scheme)
+-- when resuming it's impossible to send OCSP response
+(H2SH_SessionID == "resume" || H2Ticket_resume == true) => (H2SH_status_request_ext = false && H2Certificate_Status_msg = false)
+-- TODO how to handle a situation in which the server decides to upgrade the cipher instead of renegotiating session
+
+--
+-- Certificate limitations
+--
+-- if server does not use authentication, client can't
+Server_authentication == "anon" => Client_authentication == "anon"
+H2Server_authentication == "anon" => H2Client_authentication == "anon"
+-- Set server keys depending on authentication
+Server_authentication == "anon" => Server_key = "none"
+H2Server_authentication == "anon" => H2Server_key = "none"
+Server_authentication == "RSA" => (Server_key = "rsa1024" || Server_key = "rsa2048" || Server_key = "rsa3072" || Server_key = "rsa4096" || Server_key = "rsa6144" || Server_key = "rsa8192")
+H2Server_authentication == "RSA" => (H2Server_key = "rsa1024" || H2Server_key = "rsa2048" || H2Server_key = "rsa3072" || H2Server_key = "rsa4096" || H2Server_key = "rsa6144" || H2Server_key = "rsa8192")
+Server_authentication == "ECDSA" => (Server_key = "ecdsaP256" || Server_key = "ecdsaP384" || Server_key = "ecdsaP521")
+H2Server_authentication == "ECDSA" => (H2Server_key = "ecdsaP256" || H2Server_key = "ecdsaP384" || H2Server_key = "ecdsaP521")
+Server_authentication == "DSA" => (Server_key = "dsa1024" || Server_key = "dsa2048" || Server_key = "dsa3072" || Server_key = "dsa4096")
+H2Server_authentication == "DSA" => (H2Server_key = "dsa1024" || H2Server_key = "dsa2048" || H2Server_key = "dsa3072" || H2Server_key = "dsa4096")
+-- Set client keys depending on authentication
+Client_authentication == "anon" => Client_key = "none"
+H2Client_authentication == "anon" => H2Client_key = "none"
+Client_authentication == "RSA" => (Client_key = "rsa1024" || Client_key = "rsa2048" || Client_key = "rsa3072" || Client_key = "rsa4096" || Client_key = "rsa6144" || Client_key = "rsa8192")
+H2Client_authentication == "RSA" => (H2Client_key = "rsa1024" || H2Client_key = "rsa2048" || H2Client_key = "rsa3072" || H2Client_key = "rsa4096" || H2Client_key = "rsa6144" || H2Client_key = "rsa8192")
+Client_authentication == "ECDSA" => (Client_key = "ecdsaP256" || Client_key = "ecdsaP384" || Client_key = "ecdsaP521")
+H2Client_authentication == "ECDSA" => (H2Client_key = "ecdsaP256" || H2Client_key = "ecdsaP384" || H2Client_key = "ecdsaP521")
+Client_authentication == "DSA" => (Client_key = "dsa1024" || Client_key = "dsa2048" || Client_key = "dsa3072" || Client_key = "dsa4096")
+H2Client_authentication == "DSA" => (H2Client_key = "dsa1024" || H2Client_key = "dsa2048" || H2Client_key = "dsa3072" || H2Client_key = "dsa4096")
+-- when client needs to authenticate, the Certificate Request needs to be sent
+Client_authentication != "anon" => CR_sent = true
+H2Client_authentication != "anon" => H2CR_sent = true
+
+--
+-- Client Hello limitations
+--
+-- session ID session resumption can happen only if the session was set in
+-- the first connection
+H2CH_SessionID = "resume" => SH_SessionID = "present"
+-- requirements for session ticket
+CH_session_ticket != "no_ext" => CH_extensions_present = true
+H2CH_session_ticket != "no_ext" => H2CH_extensions_present = true
+-- for the session to be resumed, we must have a ticket from previous connection
+H2CH_session_ticket = "resume" => New_Session_Ticket_msg = true
+-- requireements for renegotiation info
+CH_renegotiation_info_ext = true => CH_extensions_present = true
+H2CH_renegotiation_info_ext = true => H2CH_extensions_present = true
+-- we're modelling insecure renegotiation too, so no renego info is OK too
+--
+-- when renegotiating connection, empty_renegotiation_info_SCSV is invalid
+Disconnect = false => H2CH_renegotiation_info_SCSV = "absent"
+
+-- requirements for signature algorithms
+CH_signature_algorithms_ext = true => CH_extensions_present = true
+H2CH_signature_algorithms_ext = true => H2CH_extensions_present = true
+-- requirements for server name ext
+CH_server_name != "no_ext" => CH_extensions_present = true
+H2CH_server_name != "no_ext" => H2CH_extensions_present = true
+-- requirements for status request
+CH_status_request_ext = true => CH_extensions_present = true
+H2CH_status_request_ext = true => H2CH_extensions_present = true
+-- requirements for supported_groups
+CH_supported_groups_ext = true => CH_extensions_present = true
+H2CH_supported_groups_ext = true => H2CH_extensions_present = true
+-- requirements for extended master secret
+CH_extended_master_secret_ext = true => CH_extensions_present = true
+H2CH_extended_master_secret_ext = true => H2CH_extensions_present = true
+
+--
+-- Server Hello limitations
+--
+SH_compression = "deflate" => CH_compression = "null_and_deflate"
+H2SH_compression = "deflate" => H2CH_compression = "null_and_deflate"
+
+-- renegotiation info limitations
+SH_renegotiation_info_ext = true => SH_extensions_present = true
+H2SH_renegotiation_info_ext = true => H2SH_extensions_present = true
+-- can send only as a reponse
+SH_renegotiation_info_ext = true => (CH_renegotiation_info_SCSV != "absent" || CH_renegotiation_info_ext = true)
+H2SH_renegotiation_info_ext = true => (H2CH_renegotiation_info_SCSV != "absent" || H2CH_renegotiation_info_ext = true)
+-- when secure renego was negotiatied in first connection, it must be present in second
+SH_renegotiation_info_ext = true => H2SH_renegotiation_info_ext = true
+
+-- status request limitations
+-- can send only as a response
+SH_status_request_ext = true => SH_extensions_present = true && CH_status_request_ext = true
+H2SH_status_request_ext = true => H2SH_extensions_present = true && H2CH_status_request_ext = true
+
+-- session ticket limitations
+SH_session_ticket_ext = true => SH_extensions_present = true && CH_session_ticket != "no_ext"
+H2SH_session_ticket_ext = true => H2SH_extensions_present = true && H2CH_session_ticket != "no_ext"
+
+-- encrypt then mac limitations
+-- can be negotiated only for CBC ciphers
+SH_encrypt_then_mac_ext = true => SH_extensions_present = true && CH_encrypt_then_mac_ext = true && (Integrity == "SHA1_HMAC" || Integrity == "SHA256_HMAC" || Integrity == "SHA384_HMAC") && (Cipher != "RC4")
+H2SH_encrypt_then_mac_ext = true => H2SH_extensions_present = true && H2CH_encrypt_then_mac_ext = true && (H2Integrity == "SHA1_HMAC" || H2Integrity == "SHA256_HMAC" || H2Integrity == "SHA384_HMAC") && (H2Cipher != "RC4")
+-- in resumption EtM must be preserved if applicable, but can be turned on
+SH_encrypt_then_mac_ext = true && H2Cipher != "RC4" && (H2Integrity == "SHA1_HMAC" || H2Integrity == "SHA256_HMAC" || H2Integrity == "SHA384_HMAC") => H2SH_encrypt_then_mac_ext = true
+
+-- extended master secret limitations
+SH_extended_master_secret_ext = true => SH_extensions_present = true && CH_extended_master_secret_ext = true
+H2SH_extended_master_secret_ext = true => H2SH_extensions_present = true && H2CH_extended_master_secret_ext = true
+-- in resumption EMS must be preserved, but can not be turned on; new session
+-- must be negotiated; same for renegotiation
+SH_extended_master_secret_ext = true && (H2SH_SessionID = "resume" || H2Ticket_resume = true || Disconnect = false) => H2SH_extended_master_secret_ext = true
+SH_extended_master_secret_ext = false && (H2SH_SessionID = "resume" || H2Ticket_resume = true || Disconnect = false) => H2SH_extended_master_secret_ext = false
+SH_extended_master_secret_ext = false && H2CH_extended_master_secret_ext = true => (H2SH_SessionID != "resume" && H2Ticket_resume == false)
+
+--
+-- SKE limitations
+--
+-- particular signature types can be made only using specific keys
+Server_authentication == "anon" => SKE_signature_scheme = "none" && SKE_dh_group != "no_message"
+Server_authentication != "anon" => SKE_signature_scheme != "none"
+H2Server_authentication == "anon" => H2SKE_signature_scheme = "none" && H2SKE_dh_group != "no_message"
+H2Server_authentication != "anon" => H2SKE_signature_scheme != "none"
+Key_exchange == "RSA" => SKE_signature_scheme = "no_message" && SKE_dh_group = "no_message"
+H2Key_exchange == "RSA" => H2SKE_signature_scheme = "no_message" && H2SKE_dh_group = "no_message"
+-- note that for RSA "no message" is also an option as we have RSA key exchange
+Server_authentication == "RSA" => (SKE_signature_scheme == "rsa_sha1" || SKE_signature_scheme == "rsa_sha224" || SKE_signature_scheme == "rsa_sha384" || SKE_signature_scheme == "rsa_sha512" || SKE_signature_scheme == "rsapss_sha256" || SKE_signature_scheme == "rsapss_sha384" || SKE_signature_scheme == "rsapss_sha512" || SKE_signature_scheme == "no_message")
+H2Server_authentication == "RSA" => (H2SKE_signature_scheme == "rsa_sha1" || H2SKE_signature_scheme == "rsa_sha224" || H2SKE_signature_scheme == "rsa_sha384" || H2SKE_signature_scheme == "rsa_sha512" || H2SKE_signature_scheme == "rsapss_sha256" || H2SKE_signature_scheme == "rsapss_sha384" || H2SKE_signature_scheme == "rsapss_sha512" || H2SKE_signature_scheme == "no_message")
+Server_authentication == "DSA" => (SKE_signature_scheme == "dsa_sha1" || SKE_signature_scheme == "dsa_sha224" || SKE_signature_scheme == "dsa_sha384" || SKE_signature_scheme == "dsa_sha512")
+H2Server_authentication == "DSA" => (H2SKE_signature_scheme == "dsa_sha1" || H2SKE_signature_scheme == "dsa_sha224" || H2SKE_signature_scheme == "dsa_sha384" || H2SKE_signature_scheme == "dsa_sha512")
+Server_authentication == "ECDSA" => (SKE_signature_scheme == "ecdsa_sha1" || SKE_signature_scheme == "ecdsa_sha224" || SKE_signature_scheme == "ecdsa_sha384" || SKE_signature_scheme == "ecdsa_sha512")
+H2Server_authentication == "ECDSA" => (H2SKE_signature_scheme == "ecdsa_sha1" || H2SKE_signature_scheme == "ecdsa_sha224" || H2SKE_signature_scheme == "ecdsa_sha384" || H2SKE_signature_scheme == "ecdsa_sha512")
+-- key exchange type dictates the group
+Key_exchange == "DHE" => (SKE_dh_group == "ffdhe1024" || SKE_dh_group == "ffdhe2048" || SKE_dh_group == "ffdhe3072" || SKE_dh_group == "ffdhe4096" || SKE_dh_group == "ffdhe6144" || SKE_dh_group == "ffdhe8192")
+H2Key_exchange == "DHE" => (H2SKE_dh_group == "ffdhe1024" || H2SKE_dh_group == "ffdhe2048" || H2SKE_dh_group == "ffdhe3072" || H2SKE_dh_group == "ffdhe4096" || H2SKE_dh_group == "ffdhe6144" || H2SKE_dh_group == "ffdhe8192")
+Key_exchange == "ECDHE" => (SKE_dh_group == "secp256r1" || SKE_dh_group == "secp384r1" || SKE_dh_group == "secp521r1" || SKE_dh_group == "x25519" || SKE_dh_group == "x448")
+H2Key_exchange == "ECDHE" => (H2SKE_dh_group == "secp256r1" || H2SKE_dh_group == "secp384r1" || H2SKE_dh_group == "secp521r1" || H2SKE_dh_group == "x25519" || H2SKE_dh_group == "x448")
+-- when client didn't advertise hashes, only sha1 is allowed
+CH_signature_algorithms_ext == false => (SKE_signature_scheme == "rsa_sha1" || SKE_signature_scheme == "ecdsa_sha1" || SKE_signature_scheme == "dsa_sha1")
+H2CH_signature_algorithms_ext == false => (H2SKE_signature_scheme == "rsa_sha1" || H2SKE_signature_scheme == "ecdsa_sha1" || H2SKE_signature_scheme == "dsa_sha1")
+-- when client didn't advertise groups, we expect P-256
+-- technically the server can select any, but P-256 is the safest choice
+CH_supported_groups_ext == false && Key_exchange == "ECDHE" => SKE_dh_group == "secp256r1"
+H2CH_supported_groups_ext == false && H2Key_exchange == "ECDHE" => H2SKE_dh_group == "secp256r1"
+
+--
+-- Certificate Request limitations
+--
+-- Cannot authenticate client without server asking for certificate
+CR_sent == false => Client_authentication = "anon"
+H2CR_sent == false => H2Client_authentication = "anon"
+
+--
+-- Certificate Verify limitations
+--
+-- Client cert dictates the signatures
+Client_authentication == "anon" => CV_signature_scheme = "no_message"
+H2Client_authentication == "anon" => H2CV_signature_scheme = "no_message"
+Client_authentication == "RSA" => (CV_signature_scheme == "rsa_sha1" || CV_signature_scheme == "rsa_sha224" || CV_signature_scheme == "rsa_sha384" || CV_signature_scheme == "rsa_sha512" || CV_signature_scheme == "rsapss_sha256" || CV_signature_scheme == "rsapss_sha384" || CV_signature_scheme == "rsapss_sha512")
+H2Client_authentication == "RSA" => (H2CV_signature_scheme == "rsa_sha1" || H2CV_signature_scheme == "rsa_sha224" || H2CV_signature_scheme == "rsa_sha384" || H2CV_signature_scheme == "rsa_sha512" || H2CV_signature_scheme == "rsapss_sha256" || H2CV_signature_scheme == "rsapss_sha384" || H2CV_signature_scheme == "rsapss_sha512")
+Client_authentication == "DSA" => (CV_signature_scheme == "dsa_sha1" || CV_signature_scheme == "dsa_sha224" || CV_signature_scheme == "dsa_sha384" || CV_signature_scheme == "dsa_sha512")
+H2Client_authentication == "DSA" => (H2CV_signature_scheme == "dsa_sha1" || H2CV_signature_scheme == "dsa_sha224" || H2CV_signature_scheme == "dsa_sha384" || H2CV_signature_scheme == "dsa_sha512")
+Client_authentication == "ECDSA" => (CV_signature_scheme == "ecdsa_sha1" || CV_signature_scheme == "ecdsa_sha224" || CV_signature_scheme == "ecdsa_sha384" || CV_signature_scheme == "ecdsa_sha512")
+H2Client_authentication == "ECDSA" => (H2CV_signature_scheme == "ecdsa_sha1" || H2CV_signature_scheme == "ecdsa_sha224" || H2CV_signature_scheme == "ecdsa_sha384" || H2CV_signature_scheme == "ecdsa_sha512")
+
+-- Session ticket extension limitation on messages
+New_Session_Ticket_msg == true => SH_session_ticket_ext == true
+H2New_Session_Ticket_msg == true => H2SH_session_ticket_ext == true
+
+-- status request extension limitation on messages
+Certificate_Status_msg == true => SH_status_request_ext == true
+H2Certificate_Status_msg == true => H2SH_status_request_ext == true
+
+-- OpenSSL limitations
+-- RC4 and ADH is disabled
+Cipher != "RC4"
+H2Cipher != "RC4"
+Server_authentication != "anon"
+H2Server_authentication != "anon"
+-- rsa-pss in TLS is unsupported
+SKE_signature_scheme != "rsapss_sha256" && SKE_signature_scheme != "rsapss_sha384" && SKE_signature_scheme != "rsapss_sha512"
+H2SKE_signature_scheme != "rsapss_sha256" && H2SKE_signature_scheme != "rsapss_sha384" && H2SKE_signature_scheme != "rsapss_sha512"
+CV_signature_scheme != "rsapss_sha256" && CV_signature_scheme != "rsapss_sha384" && CV_signature_scheme != "rsapss_sha512"
+H2CV_signature_scheme != "rsapss_sha256" && H2CV_signature_scheme != "rsapss_sha384" && H2CV_signature_scheme != "rsapss_sha512"
+-- x448 is unsupported, only x25519 from new curves works
+SKE_dh_group != "x448"
+H2SKE_dh_group != "x448"
+-- Can't make OpenSSL s_server behave differently in every connection
+SKE_dh_group == "ffdhe1024" && H2Key_exchange == "DHE" => H2SKE_dh_group == "ffdhe1024"
+SKE_dh_group == "ffdhe2048" && H2Key_exchange == "DHE" => H2SKE_dh_group == "ffdhe2048"
+SKE_dh_group == "ffdhe3072" && H2Key_exchange == "DHE" => H2SKE_dh_group == "ffdhe3072"
+SKE_dh_group == "ffdhe4096" && H2Key_exchange == "DHE" => H2SKE_dh_group == "ffdhe4096"
+SKE_dh_group == "ffdhe6144" && H2Key_exchange == "DHE" => H2SKE_dh_group == "ffdhe6144"
+SKE_dh_group == "ffdhe8192" && H2Key_exchange == "DHE" => H2SKE_dh_group == "ffdhe8192"
+-- openssl requires extensions for connection negotiation
+CH_extensions_present != false
+H2CH_extensions_present != false
+-- no easy way to generate hello requests from s_server
+Hello_Request == false
+-- OpenSSL won't allow change of certificate on renegotiation (resumption does that implicitly)
+CR_sent == true && (Disconnect == false || H2SH_SessionID == "resume" || H2Ticket_resume == true) => H2CR_sent == false
+-- Can't make OpenSSL s_server behave differently in every connection
+CR_sent == false => H2CR_sent == false
+CR_sent == true && (Disconnect == true && H2SH_SessionID != "resume" && H2Ticket_resume == false) => H2CR_sent == true
+-- it's not possible to turn off EMS in OpenSSL
+CH_extended_master_secret_ext == true => SH_extended_master_secret_ext == true
+H2CH_extended_master_secret_ext == true => H2SH_extended_master_secret_ext == true
+-- it's also not possible to turn off EtM in OpenSSL
+CH_encrypt_then_mac_ext == true && Integrity != "AEAD" && Cipher != "RC4" => SH_encrypt_then_mac_ext == true
+H2CH_encrypt_then_mac_ext == true && H2Integrity != "AEAD" && Cipher != "RC4" => H2SH_encrypt_then_mac_ext == true
+
+-- tlsfuzzer limitations
+Cipher != "Camellia_128_CBC" && Cipher != "Camellia_256_CBC"
+H2Cipher != "Camellia_128_CBC" && H2Cipher != "Camellia_256_CBC"
+SH_compression != "deflate"
+H2SH_compression != "deflate"
+Server_authentication == "RSA" || Server_authentication == "anon"
+H2Server_authentication == "RSA" || H2Server_authentication == "anon"
+Client_authentication == "RSA" || Client_authentication == "anon"
+H2Client_authentication == "RSA" || H2Client_authentication == "anon"
+CH_session_ticket == "no_ext"
+H2CH_session_ticket == "no_ext"
+CH_status_request_ext == false
+H2CH_status_request_ext == false
