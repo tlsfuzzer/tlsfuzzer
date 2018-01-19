@@ -667,7 +667,7 @@ def start_server(server_cmd, server_env=tuple(), server_host=None,
     return ret, thr_stdout, thr_stderr
 
 
-def server_config(conf):
+def server_config(conf, cert_dir):
     params = ["/usr/bin/openssl", "s_server", "-www"]
 
     key = conf['Server_key']
@@ -678,7 +678,8 @@ def server_config(conf):
     if key == "none":
         params += ["-nocert"]
     else:
-        params += ["-key", key + ".key", "-cert", key + ".crt"]
+        params += ["-key", cert_dir + '/' + key + ".key",
+                   "-cert", cert_dir + '/' + key + ".crt"]
 
     if conf['CR_sent'] == "true":
         params += ["-verify", "1"]
@@ -687,7 +688,7 @@ def server_config(conf):
     # XXX assuming that if second handshake is also using DHE group
     # that it is the same group
     if "ffdhe" in dh_param:
-        params += ["-dhparam", dh_param + ".pem"]
+        params += ["-dhparam", cert_dir + '/' + dh_param + ".pem"]
     # only really needed for OpenSSL 1.0.1, later select curve automatically
     #elif dh_param != "no_message":
     #    if dh_param != "x25519" and dh_param != "x448":
@@ -723,8 +724,9 @@ test_data = None
 cert = None
 key = None
 run_only = set()
+cert_dir = "."
 
-opts, args = getopt.getopt(argv, "hi:k:c:")
+opts, args = getopt.getopt(argv, "hi:k:c:D:")
 for opt, arg in opts:
     if opt == "-h":
         help_msg()
@@ -742,6 +744,8 @@ for opt, arg in opts:
             text_cert = str(text_cert, 'utf-8')
         cert = X509()
         cert.parse(text_cert)
+    elif opt == "-D":
+        cert_dir = arg
     else:
         raise ValueError("Unexpected option: {0}".format(opt))
 
@@ -775,7 +779,7 @@ with open(test_data) as f:
 
         print("starting server...")
         try:
-            params = server_config(row)
+            params = server_config(row, cert_dir)
             srv, srv_out, srv_err = start_server(params, [], "localhost", 4433)
 
             print("...")
