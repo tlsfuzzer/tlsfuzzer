@@ -13,7 +13,7 @@ from tlslite.constants import ContentType, HandshakeType, CertificateType,\
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
         ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus
-from tlslite.extensions import TLSExtension
+from tlslite.extensions import TLSExtension, ALPNExtension
 from tlslite.utils.codec import Parser
 from tlslite.utils.compat import b2a_hex
 from tlslite.mathtls import calcFinished, RFC7919_GROUPS
@@ -104,6 +104,74 @@ class ExpectHandshake(Expect):
         raise NotImplementedError("Subclass need to implement this!")
 
 
+def srv_ext_handler_ems(state, extension):
+    """Process Extended Master Secret extension from server."""
+    if extension.extData:
+        raise AssertionError("Malformed EMS extension, data in payload")
+
+    state.extended_master_secret = True
+
+
+def srv_ext_handler_etm(state, extension):
+    """Process Encrypt then MAC extension from server."""
+    if extension.extData:
+        raise AssertionError("Malformed EtM extension, data in payload")
+
+    state.encrypt_then_mac = True
+
+
+def srv_ext_handler_sni(state, extension):
+    """Process the server_name extension from server."""
+    del state  # kept for comatibility
+    if extension.extData:
+        raise AssertionError("Malformed SNI extenion, data in payload")
+
+
+def srv_ext_handler_renego(state, extension):
+    """Process the renegotiation_info from server."""
+    if extension.renegotiated_connection != \
+            state.client_verify_data + state.server_verify_data:
+        raise AssertionError("Invalid data in renegotiation_info")
+
+
+def srv_ext_handler_alpn(state, extension):
+    """Process the ALPN extension from server."""
+    cln_hello = state.get_last_message_of_type(ClientHello)
+    cln_ext = cln_hello.getExtension(ExtensionType.alpn)
+    # the sent extension might have been provided with explicit encoding
+    cln_ext = ALPNExtension().parse(Parser(cln_ext.extData))
+
+    if not extension.protocol_names or len(extension.protocol_names) != 1:
+        raise AssertionError("Malformed ALPN extension")
+    if extension.protocol_names[0] not in cln_ext.protocol_names:
+        raise AssertionError("Server selected ALPN protocol we did not "
+                             "advertise")
+
+
+def srv_ext_handler_ec_point(state, extension):
+    """Process the ec_point_formats extension from server."""
+    del state
+    if extension.formats is None or not extension.formats:
+        raise AssertionError("Malformed ec_point_formats extension")
+
+
+def srv_ext_handler_npn(state, extension):
+    """Process the NPN extension from server."""
+    del state
+    if extension.protocols is None or not extension.protocols:
+        raise AssertionError("Malformed NPN extension")
+
+
+_srv_ext_handler = \
+        {ExtensionType.extended_master_secret: srv_ext_handler_ems,
+         ExtensionType.encrypt_then_mac: srv_ext_handler_etm,
+         ExtensionType.server_name: srv_ext_handler_sni,
+         ExtensionType.renegotiation_info: srv_ext_handler_renego,
+         ExtensionType.alpn: srv_ext_handler_alpn,
+         ExtensionType.ec_point_formats: srv_ext_handler_ec_point,
+         ExtensionType.supports_npn: srv_ext_handler_npn}
+
+
 class ExpectServerHello(ExpectHandshake):
     """Parsing TLS Handshake protocol Server Hello messages"""
 
@@ -123,6 +191,78 @@ class ExpectServerHello(ExpectHandshake):
         self.extensions = extensions
         self.version = version
         self.resume = resume
+
+    def _compare_extensions(self, srv_hello):
+        """
+        Verify that server provided extensions match exactly expected list.
+        """
+        # if the list of extensions is present, make sure it matches exactly
+        # with what the server sent
+        if self.extensions and not srv_hello.extensions:
+            raise AssertionError("Server did not send any extensions")
+        elif self.extensions and srv_hello.extensions:
+            expected = set(self.extensions.keys())
+            got = set(i.extType for i in srv_hello.extensions)
+            if got != expected:
+                diff = expected.difference(got)
+                if diff:
+                    raise AssertionError("Server did not sent exception(s): "
+                                         "{0}".format(
+                                             ", ".join((ExtensionType.toStr(i)
+                                                        for i in diff))))
+                diff = got.difference(expected)
+                if diff:
+                    raise AssertionError("Server sent unexpected exception(s):"
+                                         " {0}".format(
+                                             ", ".join((ExtensionType.toStr(i)
+                                                        for i in diff))))
+
+    def _process_extensions(self, state, cln_hello, srv_hello):
+        """Check if extensions are correct."""
+        for ext in srv_hello.extensions:
+            ext_id = ext.extType
+            cl_ext = cln_hello.getExtension(ext_id)
+            if ext_id == ExtensionType.renegotiation_info and \
+                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV \
+                    in cln_hello.cipher_suites:
+                cl_ext = True
+            if cl_ext is None:
+                raise AssertionError("Server sent unadvertised "
+                                     "extension of type {0}"
+                                     .format(ExtensionType
+                                             .toStr(ext_id)))
+            handler = None
+            if self.extensions:
+                try:
+                    handler = self.extensions[ext_id]
+                except KeyError:
+                    raise AssertionError("Unexpected extension from "
+                                         "server of type {0}"
+                                         .format(ExtensionType
+                                                 .toStr(ext_id)))
+            # use automatic handlers for some extensions
+            if handler is None:
+                try:
+                    handler = _srv_ext_handler[ext_id]
+                except KeyError:
+                    raise AssertionError("No autohandler for "
+                                         "{0}"
+                                         .format(ExtensionType
+                                                 .toStr(ext_id)))
+
+            if callable(handler):
+                handler(state, ext)
+            elif isinstance(handler, TLSExtension):
+                if not handler == ext:
+                    raise AssertionError("Expected extension not "
+                                         "matched for type {0}, "
+                                         "received: {1}"
+                                         .format(ExtensionType
+                                                 .toStr(ext_id),
+                                                 ext))
+            else:
+                raise ValueError("Bad extension handler for id {0}"
+                                 .format(ExtensionType.toStr(ext_id)))
 
     def process(self, state, msg):
         """
@@ -163,9 +303,8 @@ class ExpectServerHello(ExpectHandshake):
             assert self.cipher == srv_hello.cipher_suite
 
         # check if server sent cipher matches what we advertised in CH
-        if srv_hello.cipher_suite not in \
-                state.get_last_message_of_type(ClientHello).\
-                cipher_suites:
+        cln_hello = state.get_last_message_of_type(ClientHello)
+        if srv_hello.cipher_suite not in cln_hello.cipher_suites:
             cipher = srv_hello.cipher_suite
             if cipher in CipherSuite.ietfNames:
                 name = "{0} ({1:#06x})".format(CipherSuite.ietfNames[cipher],
@@ -188,37 +327,10 @@ class ExpectServerHello(ExpectHandshake):
         state.extended_master_secret = False
         state.encrypt_then_mac = False
 
-        # check if the message has expected values
-        if self.extensions is not None:
-            for ext_id in self.extensions:
-                ext = srv_hello.getExtension(ext_id)
-                if ext is None:
-                    raise AssertionError("Required extension {0} missing"
-                                         .format(ExtensionType.toStr(ext_id)))
-                # run extension-specific checker if present
-                if self.extensions[ext_id] is not None:
-                    if callable(self.extensions[ext_id]):
-                        self.extensions[ext_id](state, ext)
-                    elif isinstance(self.extensions[ext_id], TLSExtension):
-                        if not self.extensions[ext_id] == ext:
-                            raise AssertionError("Expected extension "
-                                                 "not matched, received: {0}"
-                                                 .format(ext))
-                    else:
-                        raise ValueError("Bad extension, id: {0}"
-                                         .format(ext_id))
-                    continue
-                if ext_id == ExtensionType.extended_master_secret:
-                    state.extended_master_secret = True
-                if ext_id == ExtensionType.encrypt_then_mac:
-                    state.encrypt_then_mac = True
-            # not supporting any extensions is valid
-            if srv_hello.extensions is not None:
-                for ext_id in (ext.extType for ext in srv_hello.extensions):
-                    if ext_id not in self.extensions:
-                        raise AssertionError("unexpected extension: {0}"
-                                             .format(ExtensionType
-                                                     .toStr(ext_id)))
+        if srv_hello.extensions:
+            self._process_extensions(state, cln_hello, srv_hello)
+
+        self._compare_extensions(srv_hello)
 
 
 class ExpectServerHello2(ExpectHandshake):
@@ -483,6 +595,7 @@ class ExpectChangeCipherSpec(Expect):
         assert ccs.type == 1
 
         if state.resuming:
+            state.msg_sock.encryptThenMAC = state.encrypt_then_mac
             calc_pending_states(state)
 
         state.msg_sock.changeReadState()

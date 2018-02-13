@@ -21,17 +21,20 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         ExpectFinished, ExpectAlert, ExpectApplicationData, \
         ExpectCertificateRequest, ExpectServerKeyExchange, \
         ExpectServerHello2, ExpectVerify, ExpectSSL2Alert, \
-        ExpectCertificateStatus, ExpectNoMessage
+        ExpectCertificateStatus, ExpectNoMessage, srv_ext_handler_ems, \
+        srv_ext_handler_etm, srv_ext_handler_sni, srv_ext_handler_renego, \
+        srv_ext_handler_alpn, srv_ext_handler_ec_point, srv_ext_handler_npn
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
         SignatureAlgorithm, CipherSuite, CertificateType, SSL2HandshakeType, \
-        SSL2ErrorDescription, GroupName, CertificateStatusType
+        SSL2ErrorDescription, GroupName, CertificateStatusType, ECPointFormat
 from tlslite.messages import Message, ServerHello, CertificateRequest, \
         ClientHello, Certificate, ServerHello2, ServerFinished, \
         ServerKeyExchange, CertificateStatus
 from tlslite.extensions import SNIExtension, TLSExtension, \
-        SupportedGroupsExtension, ALPNExtension
+        SupportedGroupsExtension, ALPNExtension, ECPointFormatsExtension, \
+        NPNExtension
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509certchain import X509CertChain, X509
 from tlslite.extensions import SNIExtension, SignatureAlgorithmsExtension
@@ -124,6 +127,146 @@ class TestExpectHandshake(unittest.TestCase):
 
         self.assertFalse(ret)
 
+
+class TestServerExtensionProcessors(unittest.TestCase):
+    def test_srv_ext_handler_ems(self):
+        ext = TLSExtension(extType=ExtensionType.extended_master_secret)
+
+        state = ConnectionState()
+
+        srv_ext_handler_ems(state, ext)
+
+        self.assertTrue(state.extended_master_secret)
+
+    def test_srv_ext_handler_ems_with_malformed_extension(self):
+        ext = TLSExtension(extType=ExtensionType.extended_master_secret)
+        ext.create(bytearray(1))
+
+        state = ConnectionState()
+
+        with self.assertRaises(AssertionError):
+            srv_ext_handler_ems(state, ext)
+
+
+    def test_srv_ext_handler_etm(self):
+        ext = TLSExtension(extType=ExtensionType.encrypt_then_mac)
+
+        state = ConnectionState()
+
+        srv_ext_handler_etm(state, ext)
+
+        self.assertTrue(state.encrypt_then_mac)
+
+    def test_srv_ext_handler_etm_with_malformed_extension(self):
+        ext = TLSExtension(extType=ExtensionType.encrypt_then_mac)
+        ext.create(bytearray(1))
+
+        state = ConnectionState()
+
+        with self.assertRaises(AssertionError):
+            srv_ext_handler_etm(state, ext)
+
+
+    def test_srv_ext_handler_sni(self):
+        ext = SNIExtension()
+
+        state = ConnectionState()
+
+        srv_ext_handler_sni(state, ext)
+
+    def test_srv_ext_handler_sni_with_malformed_extension(self):
+        ext = SNIExtension().create(b'example.com')
+
+        state = ConnectionState()
+
+        with self.assertRaises(AssertionError):
+            srv_ext_handler_sni(state, ext)
+
+
+    def test_srv_ext_handler_renego(self):
+        ext = RenegotiationInfoExtension().create(bytearray(b'abba'))
+
+        state = ConnectionState()
+        state.client_verify_data = bytearray(b'ab')
+        state.server_verify_data = bytearray(b'ba')
+
+        srv_ext_handler_renego(state, ext)
+
+    def test_srv_ext_handler_renego_with_malformed_extension(self):
+        ext = RenegotiationInfoExtension()
+
+        state = ConnectionState()
+
+        with self.assertRaises(AssertionError):
+            srv_ext_handler_renego(state, ext)
+
+    def test_srv_ext_handler_alpn(self):
+        ext = ALPNExtension().create([b'http/1.1'])
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        cln_ext = ALPNExtension().create([b'http/1.1', b'spdy2', b'h2'])
+        client_hello.extensions = [cln_ext]
+        state.handshake_messages.append(client_hello)
+
+        srv_ext_handler_alpn(state, ext)
+
+    def test_srv_ext_handler_alpn_with_malformed_extension(self):
+        ext = ALPNExtension()
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        cln_ext = ALPNExtension().create([b'http/1.1', b'spdy2', b'h2'])
+        client_hello.extensions = [cln_ext]
+        state.handshake_messages.append(client_hello)
+
+        with self.assertRaises(AssertionError):
+            srv_ext_handler_alpn(state, ext)
+
+    def test_srv_ext_handler_alpn_with_wrong_protocol(self):
+        ext = ALPNExtension().create([b'http/1.0'])
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        cln_ext = ALPNExtension().create([b'http/1.1', b'spdy2', b'h2'])
+        client_hello.extensions = [cln_ext]
+        state.handshake_messages.append(client_hello)
+
+        with self.assertRaises(AssertionError):
+            srv_ext_handler_alpn(state, ext)
+
+
+    def test_srv_ext_handler_ec_point(self):
+        ext = ECPointFormatsExtension().create([ECPointFormat.uncompressed])
+
+        state = ConnectionState()
+
+        srv_ext_handler_ec_point(state, ext)
+
+    def test_srv_ext_handler_ec_point_with_malformed_extension(self):
+        ext = ECPointFormatsExtension()
+
+        state = ConnectionState()
+
+        with self.assertRaises(AssertionError):
+            srv_ext_handler_ec_point(state, ext)
+
+    def test_srv_ext_handler_npn(self):
+        ext = NPNExtension().create([b'http/1.1'])
+
+        state = ConnectionState()
+
+        srv_ext_handler_npn(state, ext)
+
+    def test_srv_ext_handler_npn_with_malformed_extension(self):
+        ext = NPNExtension()
+
+        state = ConnectionState()
+
+        with self.assertRaises(AssertionError):
+            srv_ext_handler_npn(state, ext)
+
+
 class TestExpectServerHello(unittest.TestCase):
     def test___init__(self):
         exp = ExpectServerHello()
@@ -165,7 +308,8 @@ class TestExpectServerHello(unittest.TestCase):
 
         state = ConnectionState()
         client_hello = ClientHello()
-        client_hello.cipher_suites = [4]
+        ciph = CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV
+        client_hello.cipher_suites = [4, ciph]
         state.handshake_messages.append(client_hello)
         state.msg_sock = mock.MagicMock()
 
@@ -182,6 +326,152 @@ class TestExpectServerHello(unittest.TestCase):
         exp.process(state, msg)
 
         extension_process.assert_called_once_with(state, ext)
+
+    def test_process_with_automatic_extension_handling(self):
+        exp = ExpectServerHello(extensions={ExtensionType.renegotiation_info:
+                                            None})
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        renego = CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV
+        client_hello.cipher_suites = [4, renego]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        ext = RenegotiationInfoExtension().create(bytearray())
+
+        msg = ServerHello().create(version=(3, 3),
+                                   random=bytearray(32),
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=[ext])
+
+        self.assertTrue(exp.is_match(msg))
+
+        exp.process(state, msg)
+
+    def test_process_with_missing_extensions(self):
+        exp = ExpectServerHello(extensions={ExtensionType.renegotiation_info:
+                                            None})
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        ciph = CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV
+        client_hello.cipher_suites = [4, ciph]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        msg = ServerHello().create(version=(3, 3),
+                                   random=bytearray(32),
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=None)
+
+        self.assertTrue(exp.is_match(msg))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
+    def test_process_with_missing_specified_extension(self):
+        exp = ExpectServerHello(extensions={ExtensionType.renegotiation_info:
+                                            None,
+                                            ExtensionType.alpn: None})
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        ciph = CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV
+        client_hello.cipher_suites = [4, ciph]
+        ext = ALPNExtension().create([b'h2'])
+        client_hello.extensions = [ext]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        ext = RenegotiationInfoExtension().create(bytearray())
+        msg = ServerHello().create(version=(3, 3),
+                                   random=bytearray(32),
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=[ext])
+
+        self.assertTrue(exp.is_match(msg))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
+    def test_process_with_extra_extensions(self):
+        exp = ExpectServerHello(extensions={ExtensionType.renegotiation_info:
+                                            None})
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        ciph = CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV
+        client_hello.cipher_suites = [4, ciph]
+        ext = ALPNExtension().create([b'h2'])
+        client_hello.extensions = [ext]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        exts = [RenegotiationInfoExtension().create(bytearray()),
+                ALPNExtension().create([b'h2'])]
+
+        msg = ServerHello().create(version=(3, 3),
+                                   random=bytearray(32),
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=exts)
+
+        self.assertTrue(exp.is_match(msg))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
+    def test_process_with_no_autohandler(self):
+        exp = ExpectServerHello(extensions={1: None})
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.cipher_suites = [4]
+        ext = TLSExtension(extType=1).create(bytearray())
+        client_hello.extensions = [ext]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        ext = TLSExtension(extType=1).create(bytearray())
+
+        msg = ServerHello().create(version=(3, 3),
+                                   random=bytearray(32),
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=[ext])
+
+        self.assertTrue(exp.is_match(msg))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
+    def test_process_with_non_matching_example(self):
+        exp = ExpectServerHello(extensions={1: TLSExtension(extType=1)})
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.cipher_suites = [4]
+        ext = TLSExtension(extType=1).create(bytearray())
+        client_hello.extensions = [ext]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        ext = TLSExtension(extType=1).create(bytearray(1))
+
+        msg = ServerHello().create(version=(3, 3),
+                                   random=bytearray(32),
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=[ext])
+
+        self.assertTrue(exp.is_match(msg))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
 
     def test_process_with_incorrect_version(self):
         extension_process = mock.MagicMock()
@@ -296,12 +586,15 @@ class TestExpectServerHello(unittest.TestCase):
 
         state = ConnectionState()
         client_hello = ClientHello()
-        client_hello.cipher_suites = [4]
+        ciph = CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV
+        client_hello.cipher_suites = [4, ciph]
+        ext = ALPNExtension().create([bytearray(b'http/1.1')])
+        client_hello.extensions = [ext]
         state.handshake_messages.append(client_hello)
         state.msg_sock = mock.MagicMock()
 
         exts = []
-        exts.append(RenegotiationInfoExtension().create(None))
+        exts.append(RenegotiationInfoExtension().create(bytearray()))
         exts.append(ALPNExtension().create([bytearray(b'http/1.1')]))
         msg = ServerHello().create(version=(3, 3),
                                    random=bytearray(32),
@@ -314,7 +607,7 @@ class TestExpectServerHello(unittest.TestCase):
         exp.process(state, msg)
         self.assertIsInstance(state.handshake_messages[1], ServerHello)
 
-    def test_process_with_bad_extension(self):
+    def test_process_with_bad_extension_handler(self):
         exps = {ExtensionType.renegotiation_info: None,
                 ExtensionType.alpn: 'BAD_EXTENSION'
                }
@@ -322,12 +615,15 @@ class TestExpectServerHello(unittest.TestCase):
 
         state = ConnectionState()
         client_hello = ClientHello()
-        client_hello.cipher_suites = [4]
+        renego = CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV
+        client_hello.cipher_suites = [4, renego]
+        ext = ALPNExtension().create([bytearray(b'http/1.1')])
+        client_hello.extensions = [ext]
         state.handshake_messages.append(client_hello)
         state.msg_sock = mock.MagicMock()
 
         exts = []
-        exts.append(RenegotiationInfoExtension().create(None))
+        exts.append(RenegotiationInfoExtension().create(bytearray()))
         exts.append(ALPNExtension().create([bytearray(b'http/1.1')]))
         msg = ServerHello().create(version=(3, 3),
                                    random=bytearray(32),
@@ -443,6 +739,8 @@ class TestExpectServerHello(unittest.TestCase):
         state = ConnectionState()
         client_hello = ClientHello()
         client_hello.cipher_suites = [4]
+        ext = TLSExtension(extType=ExtensionType.extended_master_secret)
+        client_hello.extensions = [ext]
         state.handshake_messages.append(client_hello)
         state.msg_sock = mock.MagicMock()
         self.assertFalse(state.extended_master_secret)
