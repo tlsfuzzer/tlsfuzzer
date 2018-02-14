@@ -310,9 +310,14 @@ def main():
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(TCPBufferingEnable())
         msg = CertificateGenerator()
+        # extend the handshake message to allow for modifying fictional
+        # certificate_list
         msg = pad_handshake(msg, k)
+        # change the overall length of the certificate_list
         subs = {6: i}
         if k >= 3:
+            # if there's payload past certificate_list length tag
+            # set the byte that specifies length of first certificate
             subs[9] = j
         msg = fuzz_message(msg, substitutions=subs)
         node = node.add_child(msg)
@@ -321,8 +326,15 @@ def main():
         node = node.add_child(FinishedGenerator())
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
-        node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.decode_error))
+        # when the certificate is just a string of null bytes, it's a bad
+        # certificate
+        # (all length tags are 3 byte long)
+        if i == j + 3 and k + 3 == i + 3 and j > 0:
+            node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                              AlertDescription.bad_certificate))
+        else:
+            node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                              AlertDescription.decode_error))
         node = node.add_child(ExpectClose())
 
         conversations["fuzz empty certificate - overall {2}, certs {0}, cert {1}"
