@@ -200,7 +200,7 @@
           },
          {"name" : "test-rsa-pss-sigs-on-certificate-verify.py",
           "comment" : "test script has over 2k test cases, limit it",
-          "arguments" : ["-n", "50",
+          "arguments" : ["-n", "15",
                          "-k", "tests/clientX509Key.pem",
                          "-c", "tests/clientX509Cert.pem"]
           },
