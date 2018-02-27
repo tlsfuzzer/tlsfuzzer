@@ -112,6 +112,7 @@ def flush_queue():
 def run_clients(tests, srv):
     good = 0
     bad = 0
+    failed = []
     print_all_from_queue()
     for params in tests:
         script = params["name"]
@@ -147,7 +148,9 @@ def run_clients(tests, srv):
             logger.error("{0}:failure:{1:.2f}s:{2}".format(script,
                                                        end_time - start_time,
                                                        ret))
-    return good, bad
+            failed.append(proc_args)
+
+    return good, bad, failed
 
 
 def run_with_json(config_file, srv_path):
@@ -156,6 +159,7 @@ def run_with_json(config_file, srv_path):
 
     good = 0
     bad = 0
+    failed = []
 
     for srv_conf in config:
         command = srv_conf["server_command"]
@@ -173,9 +177,11 @@ def run_with_json(config_file, srv_path):
         logger.info("Server process started")
 
         try:
-            n_good, n_bad = run_clients(srv_conf["tests"], srv)
+            n_good, n_bad, f_cmds = run_clients(srv_conf["tests"], srv)
             good += n_good
             bad += n_bad
+            failed.extend(f_cmds)
+
         finally:
             try:
                 logging.debug("Killing server process")
@@ -187,7 +193,7 @@ def run_with_json(config_file, srv_path):
         srv_err.join()
         srv_out.join()
 
-    return (good, bad)
+    return good, bad, failed
 
 
 def main():
@@ -195,7 +201,7 @@ def main():
         print("provide path to config file and server")
         sys.exit(2)
 
-    good, bad = run_with_json(sys.argv[1], sys.argv[2])
+    good, bad, failed = run_with_json(sys.argv[1], sys.argv[2])
 
     logging.shutdown()
 
@@ -206,6 +212,10 @@ def main():
     print("Ran {0} scripts".format(good + bad))
     print("good: {0}".format(good))
     print("bad: {0}".format(bad))
+    if failed:
+        print("Failed script configurations:")
+        for i in failed:
+            print(" {0!r}".format(i))
 
     if bad > 0:
         sys.exit(1)
