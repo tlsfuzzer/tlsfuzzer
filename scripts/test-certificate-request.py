@@ -19,6 +19,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectCertificateRequest, \
         ExpectApplicationData
+from tlsfuzzer.helpers import sig_algs_to_ids
 from tlslite.extensions import SignatureAlgorithmsExtension
 from tlslite.constants import CipherSuite, AlertDescription, \
         HashAlgorithm, SignatureAlgorithm, ExtensionType, SignatureScheme
@@ -78,9 +79,7 @@ def main():
             help_msg()
             sys.exit(0)
         elif opt == '-s':
-            sigalgs = [(getattr(HashAlgorithm, h_alg),
-                        getattr(SignatureAlgorithm, s_alg)) for h_alg, s_alg
-                        in (alg.split('+') for alg in arg.split(' '))]
+            sigalgs = sig_algs_to_ids(arg)
         elif opt == '-k':
             text_key = open(arg, 'rb').read()
             if sys.version_info[0] >= 3:
