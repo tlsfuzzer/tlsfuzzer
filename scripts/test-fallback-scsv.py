@@ -68,7 +68,8 @@ def main():
     conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
+               CipherSuite.TLS_AES_128_GCM_SHA256]
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3)))
     node = node.add_child(ExpectServerHello(version=(3, 3), extensions=ext))
     node = node.add_child(ExpectCertificate())
@@ -91,7 +92,7 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
                CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               ]
+               CipherSuite.TLS_AES_128_GCM_SHA256]
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 2)))
     node = node.add_child(ExpectServerHello(version=(3, 2), extensions=ext))
     node = node.add_child(ExpectCertificate())
@@ -114,7 +115,8 @@ def main():
     node = conversation
     ciphers = [
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
-               CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+               CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_AES_128_GCM_SHA256]
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 4)))
     node = node.add_child(ExpectServerHello(version=(3, 3), extensions=ext))
     node = node.add_child(ExpectCertificate())
@@ -137,7 +139,8 @@ def main():
     node = conversation
     ciphers = [
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
-               CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+               CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_AES_128_GCM_SHA256]
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3)))
     node = node.add_child(ExpectServerHello(version=(3, 3), extensions=ext))
     node = node.add_child(ExpectCertificate())
@@ -159,7 +162,8 @@ def main():
     conversation = Connect(host, port, version=(3, 2))
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
+               CipherSuite.TLS_AES_128_GCM_SHA256]
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 2)))
     node = node.add_child(ExpectServerHello(version=(3, 2), extensions=ext))
     node = node.add_child(ExpectCertificate())
@@ -181,7 +185,8 @@ def main():
     conversation = Connect(host, port, version=(3, 4))
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
+               CipherSuite.TLS_AES_128_GCM_SHA256]
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 4)))
     node = node.add_child(ExpectServerHello(version=(3, 3), extensions=ext))
     node = node.add_child(ExpectCertificate())
@@ -205,7 +210,8 @@ def main():
         conversation = Connect(host, port)
         node = conversation
         ciphers = [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
-                   CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+                   CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_AES_128_GCM_SHA256]
         ciphers.insert(place, CipherSuite.TLS_FALLBACK_SCSV)
         node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3)))
         node = node.add_child(ExpectServerHello(version=(3, 3), extensions=ext))
@@ -228,7 +234,8 @@ def main():
         conversation = Connect(host, port)
         node = conversation
         ciphers = [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
-                   CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+                   CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_AES_128_GCM_SHA256]
         ciphers.insert(place, CipherSuite.TLS_FALLBACK_SCSV)
         node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 2)))
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
@@ -239,7 +246,8 @@ def main():
         conversation = Connect(host, port)
         node = conversation
         ciphers = [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
-                   CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+                   CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_AES_128_GCM_SHA256]
         ciphers.insert(place, CipherSuite.TLS_FALLBACK_SCSV)
         node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 4)))
         node = node.add_child(ExpectServerHello(version=(3, 3), extensions=ext))
@@ -262,7 +270,8 @@ def main():
         conversation = Connect(host, port, version=(3, 3))
         node = conversation
         ciphers = [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
-                   CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+                   CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_AES_128_GCM_SHA256]
         ciphers.insert(place, CipherSuite.TLS_FALLBACK_SCSV)
         node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3)))
         node = node.add_child(ExpectServerHello(version=(3, 3), extensions=ext))
@@ -285,7 +294,8 @@ def main():
         conversation = Connect(host, port, version=(3, 2))
         node = conversation
         ciphers = [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
-                   CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+                   CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_AES_128_GCM_SHA256]
         ciphers.insert(place, CipherSuite.TLS_FALLBACK_SCSV)
         node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 2)))
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
@@ -296,7 +306,8 @@ def main():
         conversation = Connect(host, port, version=(3, 4))
         node = conversation
         ciphers = [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
-                   CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+                   CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_AES_128_GCM_SHA256]
         ciphers.insert(place, CipherSuite.TLS_FALLBACK_SCSV)
         node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 4)))
         node = node.add_child(ExpectServerHello(version=(3, 3), extensions=ext))
