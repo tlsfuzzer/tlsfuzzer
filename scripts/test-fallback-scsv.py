@@ -34,6 +34,7 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" --tls-1.3      server does support TLS 1.3")
     print(" --help         this message")
 
 
@@ -41,9 +42,10 @@ def main():
     host = "localhost"
     port = 4433
     run_exclude = set()
+    tls13 = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:", ["help", "tls-1.3"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -51,6 +53,8 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '--tls-1.3':
+            tls13 = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -214,21 +218,26 @@ def main():
                    CipherSuite.TLS_AES_128_GCM_SHA256]
         ciphers.insert(place, CipherSuite.TLS_FALLBACK_SCSV)
         node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3)))
-        node = node.add_child(ExpectServerHello(version=(3, 3), extensions=ext))
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator())
-        node = node.add_child(ChangeCipherSpecGenerator())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectFinished())
-        node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET / HTTP/1.0\n\n")))
-        node = node.add_child(ExpectApplicationData())
-        node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                             AlertDescription.close_notify))
-        node = node.add_child(ExpectAlert())
-        node.next_sibling = ExpectClose()
+        if tls13:
+            node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                              AlertDescription.inappropriate_fallback))
+            node = node.add_child(ExpectClose())
+        else:
+            node = node.add_child(ExpectServerHello(version=(3, 3), extensions=ext))
+            node = node.add_child(ExpectCertificate())
+            node = node.add_child(ExpectServerHelloDone())
+            node = node.add_child(ClientKeyExchangeGenerator())
+            node = node.add_child(ChangeCipherSpecGenerator())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(ExpectChangeCipherSpec())
+            node = node.add_child(ExpectFinished())
+            node = node.add_child(ApplicationDataGenerator(
+                bytearray(b"GET / HTTP/1.0\n\n")))
+            node = node.add_child(ExpectApplicationData())
+            node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                                 AlertDescription.close_notify))
+            node = node.add_child(ExpectAlert())
+            node.next_sibling = ExpectClose()
         conversations["FALLBACK - hello TLSv1.2 - pos {0}".format(place)] = conversation
 
         conversation = Connect(host, port)
@@ -250,21 +259,26 @@ def main():
                    CipherSuite.TLS_AES_128_GCM_SHA256]
         ciphers.insert(place, CipherSuite.TLS_FALLBACK_SCSV)
         node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 4)))
-        node = node.add_child(ExpectServerHello(version=(3, 3), extensions=ext))
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator())
-        node = node.add_child(ChangeCipherSpecGenerator())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectFinished())
-        node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET / HTTP/1.0\n\n")))
-        node = node.add_child(ExpectApplicationData())
-        node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                             AlertDescription.close_notify))
-        node = node.add_child(ExpectAlert())
-        node.next_sibling = ExpectClose()
+        if tls13:
+            node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                              AlertDescription.inappropriate_fallback))
+            node = node.add_child(ExpectClose())
+        else:
+            node = node.add_child(ExpectServerHello(version=(3, 3), extensions=ext))
+            node = node.add_child(ExpectCertificate())
+            node = node.add_child(ExpectServerHelloDone())
+            node = node.add_child(ClientKeyExchangeGenerator())
+            node = node.add_child(ChangeCipherSpecGenerator())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(ExpectChangeCipherSpec())
+            node = node.add_child(ExpectFinished())
+            node = node.add_child(ApplicationDataGenerator(
+                bytearray(b"GET / HTTP/1.0\n\n")))
+            node = node.add_child(ExpectApplicationData())
+            node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                                 AlertDescription.close_notify))
+            node = node.add_child(ExpectAlert())
+            node.next_sibling = ExpectClose()
         conversations["FALLBACK - hello SSL3.4 - pos {0}".format(place)] = conversation
 
         conversation = Connect(host, port, version=(3, 3))
@@ -274,21 +288,26 @@ def main():
                    CipherSuite.TLS_AES_128_GCM_SHA256]
         ciphers.insert(place, CipherSuite.TLS_FALLBACK_SCSV)
         node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3)))
-        node = node.add_child(ExpectServerHello(version=(3, 3), extensions=ext))
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator())
-        node = node.add_child(ChangeCipherSpecGenerator())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectFinished())
-        node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET / HTTP/1.0\n\n")))
-        node = node.add_child(ExpectApplicationData())
-        node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                             AlertDescription.close_notify))
-        node = node.add_child(ExpectAlert())
-        node.next_sibling = ExpectClose()
+        if tls13:
+            node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                              AlertDescription.inappropriate_fallback))
+            node = node.add_child(ExpectClose())
+        else:
+            node = node.add_child(ExpectServerHello(version=(3, 3), extensions=ext))
+            node = node.add_child(ExpectCertificate())
+            node = node.add_child(ExpectServerHelloDone())
+            node = node.add_child(ClientKeyExchangeGenerator())
+            node = node.add_child(ChangeCipherSpecGenerator())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(ExpectChangeCipherSpec())
+            node = node.add_child(ExpectFinished())
+            node = node.add_child(ApplicationDataGenerator(
+                bytearray(b"GET / HTTP/1.0\n\n")))
+            node = node.add_child(ExpectApplicationData())
+            node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                                 AlertDescription.close_notify))
+            node = node.add_child(ExpectAlert())
+            node.next_sibling = ExpectClose()
         conversations["FALLBACK - record TLSv1.2 hello TLSv1.2 - pos {0}".format(place)] = conversation
 
         conversation = Connect(host, port, version=(3, 2))
@@ -310,21 +329,26 @@ def main():
                    CipherSuite.TLS_AES_128_GCM_SHA256]
         ciphers.insert(place, CipherSuite.TLS_FALLBACK_SCSV)
         node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 4)))
-        node = node.add_child(ExpectServerHello(version=(3, 3), extensions=ext))
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator())
-        node = node.add_child(ChangeCipherSpecGenerator())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectFinished())
-        node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET / HTTP/1.0\n\n")))
-        node = node.add_child(ExpectApplicationData())
-        node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                             AlertDescription.close_notify))
-        node = node.add_child(ExpectAlert())
-        node.next_sibling = ExpectClose()
+        if tls13:
+            node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                              AlertDescription.inappropriate_fallback))
+            node = node.add_child(ExpectClose())
+        else:
+            node = node.add_child(ExpectServerHello(version=(3, 3), extensions=ext))
+            node = node.add_child(ExpectCertificate())
+            node = node.add_child(ExpectServerHelloDone())
+            node = node.add_child(ClientKeyExchangeGenerator())
+            node = node.add_child(ChangeCipherSpecGenerator())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(ExpectChangeCipherSpec())
+            node = node.add_child(ExpectFinished())
+            node = node.add_child(ApplicationDataGenerator(
+                bytearray(b"GET / HTTP/1.0\n\n")))
+            node = node.add_child(ExpectApplicationData())
+            node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                                 AlertDescription.close_notify))
+            node = node.add_child(ExpectAlert())
+            node.next_sibling = ExpectClose()
         conversations["FALLBACK - record SSL3.4 hello SSL3.4 - pos {0}".format(place)] = conversation
 
 
