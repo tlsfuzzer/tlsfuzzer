@@ -168,9 +168,9 @@ class TestCollectNonces(unittest.TestCase):
         sock = MockSocket(bytearray())
 
         defragger = defragmenter.Defragmenter()
-        defragger.addStaticSize(constants.ContentType.alert, 2)
-        defragger.addStaticSize(constants.ContentType.change_cipher_spec, 1)
-        defragger.addDynamicSize(constants.ContentType.handshake, 1, 3)
+        defragger.add_static_size(constants.ContentType.alert, 2)
+        defragger.add_static_size(constants.ContentType.change_cipher_spec, 1)
+        defragger.add_dynamic_size(constants.ContentType.handshake, 1, 3)
         state.msg_sock = messagesocket.MessageSocket(sock,
                                                      defragger)
 
@@ -1155,9 +1155,9 @@ class TestFuzzMAC(unittest.TestCase):
         self.socket = MockSocket(bytearray())
 
         defragger = defragmenter.Defragmenter()
-        defragger.addStaticSize(constants.ContentType.alert, 2)
-        defragger.addStaticSize(constants.ContentType.change_cipher_spec, 1)
-        defragger.addDynamicSize(constants.ContentType.handshake, 1, 3)
+        defragger.add_static_size(constants.ContentType.alert, 2)
+        defragger.add_static_size(constants.ContentType.change_cipher_spec, 1)
+        defragger.add_dynamic_size(constants.ContentType.handshake, 1, 3)
         self.state.msg_sock = messagesocket.MessageSocket(self.socket,
                                                           defragger)
 
@@ -1291,9 +1291,9 @@ class TestFuzzEncryptedMessage(unittest.TestCase):
         self.socket = MockSocket(bytearray())
 
         defragger = defragmenter.Defragmenter()
-        defragger.addStaticSize(constants.ContentType.alert, 2)
-        defragger.addStaticSize(constants.ContentType.change_cipher_spec, 1)
-        defragger.addDynamicSize(constants.ContentType.handshake, 1, 3)
+        defragger.add_static_size(constants.ContentType.alert, 2)
+        defragger.add_static_size(constants.ContentType.change_cipher_spec, 1)
+        defragger.add_dynamic_size(constants.ContentType.handshake, 1, 3)
         self.state.msg_sock = messagesocket.MessageSocket(self.socket,
                                                           defragger)
 
@@ -1340,9 +1340,9 @@ class TestFuzzPadding(unittest.TestCase):
         self.socket = MockSocket(bytearray())
 
         defragger = defragmenter.Defragmenter()
-        defragger.addStaticSize(constants.ContentType.alert, 2)
-        defragger.addStaticSize(constants.ContentType.change_cipher_spec, 1)
-        defragger.addDynamicSize(constants.ContentType.handshake, 1, 3)
+        defragger.add_static_size(constants.ContentType.alert, 2)
+        defragger.add_static_size(constants.ContentType.change_cipher_spec, 1)
+        defragger.add_dynamic_size(constants.ContentType.handshake, 1, 3)
         self.state.msg_sock = messagesocket.MessageSocket(self.socket,
                                                           defragger)
         self.state.msg_sock.version = (3, 0)
@@ -1489,9 +1489,9 @@ class TestFuzzPlaintext(unittest.TestCase):
         self.socket = MockSocket(bytearray())
 
         defragger = defragmenter.Defragmenter()
-        defragger.addStaticSize(constants.ContentType.alert, 2)
-        defragger.addStaticSize(constants.ContentType.change_cipher_spec, 1)
-        defragger.addDynamicSize(constants.ContentType.handshake, 1, 3)
+        defragger.add_static_size(constants.ContentType.alert, 2)
+        defragger.add_static_size(constants.ContentType.change_cipher_spec, 1)
+        defragger.add_dynamic_size(constants.ContentType.handshake, 1, 3)
         self.state.msg_sock = messagesocket.MessageSocket(self.socket,
                                                           defragger)
         self.state.msg_sock.version = (3, 0)

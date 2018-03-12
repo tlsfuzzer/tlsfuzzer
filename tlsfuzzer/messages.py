@@ -74,9 +74,9 @@ class Connect(Command):
         sock = BufferedSocket(sock)
 
         defragmenter = Defragmenter()
-        defragmenter.addStaticSize(ContentType.alert, 2)
-        defragmenter.addStaticSize(ContentType.change_cipher_spec, 1)
-        defragmenter.addDynamicSize(ContentType.handshake, 1, 3)
+        defragmenter.add_static_size(ContentType.alert, 2)
+        defragmenter.add_static_size(ContentType.change_cipher_spec, 1)
+        defragmenter.add_dynamic_size(ContentType.handshake, 1, 3)
 
         state.msg_sock = MessageSocket(sock, defragmenter)
 
