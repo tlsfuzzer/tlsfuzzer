@@ -126,8 +126,8 @@ class ResetRenegotiationInfo(Command):
             self.client_verify_data = bytearray(0)
         if self.server_verify_data is None:
             self.server_verify_data = bytearray(0)
-        state.client_verify_data = self.client_verify_data
-        state.server_verify_data = self.server_verify_data
+        state.key['client_verify_data'] = self.client_verify_data
+        state.key['server_verify_data'] = self.server_verify_data
 
 
 class SetMaxRecordSize(Command):
@@ -355,7 +355,7 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
 
             if ext_id == ExtensionType.renegotiation_info:
                 ext = RenegotiationInfoExtension()\
-                        .create(state.client_verify_data)
+                    .create(state.key['client_verify_data'])
                 extensions.append(ext)
             else:
                 extensions.append(TLSExtension().create(ext_id, bytearray(0)))
@@ -471,7 +471,7 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
                 self.premaster_secret[0] = self.client_version[0]
                 self.premaster_secret[1] = self.client_version[1]
 
-                status.premaster_secret = self.premaster_secret
+                status.key['premaster_secret'] = self.premaster_secret
 
                 public_key = status.get_server_public_key()
 
@@ -537,7 +537,7 @@ class ClientMasterKeyGenerator(HandshakeProtocolMessageGenerator):
         if self.cipher is None:
             raise NotImplementedError("No cipher autonegotiation")
         if self.master_key is None:
-            if state.master_secret == bytearray(0):
+            if state.key['master_secret'] == bytearray(0):
                 if self.cipher in CipherSuite.ssl2_128Key:
                     key_size = 16
                 elif self.cipher in CipherSuite.ssl2_192Key:
@@ -548,7 +548,7 @@ class ClientMasterKeyGenerator(HandshakeProtocolMessageGenerator):
                     raise AssertionError("unknown cipher but no master_secret")
                 self.master_key = getRandomBytes(key_size)
             else:
-                self.master_key = state.master_secret
+                self.master_key = state.key['master_secret']
 
         cipher = self.cipher
         if (cipher not in CipherSuite.ssl2rc4 and
@@ -676,12 +676,13 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                 raise ValueError("Can't create a signature without "
                                  "private key!")
 
-            verify_bytes = KeyExchange.calcVerifyBytes(self.sig_version,
-                                                       status.handshake_hashes,
-                                                       self.sig_alg,
-                                                       status.premaster_secret,
-                                                       status.client_random,
-                                                       status.server_random)
+            verify_bytes = \
+                KeyExchange.calcVerifyBytes(self.sig_version,
+                                            status.handshake_hashes,
+                                            self.sig_alg,
+                                            status.key['premaster_secret'],
+                                            status.client_random,
+                                            status.server_random)
 
             # we don't have to handle non pkcs1 padding because the
             # calcVerifyBytes does everything
@@ -764,16 +765,17 @@ class ChangeCipherSpecGenerator(MessageGenerator):
                 master_secret = \
                     calcExtendedMasterSecret(status.version,
                                              cipher_suite,
-                                             status.premaster_secret,
+                                             status.key['premaster_secret'],
                                              hh)
             else:
-                master_secret = calcMasterSecret(status.version,
-                                                 cipher_suite,
-                                                 status.premaster_secret,
-                                                 status.client_random,
-                                                 status.server_random)
+                master_secret = calcMasterSecret(
+                    status.version,
+                    cipher_suite,
+                    status.key['premaster_secret'],
+                    status.client_random,
+                    status.server_random)
 
-            status.master_secret = master_secret
+            status.key['master_secret'] = master_secret
 
             # in case of resumption, the pending states are generated
             # during receive of server sent CCS
@@ -805,12 +807,12 @@ class FinishedGenerator(HandshakeProtocolMessageGenerator):
         else:
             finished = Finished(self.protocol)
             verify_data = calcFinished(status.version,
-                                       status.master_secret,
+                                       status.key['master_secret'],
                                        status.cipher,
                                        status.handshake_hashes,
                                        status.client)
 
-            status.client_verify_data = verify_data
+            status.key['client_verify_data'] = verify_data
 
         finished.create(verify_data)
 

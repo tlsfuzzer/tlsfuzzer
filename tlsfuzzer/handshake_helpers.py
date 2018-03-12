@@ -5,7 +5,7 @@
 def calc_pending_states(state):
     """Calculate state for pending encryption values in TLS socket"""
     state.msg_sock.calcPendingStates(state.cipher,
-                                     state.master_secret,
+                                     state.key['master_secret'],
                                      state.client_random,
                                      state.server_random,
                                      None)

@@ -53,10 +53,11 @@ class ConnectionState(object):
         self.client = True
 
         # calculated value for premaster secret
-        self.premaster_secret = bytearray(0)
+        self.key = {}
+        self.key['premaster_secret'] = bytearray(0)
 
         # negotiated value for master secret
-        self.master_secret = bytearray(0)
+        self.key['master_secret'] = bytearray(0)
 
         # random values shared by peers
         self.server_random = bytearray(0)
@@ -66,8 +67,8 @@ class ConnectionState(object):
         self.session_id = bytearray(0)
 
         # Finished message data for secure renegotiation
-        self.client_verify_data = bytearray(0)
-        self.server_verify_data = bytearray(0)
+        self.key['client_verify_data'] = bytearray(0)
+        self.key['server_verify_data'] = bytearray(0)
 
         # Whether we are currently resuming a previously negotiated session
         self.resuming = False

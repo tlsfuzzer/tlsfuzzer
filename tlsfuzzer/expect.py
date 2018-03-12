@@ -130,7 +130,7 @@ def srv_ext_handler_sni(state, extension):
 def srv_ext_handler_renego(state, extension):
     """Process the renegotiation_info from server."""
     if extension.renegotiated_connection != \
-            state.client_verify_data + state.server_verify_data:
+            state.key['client_verify_data'] + state.key['server_verify_data']:
         raise AssertionError("Invalid data in renegotiation_info")
 
 
@@ -509,7 +509,7 @@ class ExpectServerKeyExchange(ExpectHandshake):
                                      acceptedCurves=valid_groups)
         else:
             raise AssertionError("Unsupported cipher selected")
-        state.premaster_secret = state.key_exchange.\
+        state.key['premaster_secret'] = state.key_exchange.\
             processServerKeyExchange(public_key,
                                      server_key_exchange)
 
@@ -655,7 +655,7 @@ class ExpectFinished(ExpectHandshake):
             state.session_id = finished.verify_data
         else:
             verify_expected = calcFinished(state.version,
-                                           state.master_secret,
+                                           state.key['master_secret'],
                                            state.cipher,
                                            state.handshake_hashes,
                                            not state.client)
@@ -663,7 +663,7 @@ class ExpectFinished(ExpectHandshake):
             assert finished.verify_data == verify_expected
 
         state.handshake_messages.append(finished)
-        state.server_verify_data = finished.verify_data
+        state.key['server_verify_data'] = finished.verify_data
         state.handshake_hashes.update(msg.write())
 
         if self.version in ((0, 2), (2, 0)):

@@ -389,7 +389,7 @@ class TestClientHelloGenerator(unittest.TestCase):
 
     def test_generate_extensions_with_renego_info_default_generator(self):
         state = ConnectionState()
-        state.client_verify_data = bytearray(b'\xab\xcd')
+        state.key['client_verify_data'] = bytearray(b'\xab\xcd')
         chg = ClientHelloGenerator(extensions={constants.ExtensionType.renegotiation_info:
                                                None})
 
@@ -619,7 +619,7 @@ class TestChangeCipherSpecGenerator(unittest.TestCase):
             mthd.return_value = bytearray(48)
             ccsg.post_send(state)
         mthd.assert_called_once_with(state.version, state.cipher,
-                                     state.premaster_secret,
+                                     state.key['premaster_secret'],
                                      state.handshake_hashes)
         self.assertTrue(state.msg_sock.calcPendingStates.called)
         self.assertTrue(state.msg_sock.changeWriteState.called)
@@ -703,7 +703,7 @@ class TestClientMasterKeyGenerator(unittest.TestCase):
         state = ConnectionState()
         state.msg_sock = mock.MagicMock()
         state.get_server_public_key = mock.MagicMock()
-        state.master_secret = bytearray(range(32))
+        state.key['master_secret'] = bytearray(range(32))
 
         ret = cmk.generate(state)
 
@@ -981,13 +981,13 @@ class TestResetRenegotiationInfo(unittest.TestCase):
         node = ResetRenegotiationInfo()
 
         state = ConnectionState()
-        state.client_verify_data = bytearray(b'\xde\xad\xc0\xde')
-        state.server_verify_data = bytearray(b'\xc0\xff\xee')
+        state.key['client_verify_data'] = bytearray(b'\xde\xad\xc0\xde')
+        state.key['server_verify_data'] = bytearray(b'\xc0\xff\xee')
 
         node.process(state)
 
-        self.assertEqual(state.client_verify_data, bytearray(0))
-        self.assertEqual(state.server_verify_data, bytearray(0))
+        self.assertEqual(state.key['client_verify_data'], bytearray(0))
+        self.assertEqual(state.key['server_verify_data'], bytearray(0))
 
 class TestSetMaxRecordSize(unittest.TestCase):
     def test___init__(self):

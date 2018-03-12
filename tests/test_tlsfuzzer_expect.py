@@ -187,8 +187,8 @@ class TestServerExtensionProcessors(unittest.TestCase):
         ext = RenegotiationInfoExtension().create(bytearray(b'abba'))
 
         state = ConnectionState()
-        state.client_verify_data = bytearray(b'ab')
-        state.server_verify_data = bytearray(b'ba')
+        state.key['client_verify_data'] = bytearray(b'ab')
+        state.key['server_verify_data'] = bytearray(b'ba')
 
         srv_ext_handler_renego(state, ext)
 
@@ -971,7 +971,7 @@ class TestExpectChangeCipherSpec(unittest.TestCase):
         state.resuming = True
 
         state.cipher = mock.Mock(name="cipher")
-        state.master_secret = mock.Mock(name="master_secret")
+        state.key['master_secret'] = mock.Mock(name="master_secret")
         state.client_random = mock.Mock(name="client_random")
         state.server_random = mock.Mock(name="server_random")
 
@@ -981,7 +981,7 @@ class TestExpectChangeCipherSpec(unittest.TestCase):
 
         state.msg_sock.calcPendingStates.assert_called_once_with(
                 state.cipher,
-                state.master_secret,
+                state.key['master_secret'],
                 state.client_random,
                 state.server_random,
                 None)
