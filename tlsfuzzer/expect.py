@@ -748,7 +748,8 @@ class ExpectChangeCipherSpec(Expect):
             state.msg_sock.encryptThenMAC = state.encrypt_then_mac
             calc_pending_states(state)
 
-        state.msg_sock.changeReadState()
+        if state.version < (3, 4):
+            state.msg_sock.changeReadState()
 
 
 class ExpectVerify(ExpectHandshake):
