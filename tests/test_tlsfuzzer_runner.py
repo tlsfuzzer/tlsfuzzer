@@ -75,6 +75,31 @@ class TestConnectionState(unittest.TestCase):
         msg = state.get_last_message_of_type(messages.ClientHello)
         self.assertIsNone(msg)
 
+    def test_prf_name_with_sha256(self):
+        state = ConnectionState()
+        state.cipher = constants.CipherSuite.TLS_AES_128_GCM_SHA256
+
+        self.assertEqual(state.prf_name, "sha256")
+
+    def test_prf_name_with_sha384(self):
+        state = ConnectionState()
+        state.cipher = constants.CipherSuite.TLS_AES_256_GCM_SHA384
+
+        self.assertEqual(state.prf_name, "sha384")
+
+    def test_prf_size_with_sha256(self):
+        state = ConnectionState()
+        state.cipher = constants.CipherSuite.TLS_AES_128_GCM_SHA256
+
+        self.assertEqual(state.prf_size, 32)
+
+    def test_prf_size_with_sha384(self):
+        state = ConnectionState()
+        state.cipher = constants.CipherSuite.TLS_AES_256_GCM_SHA384
+
+        self.assertEqual(state.prf_size, 48)
+
+
 class TestRunner(unittest.TestCase):
     def test___init__(self):
         runner = Runner(None)
