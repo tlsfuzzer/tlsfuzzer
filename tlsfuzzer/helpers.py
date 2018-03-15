@@ -3,10 +3,10 @@
 """Helper functions for test scripts."""
 
 from tlslite.constants import HashAlgorithm, SignatureAlgorithm, \
-        SignatureScheme, GroupName
+        SignatureScheme
 
-from tlslite.keyexchange import ECDHKeyExchange, FFDHKeyExchange
 from tlslite.extensions import KeyShareEntry
+from .handshake_helpers import kex_for_group
 
 __all__ = ['sig_algs_to_ids', 'key_share_gen']
 
@@ -70,11 +70,7 @@ def key_share_gen(group, version=(3, 4)):
         wire
     :return: KeyShareEntry
     """
-    if group in GroupName.allFF:
-        kex = FFDHKeyExchange(group, version)
-    else:
-        kex = ECDHKeyExchange(group, version)
-
+    kex = kex_for_group(group, version)
     private = kex.get_random_private_key()
     share = kex.calc_public_value(private)
     return KeyShareEntry().create(group, share, private)
