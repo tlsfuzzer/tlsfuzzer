@@ -24,15 +24,17 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         ExpectCertificateStatus, ExpectNoMessage, srv_ext_handler_ems, \
         srv_ext_handler_etm, srv_ext_handler_sni, srv_ext_handler_renego, \
         srv_ext_handler_alpn, srv_ext_handler_ec_point, srv_ext_handler_npn, \
-        srv_ext_handler_key_share, srv_ext_handler_supp_vers
+        srv_ext_handler_key_share, srv_ext_handler_supp_vers, \
+        ExpectCertificateVerify
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
         SignatureAlgorithm, CipherSuite, CertificateType, SSL2HandshakeType, \
-        SSL2ErrorDescription, GroupName, CertificateStatusType, ECPointFormat
+        SSL2ErrorDescription, GroupName, CertificateStatusType, ECPointFormat,\
+        SignatureScheme
 from tlslite.messages import Message, ServerHello, CertificateRequest, \
         ClientHello, Certificate, ServerHello2, ServerFinished, \
-        ServerKeyExchange, CertificateStatus
+        ServerKeyExchange, CertificateStatus, CertificateVerify
 from tlslite.extensions import SNIExtension, TLSExtension, \
         SupportedGroupsExtension, ALPNExtension, ECPointFormatsExtension, \
         NPNExtension, ServerKeyShareExtension, ClientKeyShareExtension, \
@@ -957,6 +959,149 @@ class TestExpectCertificate(unittest.TestCase):
                 create(X509CertChain([X509().parse(srv_raw_certificate)]))
 
         exp.process(state, msg)
+
+
+class TestExpectCertificateVerify(unittest.TestCase):
+    def test___init__(self):
+        exp = ExpectCertificate()
+
+        self.assertIsNotNone(exp)
+
+        self.assertTrue(exp.is_expect())
+        self.assertFalse(exp.is_command())
+        self.assertFalse(exp.is_generator())
+
+    def test_is_match(self):
+        exp = ExpectCertificateVerify()
+
+        msg = Message(ContentType.handshake,
+                      bytearray([HandshakeType.certificate_verify]))
+
+        self.assertTrue(exp.is_match(msg))
+
+    def test_is_match_with_unmatching_content_type(self):
+        exp = ExpectCertificateVerify()
+
+        msg = Message(ContentType.application_data,
+                      bytearray([HandshakeType.certificate_verify]))
+
+        self.assertFalse(exp.is_match(msg))
+
+    def test_is_match_with_unmatching_handshake_type(self):
+        exp = ExpectCertificateVerify()
+
+        msg = Message(ContentType.handshake,
+                      bytearray([HandshakeType.certificate]))
+
+        self.assertFalse(exp.is_match(msg))
+
+    def test_process(self):
+        exp = ExpectCertificateVerify()
+
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+
+        cert = Certificate(CertificateType.x509, (3, 4)).create(
+            X509CertChain([X509().parse(srv_raw_certificate)]))
+
+        private_key = parsePEMKey(srv_raw_key, private=True)
+
+        client_hello = ClientHello()
+        ext = SignatureAlgorithmsExtension().\
+            create([SignatureScheme.rsa_pss_rsae_sha384])
+        client_hello.extensions = [ext]
+        state.handshake_messages.append(client_hello)
+
+        state.handshake_messages.append(cert)
+
+        hh_digest = state.handshake_hashes.digest('sha256')
+        self.assertEqual(state.prf_name, "sha256")
+        signature_context = bytearray(b'\x20' * 64 +
+                                      b'TLS 1.3, server CertificateVerify' +
+                                      b'\x00') + hh_digest
+        sig = private_key.hashAndSign(signature_context,
+                                      "PSS",
+                                      "sha384",
+                                      48)
+        scheme = SignatureScheme.rsa_pss_rsae_sha384
+        cer_verify = CertificateVerify((3, 4)).create(sig, scheme)
+
+        exp.process(state, cer_verify)
+
+    def test_process_with_expected_sig_alg(self):
+        exp = ExpectCertificateVerify(
+            sig_alg=SignatureScheme.rsa_pss_rsae_sha384)
+
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+
+        cert = Certificate(CertificateType.x509, (3, 4)).create(
+            X509CertChain([X509().parse(srv_raw_certificate)]))
+
+        private_key = parsePEMKey(srv_raw_key, private=True)
+
+        client_hello = ClientHello()
+        ext = SignatureAlgorithmsExtension().\
+            create([SignatureScheme.rsa_pss_rsae_sha384])
+        client_hello.extensions = [ext]
+        state.handshake_messages.append(client_hello)
+
+        state.handshake_messages.append(cert)
+
+        hh_digest = state.handshake_hashes.digest('sha256')
+        self.assertEqual(state.prf_name, "sha256")
+        signature_context = bytearray(b'\x20' * 64 +
+                                      b'TLS 1.3, server CertificateVerify' +
+                                      b'\x00') + hh_digest
+        sig = private_key.hashAndSign(signature_context,
+                                      "PSS",
+                                      "sha384",
+                                      48)
+        scheme = SignatureScheme.rsa_pss_rsae_sha384
+        cer_verify = CertificateVerify((3, 4)).create(sig, scheme)
+
+        exp.process(state, cer_verify)
+
+    def test_process_with_invalid_signature(self):
+        exp = ExpectCertificateVerify(
+            sig_alg=SignatureScheme.rsa_pss_rsae_sha384)
+
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+
+        cert = Certificate(CertificateType.x509, (3, 4)).create(
+            X509CertChain([X509().parse(srv_raw_certificate)]))
+
+        private_key = parsePEMKey(srv_raw_key, private=True)
+
+        client_hello = ClientHello()
+        ext = SignatureAlgorithmsExtension().\
+            create([SignatureScheme.rsa_pss_rsae_sha384])
+        client_hello.extensions = [ext]
+        state.handshake_messages.append(client_hello)
+
+        state.handshake_messages.append(cert)
+
+        hh_digest = state.handshake_hashes.digest('sha256')
+        self.assertEqual(state.prf_name, "sha256")
+        signature_context = bytearray(b'\x20' * 64 +
+                                      b'TLS 1.3, server CertificateVerify' +
+                                      b'\x00') + hh_digest
+        sig = private_key.hashAndSign(signature_context,
+                                      "PSS",
+                                      "sha384",
+                                      48)
+        sig[-1] ^= 1
+        scheme = SignatureScheme.rsa_pss_rsae_sha384
+        cer_verify = CertificateVerify((3, 4)).create(sig, scheme)
+
+        with self.assertRaises(AssertionError) as exc:
+            exp.process(state, cer_verify)
+
+        self.assertIn("verification failed", str(exc.exception))
 
 
 class TestExpectCertificateStatus(unittest.TestCase):

@@ -6,13 +6,16 @@ from __future__ import print_function
 
 import collections
 import itertools
+import tlslite.utils.tlshashlib as hashlib
 import sys
 from tlslite.constants import ContentType, HandshakeType, CertificateType,\
         HashAlgorithm, SignatureAlgorithm, ExtensionType,\
-        SSL2HandshakeType, CipherSuite, GroupName, AlertDescription
+        SSL2HandshakeType, CipherSuite, GroupName, AlertDescription, \
+        SignatureScheme
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
-        ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus
+        ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus, \
+        CertificateVerify
 from tlslite.extensions import TLSExtension, ALPNExtension
 from tlslite.utils.codec import Parser
 from tlslite.utils.compat import b2a_hex
@@ -499,6 +502,59 @@ class ExpectCertificate(ExpectHandshake):
         cert.parse(parser)
 
         state.handshake_messages.append(cert)
+        state.handshake_hashes.update(msg.write())
+
+
+class ExpectCertificateVerify(ExpectHandshake):
+    """Processing TLS Handshake protocol Certificate Verify messages."""
+    def __init__(self, version=None, sig_alg=None):
+        super(ExpectCertificateVerify, self).__init__(
+            ContentType.handshake,
+            HandshakeType.certificate_verify)
+        self.version = version
+        self.sig_alg = sig_alg
+
+    def process(self, state, msg):
+        """
+        @type state: ConnectionState
+        """
+        assert msg.contentType == ContentType.handshake
+        parser = Parser(msg.write())
+        hs_type = parser.get(1)
+        assert hs_type == HandshakeType.certificate_verify
+
+        if self.version is None:
+            self.version = state.version
+
+        cert_v = CertificateVerify(self.version)
+        cert_v.parse(parser)
+
+        if self.sig_alg:
+            assert self.sig_alg == cert_v.signatureAlgorithm
+        else:
+            c_hello = state.get_last_message_of_type(ClientHello)
+            ext = c_hello.getExtension(ExtensionType.signature_algorithms)
+            assert cert_v.signatureAlgorithm in ext.sigalgs
+
+        salg = cert_v.signatureAlgorithm
+
+        scheme = SignatureScheme.toRepr(salg)
+        hash_name = SignatureScheme.getHash(scheme)
+
+        transcript_hash = state.handshake_hashes.digest(state.prf_name)
+        sig_context = bytearray(b'\x20' * 64 +
+                                b'TLS 1.3, server CertificateVerify' +
+                                b'\x00') + transcript_hash
+
+        if not state.get_server_public_key().hashAndVerify(
+                cert_v.signature,
+                sig_context,
+                SignatureScheme.getPadding(scheme),
+                hash_name,
+                getattr(hashlib, hash_name)().digest_size):
+            raise AssertionError("Signature verification failed")
+
+        state.handshake_messages.append(cert_v)
         state.handshake_hashes.update(msg.write())
 
 
