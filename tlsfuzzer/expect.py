@@ -495,7 +495,7 @@ class ExpectCertificate(ExpectHandshake):
         hs_type = parser.get(1)
         assert hs_type == HandshakeType.certificate
 
-        cert = Certificate(self.cert_type)
+        cert = Certificate(self.cert_type, state.version)
         cert.parse(parser)
 
         state.handshake_messages.append(cert)
