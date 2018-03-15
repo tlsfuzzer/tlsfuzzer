@@ -14,8 +14,9 @@ except ImportError:
 
 
 
-from tlsfuzzer.helpers import sig_algs_to_ids
-
+from tlsfuzzer.helpers import sig_algs_to_ids, key_share_gen
+from tlslite.extensions import KeyShareEntry
+from tlslite.constants import GroupName
 
 class TestSigAlgsToIds(unittest.TestCase):
     def test_with_empty(self):
@@ -46,3 +47,19 @@ class TestSigAlgsToIds(unittest.TestCase):
     def test_multiple_values(self):
         ret = sig_algs_to_ids("rsa_pss_pss_sha256 sha512+0")
         self.assertEqual(ret, [(8, 9), (6, 0)])
+
+
+class TestKeyShareGen(unittest.TestCase):
+    def test_with_ffdhe2048(self):
+        ret = key_share_gen(GroupName.ffdhe2048)
+
+        self.assertIsInstance(ret, KeyShareEntry)
+        self.assertEqual(ret.group, GroupName.ffdhe2048)
+        self.assertEqual(len(ret.key_exchange), 2048 // 8)
+
+    def test_with_p256(self):
+        ret = key_share_gen(GroupName.secp256r1)
+
+        self.assertIsInstance(ret, KeyShareEntry)
+        self.assertEqual(ret.group, GroupName.secp256r1)
+        self.assertEqual(len(ret.key_exchange), 256 // 8 * 2 + 1)
