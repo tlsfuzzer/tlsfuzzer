@@ -67,7 +67,7 @@ class Expect(TreeNode):
 
         @type state: L{tlsfuzzer.runner.ConnectionState}
         @param state: current connection state, needs to be updated after
-        parsing the message
+        parsing the message by inheriting classes
         @type msg: L{tlslite.messages.Message}
         @param msg: raw message to parse
         """
