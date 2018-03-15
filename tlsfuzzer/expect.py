@@ -16,6 +16,7 @@ from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
 from tlslite.extensions import TLSExtension, ALPNExtension
 from tlslite.utils.codec import Parser
 from tlslite.utils.compat import b2a_hex
+from tlslite.utils.cryptomath import secureHMAC, derive_secret
 from tlslite.mathtls import calcFinished, RFC7919_GROUPS
 from tlslite.keyexchange import KeyExchange, DHE_RSAKeyExchange, \
         ECDHE_RSAKeyExchange
@@ -301,6 +302,16 @@ class ExpectServerHello(ExpectHandshake):
                 raise ValueError("Bad extension handler for id {0}"
                                  .format(ExtensionType.toStr(ext_id)))
 
+    @staticmethod
+    def _extract_version(msg):
+        """Extract the real version from the message if TLS 1.3 is in use."""
+        ext = msg.getExtension(ExtensionType.supported_versions)
+
+        if ext and msg.server_version >= (3, 3):
+            return ext.version
+
+        return msg.server_version
+
     def process(self, state, msg):
         """
         Process the message and update state accordingly
@@ -330,7 +341,7 @@ class ExpectServerHello(ExpectHandshake):
                 srv_hello.session_id != bytearray(0)):
             state.resuming = True
             assert state.cipher == srv_hello.cipher_suite
-            assert state.version == srv_hello.server_version
+            assert state.version == self._extract_version(srv_hello)
         state.session_id = srv_hello.session_id
 
         if self.version is not None:
@@ -352,10 +363,11 @@ class ExpectServerHello(ExpectHandshake):
                                  " not advertise: {0}".format(name))
 
         state.cipher = srv_hello.cipher_suite
-        state.version = srv_hello.server_version
+        state.version = self._extract_version(srv_hello)
 
         # update the state of connection
-        state.msg_sock.version = srv_hello.server_version
+        state.msg_sock.version = state.version
+        state.msg_sock.tls13record = state.version > (3, 3)
 
         state.handshake_messages.append(srv_hello)
         state.handshake_hashes.update(msg.write())
@@ -368,6 +380,49 @@ class ExpectServerHello(ExpectHandshake):
             self._process_extensions(state, cln_hello, srv_hello)
 
         self._compare_extensions(srv_hello)
+
+        if state.version > (3, 3):
+            self._setup_tls13_handshake_keys(state)
+
+    @staticmethod
+    def _setup_tls13_handshake_keys(state):
+        """Set up the encryption keys for the TLS 1.3 handshake."""
+        prf_name = state.prf_name
+        prf_size = state.prf_size
+
+        # Derive PSK secret
+        # TODO handle PSK key exchange
+        psk = bytearray(prf_size)
+        state.key['PSK secret'] = psk
+
+        # Derive TLS 1.3 early secret
+        secret = bytearray(prf_size)
+        secret = secureHMAC(secret, psk, prf_name)
+        state.key['early secret'] = secret
+
+        # Derive TLS 1.3 handshake secret
+        secret = derive_secret(secret, b'derived', None, prf_name)
+        # TODO handle pure PSK key exchange, without DH
+        secret = secureHMAC(secret, state.key['DH shared secret'], prf_name)
+        state.key['handshake secret'] = secret
+
+        # Derive TLS 1.3 traffic secrets
+        s_traffic_secret = derive_secret(secret, b's hs traffic',
+                                         state.handshake_hashes,
+                                         prf_name)
+        state.key['server handshake traffic secret'] = s_traffic_secret
+        c_traffic_secret = derive_secret(secret, b'c hs traffic',
+                                         state.handshake_hashes,
+                                         prf_name)
+        state.key['client handshake traffic secret'] = c_traffic_secret
+
+        state.msg_sock.calcTLS1_3PendingState(
+            state.cipher,
+            c_traffic_secret,
+            s_traffic_secret,
+            None)
+
+        state.msg_sock.changeReadState()
 
 
 class ExpectServerHello2(ExpectHandshake):

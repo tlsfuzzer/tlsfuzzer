@@ -830,6 +830,51 @@ class TestExpectServerHello(unittest.TestCase):
 
         self.assertTrue(state.extended_master_secret)
 
+    def test_process_with_tls13_settings(self):
+        exp = ExpectServerHello()
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.extensions = []
+        client_hello.cipher_suites = [CipherSuite.TLS_AES_128_GCM_SHA256]
+        ext = SupportedGroupsExtension().create([GroupName.secp256r1])
+        client_hello.extensions.append(ext)
+        c_ks = key_share_gen(GroupName.secp256r1)
+        ext = ClientKeyShareExtension().create([c_ks])
+        client_hello.extensions.append(ext)
+        ext = SupportedVersionsExtension().create([(3, 3), (3, 4)])
+        client_hello.extensions.append(ext)
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        s_ext = []
+        s_ks = key_share_gen(GroupName.secp256r1)
+        ext = ServerKeyShareExtension().create(s_ks)
+        s_ext.append(ext)
+        ext = SrvSupportedVersionsExtension().create((3, 4))
+        s_ext.append(ext)
+        server_hello = ServerHello().create(version=(3, 3),
+                                            random=bytearray(32),
+                                            session_id=bytearray(0),
+                                            cipher_suite=
+                                            CipherSuite.TLS_AES_128_GCM_SHA256,
+                                            extensions=s_ext)
+
+        exp.process(state, server_hello)
+
+        state.msg_sock.calcTLS1_3PendingState.assert_called_once_with(
+            state.cipher,
+            state.key['client handshake traffic secret'],
+            state.key['server handshake traffic secret'],
+            None)
+        state.msg_sock.changeReadState.assert_called_once_with()
+        self.assertTrue(state.key['handshake secret'])
+        self.assertTrue(state.key['client handshake traffic secret'])
+        self.assertTrue(state.key['server handshake traffic secret'])
+        self.assertEqual(state.version, (3, 4))
+        self.assertTrue(state.msg_sock.tls13record)
+
+
 class TestExpectServerHello2(unittest.TestCase):
     def test___init__(self):
         exp = ExpectServerHello2()
