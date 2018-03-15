@@ -34,7 +34,8 @@ from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         SignatureScheme
 from tlslite.messages import Message, ServerHello, CertificateRequest, \
         ClientHello, Certificate, ServerHello2, ServerFinished, \
-        ServerKeyExchange, CertificateStatus, CertificateVerify
+        ServerKeyExchange, CertificateStatus, CertificateVerify, \
+        Finished
 from tlslite.extensions import SNIExtension, TLSExtension, \
         SupportedGroupsExtension, ALPNExtension, ECPointFormatsExtension, \
         NPNExtension, ServerKeyShareExtension, ClientKeyShareExtension, \
@@ -1300,6 +1301,21 @@ class TestExpectFinished(unittest.TestCase):
                       bytearray(b"\xa3;\x9c\xc9\'E\xbc\xf6\xc7\x96\xaf\x7f"))
 
         exp.process(state, msg)
+
+    def test_process_with_tls13(self):
+        exp = ExpectFinished()
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+        state.key['server handshake traffic secret'] = bytearray(32)
+        state.msg_sock = mock.MagicMock()
+        msg = Finished((3, 4), 32).create(
+            bytearray(b'\x14\xa5e\xa67\xfe\xa3(\xd3\xac\x95\xecX\xb7\xc0\xd4'
+                      b'u\xef\xb3V\x8f\xc7[\xcdD\xc8\xa4\x86\xcf\xd3\xc9\x0c'))
+
+        exp.process(state, msg)
+
+        state.msg_sock.changeWriteState.assert_called_once_with()
 
     def test_process_with_ssl2(self):
         exp = ExpectFinished((2, 0))

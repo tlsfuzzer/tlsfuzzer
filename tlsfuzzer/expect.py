@@ -19,7 +19,8 @@ from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
 from tlslite.extensions import TLSExtension, ALPNExtension
 from tlslite.utils.codec import Parser
 from tlslite.utils.compat import b2a_hex
-from tlslite.utils.cryptomath import secureHMAC, derive_secret
+from tlslite.utils.cryptomath import secureHMAC, derive_secret, \
+        HKDF_expand_label
 from tlslite.mathtls import calcFinished, RFC7919_GROUPS
 from tlslite.keyexchange import KeyExchange, DHE_RSAKeyExchange, \
         ECDHE_RSAKeyExchange
@@ -796,19 +797,31 @@ class ExpectFinished(ExpectHandshake):
         if self.version in ((0, 2), (2, 0)):
             finished = ServerFinished()
         else:
-            finished = Finished(self.version)
+            finished = Finished(self.version, state.prf_size)
 
         finished.parse(parser)
 
         if self.version in ((0, 2), (2, 0)):
             state.session_id = finished.verify_data
-        else:
+        elif self.version <= (3, 3):
             verify_expected = calcFinished(state.version,
                                            state.key['master_secret'],
                                            state.cipher,
                                            state.handshake_hashes,
                                            not state.client)
 
+            assert finished.verify_data == verify_expected
+        else:  # TLS 1.3
+            finished_key = HKDF_expand_label(
+                state.key['server handshake traffic secret'],
+                b'finished',
+                b'',
+                state.prf_size,
+                state.prf_name)
+            transcript_hash = state.handshake_hashes.digest(state.prf_name)
+            verify_expected = secureHMAC(finished_key,
+                                         transcript_hash,
+                                         state.prf_name)
             assert finished.verify_data == verify_expected
 
         state.handshake_messages.append(finished)
@@ -817,6 +830,12 @@ class ExpectFinished(ExpectHandshake):
 
         if self.version in ((0, 2), (2, 0)):
             state.msg_sock.handshake_finished = True
+
+        # in TLS 1.3 ChangeCipherSpec is a no-op, we need to attach
+        # the change to some message
+        if self.version > (3, 3):
+            state.msg_sock.changeWriteState()
+
 
 
 class ExpectAlert(Expect):
