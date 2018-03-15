@@ -24,7 +24,7 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         ExpectCertificateStatus, ExpectNoMessage, srv_ext_handler_ems, \
         srv_ext_handler_etm, srv_ext_handler_sni, srv_ext_handler_renego, \
         srv_ext_handler_alpn, srv_ext_handler_ec_point, srv_ext_handler_npn, \
-        srv_ext_handler_key_share
+        srv_ext_handler_key_share, srv_ext_handler_supp_vers
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
@@ -35,7 +35,8 @@ from tlslite.messages import Message, ServerHello, CertificateRequest, \
         ServerKeyExchange, CertificateStatus
 from tlslite.extensions import SNIExtension, TLSExtension, \
         SupportedGroupsExtension, ALPNExtension, ECPointFormatsExtension, \
-        NPNExtension, ServerKeyShareExtension, ClientKeyShareExtension
+        NPNExtension, ServerKeyShareExtension, ClientKeyShareExtension, \
+        SrvSupportedVersionsExtension, SupportedVersionsExtension
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509certchain import X509CertChain, X509
 from tlslite.extensions import SNIExtension, SignatureAlgorithmsExtension
@@ -307,6 +308,34 @@ class TestServerExtensionProcessors(unittest.TestCase):
             srv_ext_handler_key_share(state, ext)
 
         self.assertIn("secp256r1", str(exc.exception))
+        self.assertIn("didn't advertise", str(exc.exception))
+
+    def test_srv_ext_handler_supp_vers(self):
+        ext = SrvSupportedVersionsExtension().create((3, 4))
+
+        state = ConnectionState()
+
+        client_hello = ClientHello()
+        cln_ext = SupportedVersionsExtension().create([(3, 4)])
+        client_hello.extensions = [cln_ext]
+        state.handshake_messages.append(client_hello)
+
+        srv_ext_handler_supp_vers(state, ext)
+
+    def test_srv_ext_handler_supp_vers_with_wrong_version(self):
+        ext = SrvSupportedVersionsExtension().create((3, 9))
+
+        state = ConnectionState()
+
+        client_hello = ClientHello()
+        cln_ext = SupportedVersionsExtension().create([(3, 4), (3, 5)])
+        client_hello.extensions = [cln_ext]
+        state.handshake_messages.append(client_hello)
+
+        with self.assertRaises(AssertionError) as exc:
+            srv_ext_handler_supp_vers(state, ext)
+
+        self.assertIn("(3, 9)", str(exc.exception))
         self.assertIn("didn't advertise", str(exc.exception))
 
 

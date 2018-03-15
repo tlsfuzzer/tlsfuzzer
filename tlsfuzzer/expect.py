@@ -183,6 +183,20 @@ def srv_ext_handler_key_share(state, extension):
     state.key['DH shared secret'] = z
 
 
+def srv_ext_handler_supp_vers(state, extension):
+    """Process the supported_versions from server."""
+    cln_hello = state.get_last_message_of_type(ClientHello)
+    cln_ext = cln_hello.getExtension(ExtensionType.supported_versions)
+
+    vers = extension.version
+
+    if vers not in cln_ext.versions:
+        raise AssertionError("Server selected version we didn't advertise: {0}"
+                             .format(vers))
+
+    state.version = vers
+
+
 _srv_ext_handler = \
         {ExtensionType.extended_master_secret: srv_ext_handler_ems,
          ExtensionType.encrypt_then_mac: srv_ext_handler_etm,
@@ -191,7 +205,8 @@ _srv_ext_handler = \
          ExtensionType.alpn: srv_ext_handler_alpn,
          ExtensionType.ec_point_formats: srv_ext_handler_ec_point,
          ExtensionType.supports_npn: srv_ext_handler_npn,
-         ExtensionType.key_share: srv_ext_handler_key_share}
+         ExtensionType.key_share: srv_ext_handler_key_share,
+         ExtensionType.supported_versions: srv_ext_handler_supp_vers}
 
 
 class ExpectServerHello(ExpectHandshake):
