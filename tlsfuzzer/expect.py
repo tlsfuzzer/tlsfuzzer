@@ -22,7 +22,7 @@ from tlslite.keyexchange import KeyExchange, DHE_RSAKeyExchange, \
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 from tlslite.errors import TLSDecryptionFailed
-from .handshake_helpers import calc_pending_states
+from .handshake_helpers import calc_pending_states, kex_for_group
 from .tree import TreeNode
 
 
@@ -162,6 +162,27 @@ def srv_ext_handler_npn(state, extension):
         raise AssertionError("Malformed NPN extension")
 
 
+def srv_ext_handler_key_share(state, extension):
+    """Process the key_share extension from server."""
+    cln_hello = state.get_last_message_of_type(ClientHello)
+    cln_ext = cln_hello.getExtension(ExtensionType.key_share)
+
+    group_id = extension.server_share.group
+
+    cl_ext = next((i for i in cln_ext.client_shares if i.group == group_id),
+                  None)
+    if cl_ext is None:
+        raise AssertionError("Server selected group we didn't advertise: {0}"
+                             .format(GroupName.toStr(group_id)))
+
+    kex = kex_for_group(group_id, state.version)
+
+    z = kex.calc_shared_key(cl_ext.private,
+                            extension.server_share.key_exchange)
+
+    state.key['DH shared secret'] = z
+
+
 _srv_ext_handler = \
         {ExtensionType.extended_master_secret: srv_ext_handler_ems,
          ExtensionType.encrypt_then_mac: srv_ext_handler_etm,
@@ -169,7 +190,8 @@ _srv_ext_handler = \
          ExtensionType.renegotiation_info: srv_ext_handler_renego,
          ExtensionType.alpn: srv_ext_handler_alpn,
          ExtensionType.ec_point_formats: srv_ext_handler_ec_point,
-         ExtensionType.supports_npn: srv_ext_handler_npn}
+         ExtensionType.supports_npn: srv_ext_handler_npn,
+         ExtensionType.key_share: srv_ext_handler_key_share}
 
 
 class ExpectServerHello(ExpectHandshake):

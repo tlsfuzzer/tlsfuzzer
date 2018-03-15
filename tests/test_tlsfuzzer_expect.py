@@ -23,7 +23,8 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         ExpectServerHello2, ExpectVerify, ExpectSSL2Alert, \
         ExpectCertificateStatus, ExpectNoMessage, srv_ext_handler_ems, \
         srv_ext_handler_etm, srv_ext_handler_sni, srv_ext_handler_renego, \
-        srv_ext_handler_alpn, srv_ext_handler_ec_point, srv_ext_handler_npn
+        srv_ext_handler_alpn, srv_ext_handler_ec_point, srv_ext_handler_npn, \
+        srv_ext_handler_key_share
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
@@ -34,7 +35,7 @@ from tlslite.messages import Message, ServerHello, CertificateRequest, \
         ServerKeyExchange, CertificateStatus
 from tlslite.extensions import SNIExtension, TLSExtension, \
         SupportedGroupsExtension, ALPNExtension, ECPointFormatsExtension, \
-        NPNExtension
+        NPNExtension, ServerKeyShareExtension, ClientKeyShareExtension
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509certchain import X509CertChain, X509
 from tlslite.extensions import SNIExtension, SignatureAlgorithmsExtension
@@ -42,6 +43,8 @@ from tlslite.keyexchange import DHE_RSAKeyExchange, ECDHE_RSAKeyExchange
 from tlslite.errors import TLSIllegalParameterException, TLSDecryptionFailed
 from tlsfuzzer.runner import ConnectionState
 from tlslite.extensions import RenegotiationInfoExtension
+from tlsfuzzer.helpers import key_share_gen
+from tlslite.keyexchange import ECDHKeyExchange
 
 srv_raw_key = str(
     "-----BEGIN RSA PRIVATE KEY-----\n"\
@@ -265,6 +268,46 @@ class TestServerExtensionProcessors(unittest.TestCase):
 
         with self.assertRaises(AssertionError):
             srv_ext_handler_npn(state, ext)
+
+    def test_srv_ext_handler_key_share(self):
+        s_ks = key_share_gen(GroupName.secp256r1)
+        s_private = s_ks.private
+        s_ks.private = None
+
+        ext = ServerKeyShareExtension().create(s_ks)
+
+        state = ConnectionState()
+
+        client_hello = ClientHello()
+        c_ks = key_share_gen(GroupName.secp256r1)
+        cln_ext = ClientKeyShareExtension().create([c_ks])
+        client_hello.extensions = [cln_ext]
+        state.handshake_messages.append(client_hello)
+
+        srv_ext_handler_key_share(state, ext)
+
+        kex = ECDHKeyExchange(GroupName.secp256r1, (3, 4))
+        shared = kex.calc_shared_key(s_private, c_ks.key_exchange)
+
+        self.assertEqual(state.key['DH shared secret'], shared)
+
+    def test_srv_ext_handler_key_share_bad_srv_group(self):
+        s_ks = key_share_gen(GroupName.secp256r1)
+        ext = ServerKeyShareExtension().create(s_ks)
+
+        state = ConnectionState()
+
+        client_hello = ClientHello()
+        c_ks = key_share_gen(GroupName.x25519)
+        cln_ext = ClientKeyShareExtension().create([c_ks])
+        client_hello.extensions = [cln_ext]
+        state.handshake_messages.append(client_hello)
+
+        with self.assertRaises(AssertionError) as exc:
+            srv_ext_handler_key_share(state, ext)
+
+        self.assertIn("secp256r1", str(exc.exception))
+        self.assertIn("didn't advertise", str(exc.exception))
 
 
 class TestExpectServerHello(unittest.TestCase):
