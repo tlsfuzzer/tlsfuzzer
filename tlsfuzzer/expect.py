@@ -542,8 +542,10 @@ class ExpectCertificateRequest(ExpectHandshake):
         cert_request.parse(parser)
         if self.sig_algs is not None and \
                 cert_request.supported_signature_algs != self.sig_algs:
-            raise AssertionError("Unexpected algorithms found: {0}"
-                                 .format(cert_request.supported_signature_algs)
+            raise AssertionError("Unexpected sig algs. Got: {0}, "
+                                 "expected: {1}"
+                                 .format(cert_request.supported_signature_algs,
+                                         self.sig_algs)
                                 )
 
         state.handshake_messages.append(cert_request)

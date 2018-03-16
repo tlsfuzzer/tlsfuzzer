@@ -18,6 +18,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
         ExpectServerKeyExchange, ExpectCertificateRequest
+from tlsfuzzer.helpers import sig_algs_to_ids
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType, HashAlgorithm, SignatureAlgorithm, SignatureScheme
@@ -51,18 +52,6 @@ def help_msg():
     print(" -k keyfile     file with private key")
     print(" -c certfile    file with certificate of client")
     print(" --help         this message")
-
-
-def sig_algs_to_ids(names):
-    ids = []
-    for name in names.split(' '):
-        if '+' in name:
-            h_alg, s_alg = name.split('+')
-            ids.append((getattr(HashAlgorithm, h_alg),
-                        getattr(SignatureAlgorithm, s_alg)))
-        else:
-            ids.append(getattr(SignatureScheme, name))
-    return ids
 
 
 def main():

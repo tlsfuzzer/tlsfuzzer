@@ -100,7 +100,9 @@
           "arguments" : ["extended master secret with renegotiation"],
           "comment" : "tlslite-ng does not support renegotiation",
           "exp_pass" : false},
-         {"name" : "test-fallback-scsv.py"},
+         {"name" : "test-fallback-scsv.py",
+          "arguments" : ["--tls-1.3"]
+         },
          {"name" : "test-fuzzed-ciphertext.py"},
          {"name" : "test-fuzzed-finished.py"},
          {"name" : "test-fuzzed-MAC.py"},
@@ -175,7 +177,8 @@
          },
          {"name" : "test-certificate-request.py",
           "arguments" : ["-k", "tests/clientX509Key.pem",
-                         "-c", "tests/clientX509Cert.pem"]
+                         "-c", "tests/clientX509Cert.pem",
+                         "-s", "rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256 rsa_pkcs1_sha512 rsa_pkcs1_sha384 rsa_pkcs1_sha256 sha224+rsa rsa_pkcs1_sha1"]
           },
          {"name" : "test-certificate-verify-malformed-sig.py",
           "arguments" : ["-k", "tests/clientX509Key.pem",
