@@ -19,7 +19,8 @@ from tlslite.mathtls import calcMasterSecret, calcFinished, \
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.utils.codec import Writer
 from tlslite.utils.cryptomath import getRandomBytes, numBytes, \
-    numberToByteArray, bytesToNumber
+    numberToByteArray, bytesToNumber, HKDF_expand_label, secureHMAC, \
+    derive_secret
 from tlslite.keyexchange import KeyExchange
 from tlslite.bufferedsocket import BufferedSocket
 from .handshake_helpers import calc_pending_states
@@ -791,6 +792,7 @@ class FinishedGenerator(HandshakeProtocolMessageGenerator):
         """Object to generate Finished messages."""
         super(FinishedGenerator, self).__init__()
         self.protocol = protocol
+        self.server_finish_hh = None
 
     def generate(self, status):
         """Create a Finished message."""
@@ -804,15 +806,28 @@ class FinishedGenerator(HandshakeProtocolMessageGenerator):
             # in SSLv2 we're using it as a CCS-of-sorts too
             status.msg_sock.changeWriteState()
             status.msg_sock.changeReadState()
-        else:
+        elif self.protocol <= (3, 3):
             finished = Finished(self.protocol)
             verify_data = calcFinished(status.version,
                                        status.key['master_secret'],
                                        status.cipher,
                                        status.handshake_hashes,
                                        status.client)
+        else:  # TLS 1.3
+            finished = Finished(self.protocol, status.prf_size)
+            finished_key = HKDF_expand_label(
+                status.key['client handshake traffic secret'],
+                b'finished',
+                b'',
+                status.prf_size,
+                status.prf_name)
+            self.server_finish_hh = status.handshake_hashes.copy()
+            verify_data = secureHMAC(
+                finished_key,
+                self.server_finish_hh.digest(status.prf_name),
+                status.prf_name)
 
-            status.key['client_verify_data'] = verify_data
+        status.key['client_verify_data'] = verify_data
 
         finished.create(verify_data)
 
@@ -825,8 +840,41 @@ class FinishedGenerator(HandshakeProtocolMessageGenerator):
         super(FinishedGenerator, self).post_send(status)
 
         # resumption finished
-        if status.resuming:
-            status.resuming = False
+        status.resuming = False
+
+        if status.version <= (3, 3):
+            return
+
+        # derive the master secret
+        secret = derive_secret(
+            status.key['handshake secret'], b'derived', None, status.prf_name)
+        secret = secureHMAC(
+            secret, bytearray(status.prf_size), status.prf_name)
+        status.key['master secret'] = secret
+
+        # derive encryption keys
+        c_traff_sec = derive_secret(
+            secret, b'c ap traffic', self.server_finish_hh, status.prf_name)
+        status.key['client application traffic secret'] = c_traff_sec
+        s_traff_sec = derive_secret(
+            secret, b's ap traffic', self.server_finish_hh, status.prf_name)
+        status.key['server application traffic secret'] = s_traff_sec
+
+        # derive TLS exporter key
+        exp_ms = derive_secret(secret, b'exp master', self.server_finish_hh,
+                               status.prf_name)
+        status.key['exporter master secret'] = exp_ms
+
+        # set up the encryption keys for application data
+        status.msg_sock.calcTLS1_3PendingState(
+            status.cipher, c_traff_sec, s_traff_sec, None)
+        status.msg_sock.changeReadState()
+        status.msg_sock.changeWriteState()
+
+        # derive resumption master secret key
+        res_ms = derive_secret(secret, b'res master', status.handshake_hashes,
+                               status.prf_name)
+        status.key['resumption master secret'] = res_ms
 
 
 class AlertGenerator(MessageGenerator):

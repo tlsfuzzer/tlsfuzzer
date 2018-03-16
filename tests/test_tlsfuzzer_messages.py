@@ -953,6 +953,39 @@ class TestFinishedGenerator(unittest.TestCase):
         state.msg_sock.changeWriteState.assert_called_once_with()
         state.msg_sock.changeReadState.assert_called_once_with()
 
+    def test_generate_in_tls13(self):
+        fg = FinishedGenerator((3, 4))
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        state.cipher = constants.CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+        state.key['client handshake traffic secret'] = bytearray(32)
+
+        ret = fg.generate(state)
+
+        self.assertEqual(ret.verify_data, bytearray(
+            b'\x14\xa5e\xa67\xfe\xa3(\xd3\xac\x95\xecX\xb7\xc0\xd4u\xef'
+            b'\xb3V\x8f\xc7[\xcdD\xc8\xa4\x86\xcf\xd3\xc9\x0c'))
+
+        state.key['handshake secret'] = bytearray(32)
+
+        fg.post_send(state)
+
+        state.msg_sock.calcTLS1_3PendingState.assert_called_once_with(
+            state.cipher,
+            state.key['client application traffic secret'],
+            state.key['server application traffic secret'],
+            None)
+        state.msg_sock.changeWriteState.assert_called_once_with()
+        state.msg_sock.changeReadState.assert_called_once_with()
+
+        self.assertEqual(state.key['resumption master secret'], bytearray(
+            b'\xf8\xcfk\x1d\x9b\xd6\xe2V\x9f\x08\xa8\xae\xe4\xab'
+            b'\xee7\xc2>\x98\xf4w\x9f\x9e3\x14qq\xdf:\xf6\xa8z'
+            ))
+
+
 class TestResetHandshakeHashes(unittest.TestCase):
     def test___init__(self):
         node = ResetHandshakeHashes()
