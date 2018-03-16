@@ -15,7 +15,7 @@ from tlslite.constants import ContentType, HandshakeType, CertificateType,\
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
         ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus, \
-        CertificateVerify
+        CertificateVerify, EncryptedExtensions
 from tlslite.extensions import TLSExtension, ALPNExtension
 from tlslite.utils.codec import Parser
 from tlslite.utils.compat import b2a_hex
@@ -835,6 +835,30 @@ class ExpectFinished(ExpectHandshake):
         # the change to some message
         if self.version > (3, 3):
             state.msg_sock.changeWriteState()
+
+
+class ExpectEncryptedExtensions(ExpectHandshake):
+    """Processing of the TLS handshake protocol Encrypted Extensions message"""
+
+    def __init__(self, extensions=None):
+        super(ExpectEncryptedExtensions, self).__init__(
+            ContentType.handshake,
+            HandshakeType.encrypted_extensions)
+        self.extensions = extensions
+
+    def process(self, state, msg):
+        assert msg.contentType == ContentType.handshake
+        parser = Parser(msg.write())
+        hs_type = parser.get(1)
+        assert hs_type == self.handshake_type
+
+        exts = EncryptedExtensions().parse(parser)
+
+        # TODO check if received extensions match the set extensions
+        assert self.extensions is None
+
+        state.handshake_messages.append(exts)
+        state.handshake_hashes.update(msg.write())
 
 
 
