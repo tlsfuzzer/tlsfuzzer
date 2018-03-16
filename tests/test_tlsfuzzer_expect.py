@@ -25,7 +25,8 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         srv_ext_handler_etm, srv_ext_handler_sni, srv_ext_handler_renego, \
         srv_ext_handler_alpn, srv_ext_handler_ec_point, srv_ext_handler_npn, \
         srv_ext_handler_key_share, srv_ext_handler_supp_vers, \
-        ExpectCertificateVerify, ExpectEncryptedExtensions
+        ExpectCertificateVerify, ExpectEncryptedExtensions, \
+        ExpectNewSessionTicket
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
@@ -35,7 +36,7 @@ from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
 from tlslite.messages import Message, ServerHello, CertificateRequest, \
         ClientHello, Certificate, ServerHello2, ServerFinished, \
         ServerKeyExchange, CertificateStatus, CertificateVerify, \
-        Finished, EncryptedExtensions
+        Finished, EncryptedExtensions, NewSessionTicket
 from tlslite.extensions import SNIExtension, TLSExtension, \
         SupportedGroupsExtension, ALPNExtension, ECPointFormatsExtension, \
         NPNExtension, ServerKeyShareExtension, ClientKeyShareExtension, \
@@ -1346,6 +1347,28 @@ class TestExpectEncryptedExtensions(unittest.TestCase):
         exp.process(state, ee)
 
         self.assertIn(ee, state.handshake_messages)
+
+
+class TestExpectNewSessionTicket(unittest.TestCase):
+    def test___init__(self):
+        exp = ExpectNewSessionTicket()
+
+        self.assertIsNotNone(exp)
+
+        self.assertTrue(exp.is_expect())
+        self.assertFalse(exp.is_command())
+        self.assertFalse(exp.is_generator())
+
+    def test_process(self):
+        exp = ExpectNewSessionTicket()
+
+        nst = NewSessionTicket().create(12, 44, b'abba', b'I am a ticket', [])
+
+        state = ConnectionState()
+
+        exp.process(state, nst)
+
+        self.assertIn(nst, state.session_tickets)
 
 
 class TestExpectVerify(unittest.TestCase):

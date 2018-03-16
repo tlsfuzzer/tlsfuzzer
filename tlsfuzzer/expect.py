@@ -15,7 +15,7 @@ from tlslite.constants import ContentType, HandshakeType, CertificateType,\
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
         ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus, \
-        CertificateVerify, EncryptedExtensions
+        CertificateVerify, EncryptedExtensions, NewSessionTicket
 from tlslite.extensions import TLSExtension, ALPNExtension
 from tlslite.utils.codec import Parser
 from tlslite.utils.compat import b2a_hex
@@ -860,6 +860,23 @@ class ExpectEncryptedExtensions(ExpectHandshake):
         state.handshake_messages.append(exts)
         state.handshake_hashes.update(msg.write())
 
+
+class ExpectNewSessionTicket(ExpectHandshake):
+    """Processing TLS handshake protocol new session ticket message."""
+    def __init__(self):
+        super(ExpectNewSessionTicket, self).__init__(
+            ContentType.handshake,
+            HandshakeType.new_session_ticket)
+
+    def process(self, state, msg):
+        assert msg.contentType == ContentType.handshake
+        parser = Parser(msg.write())
+        hs_type = parser.get(1)
+        assert hs_type == HandshakeType.new_session_ticket
+
+        ticket = NewSessionTicket().parse(parser)
+
+        state.session_tickets.append(ticket)
 
 
 class ExpectAlert(Expect):

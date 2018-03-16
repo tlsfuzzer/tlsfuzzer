@@ -85,6 +85,9 @@ class ConnectionState(object):
         # EncryptThenMAC extension defined in RFC 7366
         self.encrypt_then_mac = False
 
+        # list of tickets received from the server
+        self.session_tickets = []
+
     @property
     def prf_name(self):
         """Return the name of the PRF used for session.
