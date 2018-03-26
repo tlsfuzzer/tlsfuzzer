@@ -326,6 +326,8 @@ class TestServerExtensionProcessors(unittest.TestCase):
 
         srv_ext_handler_supp_vers(state, ext)
 
+        self.assertEqual(state.version, ext.version)
+
     def test_srv_ext_handler_supp_vers_with_wrong_version(self):
         ext = SrvSupportedVersionsExtension().create((3, 9))
 
