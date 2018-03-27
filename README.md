@@ -4,8 +4,8 @@
 [![Code Climate](https://codeclimate.com/github/tomato42/tlsfuzzer/badges/gpa.svg)](https://codeclimate.com/github/tomato42/tlsfuzzer)
 
 # tlsfuzzer
-Fuzzer and test suite for TLS (v1.0, v1.1, v1.2) implementations. Early alpha
-version - thus no API stability guarantees.
+Fuzzer and test suite for TLS (SSLv2, SSLv3, v1.0, v1.1, v1.2, v1.3) implementations.
+Early alpha version - thus no API stability guarantees.
 
 ## Dependencies
 
