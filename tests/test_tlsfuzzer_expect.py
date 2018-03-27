@@ -23,18 +23,24 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         ExpectServerHello2, ExpectVerify, ExpectSSL2Alert, \
         ExpectCertificateStatus, ExpectNoMessage, srv_ext_handler_ems, \
         srv_ext_handler_etm, srv_ext_handler_sni, srv_ext_handler_renego, \
-        srv_ext_handler_alpn, srv_ext_handler_ec_point, srv_ext_handler_npn
+        srv_ext_handler_alpn, srv_ext_handler_ec_point, srv_ext_handler_npn, \
+        srv_ext_handler_key_share, srv_ext_handler_supp_vers, \
+        ExpectCertificateVerify, ExpectEncryptedExtensions, \
+        ExpectNewSessionTicket
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
         SignatureAlgorithm, CipherSuite, CertificateType, SSL2HandshakeType, \
-        SSL2ErrorDescription, GroupName, CertificateStatusType, ECPointFormat
+        SSL2ErrorDescription, GroupName, CertificateStatusType, ECPointFormat,\
+        SignatureScheme
 from tlslite.messages import Message, ServerHello, CertificateRequest, \
         ClientHello, Certificate, ServerHello2, ServerFinished, \
-        ServerKeyExchange, CertificateStatus
+        ServerKeyExchange, CertificateStatus, CertificateVerify, \
+        Finished, EncryptedExtensions, NewSessionTicket
 from tlslite.extensions import SNIExtension, TLSExtension, \
         SupportedGroupsExtension, ALPNExtension, ECPointFormatsExtension, \
-        NPNExtension
+        NPNExtension, ServerKeyShareExtension, ClientKeyShareExtension, \
+        SrvSupportedVersionsExtension, SupportedVersionsExtension
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509certchain import X509CertChain, X509
 from tlslite.extensions import SNIExtension, SignatureAlgorithmsExtension
@@ -42,6 +48,8 @@ from tlslite.keyexchange import DHE_RSAKeyExchange, ECDHE_RSAKeyExchange
 from tlslite.errors import TLSIllegalParameterException, TLSDecryptionFailed
 from tlsfuzzer.runner import ConnectionState
 from tlslite.extensions import RenegotiationInfoExtension
+from tlsfuzzer.helpers import key_share_gen
+from tlslite.keyexchange import ECDHKeyExchange
 
 srv_raw_key = str(
     "-----BEGIN RSA PRIVATE KEY-----\n"\
@@ -187,8 +195,8 @@ class TestServerExtensionProcessors(unittest.TestCase):
         ext = RenegotiationInfoExtension().create(bytearray(b'abba'))
 
         state = ConnectionState()
-        state.client_verify_data = bytearray(b'ab')
-        state.server_verify_data = bytearray(b'ba')
+        state.key['client_verify_data'] = bytearray(b'ab')
+        state.key['server_verify_data'] = bytearray(b'ba')
 
         srv_ext_handler_renego(state, ext)
 
@@ -265,6 +273,76 @@ class TestServerExtensionProcessors(unittest.TestCase):
 
         with self.assertRaises(AssertionError):
             srv_ext_handler_npn(state, ext)
+
+    def test_srv_ext_handler_key_share(self):
+        s_ks = key_share_gen(GroupName.secp256r1)
+        s_private = s_ks.private
+        s_ks.private = None
+
+        ext = ServerKeyShareExtension().create(s_ks)
+
+        state = ConnectionState()
+
+        client_hello = ClientHello()
+        c_ks = key_share_gen(GroupName.secp256r1)
+        cln_ext = ClientKeyShareExtension().create([c_ks])
+        client_hello.extensions = [cln_ext]
+        state.handshake_messages.append(client_hello)
+
+        srv_ext_handler_key_share(state, ext)
+
+        kex = ECDHKeyExchange(GroupName.secp256r1, (3, 4))
+        shared = kex.calc_shared_key(s_private, c_ks.key_exchange)
+
+        self.assertEqual(state.key['DH shared secret'], shared)
+
+    def test_srv_ext_handler_key_share_bad_srv_group(self):
+        s_ks = key_share_gen(GroupName.secp256r1)
+        ext = ServerKeyShareExtension().create(s_ks)
+
+        state = ConnectionState()
+
+        client_hello = ClientHello()
+        c_ks = key_share_gen(GroupName.x25519)
+        cln_ext = ClientKeyShareExtension().create([c_ks])
+        client_hello.extensions = [cln_ext]
+        state.handshake_messages.append(client_hello)
+
+        with self.assertRaises(AssertionError) as exc:
+            srv_ext_handler_key_share(state, ext)
+
+        self.assertIn("secp256r1", str(exc.exception))
+        self.assertIn("didn't advertise", str(exc.exception))
+
+    def test_srv_ext_handler_supp_vers(self):
+        ext = SrvSupportedVersionsExtension().create((3, 4))
+
+        state = ConnectionState()
+
+        client_hello = ClientHello()
+        cln_ext = SupportedVersionsExtension().create([(3, 4)])
+        client_hello.extensions = [cln_ext]
+        state.handshake_messages.append(client_hello)
+
+        srv_ext_handler_supp_vers(state, ext)
+
+        self.assertEqual(state.version, ext.version)
+
+    def test_srv_ext_handler_supp_vers_with_wrong_version(self):
+        ext = SrvSupportedVersionsExtension().create((3, 9))
+
+        state = ConnectionState()
+
+        client_hello = ClientHello()
+        cln_ext = SupportedVersionsExtension().create([(3, 4), (3, 5)])
+        client_hello.extensions = [cln_ext]
+        state.handshake_messages.append(client_hello)
+
+        with self.assertRaises(AssertionError) as exc:
+            srv_ext_handler_supp_vers(state, ext)
+
+        self.assertIn("(3, 9)", str(exc.exception))
+        self.assertIn("didn't advertise", str(exc.exception))
 
 
 class TestExpectServerHello(unittest.TestCase):
@@ -758,6 +836,51 @@ class TestExpectServerHello(unittest.TestCase):
 
         self.assertTrue(state.extended_master_secret)
 
+    def test_process_with_tls13_settings(self):
+        exp = ExpectServerHello()
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.extensions = []
+        client_hello.cipher_suites = [CipherSuite.TLS_AES_128_GCM_SHA256]
+        ext = SupportedGroupsExtension().create([GroupName.secp256r1])
+        client_hello.extensions.append(ext)
+        c_ks = key_share_gen(GroupName.secp256r1)
+        ext = ClientKeyShareExtension().create([c_ks])
+        client_hello.extensions.append(ext)
+        ext = SupportedVersionsExtension().create([(3, 3), (3, 4)])
+        client_hello.extensions.append(ext)
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        s_ext = []
+        s_ks = key_share_gen(GroupName.secp256r1)
+        ext = ServerKeyShareExtension().create(s_ks)
+        s_ext.append(ext)
+        ext = SrvSupportedVersionsExtension().create((3, 4))
+        s_ext.append(ext)
+        server_hello = ServerHello().create(version=(3, 3),
+                                            random=bytearray(32),
+                                            session_id=bytearray(0),
+                                            cipher_suite=
+                                            CipherSuite.TLS_AES_128_GCM_SHA256,
+                                            extensions=s_ext)
+
+        exp.process(state, server_hello)
+
+        state.msg_sock.calcTLS1_3PendingState.assert_called_once_with(
+            state.cipher,
+            state.key['client handshake traffic secret'],
+            state.key['server handshake traffic secret'],
+            None)
+        state.msg_sock.changeReadState.assert_called_once_with()
+        self.assertTrue(state.key['handshake secret'])
+        self.assertTrue(state.key['client handshake traffic secret'])
+        self.assertTrue(state.key['server handshake traffic secret'])
+        self.assertEqual(state.version, (3, 4))
+        self.assertTrue(state.msg_sock.tls13record)
+
+
 class TestExpectServerHello2(unittest.TestCase):
     def test___init__(self):
         exp = ExpectServerHello2()
@@ -840,6 +963,149 @@ class TestExpectCertificate(unittest.TestCase):
                 create(X509CertChain([X509().parse(srv_raw_certificate)]))
 
         exp.process(state, msg)
+
+
+class TestExpectCertificateVerify(unittest.TestCase):
+    def test___init__(self):
+        exp = ExpectCertificate()
+
+        self.assertIsNotNone(exp)
+
+        self.assertTrue(exp.is_expect())
+        self.assertFalse(exp.is_command())
+        self.assertFalse(exp.is_generator())
+
+    def test_is_match(self):
+        exp = ExpectCertificateVerify()
+
+        msg = Message(ContentType.handshake,
+                      bytearray([HandshakeType.certificate_verify]))
+
+        self.assertTrue(exp.is_match(msg))
+
+    def test_is_match_with_unmatching_content_type(self):
+        exp = ExpectCertificateVerify()
+
+        msg = Message(ContentType.application_data,
+                      bytearray([HandshakeType.certificate_verify]))
+
+        self.assertFalse(exp.is_match(msg))
+
+    def test_is_match_with_unmatching_handshake_type(self):
+        exp = ExpectCertificateVerify()
+
+        msg = Message(ContentType.handshake,
+                      bytearray([HandshakeType.certificate]))
+
+        self.assertFalse(exp.is_match(msg))
+
+    def test_process(self):
+        exp = ExpectCertificateVerify()
+
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+
+        cert = Certificate(CertificateType.x509, (3, 4)).create(
+            X509CertChain([X509().parse(srv_raw_certificate)]))
+
+        private_key = parsePEMKey(srv_raw_key, private=True)
+
+        client_hello = ClientHello()
+        ext = SignatureAlgorithmsExtension().\
+            create([SignatureScheme.rsa_pss_rsae_sha384])
+        client_hello.extensions = [ext]
+        state.handshake_messages.append(client_hello)
+
+        state.handshake_messages.append(cert)
+
+        hh_digest = state.handshake_hashes.digest('sha256')
+        self.assertEqual(state.prf_name, "sha256")
+        signature_context = bytearray(b'\x20' * 64 +
+                                      b'TLS 1.3, server CertificateVerify' +
+                                      b'\x00') + hh_digest
+        sig = private_key.hashAndSign(signature_context,
+                                      "PSS",
+                                      "sha384",
+                                      48)
+        scheme = SignatureScheme.rsa_pss_rsae_sha384
+        cer_verify = CertificateVerify((3, 4)).create(sig, scheme)
+
+        exp.process(state, cer_verify)
+
+    def test_process_with_expected_sig_alg(self):
+        exp = ExpectCertificateVerify(
+            sig_alg=SignatureScheme.rsa_pss_rsae_sha384)
+
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+
+        cert = Certificate(CertificateType.x509, (3, 4)).create(
+            X509CertChain([X509().parse(srv_raw_certificate)]))
+
+        private_key = parsePEMKey(srv_raw_key, private=True)
+
+        client_hello = ClientHello()
+        ext = SignatureAlgorithmsExtension().\
+            create([SignatureScheme.rsa_pss_rsae_sha384])
+        client_hello.extensions = [ext]
+        state.handshake_messages.append(client_hello)
+
+        state.handshake_messages.append(cert)
+
+        hh_digest = state.handshake_hashes.digest('sha256')
+        self.assertEqual(state.prf_name, "sha256")
+        signature_context = bytearray(b'\x20' * 64 +
+                                      b'TLS 1.3, server CertificateVerify' +
+                                      b'\x00') + hh_digest
+        sig = private_key.hashAndSign(signature_context,
+                                      "PSS",
+                                      "sha384",
+                                      48)
+        scheme = SignatureScheme.rsa_pss_rsae_sha384
+        cer_verify = CertificateVerify((3, 4)).create(sig, scheme)
+
+        exp.process(state, cer_verify)
+
+    def test_process_with_invalid_signature(self):
+        exp = ExpectCertificateVerify(
+            sig_alg=SignatureScheme.rsa_pss_rsae_sha384)
+
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+
+        cert = Certificate(CertificateType.x509, (3, 4)).create(
+            X509CertChain([X509().parse(srv_raw_certificate)]))
+
+        private_key = parsePEMKey(srv_raw_key, private=True)
+
+        client_hello = ClientHello()
+        ext = SignatureAlgorithmsExtension().\
+            create([SignatureScheme.rsa_pss_rsae_sha384])
+        client_hello.extensions = [ext]
+        state.handshake_messages.append(client_hello)
+
+        state.handshake_messages.append(cert)
+
+        hh_digest = state.handshake_hashes.digest('sha256')
+        self.assertEqual(state.prf_name, "sha256")
+        signature_context = bytearray(b'\x20' * 64 +
+                                      b'TLS 1.3, server CertificateVerify' +
+                                      b'\x00') + hh_digest
+        sig = private_key.hashAndSign(signature_context,
+                                      "PSS",
+                                      "sha384",
+                                      48)
+        sig[-1] ^= 1
+        scheme = SignatureScheme.rsa_pss_rsae_sha384
+        cer_verify = CertificateVerify((3, 4)).create(sig, scheme)
+
+        with self.assertRaises(AssertionError) as exc:
+            exp.process(state, cer_verify)
+
+        self.assertIn("verification failed", str(exc.exception))
 
 
 class TestExpectCertificateStatus(unittest.TestCase):
@@ -971,7 +1237,7 @@ class TestExpectChangeCipherSpec(unittest.TestCase):
         state.resuming = True
 
         state.cipher = mock.Mock(name="cipher")
-        state.master_secret = mock.Mock(name="master_secret")
+        state.key['master_secret'] = mock.Mock(name="master_secret")
         state.client_random = mock.Mock(name="client_random")
         state.server_random = mock.Mock(name="server_random")
 
@@ -981,7 +1247,7 @@ class TestExpectChangeCipherSpec(unittest.TestCase):
 
         state.msg_sock.calcPendingStates.assert_called_once_with(
                 state.cipher,
-                state.master_secret,
+                state.key['master_secret'],
                 state.client_random,
                 state.server_random,
                 None)
@@ -1039,6 +1305,21 @@ class TestExpectFinished(unittest.TestCase):
 
         exp.process(state, msg)
 
+    def test_process_with_tls13(self):
+        exp = ExpectFinished()
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+        state.key['server handshake traffic secret'] = bytearray(32)
+        state.msg_sock = mock.MagicMock()
+        msg = Finished((3, 4), 32).create(
+            bytearray(b'\x14\xa5e\xa67\xfe\xa3(\xd3\xac\x95\xecX\xb7\xc0\xd4'
+                      b'u\xef\xb3V\x8f\xc7[\xcdD\xc8\xa4\x86\xcf\xd3\xc9\x0c'))
+
+        exp.process(state, msg)
+
+        state.msg_sock.changeWriteState.assert_called_once_with()
+
     def test_process_with_ssl2(self):
         exp = ExpectFinished((2, 0))
         state = ConnectionState()
@@ -1046,6 +1327,51 @@ class TestExpectFinished(unittest.TestCase):
         msg = ServerFinished().create(bytearray(range(12)))
 
         exp.process(state, msg)
+
+
+class TestExpectEncryptedExtensions(unittest.TestCase):
+    def test___init__(self):
+        exp = ExpectEncryptedExtensions()
+
+        self.assertIsNotNone(exp)
+
+        self.assertTrue(exp.is_expect())
+        self.assertFalse(exp.is_command())
+        self.assertFalse(exp.is_generator())
+
+    def test_process(self):
+        exp = ExpectEncryptedExtensions()
+
+        ee = EncryptedExtensions().create([])
+
+        state = ConnectionState()
+
+        exp.process(state, ee)
+
+        self.assertIn(ee, state.handshake_messages)
+
+
+class TestExpectNewSessionTicket(unittest.TestCase):
+    def test___init__(self):
+        exp = ExpectNewSessionTicket()
+
+        self.assertIsNotNone(exp)
+
+        self.assertTrue(exp.is_expect())
+        self.assertFalse(exp.is_command())
+        self.assertFalse(exp.is_generator())
+
+    def test_process(self):
+        exp = ExpectNewSessionTicket()
+
+        nst = NewSessionTicket().create(12, 44, b'abba', b'I am a ticket', [])
+
+        state = ConnectionState()
+
+        exp.process(state, nst)
+
+        self.assertIn(nst, state.session_tickets)
+
 
 class TestExpectVerify(unittest.TestCase):
     def test___init__(self):

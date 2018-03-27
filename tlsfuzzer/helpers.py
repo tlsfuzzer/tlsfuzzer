@@ -5,8 +5,10 @@
 from tlslite.constants import HashAlgorithm, SignatureAlgorithm, \
         SignatureScheme
 
+from tlslite.extensions import KeyShareEntry
+from .handshake_helpers import kex_for_group
 
-__all__ = ['sig_algs_to_ids']
+__all__ = ['sig_algs_to_ids', 'key_share_gen']
 
 
 def _hash_name_to_id(h_alg):
@@ -57,3 +59,18 @@ def sig_algs_to_ids(names):
             ids.append(getattr(SignatureScheme, name))
 
     return ids
+
+
+def key_share_gen(group, version=(3, 4)):
+    """
+    Create a random key share for a group of a given id.
+
+    :param int group: TLS numerical ID from GroupName identifying the group
+    :param tuple version: TLS protocol version as a tuple, as encoded on the
+        wire
+    :return: KeyShareEntry
+    """
+    kex = kex_for_group(group, version)
+    private = kex.get_random_private_key()
+    share = kex.calc_public_value(private)
+    return KeyShareEntry().create(group, share, private)

@@ -6,23 +6,28 @@ from __future__ import print_function
 
 import collections
 import itertools
+import tlslite.utils.tlshashlib as hashlib
 import sys
 from tlslite.constants import ContentType, HandshakeType, CertificateType,\
         HashAlgorithm, SignatureAlgorithm, ExtensionType,\
-        SSL2HandshakeType, CipherSuite, GroupName, AlertDescription
+        SSL2HandshakeType, CipherSuite, GroupName, AlertDescription, \
+        SignatureScheme
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
-        ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus
+        ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus, \
+        CertificateVerify, EncryptedExtensions, NewSessionTicket
 from tlslite.extensions import TLSExtension, ALPNExtension
 from tlslite.utils.codec import Parser
 from tlslite.utils.compat import b2a_hex
+from tlslite.utils.cryptomath import secureHMAC, derive_secret, \
+        HKDF_expand_label
 from tlslite.mathtls import calcFinished, RFC7919_GROUPS
 from tlslite.keyexchange import KeyExchange, DHE_RSAKeyExchange, \
         ECDHE_RSAKeyExchange
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 from tlslite.errors import TLSDecryptionFailed
-from .handshake_helpers import calc_pending_states
+from .handshake_helpers import calc_pending_states, kex_for_group
 from .tree import TreeNode
 
 
@@ -67,7 +72,7 @@ class Expect(TreeNode):
 
         @type state: L{tlsfuzzer.runner.ConnectionState}
         @param state: current connection state, needs to be updated after
-        parsing the message
+        parsing the message by inheriting classes
         @type msg: L{tlslite.messages.Message}
         @param msg: raw message to parse
         """
@@ -130,7 +135,7 @@ def srv_ext_handler_sni(state, extension):
 def srv_ext_handler_renego(state, extension):
     """Process the renegotiation_info from server."""
     if extension.renegotiated_connection != \
-            state.client_verify_data + state.server_verify_data:
+            state.key['client_verify_data'] + state.key['server_verify_data']:
         raise AssertionError("Invalid data in renegotiation_info")
 
 
@@ -162,6 +167,41 @@ def srv_ext_handler_npn(state, extension):
         raise AssertionError("Malformed NPN extension")
 
 
+def srv_ext_handler_key_share(state, extension):
+    """Process the key_share extension from server."""
+    cln_hello = state.get_last_message_of_type(ClientHello)
+    cln_ext = cln_hello.getExtension(ExtensionType.key_share)
+
+    group_id = extension.server_share.group
+
+    cl_ext = next((i for i in cln_ext.client_shares if i.group == group_id),
+                  None)
+    if cl_ext is None:
+        raise AssertionError("Server selected group we didn't advertise: {0}"
+                             .format(GroupName.toStr(group_id)))
+
+    kex = kex_for_group(group_id, state.version)
+
+    z = kex.calc_shared_key(cl_ext.private,
+                            extension.server_share.key_exchange)
+
+    state.key['DH shared secret'] = z
+
+
+def srv_ext_handler_supp_vers(state, extension):
+    """Process the supported_versions from server."""
+    cln_hello = state.get_last_message_of_type(ClientHello)
+    cln_ext = cln_hello.getExtension(ExtensionType.supported_versions)
+
+    vers = extension.version
+
+    if vers not in cln_ext.versions:
+        raise AssertionError("Server selected version we didn't advertise: {0}"
+                             .format(vers))
+
+    state.version = vers
+
+
 _srv_ext_handler = \
         {ExtensionType.extended_master_secret: srv_ext_handler_ems,
          ExtensionType.encrypt_then_mac: srv_ext_handler_etm,
@@ -169,7 +209,9 @@ _srv_ext_handler = \
          ExtensionType.renegotiation_info: srv_ext_handler_renego,
          ExtensionType.alpn: srv_ext_handler_alpn,
          ExtensionType.ec_point_formats: srv_ext_handler_ec_point,
-         ExtensionType.supports_npn: srv_ext_handler_npn}
+         ExtensionType.supports_npn: srv_ext_handler_npn,
+         ExtensionType.key_share: srv_ext_handler_key_share,
+         ExtensionType.supported_versions: srv_ext_handler_supp_vers}
 
 
 class ExpectServerHello(ExpectHandshake):
@@ -264,6 +306,16 @@ class ExpectServerHello(ExpectHandshake):
                 raise ValueError("Bad extension handler for id {0}"
                                  .format(ExtensionType.toStr(ext_id)))
 
+    @staticmethod
+    def _extract_version(msg):
+        """Extract the real version from the message if TLS 1.3 is in use."""
+        ext = msg.getExtension(ExtensionType.supported_versions)
+
+        if ext and msg.server_version >= (3, 3):
+            return ext.version
+
+        return msg.server_version
+
     def process(self, state, msg):
         """
         Process the message and update state accordingly
@@ -293,7 +345,7 @@ class ExpectServerHello(ExpectHandshake):
                 srv_hello.session_id != bytearray(0)):
             state.resuming = True
             assert state.cipher == srv_hello.cipher_suite
-            assert state.version == srv_hello.server_version
+            assert state.version == self._extract_version(srv_hello)
         state.session_id = srv_hello.session_id
 
         if self.version is not None:
@@ -315,10 +367,11 @@ class ExpectServerHello(ExpectHandshake):
                                  " not advertise: {0}".format(name))
 
         state.cipher = srv_hello.cipher_suite
-        state.version = srv_hello.server_version
+        state.version = self._extract_version(srv_hello)
 
         # update the state of connection
-        state.msg_sock.version = srv_hello.server_version
+        state.msg_sock.version = state.version
+        state.msg_sock.tls13record = state.version > (3, 3)
 
         state.handshake_messages.append(srv_hello)
         state.handshake_hashes.update(msg.write())
@@ -331,6 +384,49 @@ class ExpectServerHello(ExpectHandshake):
             self._process_extensions(state, cln_hello, srv_hello)
 
         self._compare_extensions(srv_hello)
+
+        if state.version > (3, 3):
+            self._setup_tls13_handshake_keys(state)
+
+    @staticmethod
+    def _setup_tls13_handshake_keys(state):
+        """Set up the encryption keys for the TLS 1.3 handshake."""
+        prf_name = state.prf_name
+        prf_size = state.prf_size
+
+        # Derive PSK secret
+        # TODO handle PSK key exchange
+        psk = bytearray(prf_size)
+        state.key['PSK secret'] = psk
+
+        # Derive TLS 1.3 early secret
+        secret = bytearray(prf_size)
+        secret = secureHMAC(secret, psk, prf_name)
+        state.key['early secret'] = secret
+
+        # Derive TLS 1.3 handshake secret
+        secret = derive_secret(secret, b'derived', None, prf_name)
+        # TODO handle pure PSK key exchange, without DH
+        secret = secureHMAC(secret, state.key['DH shared secret'], prf_name)
+        state.key['handshake secret'] = secret
+
+        # Derive TLS 1.3 traffic secrets
+        s_traffic_secret = derive_secret(secret, b's hs traffic',
+                                         state.handshake_hashes,
+                                         prf_name)
+        state.key['server handshake traffic secret'] = s_traffic_secret
+        c_traffic_secret = derive_secret(secret, b'c hs traffic',
+                                         state.handshake_hashes,
+                                         prf_name)
+        state.key['client handshake traffic secret'] = c_traffic_secret
+
+        state.msg_sock.calcTLS1_3PendingState(
+            state.cipher,
+            c_traffic_secret,
+            s_traffic_secret,
+            None)
+
+        state.msg_sock.changeReadState()
 
 
 class ExpectServerHello2(ExpectHandshake):
@@ -403,10 +499,63 @@ class ExpectCertificate(ExpectHandshake):
         hs_type = parser.get(1)
         assert hs_type == HandshakeType.certificate
 
-        cert = Certificate(self.cert_type)
+        cert = Certificate(self.cert_type, state.version)
         cert.parse(parser)
 
         state.handshake_messages.append(cert)
+        state.handshake_hashes.update(msg.write())
+
+
+class ExpectCertificateVerify(ExpectHandshake):
+    """Processing TLS Handshake protocol Certificate Verify messages."""
+    def __init__(self, version=None, sig_alg=None):
+        super(ExpectCertificateVerify, self).__init__(
+            ContentType.handshake,
+            HandshakeType.certificate_verify)
+        self.version = version
+        self.sig_alg = sig_alg
+
+    def process(self, state, msg):
+        """
+        @type state: ConnectionState
+        """
+        assert msg.contentType == ContentType.handshake
+        parser = Parser(msg.write())
+        hs_type = parser.get(1)
+        assert hs_type == HandshakeType.certificate_verify
+
+        if self.version is None:
+            self.version = state.version
+
+        cert_v = CertificateVerify(self.version)
+        cert_v.parse(parser)
+
+        if self.sig_alg:
+            assert self.sig_alg == cert_v.signatureAlgorithm
+        else:
+            c_hello = state.get_last_message_of_type(ClientHello)
+            ext = c_hello.getExtension(ExtensionType.signature_algorithms)
+            assert cert_v.signatureAlgorithm in ext.sigalgs
+
+        salg = cert_v.signatureAlgorithm
+
+        scheme = SignatureScheme.toRepr(salg)
+        hash_name = SignatureScheme.getHash(scheme)
+
+        transcript_hash = state.handshake_hashes.digest(state.prf_name)
+        sig_context = bytearray(b'\x20' * 64 +
+                                b'TLS 1.3, server CertificateVerify' +
+                                b'\x00') + transcript_hash
+
+        if not state.get_server_public_key().hashAndVerify(
+                cert_v.signature,
+                sig_context,
+                SignatureScheme.getPadding(scheme),
+                hash_name,
+                getattr(hashlib, hash_name)().digest_size):
+            raise AssertionError("Signature verification failed")
+
+        state.handshake_messages.append(cert_v)
         state.handshake_hashes.update(msg.write())
 
 
@@ -509,7 +658,7 @@ class ExpectServerKeyExchange(ExpectHandshake):
                                      acceptedCurves=valid_groups)
         else:
             raise AssertionError("Unsupported cipher selected")
-        state.premaster_secret = state.key_exchange.\
+        state.key['premaster_secret'] = state.key_exchange.\
             processServerKeyExchange(public_key,
                                      server_key_exchange)
 
@@ -600,7 +749,8 @@ class ExpectChangeCipherSpec(Expect):
             state.msg_sock.encryptThenMAC = state.encrypt_then_mac
             calc_pending_states(state)
 
-        state.msg_sock.changeReadState()
+        if state.version < (3, 4):
+            state.msg_sock.changeReadState()
 
 
 class ExpectVerify(ExpectHandshake):
@@ -647,27 +797,86 @@ class ExpectFinished(ExpectHandshake):
         if self.version in ((0, 2), (2, 0)):
             finished = ServerFinished()
         else:
-            finished = Finished(self.version)
+            finished = Finished(self.version, state.prf_size)
 
         finished.parse(parser)
 
         if self.version in ((0, 2), (2, 0)):
             state.session_id = finished.verify_data
-        else:
+        elif self.version <= (3, 3):
             verify_expected = calcFinished(state.version,
-                                           state.master_secret,
+                                           state.key['master_secret'],
                                            state.cipher,
                                            state.handshake_hashes,
                                            not state.client)
 
             assert finished.verify_data == verify_expected
+        else:  # TLS 1.3
+            finished_key = HKDF_expand_label(
+                state.key['server handshake traffic secret'],
+                b'finished',
+                b'',
+                state.prf_size,
+                state.prf_name)
+            transcript_hash = state.handshake_hashes.digest(state.prf_name)
+            verify_expected = secureHMAC(finished_key,
+                                         transcript_hash,
+                                         state.prf_name)
+            assert finished.verify_data == verify_expected
 
         state.handshake_messages.append(finished)
-        state.server_verify_data = finished.verify_data
+        state.key['server_verify_data'] = finished.verify_data
         state.handshake_hashes.update(msg.write())
 
         if self.version in ((0, 2), (2, 0)):
             state.msg_sock.handshake_finished = True
+
+        # in TLS 1.3 ChangeCipherSpec is a no-op, we need to attach
+        # the change to some message
+        if self.version > (3, 3):
+            state.msg_sock.changeWriteState()
+
+
+class ExpectEncryptedExtensions(ExpectHandshake):
+    """Processing of the TLS handshake protocol Encrypted Extensions message"""
+
+    def __init__(self, extensions=None):
+        super(ExpectEncryptedExtensions, self).__init__(
+            ContentType.handshake,
+            HandshakeType.encrypted_extensions)
+        self.extensions = extensions
+
+    def process(self, state, msg):
+        assert msg.contentType == ContentType.handshake
+        parser = Parser(msg.write())
+        hs_type = parser.get(1)
+        assert hs_type == self.handshake_type
+
+        exts = EncryptedExtensions().parse(parser)
+
+        # TODO check if received extensions match the set extensions
+        assert self.extensions is None
+
+        state.handshake_messages.append(exts)
+        state.handshake_hashes.update(msg.write())
+
+
+class ExpectNewSessionTicket(ExpectHandshake):
+    """Processing TLS handshake protocol new session ticket message."""
+    def __init__(self):
+        super(ExpectNewSessionTicket, self).__init__(
+            ContentType.handshake,
+            HandshakeType.new_session_ticket)
+
+    def process(self, state, msg):
+        assert msg.contentType == ContentType.handshake
+        parser = Parser(msg.write())
+        hs_type = parser.get(1)
+        assert hs_type == HandshakeType.new_session_ticket
+
+        ticket = NewSessionTicket().parse(parser)
+
+        state.session_tickets.append(ticket)
 
 
 class ExpectAlert(Expect):

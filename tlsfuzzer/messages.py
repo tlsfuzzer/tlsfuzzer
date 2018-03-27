@@ -19,7 +19,8 @@ from tlslite.mathtls import calcMasterSecret, calcFinished, \
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.utils.codec import Writer
 from tlslite.utils.cryptomath import getRandomBytes, numBytes, \
-    numberToByteArray, bytesToNumber
+    numberToByteArray, bytesToNumber, HKDF_expand_label, secureHMAC, \
+    derive_secret
 from tlslite.keyexchange import KeyExchange
 from tlslite.bufferedsocket import BufferedSocket
 from .handshake_helpers import calc_pending_states
@@ -74,9 +75,9 @@ class Connect(Command):
         sock = BufferedSocket(sock)
 
         defragmenter = Defragmenter()
-        defragmenter.addStaticSize(ContentType.alert, 2)
-        defragmenter.addStaticSize(ContentType.change_cipher_spec, 1)
-        defragmenter.addDynamicSize(ContentType.handshake, 1, 3)
+        defragmenter.add_static_size(ContentType.alert, 2)
+        defragmenter.add_static_size(ContentType.change_cipher_spec, 1)
+        defragmenter.add_dynamic_size(ContentType.handshake, 1, 3)
 
         state.msg_sock = MessageSocket(sock, defragmenter)
 
@@ -126,8 +127,8 @@ class ResetRenegotiationInfo(Command):
             self.client_verify_data = bytearray(0)
         if self.server_verify_data is None:
             self.server_verify_data = bytearray(0)
-        state.client_verify_data = self.client_verify_data
-        state.server_verify_data = self.server_verify_data
+        state.key['client_verify_data'] = self.client_verify_data
+        state.key['server_verify_data'] = self.server_verify_data
 
 
 class SetMaxRecordSize(Command):
@@ -355,7 +356,7 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
 
             if ext_id == ExtensionType.renegotiation_info:
                 ext = RenegotiationInfoExtension()\
-                        .create(state.client_verify_data)
+                    .create(state.key['client_verify_data'])
                 extensions.append(ext)
             else:
                 extensions.append(TLSExtension().create(ext_id, bytearray(0)))
@@ -471,7 +472,7 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
                 self.premaster_secret[0] = self.client_version[0]
                 self.premaster_secret[1] = self.client_version[1]
 
-                status.premaster_secret = self.premaster_secret
+                status.key['premaster_secret'] = self.premaster_secret
 
                 public_key = status.get_server_public_key()
 
@@ -537,7 +538,7 @@ class ClientMasterKeyGenerator(HandshakeProtocolMessageGenerator):
         if self.cipher is None:
             raise NotImplementedError("No cipher autonegotiation")
         if self.master_key is None:
-            if state.master_secret == bytearray(0):
+            if state.key['master_secret'] == bytearray(0):
                 if self.cipher in CipherSuite.ssl2_128Key:
                     key_size = 16
                 elif self.cipher in CipherSuite.ssl2_192Key:
@@ -548,7 +549,7 @@ class ClientMasterKeyGenerator(HandshakeProtocolMessageGenerator):
                     raise AssertionError("unknown cipher but no master_secret")
                 self.master_key = getRandomBytes(key_size)
             else:
-                self.master_key = state.master_secret
+                self.master_key = state.key['master_secret']
 
         cipher = self.cipher
         if (cipher not in CipherSuite.ssl2rc4 and
@@ -676,12 +677,13 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                 raise ValueError("Can't create a signature without "
                                  "private key!")
 
-            verify_bytes = KeyExchange.calcVerifyBytes(self.sig_version,
-                                                       status.handshake_hashes,
-                                                       self.sig_alg,
-                                                       status.premaster_secret,
-                                                       status.client_random,
-                                                       status.server_random)
+            verify_bytes = \
+                KeyExchange.calcVerifyBytes(self.sig_version,
+                                            status.handshake_hashes,
+                                            self.sig_alg,
+                                            status.key['premaster_secret'],
+                                            status.client_random,
+                                            status.server_random)
 
             # we don't have to handle non pkcs1 padding because the
             # calcVerifyBytes does everything
@@ -764,16 +766,17 @@ class ChangeCipherSpecGenerator(MessageGenerator):
                 master_secret = \
                     calcExtendedMasterSecret(status.version,
                                              cipher_suite,
-                                             status.premaster_secret,
+                                             status.key['premaster_secret'],
                                              hh)
             else:
-                master_secret = calcMasterSecret(status.version,
-                                                 cipher_suite,
-                                                 status.premaster_secret,
-                                                 status.client_random,
-                                                 status.server_random)
+                master_secret = calcMasterSecret(
+                    status.version,
+                    cipher_suite,
+                    status.key['premaster_secret'],
+                    status.client_random,
+                    status.server_random)
 
-            status.master_secret = master_secret
+            status.key['master_secret'] = master_secret
 
             # in case of resumption, the pending states are generated
             # during receive of server sent CCS
@@ -789,6 +792,7 @@ class FinishedGenerator(HandshakeProtocolMessageGenerator):
         """Object to generate Finished messages."""
         super(FinishedGenerator, self).__init__()
         self.protocol = protocol
+        self.server_finish_hh = None
 
     def generate(self, status):
         """Create a Finished message."""
@@ -802,15 +806,28 @@ class FinishedGenerator(HandshakeProtocolMessageGenerator):
             # in SSLv2 we're using it as a CCS-of-sorts too
             status.msg_sock.changeWriteState()
             status.msg_sock.changeReadState()
-        else:
+        elif self.protocol <= (3, 3):
             finished = Finished(self.protocol)
             verify_data = calcFinished(status.version,
-                                       status.master_secret,
+                                       status.key['master_secret'],
                                        status.cipher,
                                        status.handshake_hashes,
                                        status.client)
+        else:  # TLS 1.3
+            finished = Finished(self.protocol, status.prf_size)
+            finished_key = HKDF_expand_label(
+                status.key['client handshake traffic secret'],
+                b'finished',
+                b'',
+                status.prf_size,
+                status.prf_name)
+            self.server_finish_hh = status.handshake_hashes.copy()
+            verify_data = secureHMAC(
+                finished_key,
+                self.server_finish_hh.digest(status.prf_name),
+                status.prf_name)
 
-            status.client_verify_data = verify_data
+        status.key['client_verify_data'] = verify_data
 
         finished.create(verify_data)
 
@@ -823,8 +840,41 @@ class FinishedGenerator(HandshakeProtocolMessageGenerator):
         super(FinishedGenerator, self).post_send(status)
 
         # resumption finished
-        if status.resuming:
-            status.resuming = False
+        status.resuming = False
+
+        if status.version <= (3, 3):
+            return
+
+        # derive the master secret
+        secret = derive_secret(
+            status.key['handshake secret'], b'derived', None, status.prf_name)
+        secret = secureHMAC(
+            secret, bytearray(status.prf_size), status.prf_name)
+        status.key['master secret'] = secret
+
+        # derive encryption keys
+        c_traff_sec = derive_secret(
+            secret, b'c ap traffic', self.server_finish_hh, status.prf_name)
+        status.key['client application traffic secret'] = c_traff_sec
+        s_traff_sec = derive_secret(
+            secret, b's ap traffic', self.server_finish_hh, status.prf_name)
+        status.key['server application traffic secret'] = s_traff_sec
+
+        # derive TLS exporter key
+        exp_ms = derive_secret(secret, b'exp master', self.server_finish_hh,
+                               status.prf_name)
+        status.key['exporter master secret'] = exp_ms
+
+        # set up the encryption keys for application data
+        status.msg_sock.calcTLS1_3PendingState(
+            status.cipher, c_traff_sec, s_traff_sec, None)
+        status.msg_sock.changeReadState()
+        status.msg_sock.changeWriteState()
+
+        # derive resumption master secret key
+        res_ms = derive_secret(secret, b'res master', status.handshake_hashes,
+                               status.prf_name)
+        status.key['resumption master secret'] = res_ms
 
 
 class AlertGenerator(MessageGenerator):

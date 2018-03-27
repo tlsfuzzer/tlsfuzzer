@@ -168,9 +168,9 @@ class TestCollectNonces(unittest.TestCase):
         sock = MockSocket(bytearray())
 
         defragger = defragmenter.Defragmenter()
-        defragger.addStaticSize(constants.ContentType.alert, 2)
-        defragger.addStaticSize(constants.ContentType.change_cipher_spec, 1)
-        defragger.addDynamicSize(constants.ContentType.handshake, 1, 3)
+        defragger.add_static_size(constants.ContentType.alert, 2)
+        defragger.add_static_size(constants.ContentType.change_cipher_spec, 1)
+        defragger.add_dynamic_size(constants.ContentType.handshake, 1, 3)
         state.msg_sock = messagesocket.MessageSocket(sock,
                                                      defragger)
 
@@ -389,7 +389,7 @@ class TestClientHelloGenerator(unittest.TestCase):
 
     def test_generate_extensions_with_renego_info_default_generator(self):
         state = ConnectionState()
-        state.client_verify_data = bytearray(b'\xab\xcd')
+        state.key['client_verify_data'] = bytearray(b'\xab\xcd')
         chg = ClientHelloGenerator(extensions={constants.ExtensionType.renegotiation_info:
                                                None})
 
@@ -619,7 +619,7 @@ class TestChangeCipherSpecGenerator(unittest.TestCase):
             mthd.return_value = bytearray(48)
             ccsg.post_send(state)
         mthd.assert_called_once_with(state.version, state.cipher,
-                                     state.premaster_secret,
+                                     state.key['premaster_secret'],
                                      state.handshake_hashes)
         self.assertTrue(state.msg_sock.calcPendingStates.called)
         self.assertTrue(state.msg_sock.changeWriteState.called)
@@ -703,7 +703,7 @@ class TestClientMasterKeyGenerator(unittest.TestCase):
         state = ConnectionState()
         state.msg_sock = mock.MagicMock()
         state.get_server_public_key = mock.MagicMock()
-        state.master_secret = bytearray(range(32))
+        state.key['master_secret'] = bytearray(range(32))
 
         ret = cmk.generate(state)
 
@@ -953,6 +953,39 @@ class TestFinishedGenerator(unittest.TestCase):
         state.msg_sock.changeWriteState.assert_called_once_with()
         state.msg_sock.changeReadState.assert_called_once_with()
 
+    def test_generate_in_tls13(self):
+        fg = FinishedGenerator((3, 4))
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        state.cipher = constants.CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+        state.key['client handshake traffic secret'] = bytearray(32)
+
+        ret = fg.generate(state)
+
+        self.assertEqual(ret.verify_data, bytearray(
+            b'\x14\xa5e\xa67\xfe\xa3(\xd3\xac\x95\xecX\xb7\xc0\xd4u\xef'
+            b'\xb3V\x8f\xc7[\xcdD\xc8\xa4\x86\xcf\xd3\xc9\x0c'))
+
+        state.key['handshake secret'] = bytearray(32)
+
+        fg.post_send(state)
+
+        state.msg_sock.calcTLS1_3PendingState.assert_called_once_with(
+            state.cipher,
+            state.key['client application traffic secret'],
+            state.key['server application traffic secret'],
+            None)
+        state.msg_sock.changeWriteState.assert_called_once_with()
+        state.msg_sock.changeReadState.assert_called_once_with()
+
+        self.assertEqual(state.key['resumption master secret'], bytearray(
+            b'\xf8\xcfk\x1d\x9b\xd6\xe2V\x9f\x08\xa8\xae\xe4\xab'
+            b'\xee7\xc2>\x98\xf4w\x9f\x9e3\x14qq\xdf:\xf6\xa8z'
+            ))
+
+
 class TestResetHandshakeHashes(unittest.TestCase):
     def test___init__(self):
         node = ResetHandshakeHashes()
@@ -981,13 +1014,13 @@ class TestResetRenegotiationInfo(unittest.TestCase):
         node = ResetRenegotiationInfo()
 
         state = ConnectionState()
-        state.client_verify_data = bytearray(b'\xde\xad\xc0\xde')
-        state.server_verify_data = bytearray(b'\xc0\xff\xee')
+        state.key['client_verify_data'] = bytearray(b'\xde\xad\xc0\xde')
+        state.key['server_verify_data'] = bytearray(b'\xc0\xff\xee')
 
         node.process(state)
 
-        self.assertEqual(state.client_verify_data, bytearray(0))
-        self.assertEqual(state.server_verify_data, bytearray(0))
+        self.assertEqual(state.key['client_verify_data'], bytearray(0))
+        self.assertEqual(state.key['server_verify_data'], bytearray(0))
 
 class TestSetMaxRecordSize(unittest.TestCase):
     def test___init__(self):
@@ -1155,9 +1188,9 @@ class TestFuzzMAC(unittest.TestCase):
         self.socket = MockSocket(bytearray())
 
         defragger = defragmenter.Defragmenter()
-        defragger.addStaticSize(constants.ContentType.alert, 2)
-        defragger.addStaticSize(constants.ContentType.change_cipher_spec, 1)
-        defragger.addDynamicSize(constants.ContentType.handshake, 1, 3)
+        defragger.add_static_size(constants.ContentType.alert, 2)
+        defragger.add_static_size(constants.ContentType.change_cipher_spec, 1)
+        defragger.add_dynamic_size(constants.ContentType.handshake, 1, 3)
         self.state.msg_sock = messagesocket.MessageSocket(self.socket,
                                                           defragger)
 
@@ -1291,9 +1324,9 @@ class TestFuzzEncryptedMessage(unittest.TestCase):
         self.socket = MockSocket(bytearray())
 
         defragger = defragmenter.Defragmenter()
-        defragger.addStaticSize(constants.ContentType.alert, 2)
-        defragger.addStaticSize(constants.ContentType.change_cipher_spec, 1)
-        defragger.addDynamicSize(constants.ContentType.handshake, 1, 3)
+        defragger.add_static_size(constants.ContentType.alert, 2)
+        defragger.add_static_size(constants.ContentType.change_cipher_spec, 1)
+        defragger.add_dynamic_size(constants.ContentType.handshake, 1, 3)
         self.state.msg_sock = messagesocket.MessageSocket(self.socket,
                                                           defragger)
 
@@ -1340,9 +1373,9 @@ class TestFuzzPadding(unittest.TestCase):
         self.socket = MockSocket(bytearray())
 
         defragger = defragmenter.Defragmenter()
-        defragger.addStaticSize(constants.ContentType.alert, 2)
-        defragger.addStaticSize(constants.ContentType.change_cipher_spec, 1)
-        defragger.addDynamicSize(constants.ContentType.handshake, 1, 3)
+        defragger.add_static_size(constants.ContentType.alert, 2)
+        defragger.add_static_size(constants.ContentType.change_cipher_spec, 1)
+        defragger.add_dynamic_size(constants.ContentType.handshake, 1, 3)
         self.state.msg_sock = messagesocket.MessageSocket(self.socket,
                                                           defragger)
         self.state.msg_sock.version = (3, 0)
@@ -1489,9 +1522,9 @@ class TestFuzzPlaintext(unittest.TestCase):
         self.socket = MockSocket(bytearray())
 
         defragger = defragmenter.Defragmenter()
-        defragger.addStaticSize(constants.ContentType.alert, 2)
-        defragger.addStaticSize(constants.ContentType.change_cipher_spec, 1)
-        defragger.addDynamicSize(constants.ContentType.handshake, 1, 3)
+        defragger.add_static_size(constants.ContentType.alert, 2)
+        defragger.add_static_size(constants.ContentType.change_cipher_spec, 1)
+        defragger.add_dynamic_size(constants.ContentType.handshake, 1, 3)
         self.state.msg_sock = messagesocket.MessageSocket(self.socket,
                                                           defragger)
         self.state.msg_sock.version = (3, 0)
