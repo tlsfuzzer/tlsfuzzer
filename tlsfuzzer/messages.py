@@ -1179,6 +1179,50 @@ def fuzz_padding(generator, min_length=None, substitutions=None, xors=None):
     return generator
 
 
+def replace_plaintext(generator, new_plaintext):
+    """
+    Change the plaintext of the message right before encryption.
+
+    Will replace all data before encryption, including the IV, MAC and
+    padding.
+
+    Note: works only with CBC ciphers. in EtM mode will NOT modify MAC.
+
+    Length of new_plaintext must be multiple of negotiated cipher block size
+    (8 bytes for 3DES, 16 bytes for AES)
+    """
+    def new_generate(state, self=generator,
+                     old_generate=generator.generate,
+                     new_plaintext=new_plaintext):
+        """Monkey patch to modify padding behaviour."""
+        msg = old_generate(state)
+
+        self.old_add_padding = state.msg_sock.addPadding
+
+        def new_add_padding(data,
+                            old_add_padding=self.old_add_padding,
+                            self=state.msg_sock,
+                            new_plaintext=new_plaintext):
+            """Monkey patch the padding creating method."""
+            del data
+            del old_add_padding
+            block_size = self.blockSize
+            if len(new_plaintext) % block_size:
+                raise ValueError("new_plaintext length not a multiple of "
+                                 "cipher block size")
+            return new_plaintext
+
+        state.msg_sock.addPadding = new_add_padding
+
+        return msg
+
+    generator.generate = new_generate
+
+    post_send_msg_sock_restore(generator, 'addPadding', 'old_add_padding')
+
+    return generator
+
+
 def fuzz_plaintext(generator, substitutions=None, xors=None):
     """
     Change arbitrary bytes of the plaintext right before encryption.
