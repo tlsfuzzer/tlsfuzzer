@@ -107,6 +107,7 @@
          {"name" : "test-fuzzed-finished.py"},
          {"name" : "test-fuzzed-MAC.py"},
          {"name" : "test-fuzzed-padding.py"},
+         {"name" : "test-fuzzed-plaintext.py"},
          {"name" : "test-hello-request-by-client.py"},
          {"name" : "test-interleaved-application-data-and-fragmented-handshakes-in-renegotiation.py",
           "comment" : "test requires renegotiation support",
