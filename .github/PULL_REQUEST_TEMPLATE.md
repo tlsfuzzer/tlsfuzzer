@@ -18,3 +18,6 @@ if you're unsure about any of those items, just ask -->
 - [ ] I have read the **CONTRIBUTING** document
 - [ ] the added test cases cover the modified or added code
 - [ ] all new and existing tests pass (see Travis CI results)
+<!-- (if change requires new tlslite-ng)
+- [ ] required version of tlslite-ng updated in requirements.txt an README.md
+-->
