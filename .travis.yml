@@ -62,7 +62,7 @@ script:
   # diff-quality doesn't work on 3.2: https://github.com/edx/diff-cover/issues/94
   - |
       if [[ $TRAVIS_PYTHON_VERSION != '2.6' ]] && [[ $TRAVIS_PYTHON_VERSION != '3.2' ]]; then
-        pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" tlslite > pylint_report.txt || :
+        pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" tlsfuzzer > pylint_report.txt || :
         diff-quality --violations=pylint --fail-under=90 pylint_report.txt
       fi
   - |
