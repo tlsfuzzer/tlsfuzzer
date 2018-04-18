@@ -23,5 +23,5 @@ if you're unsure about any of those items, just ask -->
   `tlslite-ng-random-subset.json`
 -->
 <!-- (if change requires new tlslite-ng)
-- [ ] required version of tlslite-ng updated in requirements.txt an README.md
+- [ ] required version of tlslite-ng updated in requirements.txt and README.md
 -->
