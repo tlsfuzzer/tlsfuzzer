@@ -248,13 +248,13 @@ class ExpectServerHello(ExpectHandshake):
             if got != expected:
                 diff = expected.difference(got)
                 if diff:
-                    raise AssertionError("Server did not sent exception(s): "
+                    raise AssertionError("Server did not sent extention(s): "
                                          "{0}".format(
                                              ", ".join((ExtensionType.toStr(i)
                                                         for i in diff))))
                 diff = got.difference(expected)
                 if diff:
-                    raise AssertionError("Server sent unexpected exception(s):"
+                    raise AssertionError("Server sent unexpected extension(s):"
                                          " {0}".format(
                                              ", ".join((ExtensionType.toStr(i)
                                                         for i in diff))))
