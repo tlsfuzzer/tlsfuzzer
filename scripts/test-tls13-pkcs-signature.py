@@ -107,27 +107,32 @@ def main():
     node.next_sibling = ExpectClose()
     conversations["sanity"] = conversation
 
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    for group in groups:
-        key_shares.append(key_share_gen(group))
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([(3, 3), TLS_1_3_DRAFT])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    sig_algs = [SignatureScheme.rsa_pkcs1_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
-    conversations["rsa_pkcs1_sha256"] = conversation
+    for sig_alg in [SignatureScheme.rsa_pkcs1_sha1,
+                    SignatureScheme.rsa_pkcs1_sha256,
+                    SignatureScheme.rsa_pkcs1_sha384,
+                    SignatureScheme.rsa_pkcs1_sha512]:
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        ext = {}
+        groups = [GroupName.secp256r1]
+        key_shares = []
+        for group in groups:
+            key_shares.append(key_share_gen(group))
+        ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+            .create([(3, 3), TLS_1_3_DRAFT])
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        sig_algs = [sig_alg]
+        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+            .create(sig_algs)
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.handshake_failure))
+        node.next_sibling = ExpectClose()
+        conversations[SignatureScheme.toRepr(sig_alg)] = conversation
 
     # run the conversation
     good = 0

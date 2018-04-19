@@ -162,7 +162,8 @@
          {"name" : "test-unsupported-curve-fallback.py"},
          {"name" : "test-version-numbers.py"},
          {"name" : "test-x25519.py"},
-         {"name" : "test-zero-length-data.py"}
+         {"name" : "test-zero-length-data.py"},
+         {"name" : "test-tls13-pkcs-signature.py"}
      ]
     },
     {"server_command": ["python", "-u", "{command}", "server",
