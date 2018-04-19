@@ -18,6 +18,10 @@ if you're unsure about any of those items, just ask -->
 - [ ] I have read the **CONTRIBUTING** document
 - [ ] the added test cases cover the modified or added code
 - [ ] all new and existing tests pass (see Travis CI results)
+<!-- (if PR adds a new test script)
+- [ ] test script added to `tlslite-ng.json` and
+  `tlslite-ng-random-subset.json`
+-->
 <!-- (if change requires new tlslite-ng)
-- [ ] required version of tlslite-ng updated in requirements.txt an README.md
+- [ ] required version of tlslite-ng updated in requirements.txt and README.md
 -->
