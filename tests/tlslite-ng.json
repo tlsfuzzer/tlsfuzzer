@@ -155,6 +155,7 @@
          {"name" : "test-SSLv3-padding.py",
           "comment" : "SSLv3 is disabled by default in tlslite-ng",
           "exp_pass" : false},
+         {"name" : "test-tls13-pkcs-signature.py"},
          {"name" : "test-TLSv1_2-rejected-without-TLSv1_2.py"},
          {"name" : "test-truncating-of-client-hello.py"},
          {"name" : "test-truncating-of-finished.py"},
@@ -162,8 +163,7 @@
          {"name" : "test-unsupported-curve-fallback.py"},
          {"name" : "test-version-numbers.py"},
          {"name" : "test-x25519.py"},
-         {"name" : "test-zero-length-data.py"},
-         {"name" : "test-tls13-pkcs-signature.py"}
+         {"name" : "test-zero-length-data.py"}
      ]
     },
     {"server_command": ["python", "-u", "{command}", "server",
