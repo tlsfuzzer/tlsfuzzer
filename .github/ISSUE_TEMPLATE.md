@@ -21,6 +21,8 @@ Please fill in as much of the template as possible.
 ### Problem description
 
 ### Describe how to reproduce the problem
+<!-- if the issue is interaction with some other syste/library/application,
+please provide relevant version numbers of it too -->
 
 ### Include errors or backtraces
 
