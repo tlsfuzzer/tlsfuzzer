@@ -165,6 +165,7 @@
          {"name" : "test-SSLv3-padding.py",
           "comment" : "SSLv3 is disabled by default in tlslite-ng",
           "exp_pass" : false},
+         {"name" : "test-tls13-conversation.py"},
          {"name" : "test-tls13-pkcs-signature.py"},
          {"name" : "test-TLSv1_2-rejected-without-TLSv1_2.py"},
          {"name" : "test-truncating-of-client-hello.py"},
