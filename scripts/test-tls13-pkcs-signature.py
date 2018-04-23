@@ -129,7 +129,7 @@ def main():
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                           AlertDescription.handshake_failure))
-        node.next_sibling = ExpectClose()
+        node = node.add_child(ExpectClose())
         conversations["rsa_pkcs1_{0} signature".format(hash_alg)] = conversation
 
     # run the conversation
