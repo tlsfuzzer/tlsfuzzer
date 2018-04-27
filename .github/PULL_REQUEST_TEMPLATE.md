@@ -18,6 +18,8 @@ if you're unsure about any of those items, just ask in comment to PR -->
 - [ ] I have read the **CONTRIBUTING** document
 - [ ] the added test cases cover the modified or added code
 - [ ] all new and existing tests pass (see Travis CI results)
+- [ ] [test script checklist](https://github.com/tomato42/tlsfuzzer/wiki/Test-script-checklist)
+  was followed
 - [ ] new test script added to `tlslite-ng.json` and `tlslite-ng-random-subset.json`
 - [ ] new and modified scripts were ran against popular TLS implementations:
   - [ ] OpenSSL
