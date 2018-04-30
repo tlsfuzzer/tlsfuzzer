@@ -7,6 +7,14 @@
 Fuzzer and test suite for TLS (SSLv2, SSLv3, v1.0, v1.1, v1.2, v1.3) implementations.
 Early alpha version - thus no API stability guarantees.
 
+Ready-to-use scripts testing for many vulnerabilities (
+[ROBOT](https://robotattack.org/),
+[DROWN](https://drownattack.com/), etc.)
+and general standards conformity
+([RFC 5246](https://tools.ietf.org/html/rfc5246),
+[RFC 7627](https://tools.ietf.org/html/rfc7627),
+[RFC 7905](https://tools.ietf.org/html/rfc7905), etc.)
+
 ## Dependencies
 
 You'll need:
@@ -37,7 +45,7 @@ Then install tlslite-ng:
 pip install --pre tlslite-ng
 ```
 
-(Use `--upgrade` if you did install it before)
+(Use `--upgrade --pre` if you did install it before)
 
 Download the tlsfuzzer:
 
@@ -55,7 +63,9 @@ After all dependencies are installed, make sure:
  * and the server will answer with data to HTTP queries (answer with valid
    HTTP responses is optional)
 
-Then you can just run one of the tests in `scripts` directory, as such:
+Then you can run one of the tests in
+[`scripts`](https://github.com/tomato42/tlsfuzzer/tree/master/scripts)
+directory, like so:
 
 ```
 PYTHONPATH=. python scripts/test-invalid-compression-methods.py
@@ -64,6 +74,11 @@ PYTHONPATH=. python scripts/test-invalid-compression-methods.py
 If test has additional requirements, it will output them to console. No errors
 printed means that all expecations were met (so for tests with bad data the
 server rejected our messages).
+
+All script also accept `--help` to print the help message (specification of
+all the options given script supports), `-h` to specify the hostname or
+IP address of the server-to-be-tested and `-p` to specify the port of the
+service to be tested.
 
 See [USAGE.md](https://github.com/tomato42/tlsfuzzer/blob/master/USAGE.md) for
 more info and how to interpret errors.
