@@ -20,9 +20,11 @@ and general standards conformity
 You'll need:
 
  * Python 2.6 or later or Python 3.2 or later
- * tlslite-ng 0.8.0-alpha3 or later (note that `tlslite` will *not* work and
+ * [tlslite-ng](https://github.com/tomato42/tlslite-ng)
+   0.8.0-alpha3 or later (note that `tlslite` will *not* work and
    they conflict with eachother)
- * ecdsa python module (dependency of tlslite-ng, should get installed
+ * [ecdsa](https://github.com/warner/python-ecdsa)
+   python module (dependency of tlslite-ng, should get installed
    automatically with it)
 
 Optionally, to make some calculations faster, you may want to install the
@@ -141,6 +143,11 @@ selfserv -d sql:./nssdb -p 4433 -V tls1.0: -H 1 -n localhost
 ```
 
 ## Contributing
+
+See the
+[CONTRIBUTING.md](https://github.com/tomato42/tlsfuzzer/blob/master/CONTRIBUTING.md)
+document for description how to set up your development environment, sanity
+check the changes and requirements the changes need to follow.
 
 Contributors are expected to follow the project's
 [CODE OF CONDUCT](https://github.com/tomato42/tlsfuzzer/blob/master/CODE_OF_CONDUCT.md)
