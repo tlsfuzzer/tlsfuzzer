@@ -99,6 +99,7 @@ key usage). It does however verify if the signatures made on TLS message
 by the server (like in Server Key Exchange message) match the certificate
 sent by the server.
 
+Example server configurations:
 
 ### OpenSSL
 
@@ -138,3 +139,9 @@ ciphers and with the above certificate:
 ```
 selfserv -d sql:./nssdb -p 4433 -V tls1.0: -H 1 -n localhost
 ```
+
+## Contributing
+
+Contributors are expected to follow the project's
+[CODE OF CONDUCT](https://github.com/tomato42/tlsfuzzer/blob/master/CODE_OF_CONDUCT.md)
+when interacting with other members of community.
