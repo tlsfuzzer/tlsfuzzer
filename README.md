@@ -144,4 +144,4 @@ selfserv -d sql:./nssdb -p 4433 -V tls1.0: -H 1 -n localhost
 
 Contributors are expected to follow the project's
 [CODE OF CONDUCT](https://github.com/tomato42/tlsfuzzer/blob/master/CODE_OF_CONDUCT.md)
-when interacting with other members of community.
+when interacting with other members of the community.
