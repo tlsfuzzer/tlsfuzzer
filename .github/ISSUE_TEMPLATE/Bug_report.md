@@ -13,7 +13,7 @@ about: Create a report to help us improve
 | Operating System Name    | <!-- provide name of OS you're using here, e.g.: Windows, RHEL --> |
 | Operating System Version | <!-- provide the version of the OS you're using here, e.g.: 6.10, 7 --> |
 | Python version           | <!-- provide the output of `python -V` you're using --> |
-| tlslite-ng version       | <!-- provide the version or commit ID of tlslite-ng version you're using(use `git rev-parse HEAD` in tlslite-ng repo copy you're using or if you're using a packages version, run `python -c 'import tlslite; print(tlslite.__version__)'`--> |
+| tlslite-ng version       | <!-- provide the version or commit ID of tlslite-ng version you're using(use `git rev-parse HEAD` in tlslite-ng repo copy you're using or if you're using a packages version, run `python -c 'import tlslite; print(tlslite.__version__)'`, also how it was installed --> |
 
 ## Problem description
 
