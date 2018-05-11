@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2015
+# Author: Hubert Kario, (c) 2015-2018
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 from __future__ import print_function
@@ -17,6 +17,9 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription
 from tlsfuzzer.utils.lists import natural_sort_keys
+
+
+version = 2
 
 
 def help_msg():
@@ -121,6 +124,10 @@ def main():
         else:
             bad += 1
             failed.append(c_name)
+
+    print("Basic conversation script; check basic communication with typical")
+    print("cipher, TLS 1.2 or earlier and RSA key exchange\n")
+    print("version: {0}\n".format(version))
 
     print("Test end")
     print("successful: {0}".format(good))

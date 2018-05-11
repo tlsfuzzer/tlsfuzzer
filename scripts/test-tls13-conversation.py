@@ -27,6 +27,9 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
 from tlsfuzzer.helpers import key_share_gen
 
 
+version = 1
+
+
 def help_msg():
     print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
     print(" -h hostname    name of the host to run the test against")
@@ -143,6 +146,11 @@ def main():
         else:
             bad += 1
             failed.append(c_name)
+
+    print("Basic communication test with TLS 1.3 server")
+    print("Check if communication with typical group and cipher works with")
+    print("the TLS 1.3 server.\n")
+    print("version: {0}\n".format(version))
 
     print("Test end")
     print("successful: {0}".format(good))
