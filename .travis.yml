@@ -39,7 +39,7 @@ before_install:
   - git fetch origin master:refs/remotes/origin/master
 
 install:
-  - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then travis_retry pip install unittest2 'isort<4.3'; fi
+  - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then travis_retry pip install unittest2 'isort<4.3' 'inflect<0.3.1'; fi
   - if [[ $TRAVIS_PYTHON_VERSION == '3.2' ]]; then travis_retry pip install 'requests<2.11' 'coverage<4' 'coveralls<1'; else travis_retry pip install 'coverage' 'coveralls'; fi
   - travis_retry pip install -r requirements.txt
   - travis_retry pip install -r build-requirements.txt
