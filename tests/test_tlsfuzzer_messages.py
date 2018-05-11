@@ -39,25 +39,6 @@ from tlslite.utils.cryptomath import numberToByteArray
 import socket
 import os
 
-class TestConnect(unittest.TestCase):
-    def test___init__(self):
-        node = Connect(None, None)
-        self.assertIsNotNone(node)
-
-    @mock.patch('socket.socket')
-    def test_process(self, raw_sock):
-        state = ConnectionState()
-        self.assertIsNone(state.msg_sock)
-
-        node = Connect('localhost', 4433)
-
-        node.process(state)
-
-        raw_sock.assert_called_once_with(socket.AF_INET, socket.SOCK_STREAM)
-        raw_sock.return_value.connect.assert_called_once_with(('localhost',
-                                                               4433))
-        self.assertIsNotNone(state.msg_sock)
-
 class TestClose(unittest.TestCase):
     def test___init__(self):
         close = Close()
@@ -209,7 +190,7 @@ class TestConnect(unittest.TestCase):
     @mock.patch('socket.socket')
     def test_process(self, mock_sock):
         state = ConnectionState()
-        connect = Connect(1, 2)
+        connect = Connect("localhost", 4433)
 
         connect.process(state)
 
@@ -217,7 +198,7 @@ class TestConnect(unittest.TestCase):
 
         mock_sock.assert_called_once_with(socket.AF_INET, socket.SOCK_STREAM)
         instance = mock_sock.return_value
-        instance.connect.assert_called_once_with((1, 2))
+        instance.connect.assert_called_once_with(("localhost", 4433))
         self.assertIs(state.msg_sock.sock.socket, instance)
 
     @mock.patch('socket.socket')
