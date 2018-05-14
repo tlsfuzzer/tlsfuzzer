@@ -18,10 +18,8 @@ if the PR resolves an issue, please add further checkboxes that describe the
 action items or test scenarios from it
 -->
 
-- [ ] I have read the **CONTRIBUTING** document
-- [ ] my code follows the style requirements
+- [ ] I have read the [CONTRIBUTING.md](https://github.com/tomato42/tlsfuzzer/blob/master/CONTRIBUTING.md) document and my PR follows [change requirements](https://github.com/tomato42/tlsfuzzer/blob/master/CONTRIBUTING.md#change-requirements) therein
 - [ ] the changes are also reflected in documentation and code comments
-- [ ] the added test cases cover the modified or added code
 - [ ] all new and existing tests pass (see Travis CI results)
 - [ ] [test script checklist](https://github.com/tomato42/tlsfuzzer/wiki/Test-script-checklist) was followed for new scripts
 - [ ] new test script added to `tlslite-ng.json` and `tlslite-ng-random-subset.json`
