@@ -149,6 +149,10 @@ See the
 document for description how to set up your development environment, sanity
 check the changes and requirements the changes need to follow.
 
+You may also want to read the
+[VISION.md](https://github.com/tomato42/tlsfuzzer/blob/master/VISION.md)
+to learn more about the planned scope of the project.
+
 Contributors are expected to follow the project's
 [CODE OF CONDUCT](https://github.com/tomato42/tlsfuzzer/blob/master/CODE_OF_CONDUCT.md)
 when interacting with other members of the community.
