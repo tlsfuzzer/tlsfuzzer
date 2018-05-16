@@ -72,6 +72,7 @@
          {"name" : "test-dhe-rsa-key-exchange.py"},
          {"name" : "test-dhe-rsa-key-exchange-signatures.py"},
          {"name" : "test-dhe-rsa-key-exchange-with-bad-messages.py"},
+         {"name" : "test-tls13-version-negotiation.py"},
          {"name" : "test-early-application-data.py"},
          {"name" : "test-ecdhe-rsa-key-exchange.py"},
          {"name" : "test-ecdhe-rsa-key-exchange-with-bad-messages.py"},
