@@ -1066,6 +1066,36 @@ class TestFinishedGenerator(unittest.TestCase):
             bytearray(b'\x89\xd8\x00l c$\x01\x0f\xd9j\x16\xa3\xbaV\xfesT\x8b'
                       b'\xc6\xeb\x0f~\r\xbd\xb3R\xeb\xd5\x08\xa7\xbd'))
 
+    def test_generate_in_tls13_with_truncation(self):
+        fg = FinishedGenerator((3, 4), trunc_start=2, trunc_end=-2)
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        state.cipher = constants.CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+        state.key['client handshake traffic secret'] = bytearray(32)
+
+        ret = fg.generate(state)
+
+        self.assertEqual(ret.verify_data, bytearray(
+            b'e\xa67\xfe\xa3(\xd3\xac\x95\xecX\xb7\xc0\xd4u\xef'
+            b'\xb3V\x8f\xc7[\xcdD\xc8\xa4\x86\xcf\xd3'))
+
+    def test_generate_in_tls13_with_padding(self):
+        fg = FinishedGenerator((3, 4), pad_byte=0, pad_left=1, pad_right=1)
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        state.cipher = constants.CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+        state.key['client handshake traffic secret'] = bytearray(32)
+
+        ret = fg.generate(state)
+
+        self.assertEqual(ret.verify_data, bytearray(
+            b'\x00\x14\xa5e\xa67\xfe\xa3(\xd3\xac\x95\xecX\xb7\xc0\xd4u\xef'
+            b'\xb3V\x8f\xc7[\xcdD\xc8\xa4\x86\xcf\xd3\xc9\x0c\x00'))
+
 
 class TestResetHandshakeHashes(unittest.TestCase):
     def test___init__(self):

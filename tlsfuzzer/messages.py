@@ -893,11 +893,18 @@ class ChangeCipherSpecGenerator(MessageGenerator):
 class FinishedGenerator(HandshakeProtocolMessageGenerator):
     """Generator for TLS handshake protocol Finished messages."""
 
-    def __init__(self, protocol=None):
+    def __init__(self, protocol=None,
+                 trunc_start=0, trunc_end=None,
+                 pad_byte=0, pad_left=0, pad_right=0):
         """Object to generate Finished messages."""
         super(FinishedGenerator, self).__init__()
         self.protocol = protocol
         self.server_finish_hh = None
+        self.trunc_start = trunc_start
+        self.trunc_end = trunc_end
+        self.pad_byte = pad_byte
+        self.pad_left = pad_left
+        self.pad_right = pad_right
 
     def generate(self, status):
         """Create a Finished message."""
@@ -931,6 +938,14 @@ class FinishedGenerator(HandshakeProtocolMessageGenerator):
                 finished_key,
                 self.server_finish_hh.digest(status.prf_name),
                 status.prf_name)
+
+        # messing with the message - truncation
+        verify_data = verify_data[self.trunc_start:self.trunc_end]
+
+        # messing with the message - padding
+        verify_data = bytearray([self.pad_byte]*self.pad_left) \
+            + verify_data \
+            + bytearray([self.pad_byte]*self.pad_right)
 
         status.key['client_verify_data'] = verify_data
 
