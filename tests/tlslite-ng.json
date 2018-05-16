@@ -196,7 +196,8 @@
           },
          {"name" : "test-rsa-pss-sigs-on-certificate-verify.py",
           "arguments" : ["-k", "tests/clientX509Key.pem",
-                         "-c", "tests/clientX509Cert.pem"]
+                         "-c", "tests/clientX509Cert.pem",
+                         "-s", "8+6 8+11 8+5 8+10 8+4 8+9 6+1 5+1 4+1 3+1 2+1"]
           },
          {"name" : "test-extended-master-secret-extension-with-client-cert.py",
           "arguments" : ["-k", "tests/clientX509Key.pem",
