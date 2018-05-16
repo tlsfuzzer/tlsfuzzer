@@ -171,6 +171,8 @@
          {"name" : "test-sslv2hello-protocol.py"},
          {"name" : "test-tls13-conversation.py"},
          {"name" : "test-tls13-empty-alert.py"},
+         {"name" : "test-tls13-finished.py",
+          "arguments" : ["-n", "40"]},
          {"name" : "test-tls13-hrr.py",
           "arguments" : ["--cookie"]},
          {"name" : "test-tls13-legacy-version.py"},
