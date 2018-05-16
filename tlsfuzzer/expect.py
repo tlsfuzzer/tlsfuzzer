@@ -11,13 +11,13 @@ import sys
 from tlslite.constants import ContentType, HandshakeType, CertificateType,\
         HashAlgorithm, SignatureAlgorithm, ExtensionType,\
         SSL2HandshakeType, CipherSuite, GroupName, AlertDescription, \
-        SignatureScheme
+        SignatureScheme, TLS_1_3_HRR
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
         ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus, \
         CertificateVerify, EncryptedExtensions, NewSessionTicket
 from tlslite.extensions import TLSExtension, ALPNExtension
-from tlslite.utils.codec import Parser
+from tlslite.utils.codec import Parser, Writer
 from tlslite.utils.compat import b2a_hex
 from tlslite.utils.cryptomath import secureHMAC, derive_secret, \
         HKDF_expand_label
@@ -27,6 +27,7 @@ from tlslite.keyexchange import KeyExchange, DHE_RSAKeyExchange, \
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 from tlslite.errors import TLSDecryptionFailed
+from tlslite.handshakehashes import HandshakeHashes
 from .handshake_helpers import calc_pending_states, kex_for_group
 from .tree import TreeNode
 
@@ -188,6 +189,26 @@ def srv_ext_handler_key_share(state, extension):
     state.key['DH shared secret'] = z
 
 
+def hrr_ext_handler_key_share(state, extension):
+    """Process the key_share extension in HRR message."""
+    cln_hello = state.get_last_message_of_type(ClientHello)
+    cln_ext = cln_hello.getExtension(ExtensionType.supported_groups)
+
+    group_id = extension.selected_group
+
+    if group_id not in cln_ext.groups:
+        raise AssertionError("Server selected group we didn't advertise: {0}"
+                             .format(GroupName.toStr(group_id)))
+    # TODO tell second ClientHello key_share handler to gen that share and
+    # remove others
+
+
+def hrr_ext_handler_cookie(state, extension):
+    """Process the cookie extension in HRR message."""
+    if not extension.cookie:
+        raise AssertionError("Server sent empty cookie extension")
+
+
 def srv_ext_handler_supp_vers(state, extension):
     """Process the supported_versions from server."""
     cln_hello = state.get_last_message_of_type(ClientHello)
@@ -212,6 +233,10 @@ _srv_ext_handler = \
          ExtensionType.supports_npn: srv_ext_handler_npn,
          ExtensionType.key_share: srv_ext_handler_key_share,
          ExtensionType.supported_versions: srv_ext_handler_supp_vers}
+
+_hrr_ext_handler = \
+        {ExtensionType.key_share: hrr_ext_handler_key_share,
+         ExtensionType.cookie: hrr_ext_handler_cookie}
 
 
 class ExpectServerHello(ExpectHandshake):
@@ -259,6 +284,16 @@ class ExpectServerHello(ExpectHandshake):
                                              ", ".join((ExtensionType.toStr(i)
                                                         for i in diff))))
 
+    @staticmethod
+    def _get_autohandler(ext_id):
+        try:
+            return _srv_ext_handler[ext_id]
+        except KeyError:
+            raise AssertionError("No autohandler for "
+                                 "{0}"
+                                 .format(ExtensionType
+                                         .toStr(ext_id)))
+
     def _process_extensions(self, state, cln_hello, srv_hello):
         """Check if extensions are correct."""
         for ext in srv_hello.extensions:
@@ -267,6 +302,9 @@ class ExpectServerHello(ExpectHandshake):
             if ext_id == ExtensionType.renegotiation_info and \
                     CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV \
                     in cln_hello.cipher_suites:
+                cl_ext = True
+            if isinstance(self, ExpectHelloRetryRequest) and \
+                    ext_id == ExtensionType.cookie:
                 cl_ext = True
             if cl_ext is None:
                 raise AssertionError("Server sent unadvertised "
@@ -284,13 +322,7 @@ class ExpectServerHello(ExpectHandshake):
                                                  .toStr(ext_id)))
             # use automatic handlers for some extensions
             if handler is None:
-                try:
-                    handler = _srv_ext_handler[ext_id]
-                except KeyError:
-                    raise AssertionError("No autohandler for "
-                                         "{0}"
-                                         .format(ExtensionType
-                                                 .toStr(ext_id)))
+                handler = self._get_autohandler(ext_id)
 
             if callable(handler):
                 handler(state, ext)
@@ -387,10 +419,12 @@ class ExpectServerHello(ExpectHandshake):
 
         if state.version > (3, 3):
             self._setup_tls13_handshake_keys(state)
+        # TODO check if it is sensible from the point of view of received HRR
+        return srv_hello
 
-    @staticmethod
-    def _setup_tls13_handshake_keys(state):
+    def _setup_tls13_handshake_keys(self, state):
         """Set up the encryption keys for the TLS 1.3 handshake."""
+        del self
         prf_name = state.prf_name
         prf_size = state.prf_size
 
@@ -427,6 +461,43 @@ class ExpectServerHello(ExpectHandshake):
             None)
 
         state.msg_sock.changeReadState()
+
+
+class ExpectHelloRetryRequest(ExpectServerHello):
+    """Processing of the TLS 1.3 HelloRetryRequest message."""
+
+    def process(self, state, msg):
+        self._ch_hh = state.handshake_hashes.copy()
+        self._msg = msg
+        hrr = super(ExpectHelloRetryRequest, self).process(state, msg)
+        assert hrr.random == TLS_1_3_HRR
+
+    @staticmethod
+    def _get_autohandler(ext_id):
+        try:
+            return _hrr_ext_handler[ext_id]
+        except KeyError:
+            try:
+                return _srv_ext_handler[ext_id]
+            except KeyError:
+                raise AssertionError("No autohandler for {0}".format(
+                    ExtensionType.toStr(ext_id)))
+
+    def _setup_tls13_handshake_keys(self, state):
+        """Prepare handshake ciphers for the HRR handling"""
+        prf_name = state.prf_name
+        prf_size = state.prf_size
+
+        ch_hash = self._ch_hh.digest(prf_name)
+        new_hh = HandshakeHashes()
+        writer = Writer()
+        writer.add(HandshakeType.message_hash, 1)
+        writer.addVarSeq(ch_hash, 1, 3)
+        new_hh.update(writer.bytes)
+
+        new_hh.update(self._msg.write())
+
+        state.handshake_hashes = new_hh
 
 
 class ExpectServerHello2(ExpectHandshake):

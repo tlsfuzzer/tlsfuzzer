@@ -6,10 +6,10 @@
 from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         Finished, Alert, ApplicationData, Message, Certificate, \
         CertificateVerify, CertificateRequest, ClientMasterKey, \
-        ClientFinished, ServerKeyExchange
+        ClientFinished, ServerKeyExchange, ServerHello
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
         ExtensionType, CertificateType, ClientCertificateType, HashAlgorithm, \
-        SignatureAlgorithm, CipherSuite, SignatureScheme
+        SignatureAlgorithm, CipherSuite, SignatureScheme, TLS_1_3_HRR
 import tlslite.utils.tlshashlib as hashlib
 from tlslite.extensions import TLSExtension, RenegotiationInfoExtension
 from tlslite.messagesocket import MessageSocket
@@ -362,6 +362,18 @@ class HandshakeProtocolMessageGenerator(MessageGenerator):
 
         state.handshake_hashes.update(self.msg.write())
         state.handshake_messages.append(self.msg)
+
+
+def ch_cookie_handler(state):
+    """Client Hello cookie extension handler.
+
+    Copies the cookie extension from last HRR message.
+    """
+    hrr = state.get_last_message_of_type(ServerHello)
+    if hrr.random != TLS_1_3_HRR:
+        raise ValueError("No HRR received")
+    cookie = hrr.getExtension(ExtensionType.cookie)
+    return cookie
 
 
 class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
