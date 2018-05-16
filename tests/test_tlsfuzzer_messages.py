@@ -24,7 +24,8 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         ClientMasterKeyGenerator, TCPBufferingEnable, TCPBufferingDisable, \
         TCPBufferingFlush, fuzz_encrypted_message, fuzz_pkcs1_padding, \
         CollectNonces, AlertGenerator, PlaintextMessageGenerator, \
-        SetPaddingCallback, replace_plaintext
+        SetPaddingCallback, replace_plaintext, ch_cookie_handler, \
+        ch_key_share_handler
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
@@ -443,6 +444,55 @@ class TestClientHelloGenerator(unittest.TestCase):
         msg = chg.generate(state)
 
         self.assertEqual(msg.session_id, b'')
+
+
+class TestClientHelloExtensionGenerators(unittest.TestCase):
+    def setUp(self):
+        self.state = ConnectionState()
+
+        exts = [extensions.CookieExtension().create(b'some payload'),
+                extensions.HRRKeyShareExtension().create(
+                    constants.GroupName.secp256r1)]
+
+        hrr = messages.ServerHello()
+        hrr.create(version=(3, 3),
+                   random=constants.TLS_1_3_HRR,
+                   session_id=b'',
+                   cipher_suite=0x04,
+                   extensions=exts)
+
+        self.state.handshake_messages.append(hrr)
+
+    def test_ch_cookie_handler(self):
+        ext = ch_cookie_handler(self.state)
+
+        self.assertIsInstance(ext, extensions.CookieExtension)
+        self.assertEqual(ext.cookie, b'some payload')
+
+    def test_ch_cookie_handler_with_no_hrr(self):
+        self.state.handshake_messages = []
+
+        with self.assertRaises(ValueError) as e:
+            ch_cookie_handler(self.state)
+
+        self.assertIn("No HRR received", str(e.exception))
+
+    def test_ch_key_share_handler(self):
+        ext = ch_key_share_handler(self.state)
+
+        self.assertIsInstance(ext, extensions.ClientKeyShareExtension)
+        self.assertEqual(len(ext.client_shares), 1)
+        self.assertIsInstance(ext.client_shares[0], extensions.KeyShareEntry)
+        self.assertEqual(ext.client_shares[0].group,
+                         constants.GroupName.secp256r1)
+
+    def test_ch_key_share_handler_with_no_hrr(self):
+        self.state.handshake_messages = []
+
+        with self.assertRaises(ValueError) as e:
+            ch_key_share_handler(self.state)
+
+        self.assertIn("No HRR received", str(e.exception))
 
 
 class TestClientKeyExchangeGenerator(unittest.TestCase):
