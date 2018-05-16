@@ -12,7 +12,7 @@ from itertools import chain
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        fuzz_message
+        fuzz_message, Close
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
@@ -118,6 +118,330 @@ def main():
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
     conversations["sanity"] = conversation
+
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pkcs1_sha1,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData()
+    node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                       AlertDescription.close_notify))
+
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["tolerance legacy RSA PKCS#1.5"] = conversation
+
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [(10, 1), # SignatureAlgorithm.rsa = 0x01
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData()
+    node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                       AlertDescription.close_notify))
+
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["tolerance unallocated 0x0A01 (10+RSA) method"] = conversation
+
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = list(chain(
+        ((i, 1) for i in range(10, 224)),  # SignatureAlgorithm.rsa = 0x01
+        [SignatureScheme.rsa_pss_pss_sha256]))
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData()
+    node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                       AlertDescription.close_notify))
+
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["tolerance 215 RSA methods"] = conversation
+
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = list(chain(
+        ((i, j) for i in range(10, 224) for j in range(21, 59)),
+        [SignatureScheme.rsa_pss_pss_sha256]))
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData()
+    # OpenSSL sends the list of advertised and it doesn't fit a single
+    # application data
+    node = node.next_sibling.add_child(Close())
+    conversations["tolerance 2355 methods"] = conversation
+
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = list(chain(
+        ((i, j) for i in range(10, 224) for j in range(21, 59)),
+        [SignatureScheme.rsa_pss_pss_sha256]))
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData()
+    # OpenSSL lists them, which makes the response huge
+    node = node.next_sibling.add_child(Close())
+    conversations["tolerance 8132 methods"] = conversation
+
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = list(chain(
+        ((i, j) for i in range(10, 224) for j in range(10, 121)),
+        [SignatureScheme.rsa_pss_pss_sha256]))
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData()
+    # OpenSSL lists them, which makes the response huge
+    node = node.next_sibling.add_child(Close())
+    conversations["tolerance 23754 methods"] = conversation
+
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    # generate maximum number of methods (4 bytes for extensions header,
+    # 2 bytes for length of list inside extension, leaving 65528 bytes)
+    sig_algs = list(chain(
+        ((i, j) for i in range(10, 224) for j in range(10, 162)),
+        ((i, 163) for i in range(10, 199)),
+        [SignatureScheme.rsa_pss_pss_sha256]))
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData()
+    # OpenSSL lists them, which makes the response huge
+    node = node.next_sibling.add_child(Close())
+    conversations["tolerance max (32717) number of methods"] = conversation
+
+
+    # Use empty supported algorithm extension
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = OrderedDict()
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = []
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      getattr(AlertDescription, fatal_alert)))
+    node = node.add_child(ExpectClose())
+    conversations["empty list of signature methods"] = \
+            conversation
 
     # Fuzz the length of supported extensions
     for i in range(1, 0x100):
