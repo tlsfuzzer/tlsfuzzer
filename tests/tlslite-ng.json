@@ -130,6 +130,7 @@
          {"name" : "test-invalid-version.py"},
          {"name" : "test-large-hello.py"},
          {"name" : "test-large-number-of-extensions.py"},
+         {"name" : "test-legacy-version.py"},
          {"name" : "test-message-duplication.py"},
          {"name" : "test-message-skipping.py"},
          {"name" : "test-ocsp-stapling.py",
