@@ -43,8 +43,9 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
-    print(" -n num         only run `num` random tests instead of a full set")
-    print("                (excluding \"sanity\" tests)")
+    print(" -n num         only run `num` long random fuzzing tests")
+    print("                instead of a full set")
+    print("                (excluding \"sanity\" and other short tests)")
     print(" -s sigalgs     signature algorithms expected in")
     print("                CertificateRequest. Format is either the new")
     print("                signature scheme (rsa_pss_sha256) or old one")
@@ -113,6 +114,7 @@ def main():
         raise ValueError("Specify certificate file using -c")
 
     conversations = {}
+    conversations_long = {}
 
     conversation = Connect(host, port)
     node = conversation
@@ -346,7 +348,7 @@ def main():
                                               AlertDescription.decrypt_error))
             node.next_sibling = ExpectClose()
             node = node.add_child(ExpectClose())
-            conversations["malformed rsa-pss in CertificateVerify - "
+            conversations_long["malformed rsa-pss in CertificateVerify - "
                           "xor {1} at {0}"
                           .format(pos, hex(xor))] = conversation
 
@@ -464,14 +466,15 @@ def main():
     bad = 0
     failed = []
     if not num_limit:
-        num_limit = len(conversations)
+        num_limit = len(conversations_long)
 
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throught
     sanity_test = ('sanity', conversations['sanity'])
     ordered_tests = chain([sanity_test],
-                          islice(filter(lambda x: x[0] != 'sanity',
-                                        conversations.items()), num_limit),
+                          filter(lambda x: x[0] != 'sanity',
+                                 conversations.items()),
+                          islice(conversations_long.items(), num_limit),
                           [sanity_test])
 
     for c_name, c_test in ordered_tests:
