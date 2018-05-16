@@ -191,6 +191,7 @@ class TestConnect(unittest.TestCase):
         self.assertEqual(connect.hostname, 1)
         self.assertEqual(connect.port, 2)
         self.assertEqual(connect.version, (3, 0))
+        self.assertEqual(connect.timeout, 5)
 
     @mock.patch('socket.socket')
     def test_process(self, mock_sock):
@@ -218,6 +219,19 @@ class TestConnect(unittest.TestCase):
         mock_sock.assert_called_once_with(socket.AF_INET, socket.SOCK_STREAM)
         instance = mock_sock.return_value
         instance.connect.assert_called_once_with((1, 2))
+        self.assertIs(state.msg_sock.sock.socket, instance)
+
+    @mock.patch('socket.socket')
+    def test_process_with_timeout(self, mock_sock):
+        state = ConnectionState()
+        connect = Connect(1, 2, timeout=10)
+
+        connect.process(state)
+
+        mock_sock.assert_called_once_with(socket.AF_INET, socket.SOCK_STREAM)
+        instance = mock_sock.return_value
+        instance.connect.assert_called_once_with((1, 2))
+        instance.settimeout.assert_called_once_with(10)
         self.assertIs(state.msg_sock.sock.socket, instance)
 
 
@@ -1065,6 +1079,36 @@ class TestFinishedGenerator(unittest.TestCase):
         self.assertEqual(state.key['resumption master secret'],
             bytearray(b'\x89\xd8\x00l c$\x01\x0f\xd9j\x16\xa3\xbaV\xfesT\x8b'
                       b'\xc6\xeb\x0f~\r\xbd\xb3R\xeb\xd5\x08\xa7\xbd'))
+
+    def test_generate_in_tls13_with_truncation(self):
+        fg = FinishedGenerator((3, 4), trunc_start=2, trunc_end=-2)
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        state.cipher = constants.CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+        state.key['client handshake traffic secret'] = bytearray(32)
+
+        ret = fg.generate(state)
+
+        self.assertEqual(ret.verify_data, bytearray(
+            b'e\xa67\xfe\xa3(\xd3\xac\x95\xecX\xb7\xc0\xd4u\xef'
+            b'\xb3V\x8f\xc7[\xcdD\xc8\xa4\x86\xcf\xd3'))
+
+    def test_generate_in_tls13_with_padding(self):
+        fg = FinishedGenerator((3, 4), pad_byte=0, pad_left=1, pad_right=1)
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        state.cipher = constants.CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+        state.key['client handshake traffic secret'] = bytearray(32)
+
+        ret = fg.generate(state)
+
+        self.assertEqual(ret.verify_data, bytearray(
+            b'\x00\x14\xa5e\xa67\xfe\xa3(\xd3\xac\x95\xecX\xb7\xc0\xd4u\xef'
+            b'\xb3V\x8f\xc7[\xcdD\xc8\xa4\x86\xcf\xd3\xc9\x0c\x00'))
 
 
 class TestResetHandshakeHashes(unittest.TestCase):
