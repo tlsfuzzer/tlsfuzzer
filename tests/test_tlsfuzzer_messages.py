@@ -24,7 +24,7 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         ClientMasterKeyGenerator, TCPBufferingEnable, TCPBufferingDisable, \
         TCPBufferingFlush, fuzz_encrypted_message, fuzz_pkcs1_padding, \
         CollectNonces, AlertGenerator, PlaintextMessageGenerator, \
-        AddRecordPadding
+        SetPaddingCallback
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
@@ -1031,13 +1031,30 @@ class TestSetMaxRecordSize(unittest.TestCase):
         self.assertEqual(2048, state.msg_sock.recordSize)
 
 
-class TestAddRecordPadding(unittest.TestCase):
+class TestSetPaddingCallback(unittest.TestCase):
     def test___init__(self):
-        node = AddRecordPadding()
+
+        def custom_cb(length, contenttype,  max_padding):
+            """Returns 100"""
+            return 100
+
+        node = SetPaddingCallback(custom_cb)
         self.assertIsNotNone(node)
 
-    def test_process(self):
-        node = AddRecordPadding()
+    def test_process_no_padding(self):
+        node = SetPaddingCallback(SetPaddingCallback.no_padding_cb)
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        node.process(state)
+
+        self.assertEqual(0, state.msg_sock.padding_cb(13,
+                         constants.ContentType.application_data,
+                         2**14 - 1))
+
+    def test_process_sixteen_padding(self):
+        node = SetPaddingCallback(SetPaddingCallback.add_sixteen_cb)
 
         state = ConnectionState()
         state.msg_sock = mock.MagicMock()
@@ -1048,8 +1065,8 @@ class TestAddRecordPadding(unittest.TestCase):
                          constants.ContentType.application_data,
                          2**14 - 1))
 
-    def test_process_with_size(self):
-        node = AddRecordPadding(size=42)
+    def test_process_zeroes(self):
+        node = SetPaddingCallback(SetPaddingCallback.add_zeroes_cb(42))
 
         state = ConnectionState()
         state.msg_sock = mock.MagicMock()
@@ -1061,7 +1078,7 @@ class TestAddRecordPadding(unittest.TestCase):
                          2**14 - 1))
 
     def test_process_with_fill(self):
-        node = AddRecordPadding(fill=True)
+        node = SetPaddingCallback(SetPaddingCallback.fill_padding_cb)
 
         state = ConnectionState()
         state.msg_sock = mock.MagicMock()
@@ -1073,12 +1090,12 @@ class TestAddRecordPadding(unittest.TestCase):
                          constants.ContentType.application_data,
                          2**14 - 1))
 
-    def test_process_with_callback(self):
+    def test_process_custom_callback(self):
 
         def _my_cb(length, contenttype, max_padding):
             return 1337
 
-        node = AddRecordPadding(cb=_my_cb)
+        node = SetPaddingCallback(_my_cb)
         state = ConnectionState()
         state.msg_sock = mock.MagicMock()
 
