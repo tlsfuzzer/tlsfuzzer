@@ -22,10 +22,11 @@ from tlsfuzzer.helpers import key_share_gen
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType, GroupName, TLS_1_3_DRAFT, SignatureScheme
+        ExtensionType, GroupName, TLS_1_3_DRAFT, SignatureScheme, \
+        HashAlgorithm, SignatureAlgorithm
 from tlslite.extensions import SignatureAlgorithmsExtension, \
         ClientKeyShareExtension, SupportedVersionsExtension, \
-        SupportedGroupsExtension
+        SupportedGroupsExtension, TLSExtension
 
 
 def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
@@ -177,7 +178,7 @@ def main():
         .create([TLS_1_3_DRAFT, (3, 3)])
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
-    sig_algs = [(10, 1), # SignatureAlgorithm.rsa = 0x01
+    sig_algs = [(10, SignatureAlgorithm.rsa),
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
@@ -221,7 +222,7 @@ def main():
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     sig_algs = list(chain(
-        ((i, 1) for i in range(10, 224)),  # SignatureAlgorithm.rsa = 0x01
+        ((i, SignatureAlgorithm.rsa) for i in range(10, 224)),
         [SignatureScheme.rsa_pss_pss_sha256]))
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
@@ -442,6 +443,89 @@ def main():
     node = node.add_child(ExpectClose())
     conversations["empty list of signature methods"] = \
             conversation
+
+
+    # Only undefined algorithms
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sigs = [(HashAlgorithm.sha256, 24),  # undefined signature algorithm
+            (24, SignatureAlgorithm.rsa),  # undefined hash algorithm
+            (10, 10),  # undefined pair
+            (9, 24),  # undefined pair
+            (0xff, 0xff)  # undefined pair
+           ]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sigs)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.handshake_failure))
+    node = node.next_sibling = ExpectClose()
+    conversations["only undefined sigalgs"] = conversation
+
+    # RSA-PSS is mandatory
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sigs = [SignatureScheme.rsa_pkcs1_sha1,
+            SignatureScheme.rsa_pkcs1_sha512]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sigs)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.handshake_failure))
+    node = node.next_sibling = ExpectClose()
+    conversations["only undefined sigalgs"] = conversation
+
+
+    # padded extension
+    conversation = Connect(host, port)
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    ext[ExtensionType.signature_algorithms] = \
+        TLSExtension(extType=ExtensionType.signature_algorithms) \
+            .create(bytearray(b'\x00\x04'  # length of array
+                              b'\x02\x01'  # sha1+rsa
+                              b'\x04\x01'  # sha256 + rsa
+                              b'\x04\x03'))
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.decode_error))
+    node = node.add_child(ExpectClose())
+    conversations["padded sigalgs"] = conversation
+
 
     # Fuzz the length of supported extensions
     for i in range(1, 0x100):
