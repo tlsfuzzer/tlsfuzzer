@@ -1033,40 +1033,11 @@ class TestSetMaxRecordSize(unittest.TestCase):
 
 class TestSetPaddingCallback(unittest.TestCase):
     def test___init__(self):
-
-        def custom_cb(length, contenttype,  max_padding):
-            """Returns 100"""
-            return 100
-
-        node = SetPaddingCallback(custom_cb)
+        node = SetPaddingCallback()
         self.assertIsNotNone(node)
 
-    def test_process_no_padding(self):
-        node = SetPaddingCallback(SetPaddingCallback.no_padding_cb)
-
-        state = ConnectionState()
-        state.msg_sock = mock.MagicMock()
-
-        node.process(state)
-
-        self.assertEqual(0, state.msg_sock.padding_cb(13,
-                         constants.ContentType.application_data,
-                         2**14 - 1))
-
-    def test_process_sixteen_padding(self):
-        node = SetPaddingCallback(SetPaddingCallback.add_sixteen_cb)
-
-        state = ConnectionState()
-        state.msg_sock = mock.MagicMock()
-
-        node.process(state)
-
-        self.assertEqual(16, state.msg_sock.padding_cb(13,
-                         constants.ContentType.application_data,
-                         2**14 - 1))
-
-    def test_process_zeroes(self):
-        node = SetPaddingCallback(SetPaddingCallback.add_zeroes_cb(42))
+    def test_process_fixed_len_padding(self):
+        node = SetPaddingCallback(SetPaddingCallback.fixed_length_cb(42))
 
         state = ConnectionState()
         state.msg_sock = mock.MagicMock()
@@ -1077,7 +1048,7 @@ class TestSetPaddingCallback(unittest.TestCase):
                          constants.ContentType.application_data,
                          2**14 - 1))
 
-    def test_process_with_fill(self):
+    def test_process_fill_padding(self):
         node = SetPaddingCallback(SetPaddingCallback.fill_padding_cb)
 
         state = ConnectionState()
@@ -1106,7 +1077,7 @@ class TestSetPaddingCallback(unittest.TestCase):
                          2**14 - 1))
 
     def test_unset_padding_callback(self):
-        node = SetPaddingCallback(SetPaddingCallback.add_sixteen_cb)
+        node = SetPaddingCallback(SetPaddingCallback.fixed_length_cb(16))
         state = ConnectionState()
         state.msg_sock = mock.MagicMock()
 
@@ -1116,22 +1087,23 @@ class TestSetPaddingCallback(unittest.TestCase):
                          constants.ContentType.application_data,
                          2**14 - 1))
 
-        unset_node = SetPaddingCallback(None)
+        unset_node = SetPaddingCallback()
         unset_node.process(state)
 
-        self.assertFalse(state.msg_sock.padding_cb)
+        self.assertIsNone(state.msg_sock.padding_cb)
 
     def test_with_padding_larger_than_possible(self):
-        node = SetPaddingCallback(SetPaddingCallback.add_zeroes_cb(42))
+        node = SetPaddingCallback(SetPaddingCallback.fixed_length_cb(42))
 
         state = ConnectionState()
         state.msg_sock = mock.MagicMock()
 
         node.process(state)
 
-        self.assertRaises(ValueError, state.msg_sock.padding_cb, 20,
-                          constants.ContentType.application_data,
-                          32)
+        with self.assertRaises(ValueError):
+            state.msg_sock.padding_cb(20,
+                                      constants.ContentType.application_data,
+                                      32)
 
 
 class TestRenegotiationInfoExtension(unittest.TestCase):

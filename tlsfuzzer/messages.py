@@ -154,18 +154,18 @@ class SetPaddingCallback(Command):
     added to the message in the record layer.
     """
 
-    def __init__(self, cb):
+    def __init__(self, cb=None):
         """Set the padding callback"""
         super(SetPaddingCallback, self).__init__()
         self.padding_cb = cb
 
     @staticmethod
-    def add_zeroes_cb(size):
+    def fixed_length_cb(size):
         """
         Returns a callback function which returns a fixed number as the
         padding size
         """
-        def _add_zeroes_cb(length, contenttype, max_padding, zeroes=size):
+        def _fixed_len_cb(length, contenttype, max_padding, zeroes=size):
             """
             Simple callback which returns a fixed number as the padding size
             to be added to the message
@@ -174,12 +174,7 @@ class SetPaddingCallback(Command):
                 raise ValueError("requested padding size is too large")
 
             return zeroes
-        return _add_zeroes_cb
-
-    @staticmethod
-    def no_padding_cb(length, contenttype, max_padding):
-        """Returns zero as the size of the padding"""
-        return 0
+        return _fixed_len_cb
 
     @staticmethod
     def fill_padding_cb(length, contenttype, max_padding):
@@ -188,14 +183,6 @@ class SetPaddingCallback(Command):
         the size of the padding to be added to the message
         """
         return max_padding - length
-
-    @staticmethod
-    def add_sixteen_cb(length, contenttype, max_padding):
-        """
-        Simple callback which returns sixteen or the maximum
-        possible padding size
-        """
-        return min(16, max_padding - length)
 
     def process(self, state):
         """
