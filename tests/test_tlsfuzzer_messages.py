@@ -23,7 +23,8 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         ResetRenegotiationInfo, fuzz_plaintext, Connect, \
         ClientMasterKeyGenerator, TCPBufferingEnable, TCPBufferingDisable, \
         TCPBufferingFlush, fuzz_encrypted_message, fuzz_pkcs1_padding, \
-        CollectNonces, AlertGenerator, PlaintextMessageGenerator
+        CollectNonces, AlertGenerator, PlaintextMessageGenerator, \
+        AddRecordPadding
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
@@ -1028,6 +1029,69 @@ class TestSetMaxRecordSize(unittest.TestCase):
         node.process(state)
 
         self.assertEqual(2048, state.msg_sock.recordSize)
+
+
+class TestAddRecordPadding(unittest.TestCase):
+    def test___init__(self):
+        node = AddRecordPadding()
+        self.assertIsNotNone(node)
+
+
+    def test_process(self):
+        node = AddRecordPadding()
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        node.process(state)
+
+        self.assertEqual(16, state.msg_sock.padding_cb(13,
+                         constants.ContentType.application_data,
+                         2**14 - 1))
+
+
+    def test_process_with_size(self):
+        node = AddRecordPadding(size=42)
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        node.process(state)
+
+        self.assertEqual(42, state.msg_sock.padding_cb(13,
+                         constants.ContentType.application_data,
+                         2**14 - 1))
+
+
+    def test_process_with_fill(self):
+        node = AddRecordPadding(fill=True)
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        node.process(state)
+
+        self.assertEqual(2**14 - 13 - 1,
+                         state.msg_sock.padding_cb(13,
+                         constants.ContentType.application_data,
+                         2**14 - 1))
+
+
+    def test_process_with_callback(self):
+
+        def _my_cb(length, contenttype, max_padding):
+            return 1337
+
+        node = AddRecordPadding(cb=_my_cb)
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        node.process(state)
+
+        self.assertEqual(1337, state.msg_sock.padding_cb(13,
+                         constants.ContentType.application_data,
+                         2**14 - 1))
+
 
 class TestRenegotiationInfoExtension(unittest.TestCase):
     def test___init__(self):
