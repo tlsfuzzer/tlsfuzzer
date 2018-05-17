@@ -150,8 +150,8 @@ class SetMaxRecordSize(Command):
 
 class AddRecordPadding(Command):
     """
-    Set the padding callback which returns the length of the padding to be added
-    to the message in the record layer.
+    Set the padding callback which returns the length of the padding to be
+    added to the message in the record layer.
     """
 
     def __init__(self, size=None, fill=False, cb=None):
@@ -159,10 +159,46 @@ class AddRecordPadding(Command):
         Add padding zeroes to the messages in record layer or set the padding
         callback
         """
+        super(AddRecordPadding, self).__init__()
         self.padding_cb = cb
         self.padding_size = size
         self.fill_padding = fill
 
+    def _declare_append_zeroes_cb(self):
+        """
+        Returns a callback function which returns a fixed number as the
+        padding size
+        """
+        def _append_zeroes_cb(length, contenttype, max_padding,
+                              zeroes=self.padding_size):
+            """
+            Simple callback which returns a fixed number of zeroes as
+            the padding size to be added to the message
+            """
+            if zeroes > (max_padding - length):
+                raise ValueError("requested padding size is too large")
+
+            return zeroes
+        return _append_zeroes_cb
+
+    @staticmethod
+    def _fill_padding_cb(length, contenttype, max_padding):
+        """
+        Simple callback which returns the maximum padding size as
+        the size of the padding to be added to the message
+        """
+        return max_padding - length
+
+    @staticmethod
+    def _return_sixteen_cb(length, contenttype, max_padding):
+        """
+        Simple callback which returns sixteen or the maximum
+        possible padding size
+        """
+        if (max_padding - length) >= 16:
+            return 16
+        else:
+            return max_padding - length
 
     def process(self, state):
         """
@@ -174,35 +210,11 @@ class AddRecordPadding(Command):
 
         if not self.padding_cb:
             if self.padding_size:
-                def _append_zeroes_cb(length, contenttype, max_padding):
-                    """
-                    Simple callback which returns a fixed number of zeroes as
-                    the padding size to be added to the message
-                    """
-                    if self.padding_size > (max_padding - length):
-                        raise ValueError("requested padding size is too large")
-
-                    return self.padding_size
-                state.msg_sock.padding_cb = _append_zeroes_cb
+                state.msg_sock.padding_cb = self._declare_append_zeroes_cb()
             elif self.fill_padding:
-                def _fill_padding_cb(length, contenttype, max_padding):
-                    """
-                    Simple callback which returns the maximum padding size as
-                    the size of the padding to be added to the message
-                    """
-                    return max_padding - length
-                state.msg_sock.padding_cb = _fill_padding_cb
+                state.msg_sock.padding_cb = self._fill_padding_cb
             else:
-                def _return_sixteen_cb(length, contenttype, max_padding):
-                    """
-                    Simple callback which returns sixteen or the maximum
-                    possible padding size
-                    """
-                    if (max_padding - length) >= 16:
-                        return 16
-                    else:
-                        return max_padding - length
-                state.msg_sock.padding_cb = _return_sixteen_cb
+                state.msg_sock.padding_cb = self._return_sixteen_cb
 
 
 class TCPBufferingEnable(Command):

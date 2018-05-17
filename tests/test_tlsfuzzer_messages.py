@@ -1036,7 +1036,6 @@ class TestAddRecordPadding(unittest.TestCase):
         node = AddRecordPadding()
         self.assertIsNotNone(node)
 
-
     def test_process(self):
         node = AddRecordPadding()
 
@@ -1048,7 +1047,6 @@ class TestAddRecordPadding(unittest.TestCase):
         self.assertEqual(16, state.msg_sock.padding_cb(13,
                          constants.ContentType.application_data,
                          2**14 - 1))
-
 
     def test_process_with_size(self):
         node = AddRecordPadding(size=42)
@@ -1062,7 +1060,6 @@ class TestAddRecordPadding(unittest.TestCase):
                          constants.ContentType.application_data,
                          2**14 - 1))
 
-
     def test_process_with_fill(self):
         node = AddRecordPadding(fill=True)
 
@@ -1075,7 +1072,6 @@ class TestAddRecordPadding(unittest.TestCase):
                          state.msg_sock.padding_cb(13,
                          constants.ContentType.application_data,
                          2**14 - 1))
-
 
     def test_process_with_callback(self):
 
