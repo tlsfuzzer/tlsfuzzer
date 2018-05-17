@@ -148,6 +148,63 @@ class SetMaxRecordSize(Command):
             state.msg_sock.recordSize = self.max_size
 
 
+class SetPaddingCallback(Command):
+    """
+    Set the padding callback which returns the length of the padding to be
+    added to the message in the record layer.
+    """
+
+    def __init__(self, cb):
+        """Set the padding callback"""
+        super(SetPaddingCallback, self).__init__()
+        self.padding_cb = cb
+
+    @staticmethod
+    def add_zeroes_cb(size):
+        """
+        Returns a callback function which returns a fixed number as the
+        padding size
+        """
+        def _add_zeroes_cb(length, contenttype, max_padding, zeroes=size):
+            """
+            Simple callback which returns a fixed number as the padding size
+            to be added to the message
+            """
+            if zeroes > (max_padding - length):
+                raise ValueError("requested padding size is too large")
+
+            return zeroes
+        return _add_zeroes_cb
+
+    @staticmethod
+    def no_padding_cb(length, contenttype, max_padding):
+        """Returns zero as the size of the padding"""
+        return 0
+
+    @staticmethod
+    def fill_padding_cb(length, contenttype, max_padding):
+        """
+        Simple callback which returns the maximum padding size as
+        the size of the padding to be added to the message
+        """
+        return max_padding - length
+
+    @staticmethod
+    def add_sixteen_cb(length, contenttype, max_padding):
+        """
+        Simple callback which returns sixteen or the maximum
+        possible padding size
+        """
+        return min(16, max_padding - length)
+
+    def process(self, state):
+        """
+        Set the callback which returns the length of the padding in record
+        layer.
+        """
+        state.msg_sock.padding_cb = self.padding_cb
+
+
 class TCPBufferingEnable(Command):
     """
     Start buffering all writes on the TCP level of connection.
