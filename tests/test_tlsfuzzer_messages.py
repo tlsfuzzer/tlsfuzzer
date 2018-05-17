@@ -1121,6 +1121,18 @@ class TestSetPaddingCallback(unittest.TestCase):
 
         self.assertFalse(state.msg_sock.padding_cb)
 
+    def test_with_padding_larger_than_possible(self):
+        node = SetPaddingCallback(SetPaddingCallback.add_zeroes_cb(42))
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        node.process(state)
+
+        self.assertRaises(ValueError, state.msg_sock.padding_cb, 20,
+                          constants.ContentType.application_data,
+                          32)
+
 
 class TestRenegotiationInfoExtension(unittest.TestCase):
     def test___init__(self):
