@@ -166,6 +166,7 @@
           "comment" : "SSLv3 is disabled by default in tlslite-ng",
           "exp_pass" : false},
          {"name" : "test-tls13-conversation.py"},
+         {"name" : "test-tls13-empty-alert.py"},
          {"name" : "test-tls13-nociphers.py"},
          {"name" : "test-tls13-pkcs-signature.py"},
          {"name" : "test-tls13-record-padding.py"},
