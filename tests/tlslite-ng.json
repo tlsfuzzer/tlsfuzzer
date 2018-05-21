@@ -162,6 +162,7 @@
          {"name" : "test-tls13-record-padding.py"},
          {"name" : "test-tls13-signature-algorithms.py"},
          {"name" : "test-tls13-version-negotiation.py"},
+         {"name" : "test-tls13-zero-length-data.py"},
          {"name" : "test-TLSv1_2-rejected-without-TLSv1_2.py"},
          {"name" : "test-truncating-of-client-hello.py"},
          {"name" : "test-truncating-of-finished.py"},
