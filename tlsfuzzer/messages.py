@@ -413,8 +413,17 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
             self.version = state.client_version
         if self.random:
             state.client_random = self.random
-        if self.session_id is None:
+        if self.session_id is None and state.session_id:
             self.session_id = state.session_id
+        if self.session_id is None and self.extensions \
+                and ExtensionType.supported_versions in self.extensions:
+            # in TLS 1.3, the server should reply with CCS (middlebox compat
+            # mode) only when client sends a session_id
+            self.session_id = getRandomBytes(32)
+        # if still unset, set to default value
+        if not self.session_id:
+            self.session_id = bytearray(b'')
+
         if not state.client_random:
             state.client_random = bytearray(32)
 

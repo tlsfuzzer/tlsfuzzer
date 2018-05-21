@@ -417,6 +417,34 @@ class TestClientHelloGenerator(unittest.TestCase):
         mock_method.assert_called_once_with((3, 3), bytearray(32),
                                             bytearray(0), [], extensions=None)
 
+    def test_session_id_with_no_settings(self):
+        state = ConnectionState()
+        chg = ClientHelloGenerator(version=(3, 4))
+
+        msg = chg.generate(state)
+
+        self.assertEqual(msg.session_id, b'')
+
+    def test_seesion_id_with_tls13_extension(self):
+        state = ConnectionState()
+        exts = {constants.ExtensionType.supported_versions: None}
+        chg = ClientHelloGenerator(version=(3, 3), extensions=exts)
+
+        msg = chg.generate(state)
+
+        self.assertEqual(len(msg.session_id), 32)
+
+    def test_session_id_with_explicit_id_and_tls13_extension(self):
+        state = ConnectionState()
+        exts = {constants.ExtensionType.supported_versions: None}
+        chg = ClientHelloGenerator(version=(3, 3), extensions=exts,
+                                   session_id=b'')
+
+        msg = chg.generate(state)
+
+        self.assertEqual(msg.session_id, b'')
+
+
 class TestClientKeyExchangeGenerator(unittest.TestCase):
 
     @classmethod
