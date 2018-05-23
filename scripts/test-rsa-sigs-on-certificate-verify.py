@@ -70,17 +70,6 @@ def main():
                 text_cert = str(text_cert, 'utf-8')
             cert = X509()
             cert.parse(text_cert)
-        elif opt == '-k':
-            text_key = open(arg, 'rb').read()
-            if sys.version_info[0] >= 3:
-                text_key = str(text_key, 'utf-8')
-            private_key = parsePEMKey(text_key, private=True)
-        elif opt == '-c':
-            text_cert = open(arg, 'rb').read()
-            if sys.version_info[0] >= 3:
-                text_cert = str(text_cert, 'utf-8')
-            cert = X509()
-            cert.parse(text_cert)
         elif opt == '-h':
             host = arg
         elif opt == '-p':
