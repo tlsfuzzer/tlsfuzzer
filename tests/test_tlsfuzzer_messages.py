@@ -24,7 +24,7 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         ClientMasterKeyGenerator, TCPBufferingEnable, TCPBufferingDisable, \
         TCPBufferingFlush, fuzz_encrypted_message, fuzz_pkcs1_padding, \
         CollectNonces, AlertGenerator, PlaintextMessageGenerator, \
-        SetPaddingCallback
+        SetPaddingCallback, replace_plaintext
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
@@ -1748,3 +1748,65 @@ class TestFuzzPKCS1Padding(unittest.TestCase):
         expected = bytearray([0, 1] + [0xff] * 109 + [0x0f] + list(range(1, 17)))
         self.assertEqual(len(data), len(expected))
         self.assertEqual(data, expected)
+
+
+class TestReplacePlaintext(unittest.TestCase):
+    def test_replace(self):
+        state = ConnectionState()
+        socket = MockSocket(bytearray())
+
+        defragger = defragmenter.Defragmenter()
+        state.msg_sock = messagesocket.MessageSocket(socket,
+                                                     defragger)
+        state.msg_sock.version = (3, 3)
+        state.msg_sock.calcPendingStates(constants.CipherSuite.\
+                                                TLS_RSA_WITH_AES_128_CBC_SHA,
+                                              bytearray(48),
+                                              bytearray(32),
+                                              bytearray(32),
+                                              None)
+        state.msg_sock.changeWriteState()
+
+        msg = ApplicationDataGenerator(b"text")
+        msg = replace_plaintext(msg, b'\x00' * 16)
+
+        data_msg = msg.generate(state)
+
+        state.msg_sock.sendMessageBlocking(data_msg)
+
+        self.assertEqual(len(socket.sent), 1)
+        self.assertEqual(len(socket.sent[0]),
+                         1 +  # type
+                         2 +  # proto version
+                         2 +  # payload length
+                         16)  # data length
+
+        exp_data = bytearray(b'\x17\x03\x03\x00\x10'
+                             b'H&\x1f\xc1\x9c\xde"\x92\xdd\xe4|\xfco)R\xd6')
+        # just the fact that the ciphertext is smaller than the MAC size
+        # indicates that it was completely replaced
+        self.assertEqual(socket.sent[0], exp_data)
+
+    def test_replace_with_replacement_not_multiple_of_cipher_block_size(self):
+        state = ConnectionState()
+        socket = MockSocket(bytearray())
+
+        defragger = defragmenter.Defragmenter()
+        state.msg_sock = messagesocket.MessageSocket(socket,
+                                                     defragger)
+        state.msg_sock.version = (3, 3)
+        state.msg_sock.calcPendingStates(constants.CipherSuite.\
+                                                TLS_RSA_WITH_AES_128_CBC_SHA,
+                                              bytearray(48),
+                                              bytearray(32),
+                                              bytearray(32),
+                                              None)
+        state.msg_sock.changeWriteState()
+
+        msg = ApplicationDataGenerator(b"text")
+        msg = replace_plaintext(msg, b'\x00' * 8)
+
+        data_msg = msg.generate(state)
+
+        with self.assertRaises(ValueError):
+            state.msg_sock.sendMessageBlocking(data_msg)

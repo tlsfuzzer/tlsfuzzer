@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2015
+# Author: Hubert Kario, (c) 2018
 # Released under Gnu GPL v2.0, see LICENSE file for details
 """Example MAC value fuzzer"""
 
@@ -12,10 +12,12 @@ from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, \
-        fuzz_mac, AlertGenerator, fuzz_padding
+        fuzz_padding, CertificateGenerator, replace_plaintext, AlertGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectClose, ExpectApplicationData
+        ExpectAlert, ExpectClose, ExpectCertificateRequest, \
+        ExpectApplicationData
+from tlsfuzzer.fuzzers import structured_random_iter
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription
 from tlsfuzzer.utils.lists import natural_sort_keys
@@ -36,10 +38,10 @@ def help_msg():
 
 
 def main():
-    """check if incorrect MAC hash is rejected by server"""
+    """check if incorrect padding is rejected by server"""
     host = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 800
     run_exclude = set()
 
     argv = sys.argv[1:]
@@ -73,37 +75,37 @@ def main():
     node = node.add_child(ClientHelloGenerator(ciphers))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateRequest())
+    fork = node
     node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(CertificateGenerator())
+
+    # handle servers which ask for client certificates
+    fork.next_sibling = ExpectServerHelloDone()
+    join = ClientKeyExchangeGenerator()
+    fork.next_sibling.add_child(join)
+
+    node = node.add_child(join)
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
-    node = node.add_child(ApplicationDataGenerator(b"GET / HTTP/1.0\r\n\r\n"))
+    node = node.add_child(
+        ApplicationDataGenerator(b"GET / HTTP/1.0\r\n\r\n"))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
     node = node.add_child(ExpectAlert(AlertLevel.warning,
                                       AlertDescription.close_notify))
-    # sending of the close_notify reply to a close_notify is very unrealiable
-    # ignore it not being sent
     node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+    conversations["sanity"] = \
+            conversation
 
-    conversations["sanity"] = conversation
-
-    for pos, val in [
-                     (-1, 0x01),
-                     (-1, 0xff),
-                     (-2, 0x01),
-                     (-2, 0xff),
-                     (-6, 0x01),
-                     (-6, 0xff),
-                     (-12, 0x01),
-                     (-12, 0xff),
-                     (-20, 0x01),
-                     (-20, 0xff),
-                     # SHA-1 HMAC has just 20 bytes
-                     ]:
+    # block size is 16 bytes for AES_128, 2**14 is the TLS protocol max
+    for data in structured_random_iter(num_limit, min_length=16,
+                                       max_length=2**14,
+                                       step=16):
         conversation = Connect(host, port)
         node = conversation
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
@@ -111,74 +113,28 @@ def main():
         node = node.add_child(ClientHelloGenerator(ciphers))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectCertificateRequest())
+        fork = node
         node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(CertificateGenerator())
+
+        # handle servers which ask for client certificates
+        fork.next_sibling = ExpectServerHelloDone()
+        join = ClientKeyExchangeGenerator()
+        fork.next_sibling.add_child(join)
+
+        node = node.add_child(join)
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectFinished())
-        node = node.add_child(fuzz_mac(ApplicationDataGenerator(
-                                                        b"GET / HTTP/1.0\n\n"),
-                                       xors={pos:val}))
+        node = node.add_child(replace_plaintext(
+            ApplicationDataGenerator(b"I'm ignored, only type is important"),
+            data.data))
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                           AlertDescription.bad_record_mac))
         node = node.add_child(ExpectClose())
-
-        conversations["XOR position " + str(pos) + " with " + str(hex(val))] = \
-                conversation
-
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        node = node.add_child(ClientHelloGenerator(ciphers))
-        node = node.add_child(ExpectServerHello())
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator())
-        node = node.add_child(ChangeCipherSpecGenerator())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectFinished())
-        app_data = b"GET / HTTP/1.0\r\nX-Fo: 0\r\n\r\n"
-        assert (len(app_data) + 20 + 1) % 16 == 0
-        node = node.add_child(fuzz_mac(ApplicationDataGenerator(app_data),
-                                       xors={pos:val}))
-        node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
-        node = node.add_child(ExpectClose())
-
-        conversations["XOR position {0} with {1} (short pad)"
-                      .format(pos, hex(val))] = \
-                conversation
-
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        node = node.add_child(ClientHelloGenerator(ciphers))
-        node = node.add_child(ExpectServerHello())
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator())
-        node = node.add_child(ChangeCipherSpecGenerator())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectFinished())
-        text = b"GET / HTTP/1.0\nX-bad: aaaa\n\n"
-        hmac_tag_length = 20
-        block_size = 16
-        # make sure that padding has full blocks to work with
-        assert (len(text) + hmac_tag_length) % block_size == 0
-        node = node.add_child(fuzz_mac(fuzz_padding(ApplicationDataGenerator(text),
-                                                    min_length=255),
-                                       xors={pos:val}))
-        node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
-        node = node.add_child(ExpectClose())
-
-        conversations["XOR position {0} with {1} (long pad)"
-                      .format(pos, hex(val))] = \
+        conversations["encrypted plaintext of {0}".format(data)] = \
                 conversation
 
     # run the conversation
@@ -189,7 +145,7 @@ def main():
         num_limit = len(conversations)
 
     # make sure that sanity test is run first and last
-    # to verify that server was running and kept running throughout
+    # to verify that server was running and kept running throught
     sanity_test = ('sanity', conversations['sanity'])
     ordered_tests = chain([sanity_test],
                           islice(filter(lambda x: x[0] != 'sanity',
