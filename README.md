@@ -77,13 +77,13 @@ If test has additional requirements, it will output them to console. No errors
 printed means that all expecations were met (so for tests with bad data the
 server rejected our messages).
 
-All script also accept `--help` to print the help message (specification of
+All scripts also accept `--help` to print the help message (specification of
 all the options given script supports), `-h` to specify the hostname or
 IP address of the server-to-be-tested and `-p` to specify the port of the
 service to be tested.
 
 See [USAGE.md](https://github.com/tomato42/tlsfuzzer/blob/master/USAGE.md) for
-more info and how to interpret errors.
+more info and how to interpret errors and failures reported by scripts.
 
 ## Server under test configuration
 
@@ -98,8 +98,13 @@ openssl req -x509 -newkey rsa -keyout localhost.key -out localhost.crt -subj \
 **Note**: tlsfuzzer verifies only TLS level behaviour, it does not perform
 any checks on the certificate (like hostname validation, CA signatures or
 key usage). It does however verify if the signatures made on TLS message
-by the server (like in Server Key Exchange message) match the certificate
-sent by the server.
+by the server (like in Server Key Exchange or Certificiate Verify message)
+match the certificate sent by the server.
+
+More detailed instructions, including how to build the different frameworks
+from source, are available in the
+[Server setup](https://github.com/tomato42/tlsfuzzer/wiki/Server-setup) wiki
+page.
 
 Example server configurations:
 
