@@ -38,6 +38,8 @@ before_install:
   - git rev-parse HEAD
   - echo "TRAVIS_COMMIT_RANGE=$TRAVIS_COMMIT_RANGE"
   - git fetch origin master:refs/remotes/origin/master
+  - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+  - chmod +x ./cc-test-reporter
 
 install:
   - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then travis_retry pip install unittest2 'isort<4.3' 'inflect<0.3.1'; fi
@@ -49,6 +51,8 @@ install:
           travis_retry pip install --global-option=build_ext --global-option="-I/usr/include/x86_64-linux-gnu" m2crypto;
       fi
   - if ! [[ $TRAVIS_PYTHON_VERSION == '2.6' || $TRAVIS_PYTHON_VERSION == '2.7' ]]; then travis_retry pip install pycrypto; fi
+  # codeclimate supports natively just one set of results, so use the most recent python for that
+  - if [[ $TRAVIS_PYTHON_VERSION == '3.6' ]]; then ./cc-test-reporter before-build; fi
 
 script:
   - |
@@ -87,3 +91,4 @@ sudo: false
 
 after_success:
  - coveralls
+ - if [[ $TRAVIS_PYTHON_VERSION == '3.6' ]]; then coverage xml; ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT; fi
