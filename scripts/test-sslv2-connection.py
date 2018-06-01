@@ -73,7 +73,7 @@ def main():
         node = node.add_child(ApplicationDataGenerator(
             bytearray(b"GET / HTTP/1.0\n\n")))
         node = node.add_child(ExpectApplicationData())
-        node = node.add_child(Close())
+        node.add_child(Close())
 
         conversations["Connect with SSLv2 {0}"
                       .format(cipher_name)] = conversation

@@ -96,7 +96,7 @@ def main():
             # or connection close
             node.next_sibling = ExpectClose()
             # in case of error, we expect the server to close connection
-            node = node.add_child(ExpectClose())
+            node.add_child(ExpectClose())
 
             conversations["Connect with {1} {0}"
                           .format(cipher_name, proto_name)] = conversation

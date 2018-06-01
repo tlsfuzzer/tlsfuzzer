@@ -94,7 +94,7 @@ def main():
     # just cause connection close. But sending TLS alert is correct too.
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
-    node = node.add_child(ExpectClose())
+    node.add_child(ExpectClose())
 
     conversations["Empty SSLv2 record"] = conversation
 
@@ -108,7 +108,7 @@ def main():
                                                ssl2=True))
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
-    node = node.add_child(ExpectClose())
+    node.add_child(ExpectClose())
 
     conversations["Empty SSLv2 record - type 0"] = conversation
 
@@ -122,7 +122,7 @@ def main():
                                                ssl2=True))
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
-    node = node.add_child(ExpectClose())
+    node.add_child(ExpectClose())
 
     conversations["Empty SSLv2 record - type 1"] = conversation
 
