@@ -21,8 +21,7 @@ epydoc:
 test:
 	epydoc --check --fail-on-error -v tlsfuzzer
 	coverage2 run --branch --source tlsfuzzer -m unittest discover -v
-	coverage2 report -m
-	coverage3 run --branch --source tlsfuzzer -m unittest discover -v
+	coverage3 run --append --branch --source tlsfuzzer -m unittest discover -v
 	coverage3 report -m
 	coverage3 xml
 	coverage3 html
