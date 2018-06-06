@@ -153,9 +153,6 @@
          {"name" : "test-sslv2-force-cipher.py"},
          {"name" : "test-sslv2-force-export-cipher.py"},
          {"name" : "test-sslv2hello-protocol.py"},
-         {"name" : "test-SSLv3-padding.py",
-          "comment" : "SSLv3 is disabled by default in tlslite-ng",
-          "exp_pass" : false},
          {"name" : "test-tls13-conversation.py"},
          {"name" : "test-tls13-empty-alert.py"},
          {"name" : "test-tls13-legacy-version.py"},
@@ -216,6 +213,19 @@
           "arguments" : ["-k", "tests/clientX509Key.pem",
                          "-c", "tests/clientX509Cert.pem"]
           }
+     ]
+    },
+    {"server_command": ["python", "-u", "{command}", "server",
+                 "-k", "tests/serverX509Key.pem",
+                 "-c", "tests/serverX509Cert.pem",
+                 "--ssl3",
+                 "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "comment" : "Tests of the SSLv3 implementation",
+     "tests" : [
+         {"name" : "test-SSLv3-padding.py"}
      ]
     }
 ]
