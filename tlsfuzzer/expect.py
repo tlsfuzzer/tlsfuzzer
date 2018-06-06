@@ -6,8 +6,10 @@ from __future__ import print_function
 
 import collections
 import itertools
-import tlslite.utils.tlshashlib as hashlib
+from functools import partial
 import sys
+
+import tlslite.utils.tlshashlib as hashlib
 from tlslite.constants import ContentType, HandshakeType, CertificateType,\
         HashAlgorithm, SignatureAlgorithm, ExtensionType,\
         SSL2HandshakeType, CipherSuite, GroupName, AlertDescription, \
@@ -222,6 +224,32 @@ def srv_ext_handler_supp_vers(state, extension):
     state.version = vers
 
 
+def _srv_ext_handler_psk(state, extension, psk_configs):
+    """Process the pre_shared_key extension from server.
+
+    Since it needs the psk_configurations, it can't do it automatically
+    so it shouldn't be part of _srv_ext_handler.
+    """
+    cln_hello = state.get_last_message_of_type(ClientHello)
+    cln_ext = cln_hello.getExtension(ExtensionType.pre_shared_key)
+
+    # the selection is 0-based
+    if extension.selected >= len(cln_ext.identities):
+        raise AssertionError("Server selected PSK we didn't send")
+
+    ident = cln_ext.identities[extension.selected].identity
+    secret = next((i[1] for i in psk_configs if i[0] == ident), None)
+    if not secret:
+        raise ValueError("psk_configs are missing identity")
+
+    state.key['PSK secret'] = secret
+
+
+def gen_srv_ext_handler_psk(psk_configs):
+    """Creates a handler for pre_shared_key extension from the server."""
+    return partial(_srv_ext_handler_psk, psk_configs=psk_configs)
+
+
 _srv_ext_handler = \
         {ExtensionType.extended_master_secret: srv_ext_handler_ems,
          ExtensionType.encrypt_then_mac: srv_ext_handler_etm,
@@ -374,7 +402,9 @@ class ExpectServerHello(ExpectHandshake):
         if self.resume:
             assert state.session_id == srv_hello.session_id
         if (state.session_id == srv_hello.session_id and
-                srv_hello.session_id != bytearray(0)):
+                srv_hello.session_id != bytearray(0) and
+                self._extract_version(srv_hello) < (3, 4)):
+            # TLS 1.2 resumption, TLS 1.3 is based on PSKs
             state.resuming = True
             assert state.cipher == srv_hello.cipher_suite
             assert state.version == self._extract_version(srv_hello)
@@ -453,9 +483,7 @@ class ExpectServerHello(ExpectHandshake):
         prf_size = state.prf_size
 
         # Derive PSK secret
-        # TODO handle PSK key exchange
-        psk = bytearray(prf_size)
-        state.key['PSK secret'] = psk
+        psk = state.key.setdefault('PSK secret', bytearray(prf_size))
 
         # Derive TLS 1.3 early secret
         secret = bytearray(prf_size)
@@ -464,8 +492,9 @@ class ExpectServerHello(ExpectHandshake):
 
         # Derive TLS 1.3 handshake secret
         secret = derive_secret(secret, b'derived', None, prf_name)
-        # TODO handle pure PSK key exchange, without DH
-        secret = secureHMAC(secret, state.key['DH shared secret'], prf_name)
+        dh_secret = state.key.setdefault('DH shared secret',
+                                         bytearray(prf_size))
+        secret = secureHMAC(secret, dh_secret, prf_name)
         state.key['handshake secret'] = secret
 
         # Derive TLS 1.3 traffic secrets
