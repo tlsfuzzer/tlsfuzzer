@@ -83,7 +83,7 @@ def main():
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
     ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([(3, 3), TLS_1_3_DRAFT])
+        .create([TLS_1_3_DRAFT, (3, 3)])
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
@@ -120,7 +120,7 @@ def main():
             key_shares.append(key_share_gen(group))
         ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
         ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-            .create([(3, 3), TLS_1_3_DRAFT])
+            .create([TLS_1_3_DRAFT, (3, 3)])
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
         sig_algs = [(getattr(HashAlgorithm, hash_alg), SignatureAlgorithm.rsa)]
