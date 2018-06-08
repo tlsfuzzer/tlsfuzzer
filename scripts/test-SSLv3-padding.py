@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2015
+# Author: Hubert Kario, (c) 2015-2018
 # Released under Gnu GPL v2.0, see LICENSE file for details
 """Example MAC value fuzzer"""
 
@@ -6,7 +6,6 @@ from __future__ import print_function
 import traceback
 import sys
 import getopt
-import re
 from itertools import chain, islice
 
 from tlsfuzzer.runner import Runner
@@ -20,6 +19,9 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription
 from tlsfuzzer.utils.lists import natural_sort_keys
+
+
+version = 2
 
 
 def help_msg():
@@ -111,14 +113,15 @@ def main():
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
     text = b"GET / HTTP/1.0\nX-bad: aaaa\n\n"
-    hmac_tag_length = 20
-    block_size = 16
+    hmac_tag_length = 20  # because we're using HMAC-SHA-1
+    block_size = 16  # because we're suing AES
     # make sure that padding has full block to work with
     assert (len(text) + hmac_tag_length) % block_size == 0
     node = node.add_child(fuzz_padding(ApplicationDataGenerator(text),
                                        # set all bytes of pad to b'\x00'
-                                       substitutions={x:0 for x
-                                                      in range(0, 15)}))
+                                       # with exception of the length byte
+                                       substitutions=dict(
+                                           (x, 0) for x in range(0, 15))))
     node = node.add_child(ExpectApplicationData())
     # BEAST 1/n-1 splitting
     node = node.add_child(ExpectApplicationData())
@@ -130,6 +133,70 @@ def main():
     node = node.add_child(ExpectClose())
 
     conversations["zero-filled padding in SSLv3"] = \
+            conversation
+
+    # max size SSLv3 padding
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 0)))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    text = b"GET / HTTP/1.0\nX-bad: aaaa\n\n"
+    hmac_tag_length = 20
+    block_size = 16
+    # make sure that padding has full block to work with
+    assert (len(text) + hmac_tag_length) % block_size == 0
+    node = node.add_child(fuzz_padding(ApplicationDataGenerator(text),
+                                       min_length=128//8))
+    node = node.add_child(ExpectApplicationData())
+    # BEAST 1/n-1 splitting
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert(AlertLevel.warning,
+                                      AlertDescription.close_notify))
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+
+    conversations["max acceptable padding in SSLv3"] = \
+            conversation
+
+    # too much padding in SSLv3
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 0)))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    text = b"GET / HTTP/1.0\nX-bad: aaaa\n\n"
+    hmac_tag_length = 20
+    block_size = 16
+    # make sure that padding has full block to work with
+    assert (len(text) + hmac_tag_length) % block_size == 0
+    node = node.add_child(fuzz_padding(ApplicationDataGenerator(text),
+                                       # make the padding longer than the block
+                                       # size of the cipher
+                                       min_length=(128//8)+1))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.bad_record_mac))
+    node.add_child(ExpectClose())
+
+    conversations["excessive padding in SSLv3 (valid in TLS 1.0)"] = \
             conversation
 
     # run the conversation
@@ -168,6 +235,10 @@ def main():
         else:
             bad += 1
             failed.append(c_name)
+
+    print("Script to verify different padding scenarios in SSLv3.")
+    print("Check if the padding in SSLv3 follows the RFC6101\n")
+    print("version: {0}\n".format(version))
 
     print("Test end")
     print("successful: {0}".format(good))
