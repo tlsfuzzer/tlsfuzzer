@@ -26,13 +26,14 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         srv_ext_handler_alpn, srv_ext_handler_ec_point, srv_ext_handler_npn, \
         srv_ext_handler_key_share, srv_ext_handler_supp_vers, \
         ExpectCertificateVerify, ExpectEncryptedExtensions, \
-        ExpectNewSessionTicket
+        ExpectNewSessionTicket, hrr_ext_handler_key_share, \
+        hrr_ext_handler_cookie, ExpectHelloRetryRequest
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
         SignatureAlgorithm, CipherSuite, CertificateType, SSL2HandshakeType, \
         SSL2ErrorDescription, GroupName, CertificateStatusType, ECPointFormat,\
-        SignatureScheme
+        SignatureScheme, TLS_1_3_HRR
 from tlslite.messages import Message, ServerHello, CertificateRequest, \
         ClientHello, Certificate, ServerHello2, ServerFinished, \
         ServerKeyExchange, CertificateStatus, CertificateVerify, \
@@ -40,7 +41,8 @@ from tlslite.messages import Message, ServerHello, CertificateRequest, \
 from tlslite.extensions import SNIExtension, TLSExtension, \
         SupportedGroupsExtension, ALPNExtension, ECPointFormatsExtension, \
         NPNExtension, ServerKeyShareExtension, ClientKeyShareExtension, \
-        SrvSupportedVersionsExtension, SupportedVersionsExtension
+        SrvSupportedVersionsExtension, SupportedVersionsExtension, \
+        HRRKeyShareExtension, CookieExtension
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509certchain import X509CertChain, X509
 from tlslite.extensions import SNIExtension, SignatureAlgorithmsExtension
@@ -343,6 +345,51 @@ class TestServerExtensionProcessors(unittest.TestCase):
 
         self.assertIn("(3, 9)", str(exc.exception))
         self.assertIn("didn't advertise", str(exc.exception))
+
+
+class TestHRRExtensionProcessors(unittest.TestCase):
+    def test_hrr_ext_handler_key_share(self):
+        ext = HRRKeyShareExtension().create(GroupName.secp256r1)
+        state = ConnectionState()
+
+        ch_ext = SupportedGroupsExtension().create([GroupName.secp256r1,
+                                                    GroupName.secp384r1])
+        ch = ClientHello()
+        ch.extensions = [ch_ext]
+
+        state.handshake_messages.append(ch)
+
+        hrr_ext_handler_key_share(state, ext)
+
+    def test_hrr_ext_handler_with_wrong_group(self):
+        ext = HRRKeyShareExtension().create(GroupName.x25519)
+        state = ConnectionState()
+
+        ch_ext = SupportedGroupsExtension().create([GroupName.secp256r1])
+        ch = ClientHello()
+        ch.extensions = [ch_ext]
+
+        state.handshake_messages.append(ch)
+
+        with self.assertRaises(AssertionError) as e:
+            hrr_ext_handler_key_share(state, ext)
+
+        self.assertIn("didn't advertise", str(e.exception))
+
+    def test_hrr_ext_handler_cookie(self):
+        ext = CookieExtension().create(b'some payload')
+        state = None
+
+        hrr_ext_handler_cookie(state, ext)
+
+    def test_hrr_ext_handler_cookie_with_empty_payload(self):
+        ext = CookieExtension()
+        state = None
+
+        with self.assertRaises(AssertionError) as e:
+            hrr_ext_handler_cookie(state, ext)
+
+        self.assertIn("empty cookie", str(e.exception))
 
 
 class TestExpectServerHello(unittest.TestCase):
@@ -879,6 +926,135 @@ class TestExpectServerHello(unittest.TestCase):
         self.assertTrue(state.key['server handshake traffic secret'])
         self.assertEqual(state.version, (3, 4))
         self.assertTrue(state.msg_sock.tls13record)
+
+
+class TestExpectServerHelloWithHelloRetryRequest(unittest.TestCase):
+    def setUp(self):
+        self.exp = ExpectServerHello()
+
+        state = ConnectionState()
+        self.state = state
+        state.msg_sock = mock.MagicMock()
+        state.key['DH shared secret'] = bytearray()
+
+        exts = [SupportedVersionsExtension().create([(3, 5), (3, 4), (3, 3)])]
+        ch = ClientHello()
+        ch.create((3, 3), bytearray(32), b'', [4, 5], extensions=exts)
+        self.ch = ch
+        state.handshake_messages.append(ch)
+
+        exts = [SrvSupportedVersionsExtension().create((3, 4))]
+        hrr = ServerHello()
+        hrr.create((3, 3), TLS_1_3_HRR, b'', 0x0004, extensions=exts)
+        self.hrr = hrr
+        state.handshake_messages.append(hrr)
+
+        exts = [SrvSupportedVersionsExtension().create((3, 4))]
+        sh = ServerHello()
+        sh.create((3, 3), bytearray(32), b'', 0x0004, extensions=exts)
+        self.sh = sh
+
+    def test_with_hello_retry_request(self):
+        self.exp.process(self.state, self.sh)
+
+    def test_with_wrong_hrr_random(self):
+        self.hrr.random = bytearray([12]*32)
+
+        with self.assertRaises(ValueError) as e:
+            self.exp.process(self.state, self.sh)
+
+        self.assertIn("Two ServerHello", str(e.exception))
+
+    def test_with_wrong_cipher_suite(self):
+        self.sh.cipher_suite = 5
+
+        with self.assertRaises(AssertionError) as e:
+            self.exp.process(self.state, self.sh)
+
+        self.assertIn("different cipher suite", str(e.exception))
+
+    def test_with_wrong_version(self):
+        self.sh.extensions[0].version = (3, 5)
+
+        with self.assertRaises(AssertionError) as e:
+            self.exp.process(self.state, self.sh)
+
+        self.assertIn("different protocol version", str(e.exception))
+
+
+class TestExpectHelloRetryRequest(unittest.TestCase):
+    def test___init__(self):
+        exp = ExpectHelloRetryRequest()
+
+        self.assertIsNotNone(exp)
+
+        self.assertTrue(exp.is_expect())
+        self.assertFalse(exp.is_command())
+        self.assertFalse(exp.is_generator())
+
+    def test_is_match(self):
+        exp = ExpectHelloRetryRequest()
+
+        # the difference between HRR and Server Hello is the random value,
+        # not the content type or handshake type
+        msg = Message(ContentType.handshake,
+                      bytearray([HandshakeType.server_hello]))
+
+        self.assertTrue(exp.is_match(msg))
+
+    def test_is_match_with_unmatched_handshake_type(self):
+        exp = ExpectHelloRetryRequest()
+
+        msg = Message(ContentType.handshake,
+                      # this is legacy value, used in early drafts of TLS 1.3
+                      bytearray([HandshakeType.hello_retry_request]))
+
+        self.assertFalse(exp.is_match(msg))
+
+    def test_process_with_extensions(self):
+        state = ConnectionState()
+
+        ch = ClientHello()
+        ch.cipher_suites = [4]
+        ch.extensions = [SupportedVersionsExtension().create([(3, 4)])]
+
+        state.handshake_messages.append(ch)
+        state.msg_sock = mock.MagicMock()
+
+        exts = [CookieExtension().create(b'some payload'),
+                SrvSupportedVersionsExtension().create((3, 4))]
+        hrr = ServerHello()
+        hrr.create((3, 3), TLS_1_3_HRR, b'', 0x0004, extensions=exts)
+
+        exp = ExpectHelloRetryRequest()
+
+        exp.process(state, hrr)
+
+        self.maxDiff = None
+        self.assertEqual(
+            b'\x99\xb9\xa5O\x9d\x819\xfe\xd6\xf5\x8d\xce'
+            b' bW\x1fO0[7\x04\x15\x89\xaeS\xcd8*3C\x9d\x01',
+            state.handshake_hashes.digest('sha256'))
+
+    def test_process_with_unexpected_extensions(self):
+        state = ConnectionState()
+
+        ch = ClientHello()
+        ch.cipher_suites = [4]
+        ch.extensions = [TLSExtension(extType=0x13ff)]
+        state.handshake_messages.append(ch)
+        state.msg_sock = mock.MagicMock()
+
+        exts = [TLSExtension(extType=0x13ff)]
+        hrr = ServerHello()
+        hrr.create((3, 3), TLS_1_3_HRR, b'', 0x0004, extensions=exts)
+
+        exp = ExpectHelloRetryRequest()
+
+        with self.assertRaises(AssertionError) as e:
+            exp.process(state, hrr)
+
+        self.assertIn("No autohandler for 5119", str(e.exception))
 
 
 class TestExpectServerHello2(unittest.TestCase):

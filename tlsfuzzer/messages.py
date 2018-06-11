@@ -6,12 +6,13 @@
 from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         Finished, Alert, ApplicationData, Message, Certificate, \
         CertificateVerify, CertificateRequest, ClientMasterKey, \
-        ClientFinished, ServerKeyExchange
+        ClientFinished, ServerKeyExchange, ServerHello
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
         ExtensionType, CertificateType, ClientCertificateType, HashAlgorithm, \
-        SignatureAlgorithm, CipherSuite, SignatureScheme
+        SignatureAlgorithm, CipherSuite, SignatureScheme, TLS_1_3_HRR
 import tlslite.utils.tlshashlib as hashlib
-from tlslite.extensions import TLSExtension, RenegotiationInfoExtension
+from tlslite.extensions import TLSExtension, RenegotiationInfoExtension, \
+        ClientKeyShareExtension
 from tlslite.messagesocket import MessageSocket
 from tlslite.defragmenter import Defragmenter
 from tlslite.mathtls import calcMasterSecret, calcFinished, \
@@ -23,6 +24,7 @@ from tlslite.utils.cryptomath import getRandomBytes, numBytes, \
     derive_secret
 from tlslite.keyexchange import KeyExchange
 from tlslite.bufferedsocket import BufferedSocket
+from .helpers import key_share_gen
 from .handshake_helpers import calc_pending_states
 from .tree import TreeNode
 import socket
@@ -362,6 +364,44 @@ class HandshakeProtocolMessageGenerator(MessageGenerator):
 
         state.handshake_hashes.update(self.msg.write())
         state.handshake_messages.append(self.msg)
+
+
+def ch_cookie_handler(state):
+    """Client Hello cookie extension handler.
+
+    Copies the cookie extension from last HRR message.
+    """
+    hrr = state.get_last_message_of_type(ServerHello)
+    if not hrr or hrr.random != TLS_1_3_HRR:
+        # as the second CH should never be used without ExpectHelloRetryRequest
+        # before it, using this helper when there is no HRR in current
+        # handshake messages in the state is a user error, not server error
+        raise ValueError("No HRR received")
+    cookie = hrr.getExtension(ExtensionType.cookie)
+    return cookie
+
+
+def ch_key_share_handler(state):
+    """Client Hello key_share extension handler.
+
+    Generates the key share for the group selected by server in the last
+    HRR message.
+    """
+    hrr = state.get_last_message_of_type(ServerHello)
+    if not hrr or hrr.random != TLS_1_3_HRR:
+        # as the second CH should never be used without ExpectHelloRetryRequest
+        # before it, using this helper when there is no HRR in current
+        # handshake messages in the state is a user error, not server error
+        raise ValueError("No HRR received")
+    hrr_key_share = hrr.getExtension(ExtensionType.key_share)
+
+    # the check if the group selected in HRR was advertised in the first
+    # ClientHello happens in the hrr_ext_handler_key_share()
+
+    group_id = hrr_key_share.selected_group
+    key_shares = [key_share_gen(group_id)]
+    key_share = ClientKeyShareExtension().create(key_shares)
+    return key_share
 
 
 class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
