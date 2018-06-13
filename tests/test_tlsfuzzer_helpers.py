@@ -13,9 +13,9 @@ except ImportError:
     from unittest.mock import call
 
 
-
-from tlsfuzzer.helpers import sig_algs_to_ids, key_share_gen
-from tlslite.extensions import KeyShareEntry
+from tlsfuzzer.helpers import sig_algs_to_ids, key_share_gen, psk_ext_gen
+from tlslite.extensions import KeyShareEntry, PreSharedKeyExtension, \
+        PskIdentity
 from tlslite.constants import GroupName
 
 class TestSigAlgsToIds(unittest.TestCase):
@@ -63,3 +63,44 @@ class TestKeyShareGen(unittest.TestCase):
         self.assertIsInstance(ret, KeyShareEntry)
         self.assertEqual(ret.group, GroupName.secp256r1)
         self.assertEqual(len(ret.key_exchange), 256 // 8 * 2 + 1)
+
+class TestPskExtGen(unittest.TestCase):
+    def test_gen(self):
+        config = [(b'test', b'secret', 'sha256'),
+                  (b'example', b'secret', 'sha384')]
+
+        ext = psk_ext_gen(config)
+
+        self.assertIsInstance(ext, PreSharedKeyExtension)
+        self.assertEqual(len(ext.identities), 2)
+        self.assertEqual(ext.binders, [bytearray(32), bytearray(48)])
+        self.assertEqual(ext.identities[0].identity, b'test')
+        self.assertEqual(ext.identities[1].identity, b'example')
+
+    def test_gen_without_hash_name(self):
+        config = [(b'test', b'secret')]
+
+        ext = psk_ext_gen(config)
+
+        self.assertIsInstance(ext, PreSharedKeyExtension)
+        self.assertEqual(len(ext.identities), 1)
+        self.assertEqual(ext.binders, [bytearray(32)])
+        self.assertEqual(ext.identities[0].identity, b'test')
+
+    def test_gen_with_wrong_number_of_config_parameters(self):
+        config = [(b'test', b'secret', 'sha256', 'extra')]
+
+        with self.assertRaises(ValueError):
+            psk_ext_gen(config)
+
+    def test_gen_with_empty_name(self):
+        config = [(b'', b'secret', 'sha256')]
+
+        with self.assertRaises(ValueError):
+            psk_ext_gen(config)
+
+    def test_gen_with_wrong_hash_name(self):
+        config = [(b'test', b'secret', 'sha512')]
+
+        with self.assertRaises(ValueError):
+            psk_ext_gen(config)

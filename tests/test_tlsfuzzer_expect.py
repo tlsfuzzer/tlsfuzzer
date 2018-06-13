@@ -27,7 +27,8 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         srv_ext_handler_key_share, srv_ext_handler_supp_vers, \
         ExpectCertificateVerify, ExpectEncryptedExtensions, \
         ExpectNewSessionTicket, hrr_ext_handler_key_share, \
-        hrr_ext_handler_cookie, ExpectHelloRetryRequest
+        hrr_ext_handler_cookie, ExpectHelloRetryRequest, \
+        gen_srv_ext_handler_psk
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
@@ -42,7 +43,8 @@ from tlslite.extensions import SNIExtension, TLSExtension, \
         SupportedGroupsExtension, ALPNExtension, ECPointFormatsExtension, \
         NPNExtension, ServerKeyShareExtension, ClientKeyShareExtension, \
         SrvSupportedVersionsExtension, SupportedVersionsExtension, \
-        HRRKeyShareExtension, CookieExtension
+        HRRKeyShareExtension, CookieExtension, \
+        SrvPreSharedKeyExtension
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509certchain import X509CertChain, X509
 from tlslite.extensions import SNIExtension, SignatureAlgorithmsExtension
@@ -50,7 +52,7 @@ from tlslite.keyexchange import DHE_RSAKeyExchange, ECDHE_RSAKeyExchange
 from tlslite.errors import TLSIllegalParameterException, TLSDecryptionFailed
 from tlsfuzzer.runner import ConnectionState
 from tlslite.extensions import RenegotiationInfoExtension
-from tlsfuzzer.helpers import key_share_gen
+from tlsfuzzer.helpers import key_share_gen, psk_ext_gen
 from tlslite.keyexchange import ECDHKeyExchange
 
 srv_raw_key = str(
@@ -345,6 +347,60 @@ class TestServerExtensionProcessors(unittest.TestCase):
 
         self.assertIn("(3, 9)", str(exc.exception))
         self.assertIn("didn't advertise", str(exc.exception))
+
+    def test_gen_srv_ext_handler_psk(self):
+        psk_settings = [(b'test', b'bad secret'),
+                        (b'example', b'good secret')]
+        ext = SrvPreSharedKeyExtension().create(1)
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        cln_ext = psk_ext_gen(psk_settings)
+        client_hello.extensions = [cln_ext]
+        state.handshake_messages.append(client_hello)
+
+        handler = gen_srv_ext_handler_psk(psk_settings)
+
+        handler(state, ext)
+
+        self.assertEqual(state.key['PSK secret'], b'good secret')
+
+    def test_gen_srv_ext_handler_psk_with_invalid_srv_selected_id(self):
+        psk_settings = [(b'test', b'bad secret'),
+                        (b'example', b'good secret')]
+        ext = SrvPreSharedKeyExtension().create(2)
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        cln_ext = psk_ext_gen(psk_settings)
+        client_hello.extensions = [cln_ext]
+        state.handshake_messages.append(client_hello)
+
+        handler = gen_srv_ext_handler_psk(psk_settings)
+
+        with self.assertRaises(AssertionError) as e:
+            handler(state, ext)
+
+        self.assertIn("didn't send", str(e.exception))
+
+    def test_gen_srv_ext_handler_psk_w_different_settings_to_ch_and_sh(self):
+        psk_settings = [(b'test', b'bad secret'),
+                        (b'example', b'good secret')]
+        ext = SrvPreSharedKeyExtension().create(1)
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        cln_ext = psk_ext_gen(psk_settings)
+        client_hello.extensions = [cln_ext]
+        state.handshake_messages.append(client_hello)
+
+        psk_settings = [(b'test', b'bad secret')]
+        handler = gen_srv_ext_handler_psk(psk_settings)
+
+        with self.assertRaises(ValueError) as e:
+            handler(state, ext)
+
+        self.assertIn("missing identity", str(e.exception))
 
 
 class TestHRRExtensionProcessors(unittest.TestCase):

@@ -13,6 +13,9 @@ except ImportError:
     import unittest.mock as mock
     from unittest.mock import call
 
+import socket
+import os
+
 from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,\
         ChangeCipherSpecGenerator, FinishedGenerator, \
         RenegotiationInfoExtension, ResetHandshakeHashes, SetMaxRecordSize, \
@@ -26,20 +29,20 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         CollectNonces, AlertGenerator, PlaintextMessageGenerator, \
         SetPaddingCallback, replace_plaintext, ch_cookie_handler, \
         ch_key_share_handler
+from tlsfuzzer.helpers import psk_ext_gen, psk_ext_updater
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
 import tlslite.extensions as extensions
 import tlslite.utils.keyfactory as keyfactory
 from tlslite.utils.cryptomath import bytesToNumber, numberToByteArray
+from tlsfuzzer.utils.ordered_dict import OrderedDict
 import tlslite.constants as constants
 import tlslite.defragmenter as defragmenter
 from tlslite.utils.codec import Parser
 from tests.mocksock import MockSocket
 from tlslite.utils.keyfactory import generateRSAKey
 from tlslite.utils.cryptomath import numberToByteArray
-import socket
-import os
 
 class TestClose(unittest.TestCase):
     def test___init__(self):
@@ -445,6 +448,31 @@ class TestClientHelloGenerator(unittest.TestCase):
 
         self.assertEqual(msg.session_id, b'')
 
+    def test_modifiers(self):
+        state = ConnectionState()
+        psk_configs = [(b'test', b'secret')]
+        exts = OrderedDict()
+        exts[constants.ExtensionType.supported_versions] = None
+        exts[constants.ExtensionType.pre_shared_key] = \
+            psk_ext_gen(psk_configs)
+        modifiers = [psk_ext_updater(psk_configs)]
+        chg = ClientHelloGenerator(version=(3, 3), extensions=exts,
+                                   session_id=b'\xaa'*32,
+                                   modifiers=modifiers)
+
+        msg = chg.generate(state)
+
+        self.assertEqual(len(msg.extensions), 2)
+        self.assertIsInstance(msg.extensions[1],
+                              extensions.PreSharedKeyExtension)
+        ext = msg.extensions[1]
+        self.assertEqual(len(ext.binders), 1)
+        print(repr(ext.binders[0]))
+        self.assertEqual(
+            ext.binders[0],
+            bytearray(b"\x04!\xd0\xee\x0c\xe8\x13W\xa9\x85\xcc\xce\x07U\x87"
+                      b"\xe6\'\xfa\xec\xf4\xf7\x88\x8b\xf3\xc2\xc3^\xf3<\x8b"
+                      b"\xba%"))
 
 class TestClientHelloExtensionGenerators(unittest.TestCase):
     def setUp(self):

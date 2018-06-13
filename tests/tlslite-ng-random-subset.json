@@ -239,5 +239,31 @@
      "tests" : [
          {"name" : "test-SSLv3-padding.py"}
      ]
+    },
+    {"server_command": ["python", "-u", "{command}", "server",
+                 "--psk", "aa",
+                 "--psk-ident", "test",
+                 "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "comment" : "Tests of the TLSv1.3 PSK key exchanges with SHA256 PRF",
+     "tests" : [
+         {"name" : "test-tls13-psk_ke.py"}
+     ]
+    },
+    {"server_command": ["python", "-u", "{command}", "server",
+                 "--psk", "aa",
+                 "--psk-ident", "test",
+                 "--psk-sha384",
+                 "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "comment" : "Tests of the TLSv1.3 PSK key exchanges with SHA384 PRF",
+     "tests" : [
+         {"name" : "test-tls13-psk_ke.py",
+          "arguments" : ["--psk-sha384"]}
+     ]
     }
 ]
