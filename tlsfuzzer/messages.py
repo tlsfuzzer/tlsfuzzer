@@ -950,33 +950,12 @@ class FinishedGenerator(HandshakeProtocolMessageGenerator):
         if status.version <= (3, 3):
             return
 
-        # derive the master secret
-        secret = derive_secret(
-            status.key['handshake secret'], b'derived', None, status.prf_name)
-        secret = secureHMAC(
-            secret, bytearray(status.prf_size), status.prf_name)
-        status.key['master secret'] = secret
-
-        # derive encryption keys
-        c_traff_sec = derive_secret(
-            secret, b'c ap traffic', self.server_finish_hh, status.prf_name)
-        status.key['client application traffic secret'] = c_traff_sec
-        s_traff_sec = derive_secret(
-            secret, b's ap traffic', self.server_finish_hh, status.prf_name)
-        status.key['server application traffic secret'] = s_traff_sec
-
-        # derive TLS exporter key
-        exp_ms = derive_secret(secret, b'exp master', self.server_finish_hh,
-                               status.prf_name)
-        status.key['exporter master secret'] = exp_ms
-
-        # set up the encryption keys for application data
-        status.msg_sock.calcTLS1_3PendingState(
-            status.cipher, c_traff_sec, s_traff_sec, None)
-        status.msg_sock.changeReadState()
+        # Switch to application traffic secret for writing.
+        # For reading we switched with the server Finished.
         status.msg_sock.changeWriteState()
 
         # derive resumption master secret key
+        secret = status.key['master secret']
         res_ms = derive_secret(secret, b'res master', status.handshake_hashes,
                                status.prf_name)
         status.key['resumption master secret'] = res_ms

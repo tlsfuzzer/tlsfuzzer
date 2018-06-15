@@ -28,7 +28,7 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
 from tlsfuzzer.helpers import key_share_gen
 
 
-version = 1
+version = 2
 
 
 def help_msg():
@@ -300,6 +300,7 @@ def main():
     node = node.add_child(ApplicationDataGenerator(bytearray(0)))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.unexpected_message))
+    node.add_child(ExpectClose())
     conversations["zero-length app data during handshake"] = conversation
 
     # Send zero-length application data while handshaking with padding
@@ -333,6 +334,7 @@ def main():
     node = node.add_child(ApplicationDataGenerator(bytearray(0)))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.unexpected_message))
+    node.add_child(ExpectClose())
     conversations["zero-length app data with padding during handshake"] =\
         conversation
 
@@ -367,6 +369,7 @@ def main():
     node = node.add_child(ApplicationDataGenerator(bytearray(0)))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.unexpected_message))
+    node.add_child(ExpectClose())
     conversations["zero-len app data with large padding during handshake"] =\
         conversation
 
@@ -396,6 +399,7 @@ def main():
     node = node.add_child(ApplicationDataGenerator(bytearray(0)))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.unexpected_message))
+    node.add_child(ExpectClose())
     conversations["zero-length app data interleaved in handshake"] =\
         conversation
 
@@ -427,6 +431,7 @@ def main():
     node = node.add_child(ApplicationDataGenerator(bytearray(0)))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.unexpected_message))
+    node.add_child(ExpectClose())
     conversations["zero-len app data with padding interleaved in "
                   "handshake"] = conversation
 
@@ -458,6 +463,7 @@ def main():
     node = node.add_child(ApplicationDataGenerator(bytearray(0)))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.unexpected_message))
+    node.add_child(ExpectClose())
     conversations["zero-len app data with large padding interleaved in "
                   "handshake"] = conversation
 

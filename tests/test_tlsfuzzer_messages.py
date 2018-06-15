@@ -1057,21 +1057,15 @@ class TestFinishedGenerator(unittest.TestCase):
             b'\xb3V\x8f\xc7[\xcdD\xc8\xa4\x86\xcf\xd3\xc9\x0c'))
 
         state.key['handshake secret'] = bytearray(32)
+        state.key['master secret'] = bytearray(32)
 
         fg.post_send(state)
 
-        state.msg_sock.calcTLS1_3PendingState.assert_called_once_with(
-            state.cipher,
-            state.key['client application traffic secret'],
-            state.key['server application traffic secret'],
-            None)
         state.msg_sock.changeWriteState.assert_called_once_with()
-        state.msg_sock.changeReadState.assert_called_once_with()
 
-        self.assertEqual(state.key['resumption master secret'], bytearray(
-            b'\xf8\xcfk\x1d\x9b\xd6\xe2V\x9f\x08\xa8\xae\xe4\xab'
-            b'\xee7\xc2>\x98\xf4w\x9f\x9e3\x14qq\xdf:\xf6\xa8z'
-            ))
+        self.assertEqual(state.key['resumption master secret'],
+            bytearray(b'\x89\xd8\x00l c$\x01\x0f\xd9j\x16\xa3\xbaV\xfesT\x8b'
+                      b'\xc6\xeb\x0f~\r\xbd\xb3R\xeb\xd5\x08\xa7\xbd'))
 
 
 class TestResetHandshakeHashes(unittest.TestCase):
