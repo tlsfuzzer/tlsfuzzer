@@ -467,7 +467,6 @@ class TestClientHelloGenerator(unittest.TestCase):
                               extensions.PreSharedKeyExtension)
         ext = msg.extensions[1]
         self.assertEqual(len(ext.binders), 1)
-        print(repr(ext.binders[0]))
         self.assertEqual(
             ext.binders[0],
             bytearray(b"\x04!\xd0\xee\x0c\xe8\x13W\xa9\x85\xcc\xce\x07U\x87"
