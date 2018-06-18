@@ -239,7 +239,8 @@
      "environment": {"PYTHONPATH": "."},
      "comment" : "Tests of the TLSv1.3 PSK key exchanges with SHA256 PRF",
      "tests" : [
-         {"name" : "test-tls13-psk_ke.py"}
+         {"name" : "test-tls13-psk_ke.py"},
+         {"name" : "test-tls13-psk_dhe_ke.py"}
      ]
     },
     {"server_command": ["python", "-u", "{command}", "server",
@@ -253,6 +254,8 @@
      "comment" : "Tests of the TLSv1.3 PSK key exchanges with SHA384 PRF",
      "tests" : [
          {"name" : "test-tls13-psk_ke.py",
+          "arguments" : ["--psk-sha384"]},
+         {"name" : "test-tls13-psk_dhe_ke.py",
           "arguments" : ["--psk-sha384"]}
      ]
     }
