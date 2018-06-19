@@ -38,8 +38,8 @@
          },
          {"name" : "test-atypical-padding.py" },
          {"name" : "test-bleichenbacher-workaround.py",
-          "arguments" : ["-n", "50",
-                         "-t", "0.01"],
+          "arguments" : ["-t", "0.01",
+                         "-n", "50"],
           "comment" : "test over loopack, so 10ms RTT is entirely reasonable"},
          {"name" : "test-chacha20.py",
           "arguments" : ["-n", "50"],
@@ -47,10 +47,10 @@
          {"name" : "test-clienthello-md5.py"},
          {"name" : "test-client-hello-max-size.py" },
          {"name" : "test-client-compatibility.py",
-          "arguments" : ["-n", "50",
-                         "-e", "18: IE 6 on XP",
+          "arguments" : ["-e", "18: IE 6 on XP",
                          "-e", "52: YandexBot 3.0 on unknown",
-                         "-e", "100: IE 6 on XP"
+                         "-e", "100: IE 6 on XP",
+                         "-n", "50"
           ],
           "comment": "SSLv3 is not supported by tlslite-ng by default, there are a lot of test cases"
          },
@@ -180,6 +180,7 @@
          {"name" : "test-truncating-of-kRSA-client-key-exchange.py"},
          {"name" : "test-unsupported-curve-fallback.py"},
          {"name" : "test-version-numbers.py"},
+         {"name" : "test-x25519.py"},
          {"name" : "test-zero-length-data.py"}
      ]
     },
@@ -212,10 +213,10 @@
           },
          {"name" : "test-rsa-pss-sigs-on-certificate-verify.py",
           "comment" : "test script has over 2k test cases, limit it; also, we expect specific sigalgs after RSA-PSS support was added to tlslite-ng",
-          "arguments" : ["-n", "15",
-                         "-k", "tests/clientX509Key.pem",
+          "arguments" : ["-k", "tests/clientX509Key.pem",
                          "-c", "tests/clientX509Cert.pem",
-                         "-s", "8+6 8+11 8+5 8+10 8+4 8+9 6+1 5+1 4+1 3+1 2+1"]
+                         "-s", "8+6 8+11 8+5 8+10 8+4 8+9 6+1 5+1 4+1 3+1 2+1",
+                         "-n", "15"]
           },
          {"name" : "test-extended-master-secret-extension-with-client-cert.py",
           "arguments" : ["-k", "tests/clientX509Key.pem",
