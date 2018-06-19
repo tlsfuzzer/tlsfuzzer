@@ -958,10 +958,43 @@ class ExpectFinished(ExpectHandshake):
         if self.version in ((0, 2), (2, 0)):
             state.msg_sock.handshake_finished = True
 
-        # in TLS 1.3 ChangeCipherSpec is a no-op, we need to attach
-        # the change to some message
         if self.version > (3, 3):
+            # in TLS 1.3 ChangeCipherSpec is a no-op, so we need to attach
+            # the change for reading to some message that is always sent
             state.msg_sock.changeWriteState()
+
+            # we now need to calculate application traffic keys to allow
+            # correct interpretation of the alerts regarding Certificate,
+            # CertificateVerify and Finished
+
+            # derive the master secret
+            secret = derive_secret(
+                state.key['handshake secret'], b'derived', None,
+                state.prf_name)
+            secret = secureHMAC(
+                secret, bytearray(state.prf_size), state.prf_name)
+            state.key['master secret'] = secret
+
+            # derive encryption keys
+            c_traff_sec = derive_secret(
+                secret, b'c ap traffic', state.handshake_hashes,
+                state.prf_name)
+            state.key['client application traffic secret'] = c_traff_sec
+            s_traff_sec = derive_secret(
+                secret, b's ap traffic', state.handshake_hashes,
+                state.prf_name)
+            state.key['server application traffic secret'] = s_traff_sec
+
+            # derive TLS exporter key
+            exp_ms = derive_secret(secret, b'exp master',
+                                   state.handshake_hashes,
+                                   state.prf_name)
+            state.key['exporter master secret'] = exp_ms
+
+            # set up the encryption keys for application data
+            state.msg_sock.calcTLS1_3PendingState(
+                state.cipher, c_traff_sec, s_traff_sec, None)
+            state.msg_sock.changeReadState()
 
 
 class ExpectEncryptedExtensions(ExpectHandshake):

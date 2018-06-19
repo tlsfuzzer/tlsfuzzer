@@ -1542,6 +1542,7 @@ class TestExpectFinished(unittest.TestCase):
         state = ConnectionState()
         state.cipher = CipherSuite.TLS_AES_128_GCM_SHA256
         state.version = (3, 4)
+        state.key['handshake secret'] = bytearray(32)
         state.key['server handshake traffic secret'] = bytearray(32)
         state.msg_sock = mock.MagicMock()
         msg = Finished((3, 4), 32).create(
