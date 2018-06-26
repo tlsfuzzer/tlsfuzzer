@@ -10,7 +10,7 @@ from tlslite.handshakehashes import HandshakeHashes
 from tlslite.errors import TLSAbruptCloseError
 from tlslite.constants import ContentType, HandshakeType, AlertLevel, \
         AlertDescription, SSL2HandshakeType, CipherSuite
-from .expect import ExpectClose, ExpectNoMessage
+from .expect import ExpectClose, ExpectNoMessage, ExpectAlert
 
 class ConnectionState(object):
 
@@ -226,8 +226,10 @@ class Runner(object):
                                 # make the method into a blocking one
                                 pass
                     except socket.error:
-                        close_node = next((n for n in node.get_all_siblings()
-                                           if isinstance(n, ExpectClose)), None)
+                        close_node = next(
+                            (n for n in node.get_all_siblings()
+                             if isinstance(n, (ExpectClose, ExpectAlert))),
+                            None)
                         if close_node:
                             node = close_node.child
                             continue
