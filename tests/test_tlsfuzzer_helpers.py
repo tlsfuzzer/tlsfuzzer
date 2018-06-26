@@ -13,7 +13,8 @@ except ImportError:
     from unittest.mock import call
 
 
-from tlsfuzzer.helpers import sig_algs_to_ids, key_share_gen, psk_ext_gen
+from tlsfuzzer.helpers import sig_algs_to_ids, key_share_gen, psk_ext_gen, \
+        flexible_getattr
 from tlslite.extensions import KeyShareEntry, PreSharedKeyExtension, \
         PskIdentity
 from tlslite.constants import GroupName
@@ -104,3 +105,18 @@ class TestPskExtGen(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             psk_ext_gen(config)
+
+
+class TestFlexibleGetattr(unittest.TestCase):
+    def test_with_number(self):
+        self.assertEqual(12, flexible_getattr("12", None))
+
+    def test_with_none(self):
+        self.assertIsNone(flexible_getattr("none", GroupName))
+
+    def test_with_name(self):
+        self.assertEqual(24, flexible_getattr("secp384r1", GroupName))
+
+    def test_with_invalid_name(self):
+        with self.assertRaises(AttributeError):
+            flexible_getattr("seccc", GroupName)
