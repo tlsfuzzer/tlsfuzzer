@@ -151,3 +151,19 @@ def psk_ext_updater(psk_settings):
     type and the 3-byte length), but excluding other binders.
     """
     return partial(_psk_ext_updater, psk_settings=psk_settings)
+
+
+def flexible_getattr(val, val_type):
+    """Convert a string of number, name, or None to object.
+
+    If the val is a number, return a number, when it's a string
+    like "none" return None object.
+    When it's a string representing one of the fields in provided type, return
+    that value.
+    """
+    if val in ("None", "none", "NONE"):
+        return None
+    try:
+        return int(val)
+    except ValueError:
+        return getattr(val_type, val)
