@@ -171,6 +171,12 @@
          {"name" : "test-tls13-nociphers.py"},
          {"name" : "test-tls13-pkcs-signature.py"},
          {"name" : "test-tls13-record-padding.py"},
+         {"name" : "test-tls13-rsa-signatures.py",
+          "arguments" : ["-e", "tls13 signature rsa_pss_pss_sha256",
+                         "-e", "tls13 signature rsa_pss_pss_sha384",
+                         "-e", "tls13 signature rsa_pss_pss_sha512"],
+          "comment" : "bug tlslite-ng#275"
+         },
          {"name" : "test-tls13-signature-algorithms.py"},
          {"name" : "test-tls13-version-negotiation.py"},
          {"name" : "test-tls13-zero-length-data.py"},
@@ -268,6 +274,22 @@
           "arguments" : ["--psk-sha384"]},
          {"name" : "test-tls13-psk_dhe_ke.py",
           "arguments" : ["--psk-sha384"]}
+     ]
+    },
+    {"server_command": ["python", "-u", "{command}", "server",
+                 "-k", "tests/serverRSAPSSKey.pem",
+                 "-c", "tests/serverRSAPSSCert.pem",
+                 "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "tests" : [
+        {"name" : "test-tls13-rsapss-signatures.py",
+         "arguments" : ["-e", "tls13 signature rsa_pss_rsae_sha256",
+                        "-e", "tls13 signature rsa_pss_rsae_sha384",
+                        "-e", "tls13 signature rsa_pss_rsae_sha512"],
+         "comment" : "bug tlslite-ng#275"
+        }
      ]
     }
 ]
