@@ -163,6 +163,7 @@
          {"name" : "test-tls13-empty-alert.py"},
          {"name" : "test-tls13-hrr.py",
           "arguments" : ["--cookie"]},
+         {"name" : "test-tls13-finished.py"},
          {"name" : "test-tls13-legacy-version.py"},
          {"name" : "test-tls13-nociphers.py"},
          {"name" : "test-tls13-pkcs-signature.py"},
