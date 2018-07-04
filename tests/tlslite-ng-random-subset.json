@@ -169,6 +169,7 @@
          {"name" : "test-sslv2-force-cipher.py"},
          {"name" : "test-sslv2-force-export-cipher.py"},
          {"name" : "test-sslv2hello-protocol.py"},
+         {"name" : "test-tls13-0rtt-garbage.py"},
          {"name" : "test-tls13-conversation.py"},
          {"name" : "test-tls13-count-tickets.py",
           "arguments" : ["-t", "1"]},
