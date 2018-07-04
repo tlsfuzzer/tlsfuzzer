@@ -118,82 +118,53 @@ def main():
     node.next_sibling = ExpectClose()
     conversations["sanity"] = conversation
 
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    for group in groups:
-        key_shares.append(key_share_gen(group))
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(RawMessageGenerator(ContentType.alert, bytearray(0)))
+    for enc in ('handshake', 'application'):
+        for padsize in [0, 2, 5, 30]:
+            conversation = Connect(host, port)
+            node = conversation
+            ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+            ext = {}
+            groups = [GroupName.secp256r1]
+            key_shares = []
+            for group in groups:
+                key_shares.append(key_share_gen(group))
+            ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+            ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+                .create([TLS_1_3_DRAFT, (3, 3)])
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                .create(groups)
+            sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                        SignatureScheme.rsa_pss_pss_sha256]
+            ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+                .create(sig_algs)
+            node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+            node = node.add_child(ExpectServerHello())
+            node = node.add_child(ExpectChangeCipherSpec())
+            node = node.add_child(ExpectEncryptedExtensions())
+            node = node.add_child(ExpectCertificate())
+            node = node.add_child(ExpectCertificateVerify())
+            node = node.add_child(ExpectFinished())
+            if enc == "application":
+                node = node.add_child(FinishedGenerator())
+            if padsize:
+                node = node.add_child(SetPaddingCallback(
+                                      SetPaddingCallback.fixed_length_cb(padsize)))
+            node = node.add_child(RawMessageGenerator(ContentType.alert, bytearray(0)))
 
-    # This message is optional and may show up 0 to many times
-    cycle = ExpectNewSessionTicket()
-    node = node.add_child(cycle)
-    node.add_child(cycle)
+            # This message is optional and may show up 0 to many times
+            cycle = ExpectNewSessionTicket()
+            node = node.add_child(cycle)
+            node.add_child(cycle)
 
-    node.next_sibling = ExpectAlert(AlertLevel.fatal, AlertDescription.unexpected_message)
-    node.next_sibling.add_child(ExpectClose())
-    conversations["empty alert with no padding"] = conversation
-
-    for padsize in [ 2, 5, 30 ]:
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        ext = {}
-        groups = [GroupName.secp256r1]
-        key_shares = []
-        for group in groups:
-            key_shares.append(key_share_gen(group))
-        ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-            .create([TLS_1_3_DRAFT, (3, 3)])
-        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-            .create(groups)
-        sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                    SignatureScheme.rsa_pss_pss_sha256]
-        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-            .create(sig_algs)
-        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-        node = node.add_child(ExpectServerHello())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectEncryptedExtensions())
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectCertificateVerify())
-        node = node.add_child(ExpectFinished())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(SetPaddingCallback(
-                              SetPaddingCallback.fixed_length_cb(padsize)))
-        node = node.add_child(RawMessageGenerator(ContentType.alert, bytearray(0)))
-
-        # This message is optional and may show up 0 to many times
-        cycle = ExpectNewSessionTicket()
-        node = node.add_child(cycle)
-        node.add_child(cycle)
-
-        node.next_sibling = ExpectAlert(AlertLevel.fatal, AlertDescription.unexpected_message)
-        node.next_sibling.add_child(ExpectClose())
-        conversations["empty alert with {0} bytes of padding".format(padsize)] = conversation
+            node.next_sibling = ExpectAlert(AlertLevel.fatal, AlertDescription.unexpected_message)
+            node.next_sibling.add_child(ExpectClose())
+            if padsize:
+                conversations["empty alert with {0} bytes of padding using {1} keys"
+                              .format(padsize, enc)] = conversation
+            else:
+                conversations["empty alert with no padding using {0} keys"
+                              .format(enc)] = conversation
 
     # run the conversation
     good = 0
