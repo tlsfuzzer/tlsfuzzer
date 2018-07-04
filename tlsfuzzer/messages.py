@@ -87,6 +87,16 @@ class Connect(Command):
         state.msg_sock.version = self.version
 
 
+class SetRecordVersion(Command):
+    """Change the version used at record layer."""
+    def __init__(self, version):
+        super(SetRecordVersion, self).__init__()
+        self.version = version
+
+    def process(self, state):
+        state.msg_sock.version = self.version
+
+
 class Close(Command):
     """Object used to close a TCP connection."""
 
