@@ -1,0 +1,8 @@
+isort<4.3
+inflect<0.3.1
+pyopenssl<18
+unittest2
+coverage
+coveralls<1.3.0
+pylint
+diff_cover

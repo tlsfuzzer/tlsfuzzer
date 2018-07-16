@@ -1,0 +1,5 @@
+requests<2.11
+coverage<4
+coveralls<1
+pylint
+diff_cover
