@@ -1,2 +1,4 @@
+coverage
+coveralls
 pylint
 diff_cover
