@@ -1910,8 +1910,8 @@ class TestReplacePlaintext(unittest.TestCase):
                                               None)
         state.msg_sock.changeWriteState()
 
-        msg = ApplicationDataGenerator(b"text")
-        msg = replace_plaintext(msg, b'\x00' * 16)
+        msg = ApplicationDataGenerator(bytearray(b"text"))
+        msg = replace_plaintext(msg, bytearray(b'\x00' * 16))
 
         data_msg = msg.generate(state)
 
