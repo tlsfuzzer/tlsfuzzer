@@ -12,16 +12,17 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
         SetRecordVersion, TCPBufferingEnable, TCPBufferingDisable, \
-        TCPBufferingFlush
+        TCPBufferingFlush, ch_cookie_handler, split_message, \
+        PlaintextMessageGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
         ExpectEncryptedExtensions, ExpectCertificateVerify, \
-        ExpectNewSessionTicket
+        ExpectNewSessionTicket, ExpectHelloRetryRequest
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme, \
-        PskKeyExchangeMode
+        PskKeyExchangeMode, ContentType
 from tlslite.utils.cryptomath import getRandomNumber, getRandomBytes
 from tlslite.keyexchange import ECDHKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
@@ -49,6 +50,7 @@ def help_msg():
     print("                (excluding \"sanity\" tests)")
     print(" --num-bytes num Amount of bytes to send in the early data records")
     print("                16384 by default")
+    print(" --cookie       expect cookie extension in HRR message")
     print(" --help         this message")
 
 
@@ -58,9 +60,11 @@ def main():
     num_limit = None
     run_exclude = set()
     num_bytes = 2**14
+    cookie = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help", "num-bytes="])
+    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help", "num-bytes=",
+                                                  "cookie"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -75,6 +79,8 @@ def main():
             sys.exit(0)
         elif opt == '--num-bytes':
             num_bytes = int(arg)
+        elif opt == '--cookie':
+            cookie = True
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -176,6 +182,412 @@ def main():
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
     conversations["handshake with invalid PSK"] = conversation
+
+    # fake 0-RTT resumption with HRR and early data after second client hello
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = OrderedDict()
+    groups = [0x1300, GroupName.secp256r1]
+    key_shares = [KeyShareEntry().create(0x1300, bytearray(b'\xab'*32))]
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.early_data] = \
+        TLSExtension(extType=ExtensionType.early_data)
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
+    iden = PskIdentity().create(getRandomBytes(320),
+                                getRandomNumber(2**30, 2**32))
+    bind = getRandomBytes(32)
+    ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
+        [iden], [bind])
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(SetRecordVersion((3, 3)))
+    node = node.add_child(ApplicationDataGenerator(getRandomBytes(num_bytes)))
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+
+    ext = {}
+    if cookie:
+        ext[ExtensionType.cookie] = None
+    ext[ExtensionType.key_share] = None
+    ext[ExtensionType.supported_versions] = None
+    node = node.add_child(ExpectHelloRetryRequest(extensions=ext))
+    node = node.add_child(ExpectChangeCipherSpec())
+
+    ext = OrderedDict()
+    key_shares = []
+    for group in [GroupName.secp256r1]:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    if cookie:
+        ext[ExtensionType.cookie] = ch_cookie_handler
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
+    ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
+        [iden], [getRandomBytes(32)])
+
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(PlaintextMessageGenerator(
+        ContentType.application_data,
+        getRandomBytes(64)))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                    AlertDescription.bad_record_mac)
+    node.next_sibling.add_child(ExpectClose())
+    conversations["handshake with 0-RTT, HRR and early data after 2nd Client Hello"]\
+        = conversation
+
+    # fake 0-RTT resumption with HRR
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = OrderedDict()
+    groups = [0x1300, GroupName.secp256r1]
+    key_shares = [KeyShareEntry().create(0x1300, bytearray(b'\xab'*32))]
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.early_data] = \
+        TLSExtension(extType=ExtensionType.early_data)
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
+    iden = PskIdentity().create(getRandomBytes(320),
+                                getRandomNumber(2**30, 2**32))
+    bind = getRandomBytes(32)
+    ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
+        [iden], [bind])
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(SetRecordVersion((3, 3)))
+    node = node.add_child(ApplicationDataGenerator(getRandomBytes(num_bytes)))
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+
+    ext = {}
+    if cookie:
+        ext[ExtensionType.cookie] = None
+    ext[ExtensionType.key_share] = None
+    ext[ExtensionType.supported_versions] = None
+    node = node.add_child(ExpectHelloRetryRequest(extensions=ext))
+    node = node.add_child(ExpectChangeCipherSpec())
+
+    ext = OrderedDict()
+    key_shares = []
+    for group in [GroupName.secp256r1]:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    if cookie:
+        ext[ExtensionType.cookie] = ch_cookie_handler
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
+    ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
+        [iden], [getRandomBytes(32)])
+
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData()
+    node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                       AlertDescription.close_notify))
+
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["handshake with invalid 0-RTT and HRR"] = conversation
+
+    # fake 0-RTT resumption with fragmented early data
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = OrderedDict()
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.early_data] = \
+        TLSExtension(extType=ExtensionType.early_data)
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
+    iden = PskIdentity().create(getRandomBytes(320),
+                                getRandomNumber(2**30, 2**32))
+    bind = getRandomBytes(32)
+    ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
+        [iden], [bind])
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(SetRecordVersion((3, 3)))
+    node = node.add_child(ApplicationDataGenerator(
+        getRandomBytes(num_bytes // 2)))
+    node = node.add_child(ApplicationDataGenerator(
+        getRandomBytes(num_bytes // 2)))
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData()
+    node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                       AlertDescription.close_notify))
+
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["handshake with invalid 0-RTT with fragmented early data"]\
+        = conversation
+
+    # fake 0-RTT and early data spliced into the Finished message
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = OrderedDict()
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.early_data] = \
+        TLSExtension(extType=ExtensionType.early_data)
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
+    iden = PskIdentity().create(getRandomBytes(320),
+                                getRandomNumber(2**30, 2**32))
+    bind = getRandomBytes(32)
+    ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
+        [iden], [bind])
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(SetRecordVersion((3, 3)))
+    node = node.add_child(ApplicationDataGenerator(getRandomBytes(num_bytes)))
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    finished_fragments = []
+    node = node.add_child(split_message(FinishedGenerator(),
+                                        finished_fragments,
+                                        16))
+    # early data spliced into the Finished message
+    node = node.add_child(PlaintextMessageGenerator(
+        ContentType.application_data,
+        getRandomBytes(64)))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                    AlertDescription.bad_record_mac)
+
+    node.next_sibling.add_child(ExpectClose())
+    conversations["undecryptable record later in handshake together with early_data"]\
+        = conversation
+
+    # fake 0-RTT resumption and CCS between fake early data
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = OrderedDict()
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.early_data] = \
+        TLSExtension(extType=ExtensionType.early_data)
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
+    iden = PskIdentity().create(getRandomBytes(320),
+                                getRandomNumber(2**30, 2**32))
+    bind = getRandomBytes(32)
+    ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
+        [iden], [bind])
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(SetRecordVersion((3, 3)))
+    node = node.add_child(
+        ApplicationDataGenerator(getRandomBytes(num_bytes//2)))
+    node = node.add_child(ChangeCipherSpecGenerator(fake=True))
+    node = node.add_child(
+        ApplicationDataGenerator(getRandomBytes(num_bytes//2)))
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData()
+    node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                       AlertDescription.close_notify))
+
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["handshake with invalid 0-RTT and CCS between early data records"]\
+        = conversation
+
+    # fake 0-RTT resumption and CCS
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = OrderedDict()
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.early_data] = \
+        TLSExtension(extType=ExtensionType.early_data)
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
+    iden = PskIdentity().create(getRandomBytes(320),
+                                getRandomNumber(2**30, 2**32))
+    bind = getRandomBytes(32)
+    ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
+        [iden], [bind])
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(SetRecordVersion((3, 3)))
+    node = node.add_child(ChangeCipherSpecGenerator(fake=True))
+    node = node.add_child(ApplicationDataGenerator(getRandomBytes(num_bytes)))
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData()
+    node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                       AlertDescription.close_notify))
+
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["handshake with invalid 0-RTT and CCS"] = conversation
 
     # fake 0-RTT resumption
     conversation = Connect(host, port)
