@@ -745,6 +745,19 @@ class TestChangeCipherSpecGenerator(unittest.TestCase):
         self.assertTrue(state.msg_sock.calcPendingStates.called)
         self.assertTrue(state.msg_sock.changeWriteState.called)
 
+    def test_post_send_with_fake_true(self):
+        ccsg = ChangeCipherSpecGenerator(fake=True)
+        ccsg.generate(None)
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        with mock.patch('tlsfuzzer.messages.calcExtendedMasterSecret') as mthd:
+            mthd.return_value = bytearray(48)
+            ccsg.post_send(state)
+
+        self.assertFalse(mthd.called)
+
+
 class TestClientMasterKeyGenerator(unittest.TestCase):
     def test___init__(self):
         cmk = ClientMasterKeyGenerator()

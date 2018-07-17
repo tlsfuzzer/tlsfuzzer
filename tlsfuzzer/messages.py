@@ -855,10 +855,11 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
 class ChangeCipherSpecGenerator(MessageGenerator):
     """Generator for TLS Change Cipher Spec messages."""
 
-    def __init__(self, extended_master_secret=None):
+    def __init__(self, extended_master_secret=None, fake=False):
         """Create an object for generating CCS messages."""
         super(ChangeCipherSpecGenerator, self).__init__()
         self.extended_master_secret = extended_master_secret
+        self.fake = fake
 
     def generate(self, status):
         """Create a message for sending to server."""
@@ -867,6 +868,10 @@ class ChangeCipherSpecGenerator(MessageGenerator):
 
     def post_send(self, status):
         """Generate new encryption keys for connection."""
+        # in TLS 1.3 it's a fake message, doesn't cause calculation of new keys
+        if status.version >= (3, 4) or self.fake:
+            return
+
         cipher_suite = status.cipher
         status.msg_sock.encryptThenMAC = status.encrypt_then_mac
         if self.extended_master_secret is None:
