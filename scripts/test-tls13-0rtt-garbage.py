@@ -589,6 +589,53 @@ def main():
     node.next_sibling = ExpectClose()
     conversations["handshake with invalid 0-RTT and CCS"] = conversation
 
+    # fake 0-RTT resumption with unknown version
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = OrderedDict()
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([(3, 5), (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.early_data] = \
+        TLSExtension(extType=ExtensionType.early_data)
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
+    iden = PskIdentity().create(getRandomBytes(320),
+                                getRandomNumber(2**30, 2**32))
+    bind = getRandomBytes(32)
+    ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
+        [iden], [bind])
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(SetRecordVersion((3, 3)))
+    node = node.add_child(ApplicationDataGenerator(getRandomBytes(num_bytes)))
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectServerHello(version=(3, 3)))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    # section D.3 of draft 28 states that client that receives TLS 1.2
+    # ServerHello as a reply to 0-RTT Client Hello MUST fail a connection
+    # consequently, the server does not need to be able to ignore early data
+    # in TLS 1.2 mode
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.unexpected_message))
+    node.add_child(ExpectClose())
+    conversations["handshake with invalid 0-RTT and unknown version (downgrade to TLS 1.2)"] = conversation
+
     # fake 0-RTT resumption
     conversation = Connect(host, port)
     node = conversation
