@@ -8,6 +8,7 @@ import collections
 import itertools
 from functools import partial
 import sys
+import time
 
 import tlslite.utils.tlshashlib as hashlib
 from tlslite.constants import ContentType, HandshakeType, CertificateType,\
@@ -1033,6 +1034,7 @@ class ExpectNewSessionTicket(ExpectHandshake):
         assert hs_type == HandshakeType.new_session_ticket
 
         ticket = NewSessionTicket().parse(parser)
+        ticket.time = time.time()
 
         state.session_tickets.append(ticket)
 

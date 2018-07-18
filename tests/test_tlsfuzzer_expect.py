@@ -1603,6 +1603,7 @@ class TestExpectNewSessionTicket(unittest.TestCase):
         exp.process(state, nst)
 
         self.assertIn(nst, state.session_tickets)
+        self.assertIsNotNone(state.session_tickets[0].time)
 
 
 class TestExpectVerify(unittest.TestCase):
