@@ -331,6 +331,29 @@ class TestClientHelloGenerator(unittest.TestCase):
         self.assertIsNotNone(chg)
         self.assertEqual(chg.ciphers, [])
 
+    def test___repr__(self):
+        chg = ClientHelloGenerator()
+        chg.compression = []
+
+        self.assertEqual("ClientHelloGenerator()", repr(chg))
+
+    def test___repr___with_values(self):
+        chg = ClientHelloGenerator(
+            [2, 3], ["ext"], (3, 3), bytearray(b'sess'), bytearray(b'random'),
+            [0xc0], True, ["mod"])
+
+        self.assertEqual(
+            "ClientHelloGenerator("
+            "ssl2=True, "
+            "version=(3, 3), "
+            "ciphers=[2, 3], "
+            "random=bytearray(b'random'), "
+            "session_id=bytearray(b'sess'), "
+            "compression=[192], "
+            "extensions=['ext'], "
+            "modifiers=['mod'])",
+            repr(chg))
+
     def test_generate(self):
         state = ConnectionState()
         chg = ClientHelloGenerator()

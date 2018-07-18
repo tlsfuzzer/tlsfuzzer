@@ -438,6 +438,28 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
         self.ssl2 = ssl2
         self.modifiers = modifiers
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        if self.ssl2:
+            ret.append("ssl2={0!r}".format(self.ssl2))
+        if self.version:
+            ret.append("version={0!r}".format(self.version))
+        if self.ciphers:
+            ret.append("ciphers={0!r}".format(self.ciphers))
+        if self.random:
+            ret.append("random={0!r}".format(self.random))
+        if self.session_id:
+            ret.append("session_id={0!r}".format(self.session_id))
+        if self.compression:
+            ret.append("compression={0!r}".format(self.compression))
+        if self.extensions:
+            ret.append("extensions={0!r}".format(self.extensions))
+        if self.modifiers:
+            ret.append("modifiers={0!r}".format(self.modifiers))
+
+        return "ClientHelloGenerator({0})".format(", ".join(ret))
+
     def _generate_extensions(self, state):
         """Convert extension generators to extension objects."""
         extensions = []
