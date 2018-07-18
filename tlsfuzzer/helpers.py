@@ -2,6 +2,7 @@
 # Released under Gnu GPL v2.0, see LICENSE file for details
 """Helper functions for test scripts."""
 
+import time
 from functools import partial
 from tlslite.constants import HashAlgorithm, SignatureAlgorithm, \
         SignatureScheme
@@ -12,7 +13,7 @@ from tlslite.handshakehelpers import HandshakeHelpers
 from .handshake_helpers import kex_for_group
 
 __all__ = ['sig_algs_to_ids', 'key_share_gen', 'psk_ext_gen',
-           'psk_ext_updater']
+           'psk_ext_updater', 'psk_session_ext_gen']
 
 
 def _hash_name_to_id(h_alg):
@@ -122,6 +123,45 @@ def psk_ext_gen(psk_settings):
         binders.append(bytearray(32 if psk_hash == 'sha256' else 48))
 
     return PreSharedKeyExtension().create(identities, binders)
+
+
+def _psk_session_ext_gen(state, psk_settings):
+    ident = []
+    binder = []
+    if psk_settings:
+        ext = psk_ext_gen(psk_settings)
+        ident = list(ext.identities)
+        binder = list(ext.binders)
+
+    if not state.session_tickets:
+        raise ValueError("No New Session Ticket messages in session")
+    nst = state.session_tickets[-1]
+
+    # nst.time is fractional but ticket time should be in ms, not s as the
+    # NewSessionTicket.time is
+    ticket_time = int(time.time() * 1000 - nst.time * 1000 +
+                      nst.ticket_age_add) % 2**32
+    ticket_iden = PskIdentity().create(nst.ticket, ticket_time)
+    binder_len = state.prf_size
+
+    ident.insert(0, ticket_iden)
+    binder.insert(0, bytearray(binder_len))
+
+    return PreSharedKeyExtension().create(ident, binder)
+
+
+def psk_session_ext_gen(psk_settings=None):
+    """
+    Generator that uses last New Session Ticket to create PSK extension.
+
+    Can optionally take a list of tuples that define static PSKs that will
+    be added after the NST PSK.
+    See psk_ext_gen() for description of their format.
+
+    :param list psk_settings: list of tuples
+    :return: extension generator
+    """
+    return partial(_psk_session_ext_gen, psk_settings=psk_settings)
 
 
 def _psk_ext_updater(state, client_hello, psk_settings):

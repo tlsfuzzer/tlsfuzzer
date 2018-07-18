@@ -14,10 +14,12 @@ except ImportError:
 
 
 from tlsfuzzer.helpers import sig_algs_to_ids, key_share_gen, psk_ext_gen, \
-        flexible_getattr
+        flexible_getattr, psk_session_ext_gen
+from tlsfuzzer.runner import ConnectionState
 from tlslite.extensions import KeyShareEntry, PreSharedKeyExtension, \
         PskIdentity
-from tlslite.constants import GroupName
+from tlslite.constants import GroupName, CipherSuite
+from tlslite.messages import NewSessionTicket
 
 class TestSigAlgsToIds(unittest.TestCase):
     def test_with_empty(self):
@@ -65,6 +67,7 @@ class TestKeyShareGen(unittest.TestCase):
         self.assertEqual(ret.group, GroupName.secp256r1)
         self.assertEqual(len(ret.key_exchange), 256 // 8 * 2 + 1)
 
+
 class TestPskExtGen(unittest.TestCase):
     def test_gen(self):
         config = [(b'test', b'secret', 'sha256'),
@@ -105,6 +108,54 @@ class TestPskExtGen(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             psk_ext_gen(config)
+
+
+class TestPskSessionExtGen(unittest.TestCase):
+    def test_gen(self):
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_AES_256_GCM_SHA384
+        state.session_tickets = [NewSessionTicket().create(
+            134, 0, bytearray(b'nonce'), bytearray(b'ticket value'), [])]
+        state.session_tickets[0].time = 1214
+
+        gen = psk_session_ext_gen()
+        psk = gen(state)
+
+        self.assertIsInstance(psk, PreSharedKeyExtension)
+        self.assertEqual(len(psk.identities), 1)
+        self.assertEqual(psk.binders, [bytearray(48)])
+        self.assertEqual(psk.identities[0].identity, b'ticket value')
+
+    def test_gen_with_psk_binders(self):
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_AES_256_GCM_SHA384
+        state.session_tickets = [NewSessionTicket().create(
+            134, 0, bytearray(b'nonce'), bytearray(b'ticket value'), [])]
+        state.session_tickets[0].time = 1214
+
+        config = [(b'test', b'secret', 'sha256'),
+                  (b'example', b'secret', 'sha384')]
+
+        ext = psk_session_ext_gen(config)(state)
+
+        self.assertIsInstance(ext, PreSharedKeyExtension)
+        self.assertEqual(len(ext.identities), 3)
+        self.assertEqual(ext.binders, [bytearray(48), bytearray(32),
+                                       bytearray(48)])
+        self.assertEqual(ext.identities[0].identity, b'ticket value')
+        self.assertEqual(ext.identities[1].identity, b'test')
+        self.assertEqual(ext.identities[2].identity, b'example')
+
+    def test_gen_with_session_ticket_missing(self):
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_AES_256_GCM_SHA384
+        state.session_tickets = []
+
+        gen = psk_session_ext_gen()
+        with self.assertRaises(ValueError) as e:
+            psk = gen(state)
+
+        self.assertIn("No New Session Ticket", str(e.exception))
 
 
 class TestFlexibleGetattr(unittest.TestCase):
