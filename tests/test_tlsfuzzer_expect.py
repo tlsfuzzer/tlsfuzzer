@@ -999,7 +999,8 @@ class TestExpectServerHelloWithHelloRetryRequest(unittest.TestCase):
         self.ch = ch
         state.handshake_messages.append(ch)
 
-        exts = [SrvSupportedVersionsExtension().create((3, 4))]
+        exts = [SrvSupportedVersionsExtension().create((3, 4)),
+                HRRKeyShareExtension().create(2)]
         hrr = ServerHello()
         hrr.create((3, 3), TLS_1_3_HRR, b'', 0x0004, extensions=exts)
         self.hrr = hrr
@@ -1016,10 +1017,8 @@ class TestExpectServerHelloWithHelloRetryRequest(unittest.TestCase):
     def test_with_wrong_hrr_random(self):
         self.hrr.random = bytearray([12]*32)
 
-        with self.assertRaises(ValueError) as e:
-            self.exp.process(self.state, self.sh)
-
-        self.assertIn("Two ServerHello", str(e.exception))
+        with self.assertRaises(SyntaxError):
+            self.exp.process(self.state, self.hrr)
 
     def test_with_wrong_cipher_suite(self):
         self.sh.cipher_suite = 5

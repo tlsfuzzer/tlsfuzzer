@@ -459,11 +459,9 @@ class ExpectServerHello(ExpectHandshake):
             return
 
         hrr = state.get_last_message_of_type(ServerHello)
-        if not hrr:
+        if not hrr or hrr.random != TLS_1_3_HRR:
+            # not an HRR, so HRR tests don't apply to it
             return
-
-        if hrr.random != TLS_1_3_HRR:
-            raise ValueError("Two ServerHello messages in TLS 1.3!?")
 
         if hrr.cipher_suite != srv_hello.cipher_suite:
             raise AssertionError("Server picked different cipher suite than "
