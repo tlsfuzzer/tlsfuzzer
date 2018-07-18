@@ -107,7 +107,7 @@ def psk_ext_gen(psk_settings):
     default).
 
     :param list psk_settings: list of tuples
-    :return: extension generator
+    :return: extension
     """
     identities = []
     binders = []
