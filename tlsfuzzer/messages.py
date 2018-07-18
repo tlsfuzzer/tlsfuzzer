@@ -598,8 +598,7 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
                 cke = ClientKeyExchange(self.cipher,
                                         self.version).createDH(self.dh_Yc)
             elif self.p_as_share or self.p_1_as_share:
-                ske = next((i for i in reversed(status.handshake_messages)
-                            if isinstance(i, ServerKeyExchange)), None)
+                ske = status.get_last_message_of_type(ServerKeyExchange)
                 assert ske, "No server key exchange in messages"
                 if self.p_as_share:
                     cke = ClientKeyExchange(self.cipher,
@@ -771,8 +770,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         if self.sig_version is None:
             self.sig_version = self.msg_version
         if self.msg_alg is None and self.msg_version >= (3, 3):
-            cert_req = next((msg for msg in status.handshake_messages[::-1]
-                             if isinstance(msg, CertificateRequest)), None)
+            cert_req = status.get_last_message_of_type(CertificateRequest)
             if cert_req is not None:
                 self.msg_alg = next((sig for sig in
                                      cert_req.supported_signature_algs
