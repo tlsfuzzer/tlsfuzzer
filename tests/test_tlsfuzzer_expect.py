@@ -44,7 +44,7 @@ from tlslite.extensions import SNIExtension, TLSExtension, \
         NPNExtension, ServerKeyShareExtension, ClientKeyShareExtension, \
         SrvSupportedVersionsExtension, SupportedVersionsExtension, \
         HRRKeyShareExtension, CookieExtension, \
-        SrvPreSharedKeyExtension
+        SrvPreSharedKeyExtension, PskIdentity, PreSharedKeyExtension
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509certchain import X509CertChain, X509
 from tlslite.extensions import SNIExtension, SignatureAlgorithmsExtension
@@ -401,6 +401,30 @@ class TestServerExtensionProcessors(unittest.TestCase):
             handler(state, ext)
 
         self.assertIn("missing identity", str(e.exception))
+
+    def test_gen_srv_ext_handler_psk_with_session_ticket(self):
+        ext = SrvPreSharedKeyExtension().create(0)
+
+        state = ConnectionState()
+        state.key['resumption master secret'] = bytearray(b'\x12'*48)
+        state.session_tickets = [
+            NewSessionTicket()
+            .create(134, 0, bytearray(b'nonce'), bytearray(b'ticket value'),
+                    [])]
+        client_hello = ClientHello()
+        psk_iden = PskIdentity().create(bytearray(b'ticket value'), 3333)
+        cln_ext = PreSharedKeyExtension().create([psk_iden], [bytearray(48)])
+        client_hello.extensions = [cln_ext]
+        state.handshake_messages.append(client_hello)
+
+        handler = gen_srv_ext_handler_psk()
+
+        handler(state, ext)
+
+        self.assertEqual(state.key['PSK secret'],
+                bytearray(b"\'Rv\'\xbd\xb6Soh\xe6Y\xfb6w\xda+\xd5\x94$V\xfc"
+                          b"\xdd\xac>\xbb\xeb\xa2\xd5\x8d\x00\xe6\x9a\x99{"
+                          b"\x00\x98\x9b\xf9%\x1fAFz\x13\xfc\xc4\x11,"))
 
 
 class TestHRRExtensionProcessors(unittest.TestCase):

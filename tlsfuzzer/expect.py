@@ -31,6 +31,7 @@ from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 from tlslite.errors import TLSDecryptionFailed
 from tlslite.handshakehashes import HandshakeHashes
+from tlslite.handshakehelpers import HandshakeHelpers
 from .handshake_helpers import calc_pending_states, kex_for_group
 from .tree import TreeNode
 
@@ -239,6 +240,14 @@ def _srv_ext_handler_psk(state, extension, psk_configs):
         raise AssertionError("Server selected PSK we didn't send")
 
     ident = cln_ext.identities[extension.selected].identity
+    if state.session_tickets:
+        nst = state.session_tickets[-1]
+        if nst.ticket == ident:
+            state.key['PSK secret'] = HandshakeHelpers.calc_res_binder_psk(
+                cln_ext.identities[extension.selected],
+                state.key['resumption master secret'],
+                [nst])
+            return
     secret = next((i[1] for i in psk_configs if i[0] == ident), None)
     if not secret:
         raise ValueError("psk_configs are missing identity")
@@ -246,7 +255,7 @@ def _srv_ext_handler_psk(state, extension, psk_configs):
     state.key['PSK secret'] = secret
 
 
-def gen_srv_ext_handler_psk(psk_configs):
+def gen_srv_ext_handler_psk(psk_configs=tuple()):
     """Creates a handler for pre_shared_key extension from the server."""
     return partial(_srv_ext_handler_psk, psk_configs=psk_configs)
 
