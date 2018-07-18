@@ -29,7 +29,8 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         CollectNonces, AlertGenerator, PlaintextMessageGenerator, \
         SetPaddingCallback, replace_plaintext, ch_cookie_handler, \
         ch_key_share_handler, SetRecordVersion
-from tlsfuzzer.helpers import psk_ext_gen, psk_ext_updater
+from tlsfuzzer.helpers import psk_ext_gen, psk_ext_updater, \
+        psk_session_ext_gen
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
@@ -529,6 +530,40 @@ class TestClientHelloGenerator(unittest.TestCase):
             bytearray(b"\x04!\xd0\xee\x0c\xe8\x13W\xa9\x85\xcc\xce\x07U\x87"
                       b"\xe6\'\xfa\xec\xf4\xf7\x88\x8b\xf3\xc2\xc3^\xf3<\x8b"
                       b"\xba%"))
+
+    def test_with_session_tickets(self):
+        state = ConnectionState()
+        state.key['resumption master secret'] = bytearray(b'\x10' * 48)
+        state.cipher = constants.CipherSuite.TLS_AES_256_GCM_SHA384
+        state.session_tickets = [
+            messages.NewSessionTicket().create(
+                101, 0, bytearray(b'some nonce'),
+                bytearray(b'ticket identity'), [])]
+        state.session_tickets[0].time = 12.12
+        exts = OrderedDict()
+        exts[constants.ExtensionType.supported_versions] = None
+        exts[constants.ExtensionType.pre_shared_key] = \
+            psk_session_ext_gen()
+        modifiers = [psk_ext_updater()]
+        chg = ClientHelloGenerator(version=(3, 3), extensions=exts,
+                                   session_id=b'\xaa'*32,
+                                   modifiers=modifiers)
+
+        with mock.patch('time.time') as mthd:
+            mthd.return_value = 1532009672.427739153
+            msg = chg.generate(state)
+
+        self.assertEqual(len(msg.extensions), 2)
+        self.assertIsInstance(msg.extensions[1],
+                              extensions.PreSharedKeyExtension)
+        ext = msg.extensions[1]
+        self.assertEqual(len(ext.binders), 1)
+        self.assertEqual(
+            ext.binders[0],
+            bytearray(b'6f&\xe42^a\x13\x949\xc3Q\xb0\x1fD\xb6H\xba\xc1=D\xa6'
+                      b'\xcb1\x05\xd72\x1eKO\x8d\xf9V\xa13\xdc\x94b\xdb\xc6'
+                      b'\x92\\\xe9\xd2\xd7Tv\xb2'))
+
 
 class TestClientHelloExtensionGenerators(unittest.TestCase):
     def setUp(self):

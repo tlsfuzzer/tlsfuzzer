@@ -166,12 +166,18 @@ def psk_session_ext_gen(psk_settings=None):
 
 def _psk_ext_updater(state, client_hello, psk_settings):
     h_hash = state.handshake_hashes
-    HandshakeHelpers.update_binders(client_hello,
-                                    h_hash,
-                                    psk_settings)
+    nst = None
+    if state.session_tickets:
+        nst = state.session_tickets[-1]
+    HandshakeHelpers.update_binders(
+        client_hello,
+        h_hash,
+        psk_settings,
+        [nst] if nst else None,
+        state.key['resumption master secret'] if nst else None)
 
 
-def psk_ext_updater(psk_settings):
+def psk_ext_updater(psk_settings=tuple()):
     """
     Uses the provided settings to update the PSK binders in CH PSK extension.
 
