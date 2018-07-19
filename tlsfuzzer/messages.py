@@ -123,6 +123,11 @@ class ResetHandshakeHashes(Command):
     def process(self, state):
         """Reset current running handshake protocol hashes."""
         state.handshake_hashes = HandshakeHashes()
+        # remove the keys that can interfere with key calculation
+        # don't remove all as we need things like "resumption master secret"
+        # to actually resume next session
+        state.key.pop('PSK secret', None)
+        state.key.pop('DH shared secret', None)
 
 
 class ResetRenegotiationInfo(Command):
