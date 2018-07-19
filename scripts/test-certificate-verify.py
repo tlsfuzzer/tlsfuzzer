@@ -6,6 +6,7 @@ from __future__ import print_function
 import traceback
 import sys
 import getopt
+from itertools import chain, islice
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
@@ -23,39 +24,76 @@ from tlslite.constants import CipherSuite, AlertDescription, \
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
+from tlsfuzzer.utils.lists import natural_sort_keys
+
+
+def help_msg():
+    print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
+    print(" -h hostname    name of the host to run the test against")
+    print("                localhost by default")
+    print(" -p port        port number to use for connection, 4433 by default")
+    print(" probe-name     if present, will run only the probes with given")
+    print("                names and not all of them, e.g \"sanity\"")
+    print(" -e probe-name  exclude the probe from the list of the ones run")
+    print("                may be specified multiple times")
+    print(" -n num         only run `num` random tests instead of a full set")
+    print("                (excluding \"sanity\" tests)")
+    print(" -k file.pem    file with private key for client")
+    print(" -c file.pem    file with certificate for client")
+    print(" --help         this message")
+
 
 def main():
     """check if obsolete signature algorithm is rejected by server"""
-    conversations = {}
-    hostname = "localhost"
+    host = "localhost"
     port = 4433
+    num_limit = None
+    run_exclude = set()
+    private_key = None
+    cert = None
 
     argv = sys.argv[1:]
-    if len(argv) != 4:
-        raise ValueError("You need to specify key (-k file.pem) and "
-                         "certificate (-c file.pem)")
-    opts, argv = getopt.getopt(argv, "k:c:")
-
+    opts, args = getopt.getopt(argv, "h:p:e:n:k:c:", ["help"])
     for opt, arg in opts:
-        if opt == '-k':
+        if opt == '-h':
+            host = arg
+        elif opt == '-p':
+            port = int(arg)
+        elif opt == '-e':
+            run_exclude.add(arg)
+        elif opt == '-n':
+            num_limit = int(arg)
+        elif opt == '--help':
+            help_msg()
+            sys.exit(0)
+        elif opt == '-k':
             text_key = open(arg, 'rb').read()
             if sys.version_info[0] >= 3:
                 text_key = str(text_key, 'utf-8')
             private_key = parsePEMKey(text_key, private=True)
-        if opt == '-c':
+        elif opt == '-c':
             text_cert = open(arg, 'rb').read()
             if sys.version_info[0] >= 3:
                 text_cert = str(text_cert, 'utf-8')
             cert = X509()
             cert.parse(text_cert)
+        else:
+            raise ValueError("Unknown option: {0}".format(opt))
 
     if not private_key:
         raise ValueError("Specify private key file using -k")
     if not cert:
         raise ValueError("Specify certificate file using -c")
 
+    if args:
+        run_only = set(args)
+    else:
+        run_only = None
+
+    conversations = {}
+
     # sanity check for Client Certificates
-    conversation = Connect(hostname, port)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -83,10 +121,10 @@ def main():
     node.next_sibling = ExpectAlert()
     node.next_sibling.add_child(ExpectClose())
 
-    conversations["Sanity check"] = conversation
+    conversations["sanity"] = conversation
 
     # force MD5 signature on CertificateVerify
-    conversation = Connect(hostname, port)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -123,7 +161,7 @@ def main():
     # (requested by server) in the outside structure - tests if the server
     # parses the HashInfo structure from signature or if it compares it with
     # expected value
-    conversation = Connect(hostname, port)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -157,7 +195,7 @@ def main():
     conversations["MD5 forced in HashInfo"] = conversation
 
     # make invalid signature in CertificateVerify (TLSv1.1 style)
-    conversation = Connect(hostname, port)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -193,37 +231,47 @@ def main():
     # run the conversation
     good = 0
     bad = 0
+    failed = []
+    if not num_limit:
+        num_limit = len(conversations)
 
-    print("MD5 CertificateVerify (CVE-2015-7575 aka SLOTH) test version 5")
+    # make sure that sanity test is run first and last
+    # to verify that server was running and kept running throught
+    sanity_test = ('sanity', conversations['sanity'])
+    ordered_tests = chain([sanity_test],
+                          islice(filter(lambda x: x[0] != 'sanity',
+                                        conversations.items()), num_limit),
+                          [sanity_test])
 
-    for conversation_name in conversations:
-        conversation = conversations[conversation_name]
+    for c_name, c_test in ordered_tests:
+        if run_only and c_name not in run_only or c_name in run_exclude:
+            continue
+        print("{0} ...".format(c_name))
 
-        print(conversation_name + "...")
-
-        runner = Runner(conversation)
+        runner = Runner(c_test)
 
         res = True
-        #because we don't want to abort the testing and we are reporting
-        #the errors to the user, using a bare except is OK
-        #pylint: disable=bare-except
         try:
             runner.run()
-        except:
+        except Exception:
             print("Error while processing")
             print(traceback.format_exc())
             res = False
-        #pylint: enable=bare-except
 
         if res:
-            good+=1
-            print("OK")
+            good += 1
+            print("OK\n")
         else:
-            bad+=1
+            bad += 1
+            failed.append(c_name)
+
+    print("MD5 CertificateVerify (CVE-2015-7575 aka SLOTH) test version 5\n")
 
     print("Test end")
     print("successful: {0}".format(good))
     print("failed: {0}".format(bad))
+    failed_sorted = sorted(failed, key=natural_sort_keys)
+    print("  {0}".format('\n  '.join(repr(i) for i in failed_sorted)))
 
     if bad > 0:
         sys.exit(1)
