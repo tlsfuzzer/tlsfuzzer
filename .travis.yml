@@ -44,11 +44,6 @@ before_install:
 install:
   - if [[ -e build-requirements-${TRAVIS_PYTHON_VERSION}.txt ]]; then travis_retry pip install -r build-requirements-${TRAVIS_PYTHON_VERSION}.txt; else travis_retry pip install -r build-requirements.txt; fi
   - travis_retry pip install -r requirements.txt
-  - |
-      if [[ $TRAVIS_PYTHON_VERSION == '2.6' || $TRAVIS_PYTHON_VERSION == '2.7' ]]; then
-          travis_retry pip install --global-option=build_ext --global-option="-I/usr/include/x86_64-linux-gnu" m2crypto;
-      fi
-  - if ! [[ $TRAVIS_PYTHON_VERSION == '2.6' || $TRAVIS_PYTHON_VERSION == '2.7' ]]; then travis_retry pip install pycrypto; fi
   # codeclimate supports natively just one set of results, so use the most recent python for that
   - if [[ $TRAVIS_PYTHON_VERSION == '3.6' ]]; then ./cc-test-reporter before-build; fi
 

@@ -28,7 +28,7 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         TCPBufferingFlush, fuzz_encrypted_message, fuzz_pkcs1_padding, \
         CollectNonces, AlertGenerator, PlaintextMessageGenerator, \
         SetPaddingCallback, replace_plaintext, ch_cookie_handler, \
-        ch_key_share_handler
+        ch_key_share_handler, SetRecordVersion
 from tlsfuzzer.helpers import psk_ext_gen, psk_ext_updater
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
@@ -233,6 +233,26 @@ class TestConnect(unittest.TestCase):
         instance.connect.assert_called_once_with((1, 2))
         instance.settimeout.assert_called_once_with(10)
         self.assertIs(state.msg_sock.sock.socket, instance)
+
+
+class TestSetRecordVersion(unittest.TestCase):
+    def test___init__(self):
+        msg_gen = SetRecordVersion((3, 3))
+
+        self.assertIsNotNone(msg_gen)
+        self.assertTrue(msg_gen.is_command())
+        self.assertFalse(msg_gen.is_expect())
+        self.assertFalse(msg_gen.is_generator())
+
+    def test_process(self):
+        msg_gen = SetRecordVersion((3, 2))
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        msg_gen.process(state)
+
+        self.assertEqual(state.msg_sock.version, (3, 2))
 
 
 class TestPlaintextMessageGenerator(unittest.TestCase):
@@ -724,6 +744,19 @@ class TestChangeCipherSpecGenerator(unittest.TestCase):
                                      state.handshake_hashes)
         self.assertTrue(state.msg_sock.calcPendingStates.called)
         self.assertTrue(state.msg_sock.changeWriteState.called)
+
+    def test_post_send_with_fake_true(self):
+        ccsg = ChangeCipherSpecGenerator(fake=True)
+        ccsg.generate(None)
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        with mock.patch('tlsfuzzer.messages.calcExtendedMasterSecret') as mthd:
+            mthd.return_value = bytearray(48)
+            ccsg.post_send(state)
+
+        self.assertFalse(mthd.called)
+
 
 class TestClientMasterKeyGenerator(unittest.TestCase):
     def test___init__(self):
@@ -1910,8 +1943,8 @@ class TestReplacePlaintext(unittest.TestCase):
                                               None)
         state.msg_sock.changeWriteState()
 
-        msg = ApplicationDataGenerator(b"text")
-        msg = replace_plaintext(msg, b'\x00' * 16)
+        msg = ApplicationDataGenerator(bytearray(b"text"))
+        msg = replace_plaintext(msg, bytearray(b'\x00' * 16))
 
         data_msg = msg.generate(state)
 
