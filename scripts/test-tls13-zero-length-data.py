@@ -298,6 +298,16 @@ def main():
     node = node.add_child(ExpectCertificateVerify())
     node = node.add_child(ExpectFinished())
     node = node.add_child(ApplicationDataGenerator(bytearray(0)))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                    AlertDescription.unexpected_message)
+    node.next_sibling.add_child(ExpectClose())
+
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.unexpected_message))
     node.add_child(ExpectClose())
@@ -332,6 +342,16 @@ def main():
     node = node.add_child(SetPaddingCallback(
         SetPaddingCallback.fixed_length_cb(30)))
     node = node.add_child(ApplicationDataGenerator(bytearray(0)))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                    AlertDescription.unexpected_message)
+    node.next_sibling.add_child(ExpectClose())
+
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.unexpected_message))
     node.add_child(ExpectClose())
