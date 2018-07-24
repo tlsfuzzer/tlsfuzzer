@@ -23,7 +23,8 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectCertificateRequest, \
         ExpectApplicationData
-from tlslite.extensions import SignatureAlgorithmsExtension
+from tlslite.extensions import SignatureAlgorithmsExtension, \
+        SignatureAlgorithmsCertExtension
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         HashAlgorithm, SignatureAlgorithm, ExtensionType
 from tlslite.utils.keyfactory import parsePEMKey
@@ -112,6 +113,9 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {ExtensionType.signature_algorithms :
            SignatureAlgorithmsExtension().create([
+             (HashAlgorithm.md5, SignatureAlgorithm.rsa)]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create([
              (HashAlgorithm.md5, SignatureAlgorithm.rsa)])}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     if workaround:
@@ -145,7 +149,9 @@ def main():
     ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_256_CBC_SHA256,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([(21, 69)])}
+           SignatureAlgorithmsExtension().create([(21, 69)]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create([(21, 69)])}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     if workaround:
         node = node.add_child(ExpectServerHello(version=(3, 3)))

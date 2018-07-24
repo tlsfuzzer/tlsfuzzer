@@ -24,7 +24,8 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ECPointFormat
 from tlslite.utils.x25519 import X25519_ORDER_SIZE, X448_ORDER_SIZE
 from tlslite.extensions import SignatureAlgorithmsExtension, TLSExtension, \
-        SupportedGroupsExtension, ECPointFormatsExtension
+        SupportedGroupsExtension, ECPointFormatsExtension, \
+        SignatureAlgorithmsCertExtension
 from tlslite.utils.cryptomath import numberToByteArray
 
 
@@ -80,7 +81,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     groups = [GroupName.secp256r1,
               GroupName.secp384r1,
               GroupName.secp521r1]
@@ -120,7 +123,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -186,7 +191,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     groups = [GroupName.sect163k1]
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create(groups)
@@ -225,7 +232,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     groups = [11200]  # unknown ECDHE group
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create(groups)
@@ -264,7 +273,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     groups = [11200]
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create(groups)
@@ -285,7 +296,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     groups = [GroupName.x25519,
               GroupName.x448]
     ext[ExtensionType.supported_groups] = \
@@ -322,7 +335,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     groups = [GroupName.x25519,
               GroupName.x448]
     ext[ExtensionType.supported_groups] = \
@@ -358,7 +373,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     ext[ExtensionType.ec_point_formats] = \
             ECPointFormatsExtension().create([ECPointFormat.ansiX962_compressed_prime,
                                               ECPointFormat.ansiX962_compressed_char2,
@@ -397,7 +414,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     ext[ExtensionType.ec_point_formats] = \
             ECPointFormatsExtension().create([ECPointFormat.uncompressed])
     groups = [GroupName.x25519]
@@ -434,7 +453,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     groups = [GroupName.x25519]
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create(groups)
@@ -469,7 +490,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     groups = [GroupName.x448]
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create(groups)
@@ -505,7 +528,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     groups = [GroupName.x25519]
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create(groups)
@@ -537,7 +562,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     groups = [GroupName.x25519]
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create(groups)
@@ -571,7 +598,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     groups = [GroupName.x25519]
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create(groups)
@@ -609,7 +638,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     groups = [GroupName.x25519]  # ecdh_x25519
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create(groups)
@@ -644,7 +675,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     groups = [GroupName.x448]
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create(groups)
@@ -677,7 +710,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     groups = [GroupName.x448]
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create(groups)
@@ -709,7 +744,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     groups = [GroupName.x448]  # ecdh_x448
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create(groups)
@@ -742,7 +779,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     groups = [GroupName.x25519]
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create(groups)
@@ -775,7 +814,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     groups = [GroupName.x448]
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create(groups)
@@ -808,7 +849,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     groups = [GroupName.x25519]
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create(groups)
@@ -841,7 +884,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(sigs)}
     groups = [GroupName.x448]
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create(groups)

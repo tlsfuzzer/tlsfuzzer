@@ -19,7 +19,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType, HashAlgorithm, SignatureAlgorithm, NameType
 from tlslite.extensions import TLSExtension, SignatureAlgorithmsExtension, \
-        SNIExtension
+        SNIExtension, SignatureAlgorithmsCertExtension
 
 
 def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
@@ -85,6 +85,11 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
                                                 'sha224', 'sha1']])}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -111,6 +116,11 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {ExtensionType.signature_algorithms :
            SignatureAlgorithmsExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
                                                 'sha224', 'sha1']])}
@@ -143,6 +153,11 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
                                                 'sha224', 'sha1']])}
     sni = TLSExtension(extType=ExtensionType.server_name).create(bytearray(0))
     ext[ExtensionType.server_name] = sni
@@ -159,6 +174,11 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {ExtensionType.signature_algorithms :
            SignatureAlgorithmsExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
                                                 'sha224', 'sha1']])}
@@ -179,6 +199,11 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
                                                 'sha224', 'sha1']])}
     sni = SNIExtension().create(hostNames=[bytearray(0)])
     ext[ExtensionType.server_name] = sni
@@ -195,6 +220,11 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {ExtensionType.signature_algorithms :
            SignatureAlgorithmsExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
                                                 'sha224', 'sha1']])}
@@ -219,6 +249,11 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {ExtensionType.signature_algorithms :
            SignatureAlgorithmsExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
                                                 'sha224', 'sha1']])}
@@ -259,6 +294,11 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
                                                 'sha224', 'sha1']])}
     # names MUST be valid DNS host names
     sni = SNIExtension().create(bytearray(hostname[:-1], 'utf-8') +
@@ -279,6 +319,11 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {ExtensionType.signature_algorithms :
            SignatureAlgorithmsExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
                                                 'sha224', 'sha1']])}
@@ -303,6 +348,11 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
                                                 'sha224', 'sha1']])}
     # names MUST be valid DNS host names
     sni = SNIExtension().create(bytearray(hostname[:-1], 'utf-8') +
@@ -322,6 +372,11 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {ExtensionType.signature_algorithms :
            SignatureAlgorithmsExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
                                                 'sha224', 'sha1']])}
@@ -358,6 +413,11 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
                                                 'sha224', 'sha1']])}
     # RFC 6066 client MUST NOT send two names of the same type
     sni = SNIExtension().create(hostNames=[bytearray(hostname, 'utf-8'),
@@ -377,6 +437,11 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {ExtensionType.signature_algorithms :
            SignatureAlgorithmsExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
                                                 'sha224', 'sha1']])}
@@ -412,6 +477,11 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {ExtensionType.signature_algorithms :
            SignatureAlgorithmsExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
                                                 'sha224', 'sha1']])}

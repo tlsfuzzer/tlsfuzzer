@@ -20,7 +20,8 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectCertificateRequest, \
         ExpectApplicationData
-from tlslite.extensions import SignatureAlgorithmsExtension
+from tlslite.extensions import SignatureAlgorithmsExtension, \
+        SignatureAlgorithmsCertExtension
 from tlslite.constants import CipherSuite, AlertDescription, \
         HashAlgorithm, SignatureAlgorithm, ExtensionType, AlertLevel, \
         AlertDescription, ContentType
@@ -103,6 +104,11 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1', 'md5']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
                                                 'sha224', 'sha1', 'md5']])}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -132,6 +138,11 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {ExtensionType.signature_algorithms :
            SignatureAlgorithmsExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1', 'md5']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
                                                 'sha224', 'sha1', 'md5']])}
@@ -164,6 +175,11 @@ def main():
                SignatureAlgorithmsExtension().create([
                  (getattr(HashAlgorithm, x),
                   SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                    'sha224', 'sha1', 'md5']]),
+               ExtensionType.signature_algorithms_cert :
+               SignatureAlgorithmsCertExtension().create([
+                 (getattr(HashAlgorithm, x),
+                  SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
                                                     'sha224', 'sha1', 'md5']])}
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -192,6 +208,11 @@ def main():
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {ExtensionType.signature_algorithms :
                SignatureAlgorithmsExtension().create([
+                 (getattr(HashAlgorithm, x),
+                  SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                    'sha224', 'sha1', 'md5']]),
+               ExtensionType.signature_algorithms_cert :
+               SignatureAlgorithmsCertExtension().create([
                  (getattr(HashAlgorithm, x),
                   SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
                                                     'sha224', 'sha1', 'md5']])}
@@ -225,6 +246,11 @@ def main():
                SignatureAlgorithmsExtension().create([
                  (getattr(HashAlgorithm, x),
                   SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                    'sha224', 'sha1', 'md5']]),
+               ExtensionType.signature_algorithms_cert :
+               SignatureAlgorithmsCertExtension().create([
+                 (getattr(HashAlgorithm, x),
+                  SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
                                                     'sha224', 'sha1', 'md5']])}
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -253,6 +279,11 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {ExtensionType.signature_algorithms :
            SignatureAlgorithmsExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1', 'md5']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
                                                 'sha224', 'sha1', 'md5']])}
@@ -300,6 +331,11 @@ def main():
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {ExtensionType.signature_algorithms :
                SignatureAlgorithmsExtension().create([
+                 (getattr(HashAlgorithm, x),
+                  SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                    'sha224', 'sha1', 'md5']]),
+               ExtensionType.signature_algorithms_cert :
+               SignatureAlgorithmsCertExtension().create([
                  (getattr(HashAlgorithm, x),
                   SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
                                                     'sha224', 'sha1', 'md5']])}

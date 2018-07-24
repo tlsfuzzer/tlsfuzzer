@@ -29,7 +29,8 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, PskKeyExchangeModesExtension, \
-        PreSharedKeyExtension, PskIdentity, TLSExtension
+        PreSharedKeyExtension, PskIdentity, TLSExtension, \
+        SignatureAlgorithmsCertExtension
 from tlsfuzzer.helpers import key_share_gen
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 
@@ -110,6 +111,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(sig_algs)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -152,6 +155,8 @@ def main():
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(sig_algs)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
         .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
@@ -200,6 +205,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(sig_algs)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
@@ -234,6 +241,8 @@ def main():
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(sig_algs)
     if cookie:
         ext[ExtensionType.cookie] = ch_cookie_handler
@@ -281,6 +290,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(sig_algs)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
@@ -315,6 +326,8 @@ def main():
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(sig_algs)
     if cookie:
         ext[ExtensionType.cookie] = ch_cookie_handler
@@ -365,6 +378,8 @@ def main():
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(sig_algs)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
@@ -427,6 +442,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(sig_algs)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
@@ -487,6 +504,8 @@ def main():
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(sig_algs)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
@@ -550,6 +569,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(sig_algs)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
@@ -609,6 +630,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(sig_algs)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
@@ -654,6 +677,8 @@ def main():
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(sig_algs)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)

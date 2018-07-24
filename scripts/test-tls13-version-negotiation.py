@@ -25,7 +25,7 @@ from tlslite.keyexchange import ECDHKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
-        SignatureAlgorithmsExtension
+        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.helpers import key_share_gen
 
 
@@ -94,6 +94,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(sig_algs)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -135,6 +137,8 @@ def main():
         sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
         ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+            .create(sig_algs)
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
             .create(sig_algs)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
@@ -178,6 +182,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(sig_algs)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal, AlertDescription.protocol_version))
     conversations["tls 1.8 only"] = conversation
@@ -202,11 +208,15 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(sig_algs)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
 
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(sig_algs)
     # verify that there is no supported versions in server hello
     node = node.add_child(ExpectServerHello(version = (3, 3),
@@ -247,11 +257,15 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(sig_algs)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
 
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(sig_algs)
     # verify that there is no supported versions in server hello
     node = node.add_child(ExpectServerHello(version = (3, 2),
@@ -289,6 +303,8 @@ def main():
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(sig_algs)
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 4), extensions=ext))
     # negotiate TLS 1.2; it is valid for an implementation to abort handshake
@@ -329,6 +345,8 @@ def main():
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(sig_algs)
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 9), extensions=ext))
     # negotiate TLS 1.2; it is valid for an implementation to abort handshake
@@ -371,6 +389,8 @@ def main():
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(sig_algs)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal, AlertDescription.protocol_version))

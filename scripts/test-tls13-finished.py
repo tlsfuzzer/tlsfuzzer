@@ -25,7 +25,7 @@ from tlslite.keyexchange import ECDHKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
-        SignatureAlgorithmsExtension
+        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.helpers import key_share_gen
 
 
@@ -97,6 +97,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha384]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(sig_algs)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -143,6 +145,8 @@ def main():
                     SignatureScheme.rsa_pss_rsae_sha384,
                     SignatureScheme.rsa_pss_pss_sha384]
         ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+            .create(sig_algs)
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
             .create(sig_algs)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
@@ -195,6 +199,8 @@ def main():
                         SignatureScheme.rsa_pss_rsae_sha384,
                         SignatureScheme.rsa_pss_pss_sha384]
             ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+                .create(sig_algs)
+            ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
                 .create(sig_algs)
             node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
             node = node.add_child(ExpectServerHello())
@@ -269,6 +275,8 @@ def main():
                     SignatureScheme.rsa_pss_rsae_sha384,
                     SignatureScheme.rsa_pss_pss_sha384]
         ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+            .create(sig_algs)
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
             .create(sig_algs)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
@@ -360,6 +368,8 @@ def main():
                     SignatureScheme.rsa_pss_rsae_sha384,
                     SignatureScheme.rsa_pss_pss_sha384]
         ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+            .create(sig_algs)
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
             .create(sig_algs)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
