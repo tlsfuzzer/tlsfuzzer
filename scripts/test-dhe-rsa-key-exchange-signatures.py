@@ -18,10 +18,12 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectServerKeyExchange, \
         ExpectApplicationData
-from tlslite.extensions import SignatureAlgorithmsExtension
+from tlslite.extensions import SignatureAlgorithmsExtension, \
+        SignatureAlgorithmsCertExtension
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType, HashAlgorithm, SignatureAlgorithm
+from tlsfuzzer.helpers import RSA_SIG_ALL
 
 
 def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
@@ -79,13 +81,12 @@ def main():
     sig_algs = [(getattr(HashAlgorithm, hash_alg), SignatureAlgorithm.rsa)
                 for hash_alg in ("sha1", "sha224", "sha256", "sha384",
                                 "sha512")]
-    ext = SignatureAlgorithmsExtension().create(sig_algs)
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions={ExtensionType.
-                                                   renegotiation_info:None,
-                                                   ExtensionType.
-                                                   signature_algorithms:
-                                                   ext}))
+    ext = {ExtensionType.renegotiation_info : None,
+           ExtensionType.signature_algorithms :
+           SignatureAlgorithmsExtension().create(sig_algs),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3),
                                             extensions={ExtensionType.
                                                      renegotiation_info:None}))
@@ -117,13 +118,12 @@ def main():
             node = conversation
             ciphers = [cipher]
             sig_algs = [(getattr(HashAlgorithm, hash_alg), SignatureAlgorithm.rsa)]
-            ext = SignatureAlgorithmsExtension().create(sig_algs)
-            node = node.add_child(ClientHelloGenerator(ciphers,
-                                                       extensions={ExtensionType.
-                                                           renegotiation_info:None,
-                                                           ExtensionType.
-                                                           signature_algorithms:
-                                                           ext}))
+            ext = {ExtensionType.renegotiation_info : None,
+                   ExtensionType.signature_algorithms :
+                   SignatureAlgorithmsExtension().create(sig_algs),
+                   ExtensionType.signature_algorithms_cert :
+                   SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+            node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
             node = node.add_child(ExpectServerHello(version=(3, 3),
                                                     extensions={ExtensionType.
                                                              renegotiation_info:None}))

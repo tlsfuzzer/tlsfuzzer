@@ -20,7 +20,9 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         HashAlgorithm, SignatureAlgorithm, ExtensionType
-from tlslite.extensions import SignatureAlgorithmsExtension
+from tlslite.extensions import SignatureAlgorithmsExtension, \
+        SignatureAlgorithmsCertExtension
+from tlsfuzzer.helpers import RSA_SIG_ALL
 
 
 def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
@@ -102,9 +104,11 @@ def main():
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    sig_alg = SignatureAlgorithmsExtension()
-    sig_alg.create([(HashAlgorithm.sha1, SignatureAlgorithm.rsa)])
-    ext = {ExtensionType.signature_algorithms: sig_alg}
+    sigs = [(HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
+    ext = {ExtensionType.signature_algorithms :
+           SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -131,9 +135,11 @@ def main():
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    sig_alg = SignatureAlgorithmsExtension()
-    sig_alg.create([(HashAlgorithm.sha256, SignatureAlgorithm.rsa)])
-    ext = {ExtensionType.signature_algorithms: sig_alg}
+    sigs = [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)]
+    ext = {ExtensionType.signature_algorithms :
+           SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -160,10 +166,12 @@ def main():
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    sig_alg = SignatureAlgorithmsExtension()
-    sig_alg.create([(0, SignatureAlgorithm.rsa),
-                    (HashAlgorithm.sha256, SignatureAlgorithm.rsa)])
-    ext = {ExtensionType.signature_algorithms: sig_alg}
+    sigs = [(0, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha256, SignatureAlgorithm.rsa)]
+    ext = {ExtensionType.signature_algorithms :
+           SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -190,10 +198,12 @@ def main():
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    sig_alg = SignatureAlgorithmsExtension()
-    sig_alg.create([(10, SignatureAlgorithm.rsa),
-                    (HashAlgorithm.sha256, SignatureAlgorithm.rsa)])
-    ext = {ExtensionType.signature_algorithms: sig_alg}
+    sigs = [(10, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha256, SignatureAlgorithm.rsa)]
+    ext = {ExtensionType.signature_algorithms :
+           SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -220,11 +230,13 @@ def main():
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    sig_alg = SignatureAlgorithmsExtension()
-    sig_alg.create(list(chain(
+    sigs = list(chain(
         ((i, SignatureAlgorithm.rsa) for i in range(10, 224)),
-        [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)])))
-    ext = {ExtensionType.signature_algorithms: sig_alg}
+        [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)]))
+    ext = {ExtensionType.signature_algorithms :
+           SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -251,11 +263,13 @@ def main():
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    sig_alg = SignatureAlgorithmsExtension()
-    sig_alg.create(list(chain(
+    sigs = list(chain(
         ((i, j) for i in range(10, 224) for j in range(10, 21)),
-        [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)])))
-    ext = {ExtensionType.signature_algorithms: sig_alg}
+        [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)]))
+    ext = {ExtensionType.signature_algorithms :
+           SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -281,11 +295,13 @@ def main():
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    sig_alg = SignatureAlgorithmsExtension()
-    sig_alg.create(list(chain(
+    sigs = list(chain(
         ((i, j) for i in range(10, 224) for j in range(21, 59)),
-        [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)])))
-    ext = {ExtensionType.signature_algorithms: sig_alg}
+        [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)]))
+    ext = {ExtensionType.signature_algorithms :
+           SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -368,9 +384,82 @@ def main():
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    sig_alg = SignatureAlgorithmsExtension()
-    sig_alg.create([])
-    ext = {ExtensionType.signature_algorithms: sig_alg}
+    # generate maximum number of methods for 2 extentions
+    # (4 bytes for extensions header, 2 bytes for length of list inside
+    # extension leaving 65522 bytes)
+    sigs = list(chain(
+        ((i, j) for i in range(10, 224) for j in range(10, 86)),
+        ((i, 163) for i in range(10, 125)),
+        [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)]))
+    ext = {ExtensionType.signature_algorithms :
+           SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(sigs)}
+    node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
+                                               extensions=ext))
+    node = node.add_child(ExpectServerHello(version=(3, 3)))
+    node = node.add_child(ExpectCertificate())
+    valid = [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)]
+    node = node.add_child(ExpectServerKeyExchange(valid_sig_algs=valid))
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(Close())  # OpenSSL lists them, which makes the response huge
+    conversations["tolerance 32760 methods with sig_alg_cert"] = conversation
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    # generate maximum number of methods for 2 extentions
+    # (4 bytes for extensions header, 2 bytes for length of list inside
+    # extension leaving 65522 bytes)
+    n = 32761
+    n = n - 1  # this is the mandatory method in the end
+    n = n - len(RSA_SIG_ALL)  # number of methods in sig_alg_cert extention
+    sigs = list(chain(
+        ((i, j) for i in range(10, 224) for j in range(10, (n // 214) + 10)),
+        ((i, 163) for i in range(10, (n % 214) + 10)),
+        [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)]))
+    ext = {ExtensionType.signature_algorithms :
+           SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
+                                               extensions=ext))
+    node = node.add_child(ExpectServerHello(version=(3, 3)))
+    node = node.add_child(ExpectCertificate())
+    valid = [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)]
+    node = node.add_child(ExpectServerKeyExchange(valid_sig_algs=valid))
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(Close())  # OpenSSL lists them, which makes the response huge
+    conversations["tolerance max (32761) number of methods with sig_alg_cert"] = conversation
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    sigs = []
+    ext = {ExtensionType.signature_algorithms :
+           SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     hello = ClientHelloGenerator(ciphers, version=(3, 3),
                                  extensions=ext)
     node = node.add_child(hello)

@@ -19,8 +19,9 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectCertificateRequest, \
         ExpectApplicationData
-from tlsfuzzer.helpers import sig_algs_to_ids
-from tlslite.extensions import SignatureAlgorithmsExtension
+from tlsfuzzer.helpers import sig_algs_to_ids, RSA_SIG_ALL
+from tlslite.extensions import SignatureAlgorithmsExtension, \
+        SignatureAlgorithmsCertExtension
 from tlslite.constants import CipherSuite, AlertDescription, \
         HashAlgorithm, SignatureAlgorithm, ExtensionType, SignatureScheme
 from tlslite.utils.keyfactory import parsePEMKey
@@ -110,7 +111,9 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1', 'md5']])}
+                                                'sha224', 'sha1', 'md5']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())
@@ -141,7 +144,9 @@ def main():
                SignatureAlgorithmsExtension().create([
                  (getattr(HashAlgorithm, x),
                   SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                    'sha224', 'sha1', 'md5']])}
+                                                    'sha224', 'sha1', 'md5']]),
+               ExtensionType.signature_algorithms_cert :
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello(version=(3, 3)))
         node = node.add_child(ExpectCertificate())
@@ -172,7 +177,9 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1', 'md5']])}
+                                                'sha224', 'sha1', 'md5']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())

@@ -23,12 +23,14 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectCertificateRequest, \
         ExpectApplicationData
-from tlslite.extensions import SignatureAlgorithmsExtension
+from tlslite.extensions import SignatureAlgorithmsExtension, \
+        SignatureAlgorithmsCertExtension
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         HashAlgorithm, SignatureAlgorithm, ExtensionType
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
+from tlsfuzzer.helpers import RSA_SIG_ALL
 
 
 def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
@@ -112,7 +114,9 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {ExtensionType.signature_algorithms :
            SignatureAlgorithmsExtension().create([
-             (HashAlgorithm.md5, SignatureAlgorithm.rsa)])}
+             (HashAlgorithm.md5, SignatureAlgorithm.rsa)]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     if workaround:
         node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -145,7 +149,9 @@ def main():
     ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_256_CBC_SHA256,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([(21, 69)])}
+           SignatureAlgorithmsExtension().create([(21, 69)]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     if workaround:
         node = node.add_child(ExpectServerHello(version=(3, 3)))

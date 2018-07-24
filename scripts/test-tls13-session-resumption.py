@@ -12,7 +12,8 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         PskKeyExchangeMode
 from tlslite.extensions import ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
-        SignatureAlgorithmsExtension, PskKeyExchangeModesExtension
+        SignatureAlgorithmsExtension, PskKeyExchangeModesExtension, \
+        SignatureAlgorithmsCertExtension
 
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.utils.ordered_dict import OrderedDict
@@ -27,7 +28,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectNewSessionTicket, srv_ext_handler_supp_vers, \
         gen_srv_ext_handler_psk, srv_ext_handler_key_share
 from tlsfuzzer.helpers import key_share_gen, psk_session_ext_gen, \
-        psk_ext_updater
+        psk_ext_updater, RSA_SIG_ALL
 
 
 version = 1
@@ -96,6 +97,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
         .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -146,6 +149,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
         .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))

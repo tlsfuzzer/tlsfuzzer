@@ -20,7 +20,10 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType, HashAlgorithm, SignatureAlgorithm, SignatureScheme
-from tlslite.extensions import SignatureAlgorithmsExtension, TLSExtension
+from tlslite.extensions import SignatureAlgorithmsExtension, TLSExtension, \
+        SignatureAlgorithmsCertExtension
+from tlsfuzzer.helpers import RSA_SIG_ALL
+from tlsfuzzer.utils.ordered_dict import OrderedDict
 
 
 def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
@@ -75,7 +78,9 @@ def main():
             (HashAlgorithm.sha224, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -112,7 +117,9 @@ def main():
             (HashAlgorithm.sha224, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -144,7 +151,9 @@ def main():
         conversation = Connect(host, port)
         node = conversation
         ext = {ExtensionType.signature_algorithms:
-                SignatureAlgorithmsExtension().create([sig])}
+                SignatureAlgorithmsExtension().create([sig]),
+               ExtensionType.signature_algorithms_cert:
+                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -180,7 +189,9 @@ def main():
             (HashAlgorithm.sha224, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -213,7 +224,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha224, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -247,7 +260,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha224, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -285,7 +300,9 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha224, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -319,7 +336,9 @@ def main():
             (0xff, 0xff)  # undefined pair
            ]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -334,7 +353,9 @@ def main():
     conversation = Connect(host, port)
     node = conversation
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create([])}
+            SignatureAlgorithmsExtension().create([]),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -349,8 +370,11 @@ def main():
     conversation = Connect(host, port)
     node = conversation
     sigs = [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)]
-    ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+    ext = OrderedDict()
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sigs)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -365,8 +389,11 @@ def main():
     conversation = Connect(host, port)
     node = conversation
     sigs = [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)]
-    ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+    ext = OrderedDict()
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+    ext[ExtensionType.signature_algorithms] =  SignatureAlgorithmsExtension()\
+        .create(sigs)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -385,7 +412,9 @@ def main():
             TLSExtension(extType=ExtensionType.signature_algorithms)
             .create(bytearray(b'\x00\x03'  # length of array
                               b'\x04\x01'  # sha256 + rsa
-                              b'\x04'))}  # the odd byte
+                              b'\x04')),  # the odd byte
+           ExtensionType.signature_algorithms_cert:
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -405,7 +434,9 @@ def main():
             .create(bytearray(b'\x00\x04'  # length of array
                               b'\x02\x01'  # sha1+rsa
                               b'\x04\x01'  # sha256 + rsa
-                              b'\x04\x03'))}  # extra bytes
+                              b'\x04\x03')),  # extra bytes
+           ExtensionType.signature_algorithms_cert:
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -415,7 +446,6 @@ def main():
                                       AlertDescription.decode_error))
     node = node.add_child(ExpectClose())
     conversations["padded sigalgs"] = conversation
-
 
     # run the conversation
     good = 0

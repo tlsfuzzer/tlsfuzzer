@@ -18,9 +18,10 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerKeyExchange
 
 from tlslite.extensions import SignatureAlgorithmsExtension, \
-        SupportedGroupsExtension
+        SupportedGroupsExtension, SignatureAlgorithmsCertExtension
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         HashAlgorithm, SignatureAlgorithm, ExtensionType, GroupName
+from tlsfuzzer.helpers import RSA_SIG_ALL
 
 
 def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
@@ -76,6 +77,8 @@ def main():
                (HashAlgorithm.sha512, SignatureAlgorithm.ecdsa)]
     ext[ExtensionType.signature_algorithms] = \
             SignatureAlgorithmsExtension().create(sigalgs)
+    ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
     curves = [GroupName.secp256r1,
               GroupName.secp384r1,
               GroupName.secp521r1]
@@ -114,6 +117,8 @@ def main():
                (HashAlgorithm.sha1, SignatureAlgorithm.ecdsa)]
     ext[ExtensionType.signature_algorithms] = \
             SignatureAlgorithmsExtension().create(sigalgs)
+    ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
     curves = [GroupName.secp256r1,
               GroupName.secp384r1,
               GroupName.secp521r1]
@@ -150,6 +155,8 @@ def main():
         sigalgs = [(getattr(HashAlgorithm, h_alg), SignatureAlgorithm.ecdsa)]
         ext[ExtensionType.signature_algorithms] = \
                 SignatureAlgorithmsExtension().create(sigalgs)
+        ext[ExtensionType.signature_algorithms_cert] = \
+                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
         curves = [GroupName.secp256r1,
                   GroupName.secp384r1,
                   GroupName.secp521r1]
