@@ -29,8 +29,9 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, PskKeyExchangeModesExtension, \
-        PreSharedKeyExtension, PskIdentity, TLSExtension
-from tlsfuzzer.helpers import key_share_gen
+        PreSharedKeyExtension, PskIdentity, TLSExtension, \
+        SignatureAlgorithmsCertExtension
+from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 
 
@@ -110,6 +111,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -153,6 +156,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
         .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
     iden = PskIdentity().create(getRandomBytes(320), 0)
@@ -200,6 +205,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
@@ -235,6 +242,8 @@ def main():
         .create(groups)
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     if cookie:
         ext[ExtensionType.cookie] = ch_cookie_handler
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
@@ -281,6 +290,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
@@ -316,6 +327,8 @@ def main():
         .create(groups)
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     if cookie:
         ext[ExtensionType.cookie] = ch_cookie_handler
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
@@ -366,6 +379,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
@@ -427,6 +442,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
@@ -488,6 +505,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
@@ -550,6 +569,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
@@ -609,6 +630,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
@@ -655,6 +678,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\

@@ -18,11 +18,12 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
         ExpectServerKeyExchange, ExpectCertificateRequest
-from tlsfuzzer.helpers import sig_algs_to_ids
+from tlsfuzzer.helpers import sig_algs_to_ids, RSA_SIG_ALL
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType, HashAlgorithm, SignatureAlgorithm, SignatureScheme
-from tlslite.extensions import SignatureAlgorithmsExtension, TLSExtension
+from tlslite.extensions import SignatureAlgorithmsExtension, TLSExtension, \
+        SignatureAlgorithmsCertExtension
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
@@ -127,7 +128,9 @@ def main():
             (HashAlgorithm.sha224, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -166,7 +169,9 @@ def main():
             SignatureScheme.rsa_pss_sha512
             ]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -202,7 +207,9 @@ def main():
             SignatureScheme.rsa_pss_sha512
             ]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -242,7 +249,9 @@ def main():
                 SignatureScheme.rsa_pss_sha512
                 ]
         ext = {ExtensionType.signature_algorithms:
-                SignatureAlgorithmsExtension().create(sigs)}
+                SignatureAlgorithmsExtension().create(sigs),
+               ExtensionType.signature_algorithms_cert:
+                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -284,7 +293,9 @@ def main():
                 SignatureScheme.rsa_pss_sha512
                 ]
         ext = {ExtensionType.signature_algorithms:
-                SignatureAlgorithmsExtension().create(sigs)}
+                SignatureAlgorithmsExtension().create(sigs),
+               ExtensionType.signature_algorithms_cert:
+                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -322,7 +333,9 @@ def main():
                     SignatureScheme.rsa_pss_sha512
                     ]
             ext = {ExtensionType.signature_algorithms:
-                    SignatureAlgorithmsExtension().create(sigs)}
+                    SignatureAlgorithmsExtension().create(sigs),
+                   ExtensionType.signature_algorithms_cert:
+                    SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
             ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                        CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -360,7 +373,9 @@ def main():
                 SignatureScheme.rsa_pss_sha512
                 ]
         ext = {ExtensionType.signature_algorithms:
-                SignatureAlgorithmsExtension().create(sigs)}
+                SignatureAlgorithmsExtension().create(sigs),
+               ExtensionType.signature_algorithms_cert:
+                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -395,7 +410,9 @@ def main():
             SignatureScheme.rsa_pss_sha512
             ]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -430,7 +447,9 @@ def main():
             SignatureScheme.rsa_pss_sha512
             ]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs)}
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]

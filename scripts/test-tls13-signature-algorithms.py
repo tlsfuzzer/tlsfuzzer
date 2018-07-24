@@ -17,7 +17,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
         ExpectEncryptedExtensions, ExpectCertificateVerify, \
         ExpectNewSessionTicket
-from tlsfuzzer.helpers import key_share_gen
+from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.utils.lists import natural_sort_keys
 
@@ -26,7 +26,8 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         HashAlgorithm, SignatureAlgorithm
 from tlslite.extensions import SignatureAlgorithmsExtension, \
         ClientKeyShareExtension, SupportedVersionsExtension, \
-        SupportedGroupsExtension, TLSExtension
+        SupportedGroupsExtension, TLSExtension, \
+        SignatureAlgorithmsCertExtension
 
 version = 1
 
@@ -92,6 +93,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -136,6 +139,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -180,6 +185,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -222,12 +229,12 @@ def main():
             .create([TLS_1_3_DRAFT, (3, 3)])
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
-        n = n - 2 # these are the mandatory methods in the end
+        n = n - 2  # these are the mandatory methods in the end
         sig_algs = list(chain(
-            ((i, j) for i in range(10, 224) for j in range(10, (n//214)+10)),
-            ((i, 163) for i in range(10, (n%214)+10)),
+            ((i, j) for i in range(10, 224) for j in range(10, (n // 214) + 10)),
+            ((i, 163) for i in range(10, (n % 214) + 10)),
             [SignatureScheme.rsa_pss_rsae_sha256,
-            SignatureScheme.rsa_pss_pss_sha256]))
+             SignatureScheme.rsa_pss_pss_sha256]))
         ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
             .create(sig_algs)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -252,6 +259,56 @@ def main():
         node = node.next_sibling.add_child(Close())
         conversations["tolerance {0} methods".format(n)] = conversation
 
+    # 32715 is the maximum possible amount of methods that can fit into the
+    # ClientHello packet -- in TLS 1.3, there are also other mandatory
+    # extensions
+    n = 32715
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    n = n - 2  # these are the mandatory methods in the end
+    n = n - len(RSA_SIG_ALL)  # number of methods in sig_alg_cert extention
+    sig_algs = list(chain(
+        ((i, j) for i in range(10, 224) for j in range(10, (n // 214) + 10)),
+        ((i, 163) for i in range(10, (n % 214) + 10)),
+        [SignatureScheme.rsa_pss_rsae_sha256,
+         SignatureScheme.rsa_pss_pss_sha256]))
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData()
+    # OpenSSL sends the list of advertised and it doesn't fit a single
+    # application data
+    node = node.next_sibling.add_child(Close())
+    conversations["tolerance 32715 methods with sig_alg_cert"] = conversation
 
     # Use empty supported algorithm extension
     conversation = Connect(host, port)
@@ -271,6 +328,8 @@ def main():
     sig_algs = []
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       getattr(AlertDescription, fatal_alert)))
@@ -302,6 +361,8 @@ def main():
            ]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sigs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.handshake_failure))
@@ -328,6 +389,8 @@ def main():
             SignatureScheme.rsa_pkcs1_sha512]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sigs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.handshake_failure))
@@ -355,12 +418,13 @@ def main():
                               b'\x08\x04'  # rsa_pss_rsae_sha256
                               b'\x08\x09'  # rsa_pss_pss_sha256
                               b'\x04\x03'))
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decode_error))
     node = node.add_child(ExpectClose())
     conversations["padded sigalgs"] = conversation
-
 
     # send properly formatted one byte extension
     conversation = Connect(host, port)
@@ -380,12 +444,13 @@ def main():
         TLSExtension(extType=ExtensionType.signature_algorithms) \
             .create(bytearray(b'\x00\x01'  # length of array
                               b'\x02'))
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decode_error))
     node = node.add_child(ExpectClose())
     conversations["one byte array"] = conversation
-
 
     # send properly formatted three byte extension
     conversation = Connect(host, port)
@@ -407,12 +472,13 @@ def main():
                               b'\x08\x04'  # rsa_pss_rsae_sha256
                               b'\x08\x09'  # rsa_pss_pss_sha256
                               b'\x02'))
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decode_error))
     node = node.add_child(ExpectClose())
     conversations["three byte array"] = conversation
-
 
     # Fuzz the length of supported extensions
     for i in range(1, 0x100):
@@ -432,6 +498,8 @@ def main():
             .create(groups)
         sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                     SignatureScheme.rsa_pss_pss_sha256]
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+            .create(RSA_SIG_ALL)
         ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
             .create(sig_algs)
         hello = ClientHelloGenerator(ciphers, extensions=ext)

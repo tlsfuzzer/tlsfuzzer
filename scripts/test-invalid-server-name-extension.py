@@ -19,7 +19,8 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType, HashAlgorithm, SignatureAlgorithm, NameType
 from tlslite.extensions import TLSExtension, SignatureAlgorithmsExtension, \
-        SNIExtension
+        SNIExtension, SignatureAlgorithmsCertExtension
+from tlsfuzzer.helpers import RSA_SIG_ALL
 
 
 def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
@@ -85,7 +86,9 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']])}
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())
@@ -113,7 +116,9 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']])}
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     sni = SNIExtension().create(bytearray(hostname, 'utf-8'))
     ext[ExtensionType.server_name] = sni
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -143,7 +148,9 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']])}
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     sni = TLSExtension(extType=ExtensionType.server_name).create(bytearray(0))
     ext[ExtensionType.server_name] = sni
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -161,7 +168,9 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']])}
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     sni = SNIExtension().create(serverNames=[])
     ext[ExtensionType.server_name] = sni
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -179,7 +188,9 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']])}
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     sni = SNIExtension().create(hostNames=[bytearray(0)])
     ext[ExtensionType.server_name] = sni
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -197,7 +208,9 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']])}
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     payload = bytearray(b'\x00\x04'  # overall length
                         b'\x00'      # type - host_name
                         b'\x00\x01'  # length of host name
@@ -221,7 +234,9 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']])}
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     sni = SNIExtension().create(bytearray(b'www.') +
                                 bytearray(hostname, 'utf-8'))
     ext[ExtensionType.server_name] = sni
@@ -259,7 +274,9 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']])}
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     # names MUST be valid DNS host names
     sni = SNIExtension().create(bytearray(hostname[:-1], 'utf-8') +
                                 bytearray(b'\x00') +
@@ -281,7 +298,9 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']])}
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     # names MUST be valid DNS host names
     sni = SNIExtension().create(bytearray(hostname[:-1], 'utf-8') +
                                 bytearray(b'\x07') +
@@ -303,7 +322,9 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']])}
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     # names MUST be valid DNS host names
     sni = SNIExtension().create(bytearray(hostname[:-1], 'utf-8') +
                                 bytearray(b'\xc4\x85') +
@@ -324,7 +345,9 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']])}
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     # names MUST be valid DNS host names
     sni = SNIExtension().create(bytearray(hostname, 'utf-8') +
                                 bytearray(b'\x1b[31mBAD\x1b[0;37m'))
@@ -358,7 +381,9 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']])}
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     # RFC 6066 client MUST NOT send two names of the same type
     sni = SNIExtension().create(hostNames=[bytearray(hostname, 'utf-8'),
                                            bytearray(b'www.') +
@@ -379,7 +404,9 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']])}
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     names = [SNIExtension.ServerName(NameType.host_name,
                                      bytearray(hostname, 'utf-8')),
              # some unknown SNI type, should be ignored by server
@@ -414,7 +441,9 @@ def main():
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
               SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']])}
+                                                'sha224', 'sha1']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     names = [# some unknown SNI type, should be ignored by server
              SNIExtension.ServerName(NameType.host_name + 1,
                                      bytearray(range(0, 24))),
