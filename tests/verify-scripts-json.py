@@ -34,4 +34,21 @@ for arg in argv[1:]:
         print("There are {0} scripts that are missing from {1}:".format(len(missing), arg))
         print("\n".join(missing))
         status = 1
+
+missing = []
+for test_script in scriptlist:
+    script_path = os.path.join(parent_dir, 'scripts', test_script)
+    script_content = open(script_path).read()
+    if script_content.find('signature_algorithms') != -1:
+        if script_content.find('signature_algorithms_cert') == -1:
+            missing.append(test_script)
+            status = 1
+
+if not missing:
+    print(" All files that contain signature_algorithms,")
+    print(" also contain signature_algorithms_cert.")
+else:
+    print("There are {0} scripts that are missing signature_algorithms_cert:".format(len(missing)))
+    print("\n".join(missing))
+
 exit(status)
