@@ -44,7 +44,7 @@ from tlslite.extensions import SNIExtension, TLSExtension, \
         NPNExtension, ServerKeyShareExtension, ClientKeyShareExtension, \
         SrvSupportedVersionsExtension, SupportedVersionsExtension, \
         HRRKeyShareExtension, CookieExtension, \
-        SrvPreSharedKeyExtension
+        SrvPreSharedKeyExtension, PskIdentity, PreSharedKeyExtension
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509certchain import X509CertChain, X509
 from tlslite.extensions import SNIExtension, SignatureAlgorithmsExtension
@@ -401,6 +401,30 @@ class TestServerExtensionProcessors(unittest.TestCase):
             handler(state, ext)
 
         self.assertIn("missing identity", str(e.exception))
+
+    def test_gen_srv_ext_handler_psk_with_session_ticket(self):
+        ext = SrvPreSharedKeyExtension().create(0)
+
+        state = ConnectionState()
+        state.key['resumption master secret'] = bytearray(b'\x12'*48)
+        state.session_tickets = [
+            NewSessionTicket()
+            .create(134, 0, bytearray(b'nonce'), bytearray(b'ticket value'),
+                    [])]
+        client_hello = ClientHello()
+        psk_iden = PskIdentity().create(bytearray(b'ticket value'), 3333)
+        cln_ext = PreSharedKeyExtension().create([psk_iden], [bytearray(48)])
+        client_hello.extensions = [cln_ext]
+        state.handshake_messages.append(client_hello)
+
+        handler = gen_srv_ext_handler_psk()
+
+        handler(state, ext)
+
+        self.assertEqual(state.key['PSK secret'],
+                bytearray(b"\'Rv\'\xbd\xb6Soh\xe6Y\xfb6w\xda+\xd5\x94$V\xfc"
+                          b"\xdd\xac>\xbb\xeb\xa2\xd5\x8d\x00\xe6\x9a\x99{"
+                          b"\x00\x98\x9b\xf9%\x1fAFz\x13\xfc\xc4\x11,"))
 
 
 class TestHRRExtensionProcessors(unittest.TestCase):
@@ -999,7 +1023,8 @@ class TestExpectServerHelloWithHelloRetryRequest(unittest.TestCase):
         self.ch = ch
         state.handshake_messages.append(ch)
 
-        exts = [SrvSupportedVersionsExtension().create((3, 4))]
+        exts = [SrvSupportedVersionsExtension().create((3, 4)),
+                HRRKeyShareExtension().create(2)]
         hrr = ServerHello()
         hrr.create((3, 3), TLS_1_3_HRR, b'', 0x0004, extensions=exts)
         self.hrr = hrr
@@ -1016,10 +1041,8 @@ class TestExpectServerHelloWithHelloRetryRequest(unittest.TestCase):
     def test_with_wrong_hrr_random(self):
         self.hrr.random = bytearray([12]*32)
 
-        with self.assertRaises(ValueError) as e:
-            self.exp.process(self.state, self.sh)
-
-        self.assertIn("Two ServerHello", str(e.exception))
+        with self.assertRaises(SyntaxError):
+            self.exp.process(self.state, self.hrr)
 
     def test_with_wrong_cipher_suite(self):
         self.sh.cipher_suite = 5
@@ -1604,6 +1627,7 @@ class TestExpectNewSessionTicket(unittest.TestCase):
         exp.process(state, nst)
 
         self.assertIn(nst, state.session_tickets)
+        self.assertIsNotNone(state.session_tickets[0].time)
 
 
 class TestExpectVerify(unittest.TestCase):

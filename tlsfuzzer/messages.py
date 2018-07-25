@@ -123,6 +123,11 @@ class ResetHandshakeHashes(Command):
     def process(self, state):
         """Reset current running handshake protocol hashes."""
         state.handshake_hashes = HandshakeHashes()
+        # remove the keys that can interfere with key calculation
+        # don't remove all as we need things like "resumption master secret"
+        # to actually resume next session
+        state.key.pop('PSK secret', None)
+        state.key.pop('DH shared secret', None)
 
 
 class ResetRenegotiationInfo(Command):
@@ -438,6 +443,28 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
         self.ssl2 = ssl2
         self.modifiers = modifiers
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        if self.ssl2:
+            ret.append("ssl2={0!r}".format(self.ssl2))
+        if self.version:
+            ret.append("version={0!r}".format(self.version))
+        if self.ciphers:
+            ret.append("ciphers={0!r}".format(self.ciphers))
+        if self.random:
+            ret.append("random={0!r}".format(self.random))
+        if self.session_id:
+            ret.append("session_id={0!r}".format(self.session_id))
+        if self.compression:
+            ret.append("compression={0!r}".format(self.compression))
+        if self.extensions:
+            ret.append("extensions={0!r}".format(self.extensions))
+        if self.modifiers:
+            ret.append("modifiers={0!r}".format(self.modifiers))
+
+        return "ClientHelloGenerator({0})".format(", ".join(ret))
+
     def _generate_extensions(self, state):
         """Convert extension generators to extension objects."""
         extensions = []
@@ -598,8 +625,7 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
                 cke = ClientKeyExchange(self.cipher,
                                         self.version).createDH(self.dh_Yc)
             elif self.p_as_share or self.p_1_as_share:
-                ske = next((i for i in reversed(status.handshake_messages)
-                            if isinstance(i, ServerKeyExchange)), None)
+                ske = status.get_last_message_of_type(ServerKeyExchange)
                 assert ske, "No server key exchange in messages"
                 if self.p_as_share:
                     cke = ClientKeyExchange(self.cipher,
@@ -771,8 +797,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         if self.sig_version is None:
             self.sig_version = self.msg_version
         if self.msg_alg is None and self.msg_version >= (3, 3):
-            cert_req = next((msg for msg in status.handshake_messages[::-1]
-                             if isinstance(msg, CertificateRequest)), None)
+            cert_req = status.get_last_message_of_type(CertificateRequest)
             if cert_req is not None:
                 self.msg_alg = next((sig for sig in
                                      cert_req.supported_signature_algs
