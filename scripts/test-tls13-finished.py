@@ -17,7 +17,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
         ExpectEncryptedExtensions, ExpectCertificateVerify, \
-        ExpectNewSessionTicket
+        ExpectNewSessionTicket, ExpectNoMessage
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme
@@ -368,6 +368,20 @@ def main():
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectCertificateVerify())
         node = node.add_child(ExpectFinished())
+
+        # (the crazy handling of the messages below is because we are
+        # sending one message (Finished) in multiple records, and server
+        # can abort the connection after processing any number of records)
+
+        # conditionally wait for NewSessionTicket messages
+        # this will help in case the server does send early NST (without
+        # waiting for client Finished) but will abort reading of the
+        # Finished after one record
+        no_message = node.add_child(ExpectNoMessage(0.001))
+        nst = ExpectNewSessionTicket()
+        no_message.next_sibling = nst
+        nst.add_child(no_message)
+        node = no_message
 
         # alert+close can happen during sending large Finished message,
         # therefore we are specifying it as its sibling
