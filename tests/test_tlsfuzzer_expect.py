@@ -1629,6 +1629,17 @@ class TestExpectNewSessionTicket(unittest.TestCase):
         self.assertIn(nst, state.session_tickets)
         self.assertIsNotNone(state.session_tickets[0].time)
 
+    def test___repr__(self):
+        exp = ExpectNewSessionTicket()
+
+        self.assertEqual("ExpectNewSessionTicket()", repr(exp))
+
+    def test___repr___with_note(self):
+        exp = ExpectNewSessionTicket(note="some string")
+
+        self.assertEqual("ExpectNewSessionTicket(note='some string')",
+                         repr(exp))
+
 
 class TestExpectVerify(unittest.TestCase):
     def test___init__(self):
