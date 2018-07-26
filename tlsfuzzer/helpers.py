@@ -4,6 +4,7 @@
 
 import time
 from functools import partial
+from itertools import chain
 from tlslite.constants import HashAlgorithm, SignatureAlgorithm, \
         SignatureScheme
 
@@ -14,6 +15,11 @@ from .handshake_helpers import kex_for_group
 
 __all__ = ['sig_algs_to_ids', 'key_share_gen', 'psk_ext_gen',
            'psk_ext_updater', 'psk_session_ext_gen']
+
+# List of all rsa signature algorithms
+rsa_sig_all = [(getattr(HashAlgorithm, x), SignatureAlgorithm.rsa) for x in [
+                'sha512', 'sha384', 'sha256', 'sha224', 'sha1', 'md5']] + [
+                (8, 4), (8, 5), (8, 6), (8, 9), (8, 10), (8, 11)]
 
 
 def _hash_name_to_id(h_alg):
@@ -213,3 +219,23 @@ def flexible_getattr(val, val_type):
         return int(val)
     except ValueError:
         return getattr(val_type, val)
+
+
+def get_sig_alg_methods(num_of_methods):
+    """Get any number of signature algorithm methods.
+
+    The minimal value of input argument is 2.
+
+    :param int num_of_methods: number of returned methods
+    :raises ValueError: when the value of input argument is lower than 2
+    :return: list of tuples
+    """
+    if num_of_methods < 2:
+        raise ValueError("Invalid number of methods")
+
+    n = num_of_methods - 2  # these are the mandatory methods in the end
+    return list(chain(
+        ((i, j) for i in range(10, 224) for j in range(10, (n // 214) + 10)),
+        ((i, 163) for i in range(10, (n % 214) + 10)),
+        [SignatureScheme.rsa_pss_rsae_sha256,
+         SignatureScheme.rsa_pss_pss_sha256]))
