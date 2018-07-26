@@ -13,7 +13,7 @@ from tlslite.handshakehelpers import HandshakeHelpers
 from .handshake_helpers import kex_for_group
 
 __all__ = ['sig_algs_to_ids', 'key_share_gen', 'psk_ext_gen',
-           'psk_ext_updater', 'psk_session_ext_gen']
+           'psk_ext_updater', 'psk_session_ext_gen', 'flexible_getattr']
 
 # List of all rsa signature algorithms
 RSA_SIG_ALL = [(getattr(HashAlgorithm, x), SignatureAlgorithm.rsa) for x in [
