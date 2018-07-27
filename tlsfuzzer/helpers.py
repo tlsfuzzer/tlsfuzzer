@@ -15,6 +15,16 @@ from .handshake_helpers import kex_for_group
 __all__ = ['sig_algs_to_ids', 'key_share_gen', 'psk_ext_gen',
            'psk_ext_updater', 'psk_session_ext_gen']
 
+# List of all rsa signature algorithms
+RSA_SIG_ALL = [(getattr(HashAlgorithm, x), SignatureAlgorithm.rsa) for x in [
+                'sha512', 'sha384', 'sha256', 'sha224', 'sha1', 'md5']] + [
+                SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_rsae_sha384,
+                SignatureScheme.rsa_pss_rsae_sha512,
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.rsa_pss_pss_sha384,
+                SignatureScheme.rsa_pss_pss_sha512]
+
 
 def _hash_name_to_id(h_alg):
     """Try to convert hash algorithm name to HashAlgorithm TLS ID.

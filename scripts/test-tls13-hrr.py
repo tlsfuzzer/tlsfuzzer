@@ -22,10 +22,11 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme
 from tlslite.keyexchange import ECDHKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
+from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
-        SignatureAlgorithmsExtension
-from tlsfuzzer.helpers import key_share_gen
+        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
+from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL
 
 
 version = 1
@@ -98,6 +99,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -126,7 +129,7 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
+    ext = OrderedDict()
     groups = [GroupName.secp256r1]
     key_shares = []
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
@@ -138,9 +141,11 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
 
-    ext = {}
+    ext = OrderedDict()
     if cookie:
         ext[ExtensionType.cookie] = None
     ext[ExtensionType.key_share] = None
@@ -148,7 +153,7 @@ def main():
     node = node.add_child(ExpectHelloRetryRequest(extensions=ext))
     node = node.add_child(ExpectChangeCipherSpec())
 
-    ext = {}
+    ext = OrderedDict()
     groups = [GroupName.secp256r1]
     key_shares = []
     for group in groups:
@@ -164,6 +169,8 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectEncryptedExtensions())
