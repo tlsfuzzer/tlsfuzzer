@@ -167,7 +167,7 @@ def main():
     join = ClientKeyExchangeGenerator()
     fork.next_sibling.add_child(join)
 
-    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(join)
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -182,7 +182,6 @@ def main():
                                        substitutions={0:0}))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.bad_record_mac))
-#   node.next_sibling = ExpectClose()
     node = node.add_child(ExpectClose())
 
     conversations["zero-filled"] = \
