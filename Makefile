@@ -25,6 +25,7 @@ test:
 	coverage3 report -m
 	coverage3 xml
 	coverage3 html
+	python tests/verify-scripts-json.py tests/tlslite-ng.json tests/tlslite-ng-random-subset.json
 	pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" tlsfuzzer > pylint_report.txt || :
 	diff-quality --violations=pylint --fail-under=90 pylint_report.txt
 	diff-cover --fail-under=90 coverage.xml
