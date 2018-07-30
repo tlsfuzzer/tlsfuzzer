@@ -17,7 +17,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
         ExpectEncryptedExtensions, ExpectCertificateVerify, \
-        ExpectNewSessionTicket
+        ExpectNewSessionTicket, ExpectNoMessage
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme
@@ -29,7 +29,7 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
 from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL
 
 
-version = 1
+version = 2
 
 
 def help_msg():
@@ -312,8 +312,10 @@ def main():
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 16), # SHA-384 size
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 32),
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 48),
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 2**14-4-32),
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 256**3-1-32),
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 2**14-4-32), # max record
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 0x20000), # intermediate
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 0x30000), # bigger than max ClientHello
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 256**3-1-32), # max handshake
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 1, 0),
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 2, 0),
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 4, 0),
@@ -321,7 +323,7 @@ def main():
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 16, 0), # SHA-384 size
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 32, 0),
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 48, 0),
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 2**14-4-32, 0),
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 2**14-4-32, 0), # max record
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 12, 0),
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 1, 1),
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 8, 8), # SHA-384 size
@@ -332,8 +334,10 @@ def main():
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 16), # SHA-512 size
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 32),
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 48),
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 2**14-4-48),
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 256**3-1-48),
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 2**14-4-48), # max record
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 0x20000),
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 0x30000), # bigger than max ClientHello
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 256**3-1-48), # max handshake
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 12),
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 1, 0),
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 2, 0),
@@ -342,7 +346,7 @@ def main():
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 16, 0), # SHA-512 size
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 32, 0),
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 48, 0),
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 2**14-4-48, 0),
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 2**14-4-48, 0), # max record
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 1, 1),
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 8, 8) # SHA-512 size
         ]
@@ -379,6 +383,20 @@ def main():
         node = node.add_child(ExpectCertificateVerify())
         node = node.add_child(ExpectFinished())
 
+        # (the crazy handling of the messages below is because we are
+        # sending one message (Finished) in multiple records, and server
+        # can abort the connection after processing any number of records)
+
+        # conditionally wait for NewSessionTicket messages
+        # this will help in case the server does send early NST (without
+        # waiting for client Finished) but will abort reading of the
+        # Finished after one record
+        no_message = node.add_child(ExpectNoMessage(0.001))
+        nst = ExpectNewSessionTicket(note='first')
+        no_message.next_sibling = nst
+        nst.add_child(no_message)
+        node = no_message
+
         # alert+close can happen during sending large Finished message,
         # therefore we are specifying it as its sibling
         close_node = ExpectAlert(AlertLevel.fatal,
@@ -391,7 +409,7 @@ def main():
         node.next_sibling = close_node
 
         # This message may be sent right after server finished
-        cycle = ExpectNewSessionTicket()
+        cycle = ExpectNewSessionTicket(note='second')
         node = node.add_child(cycle)
         node.add_child(cycle)
 

@@ -1031,12 +1031,27 @@ class ExpectEncryptedExtensions(ExpectHandshake):
 
 class ExpectNewSessionTicket(ExpectHandshake):
     """Processing TLS handshake protocol new session ticket message."""
-    def __init__(self):
+
+    def __init__(self, note=None):
+        """
+        Initialise object.
+
+        Note that "note" parameter MUST be specified as a keyword argument,
+        i.e. read the definition as `(self, *, note=None)` (see PEP 3102).
+        Otherwise the behaviour of this node is not guaranteed if new
+        arguments are added to it (as they will be added *before* the "note"
+        argument).
+
+        :param str note: name or comment attached to the node, will be printed
+           when str() or repr() is called on the node
+        """
         super(ExpectNewSessionTicket, self).__init__(
             ContentType.handshake,
             HandshakeType.new_session_ticket)
+        self.note = note
 
     def process(self, state, msg):
+        """Parse, verify and process the message."""
         assert msg.contentType == ContentType.handshake
         parser = Parser(msg.write())
         hs_type = parser.get(1)
@@ -1046,6 +1061,12 @@ class ExpectNewSessionTicket(ExpectHandshake):
         ticket.time = time.time()
 
         state.session_tickets.append(ticket)
+
+    def __repr__(self):
+        """Return human readable representation of object."""
+        return "ExpectNewSessionTicket({0})".format(
+            ", ".join("{0}={1!r}".format(name, getattr(self, name)) for name in
+                      ['note'] if getattr(self, name) is not None))
 
 
 class ExpectAlert(Expect):
