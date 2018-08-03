@@ -193,7 +193,12 @@ class Runner(object):
                             node = close_node.child
                             continue
                         else:
-                            raise AssertionError("Unexpected closure from peer")
+                            if isinstance(exc, socket.timeout):
+                                raise AssertionError(
+                                    "Timeout when waiting for peer message")
+                            else:
+                                raise AssertionError(
+                                    "Unexpected closure from peer")
                     msg = Message(header.type, parser.bytes)
                     old_node = node
 

@@ -217,8 +217,27 @@ class TestRunner(unittest.TestCase):
         runner.state.msg_sock.recvMessageBlocking = \
                 mock.MagicMock(side_effect=TLSAbruptCloseError())
 
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(AssertionError) as e:
             runner.run()
+
+        self.assertIn("Unexpected closure from peer", str(e.exception))
+
+    def test_run_with_expect_and_read_timeout(self):
+        node = mock.MagicMock()
+        node.is_command = mock.Mock(return_value=False)
+        node.is_expect = mock.Mock(return_value=True)
+        node.is_generator = mock.Mock(return_value=False)
+        node.child = None
+
+        runner = Runner(node)
+        runner.state.msg_sock = mock.MagicMock()
+        runner.state.msg_sock.recvMessageBlocking = \
+                mock.MagicMock(side_effect=socket.timeout())
+
+        with self.assertRaises(AssertionError) as e:
+            runner.run()
+
+        self.assertIn("Timeout when waiting", str(e.exception))
 
     def test_run_with_expect_and_no_message(self):
         node = ExpectNoMessage()
