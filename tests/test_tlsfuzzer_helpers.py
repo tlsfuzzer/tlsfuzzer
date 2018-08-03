@@ -14,10 +14,10 @@ except ImportError:
 
 
 from tlsfuzzer.helpers import sig_algs_to_ids, key_share_gen, psk_ext_gen, \
-        flexible_getattr, psk_session_ext_gen
+        flexible_getattr, psk_session_ext_gen, key_share_ext_gen
 from tlsfuzzer.runner import ConnectionState
 from tlslite.extensions import KeyShareEntry, PreSharedKeyExtension, \
-        PskIdentity
+        PskIdentity, ClientKeyShareExtension
 from tlslite.constants import GroupName, CipherSuite
 from tlslite.messages import NewSessionTicket
 
@@ -156,6 +156,28 @@ class TestPskSessionExtGen(unittest.TestCase):
             psk = gen(state)
 
         self.assertIn("No New Session Ticket", str(e.exception))
+
+
+class TestKeyShareExtGen(unittest.TestCase):
+    def test_with_group(self):
+        gen = key_share_ext_gen([GroupName.secp256r1])
+
+        ext = gen(None)
+
+        self.assertIsInstance(ext, ClientKeyShareExtension)
+        self.assertEqual(len(ext.client_shares), 1)
+        self.assertEqual(ext.client_shares[0].group, GroupName.secp256r1)
+
+    def test_with_entry(self):
+        entry = KeyShareEntry().create(1313, bytearray(b'something'))
+        gen = key_share_ext_gen([entry])
+
+        ext = gen(None)
+
+        self.assertIsInstance(ext, ClientKeyShareExtension)
+        self.assertEqual(len(ext.client_shares), 1)
+        self.assertEqual(ext.client_shares[0].group, 1313)
+        self.assertEqual(ext.client_shares[0].key_exchange, b'something')
 
 
 class TestFlexibleGetattr(unittest.TestCase):

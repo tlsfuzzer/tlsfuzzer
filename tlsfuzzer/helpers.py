@@ -8,12 +8,13 @@ from tlslite.constants import HashAlgorithm, SignatureAlgorithm, \
         SignatureScheme
 
 from tlslite.extensions import KeyShareEntry, PreSharedKeyExtension, \
-        PskIdentity
+        PskIdentity, ClientKeyShareExtension
 from tlslite.handshakehelpers import HandshakeHelpers
 from .handshake_helpers import kex_for_group
 
 __all__ = ['sig_algs_to_ids', 'key_share_gen', 'psk_ext_gen',
-           'psk_ext_updater', 'psk_session_ext_gen', 'flexible_getattr']
+           'psk_ext_updater', 'psk_session_ext_gen', 'flexible_getattr',
+           'key_share_ext_gen']
 
 # List of all rsa signature algorithms
 RSA_SIG_ALL = [(getattr(HashAlgorithm, x), SignatureAlgorithm.rsa) for x in [
@@ -74,6 +75,29 @@ def sig_algs_to_ids(names):
             ids.append(getattr(SignatureScheme, name))
 
     return ids
+
+
+def key_share_ext_gen(groups):
+    """
+    Generator of key_share extension.
+
+    Generator that can be used to delay the generation of key shares for
+    TLS 1.3 ClientHello.
+
+    :param list groups: TLS numerical IDs from GroupName identifying groups
+       that should be present in the extension or ready to use KeyShareEntries.
+    :return: callable
+    """
+    def _key_share_ext_gen(state, groups=groups):
+        del state
+        gen_groups = []
+        for g_id in groups:
+            if isinstance(g_id, KeyShareEntry):
+                gen_groups.append(g_id)
+                continue
+            gen_groups.append(key_share_gen(g_id))
+        return ClientKeyShareExtension().create(gen_groups)
+    return _key_share_ext_gen
 
 
 def key_share_gen(group, version=(3, 4)):
