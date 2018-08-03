@@ -148,6 +148,8 @@
          {"name" : "test-sessionID-resumption.py"},
          {"name" : "test-sig-algs.py"},
          {"name" : "test-signature-algorithms.py"},
+         {"name" : "test-tls13-unrecognised-groups.py",
+          "arguments": ["--cookie"]},
          {"name" : "test-ssl-death-alert.py",
           "arguments" : ["-n", "0",
                          "--alert-level", "warning",
