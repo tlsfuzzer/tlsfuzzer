@@ -6,7 +6,6 @@ import traceback
 import sys
 import getopt
 from itertools import chain, islice
-from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
@@ -26,7 +25,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
-from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL
+from tlsfuzzer.helpers import RSA_SIG_ALL, key_share_ext_gen
 
 
 version = 2
@@ -83,10 +82,7 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {}
     groups = [GroupName.secp256r1]
-    key_shares = []
-    for group in groups:
-        key_shares.append(key_share_gen(group))
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
     ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
         .create([TLS_1_3_DRAFT, (3, 3)])
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
@@ -132,10 +128,7 @@ def main():
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {}
         groups = [GroupName.secp256r1]
-        key_shares = []
-        for group in groups:
-            key_shares.append(key_share_gen(group))
-        ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+        ext[ExtensionType.key_share] = key_share_ext_gen(groups)
         ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
             .create([TLS_1_3_DRAFT, (3, 3)])
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
@@ -175,10 +168,7 @@ def main():
     scenarios = [(CipherSuite.TLS_AES_128_GCM_SHA256, 32),
                  (CipherSuite.TLS_AES_256_GCM_SHA384, 48)]
     for cipher, prf_bytes in scenarios:
-        mbits = range(8*prf_bytes)
-        if num_limit:
-            mbits = sample(mbits, num_limit//2)
-        for mbit in mbits:
+        for mbit in range(8*prf_bytes):
             mbyte = mbit // 8 + 1
             conversation = Connect(host, port)
             node = conversation
@@ -186,10 +176,7 @@ def main():
                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
             ext = {}
             groups = [GroupName.secp256r1]
-            key_shares = []
-            for group in groups:
-                key_shares.append(key_share_gen(group))
-            ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+            ext[ExtensionType.key_share] = key_share_ext_gen(groups)
             ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
                 .create([TLS_1_3_DRAFT, (3, 3)])
             ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
@@ -262,10 +249,7 @@ def main():
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {}
         groups = [GroupName.secp256r1]
-        key_shares = []
-        for group in groups:
-            key_shares.append(key_share_gen(group))
-        ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+        ext[ExtensionType.key_share] = key_share_ext_gen(groups)
         ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
             .create([TLS_1_3_DRAFT, (3, 3)])
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
@@ -359,10 +343,7 @@ def main():
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {}
         groups = [GroupName.secp256r1]
-        key_shares = []
-        for group in groups:
-            key_shares.append(key_share_gen(group))
-        ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+        ext[ExtensionType.key_share] = key_share_ext_gen(groups)
         ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
             .create([TLS_1_3_DRAFT, (3, 3)])
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
