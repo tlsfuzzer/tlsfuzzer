@@ -28,7 +28,7 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
 from tlsfuzzer.helpers import RSA_SIG_ALL, key_share_ext_gen
 
 
-version = 2
+version = 3
 
 
 def help_msg():
@@ -335,8 +335,22 @@ def main():
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 8, 8) # SHA-512 size
         ]
     for cipher, pad_byte, pad_left, pad_right in scenarios:
-        # longer timeout for 16M messages
-        timeout = 5 if max(pad_left, pad_right) < 2**14 else 30
+        # longer timeout for longer messages
+        # Because the client is sending encrypted data without waiting
+        # on any server response, it can actually produce data at a faster
+        # rate than the server is able to process it, meaning that a server
+        # that aborts only after decrypting a full handshake message may have
+        # quite a few records in the queue after we, as a client have finished
+        # sending them. Since tlslite-ng has the ciphers implemented in
+        # pure python, they are very slow, speeds of just 71.5KiB/s for
+        # AES-256-GCM are not atypical. which translates to about 4 minutes
+        # to transfer this data. Set the timeout to 5 for a small margin of
+        # error.
+        # Note: because we still are waiting for the server to send us an alert
+        # (all graph terminal nodes go through ExpectAlert), server that fails
+        # to do that will still cause the whole test conversation to fail in
+        # case it just closes the connection on us
+        timeout = 5 if max(pad_left, pad_right) < 2**14 * 4 else 300
         conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ciphers = [cipher,
