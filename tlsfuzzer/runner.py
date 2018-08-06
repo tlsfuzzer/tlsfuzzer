@@ -177,7 +177,8 @@ class Runner(object):
                         self.state.msg_sock.sock.settimeout(node.timeout)
                     # check peer response
                     try:
-                        header, parser = self.state.msg_sock.recvMessageBlocking()
+                        header, parser = self.state.msg_sock.\
+                            recvMessageBlocking()
                     except (TLSAbruptCloseError, socket.error) as exc:
                         if isinstance(exc, socket.timeout) and \
                                 isinstance(node, ExpectNoMessage):
@@ -186,14 +187,20 @@ class Runner(object):
                             self.state.msg_sock.sock.settimeout(old_timeout)
                             node = node.child
                             continue
-                        close_node = next((n for n in node.get_all_siblings() \
-                                           if isinstance(n, ExpectClose)), None)
+                        close_node = next((n for n in node.get_all_siblings()
+                                           if isinstance(n, ExpectClose)),
+                                          None)
                         if close_node:
                             close_node.process(self.state, None)
                             node = close_node.child
                             continue
                         else:
-                            raise AssertionError("Unexpected closure from peer")
+                            if isinstance(exc, socket.timeout):
+                                raise AssertionError(
+                                    "Timeout when waiting for peer message")
+                            else:
+                                raise AssertionError(
+                                    "Unexpected closure from peer")
                     msg = Message(header.type, parser.bytes)
                     old_node = node
 
