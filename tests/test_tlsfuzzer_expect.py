@@ -1606,6 +1606,127 @@ class TestExpectEncryptedExtensions(unittest.TestCase):
 
         self.assertIn(ee, state.handshake_messages)
 
+    def test_process_with_extensions(self):
+        groups = [GroupName.secp256r1]
+        sup_group_ext = SupportedGroupsExtension().create(groups)
+        ext = {ExtensionType.supported_groups: sup_group_ext}
+
+        exp = ExpectEncryptedExtensions(extensions=ext)
+
+        ee = EncryptedExtensions().create([sup_group_ext])
+
+        state = ConnectionState()
+
+        exp.process(state, ee)
+
+        self.assertIn(ee, state.handshake_messages)
+
+    def test_process_with_unsupported_extensions(self):
+        key_shares = [key_share_gen(GroupName.secp256r1)]
+        key_share_ext = ClientKeyShareExtension().create(key_shares)
+
+        exp = ExpectEncryptedExtensions()
+
+        ee = EncryptedExtensions().create([key_share_ext])
+
+        state = ConnectionState()
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, ee)
+
+    def test_process_with_missing_extensions(self):
+        sup_group_ext = SupportedGroupsExtension().create(
+            [GroupName.secp256r1])
+        ext = {ExtensionType.supported_groups: sup_group_ext}
+
+        exp = ExpectEncryptedExtensions(extensions=ext)
+
+        ee = EncryptedExtensions().create([])
+
+        state = ConnectionState()
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, ee)
+
+    def test_process_with_extra_extensions(self):
+        sup_group_ext = SupportedGroupsExtension().create(
+            [GroupName.secp256r1])
+        sni_ext = SNIExtension().create(bytearray('localhost', 'utf-8'))
+        ext = {ExtensionType.supported_groups: sup_group_ext}
+
+        exp = ExpectEncryptedExtensions(extensions=ext)
+
+        ee = EncryptedExtensions().create([sup_group_ext, sni_ext])
+
+        state = ConnectionState()
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, ee)
+
+    def test_process_with_missing_specified_extension(self):
+        sup_group_ext = SupportedGroupsExtension().create(
+            [GroupName.secp256r1])
+        sni_ext = SNIExtension().create(bytearray('localhost', 'utf-8'))
+        ext = {ExtensionType.supported_groups: sup_group_ext,
+               ExtensionType.server_name: sni_ext}
+
+        exp = ExpectEncryptedExtensions(extensions=ext)
+
+        ee = EncryptedExtensions().create([sup_group_ext])
+
+        state = ConnectionState()
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, ee)
+
+    def test_process_with_no_autohandler(self):
+        sup_group_ext = SupportedGroupsExtension().create(
+            [GroupName.secp256r1])
+        ext = {ExtensionType.supported_groups: sup_group_ext}
+
+        exp = ExpectEncryptedExtensions()
+
+        ee = EncryptedExtensions().create([sup_group_ext])
+
+        state = ConnectionState()
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, ee)
+
+    def test_process_with_non_matching_example(self):
+        sup_group_ext = SupportedGroupsExtension().create(
+            [GroupName.secp256r1])
+        ext = {ExtensionType.supported_groups: sup_group_ext}
+
+        exp = ExpectEncryptedExtensions(extensions=ext)
+
+        ee = EncryptedExtensions().create([SupportedGroupsExtension().create(
+            [GroupName.secp521r1])])
+
+        state = ConnectionState()
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, ee)
+
+    def test_process_with_bad_extension_handler(self):
+        sup_group_ext = SupportedGroupsExtension().create(
+            [GroupName.secp256r1])
+        ext = {ExtensionType.supported_groups: sup_group_ext,
+               ExtensionType.alpn: 'BAD_EXTENSION'}
+
+        exp = ExpectEncryptedExtensions(extensions=ext)
+
+        ee_ext = []
+        ee_ext.append(sup_group_ext)
+        ee_ext.append(ALPNExtension().create([bytearray(b'http/1.1')]))
+
+        ee = EncryptedExtensions().create(ee_ext)
+
+        state = ConnectionState()
+
+        with self.assertRaises(ValueError):
+            exp.process(state, ee)
+
 
 class TestExpectNewSessionTicket(unittest.TestCase):
     def test___init__(self):
