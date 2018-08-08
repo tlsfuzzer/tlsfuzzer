@@ -226,6 +226,13 @@ def srv_ext_handler_supp_vers(state, extension):
     state.version = vers
 
 
+def srv_ext_handler_supp_groups(state, extension):
+    """Process the supported_groups from server."""
+    del state
+    if not extension.groups:
+        raise AssertionError("Server did not send any supported_groups")
+
+
 def _srv_ext_handler_psk(state, extension, psk_configs):
     """Process the pre_shared_key extension from server.
 
@@ -277,6 +284,12 @@ _HRR_EXT_HANDLER = \
          ExtensionType.cookie: hrr_ext_handler_cookie}
 
 
+_EE_EXT_HANDLER = \
+        {ExtensionType.server_name: srv_ext_handler_sni,
+         ExtensionType.alpn: srv_ext_handler_alpn,
+         ExtensionType.supported_groups: srv_ext_handler_supp_groups}
+
+
 class ExpectServerHello(ExpectHandshake):
     """Parsing TLS Handshake protocol Server Hello messages"""
 
@@ -305,6 +318,11 @@ class ExpectServerHello(ExpectHandshake):
         # with what the server sent
         if self.extensions and not srv_hello.extensions:
             raise AssertionError("Server did not send any extensions")
+        elif self.extensions == dict() and srv_hello.extensions:
+            raise AssertionError("Unexpected extension(s) from server "
+                                 "of type: {0}".format(
+                                     ', '.join(ExtensionType.toStr(i.extType)
+                                               for i in srv_hello.extensions)))
         elif self.extensions and srv_hello.extensions:
             expected = set(self.extensions.keys())
             got = set(i.extType for i in srv_hello.extensions)
@@ -313,12 +331,6 @@ class ExpectServerHello(ExpectHandshake):
                 if diff:
                     raise AssertionError("Server did not sent extention(s): "
                                          "{0}".format(
-                                             ", ".join((ExtensionType.toStr(i)
-                                                        for i in diff))))
-                diff = got.difference(expected)
-                if diff:
-                    raise AssertionError("Server sent unexpected extension(s):"
-                                         " {0}".format(
                                              ", ".join((ExtensionType.toStr(i)
                                                         for i in diff))))
 
@@ -1014,18 +1026,110 @@ class ExpectEncryptedExtensions(ExpectHandshake):
             HandshakeType.encrypted_extensions)
         self.extensions = extensions
 
+    def _compare_extensions(self, srv_exts, cln_hello):
+        """
+        Verify that server provided extensions match exactly expected list.
+        """
+        # check if received extensions match the set extensions
+        if self.extensions and not srv_exts.extensions:
+            raise AssertionError("Server did not send any extensions")
+        elif self.extensions is not None and srv_exts.extensions:
+            expected = set(self.extensions.keys())
+            got = set(i.extType for i in srv_exts.extensions)
+            if got != expected:
+                diff = expected.difference(got)
+                if diff:
+                    raise AssertionError("Server did not send extension(s): "
+                                         "{0}".format(
+                                             ", ".join(ExtensionType.toStr(i)
+                                                       for i in diff)))
+                diff = got.difference(expected)
+                if diff:
+                    raise AssertionError("Server sent unexpected extension(s):"
+                                         " {0}".format(
+                                             ", ".join(ExtensionType.toStr(i)
+                                                       for i in diff)))
+        elif self.extensions is None and srv_exts.extensions:
+            cln_exts = set(i.extType for i in cln_hello.extensions)
+            got = set(i.extType for i in srv_exts.extensions)
+            diff = got.difference(cln_exts)
+            if not got.issubset(cln_exts):
+                raise AssertionError("Server sent unexpected extension(s):"
+                                     " {0}".format(
+                                         ", ".join(ExtensionType.toStr(i)
+                                                   for i in diff)))
+
+    @staticmethod
+    def _get_autohandler(ext_id):
+        try:
+            return _EE_EXT_HANDLER[ext_id]
+        except KeyError:
+            raise ValueError("No autohandler for "
+                             "{0}"
+                             .format(ExtensionType
+                                     .toStr(ext_id)))
+
+    def _process_extensions(self, state, srv_exts):
+        """Check if extensions are correct."""
+        # fix these constants, when the extensions are implemented
+        ee_supported = [ExtensionType.server_name,
+                        1,  # max_fragment_length - RFC 6066
+                        ExtensionType.supported_groups,
+                        14,  # use_srtp - RFC 5764
+                        15,  # heartbeat - RFC 6520
+                        ExtensionType.alpn,
+                        19,  # client_certificate_type
+                             # draft-ietf-tls-tls13-28 / RFC 7250
+                        20,  # server_certificate_type
+                             # draft-ietf-tls-tls13-28 / RFC 7250
+                        ExtensionType.early_data]
+
+        for ext in srv_exts.extensions:
+            ext_id = ext.extType
+            if ext_id not in ee_supported:
+                raise AssertionError("Server sent unsupported "
+                                     "extension of type {0}"
+                                     .format(ExtensionType
+                                             .toStr(ext_id)))
+            handler = None
+            if self.extensions:
+                handler = self.extensions[ext_id]
+
+            # use automatic handlers for some extensions
+            if handler is None:
+                handler = self._get_autohandler(ext_id)
+
+            if callable(handler):
+                handler(state, ext)
+            elif isinstance(handler, TLSExtension):
+                if not handler == ext:
+                    raise AssertionError("Expected extension not "
+                                         "matched for type {0}, "
+                                         "received: {1}"
+                                         .format(ExtensionType
+                                                 .toStr(ext_id),
+                                                 ext))
+            else:
+                raise ValueError("Bad extension handler for id {0}"
+                                 .format(ExtensionType.toStr(ext_id)))
+
     def process(self, state, msg):
         assert msg.contentType == ContentType.handshake
         parser = Parser(msg.write())
         hs_type = parser.get(1)
         assert hs_type == self.handshake_type
 
-        exts = EncryptedExtensions().parse(parser)
+        srv_exts = EncryptedExtensions().parse(parser)
 
-        # TODO check if received extensions match the set extensions
-        assert self.extensions is None
+        # get client_hello message with CH extentions
+        cln_hello = state.get_last_message_of_type(ClientHello)
 
-        state.handshake_messages.append(exts)
+        self._compare_extensions(srv_exts, cln_hello)
+
+        if srv_exts.extensions:
+            self._process_extensions(state, srv_exts)
+
+        state.handshake_messages.append(srv_exts)
         state.handshake_hashes.update(msg.write())
 
 

@@ -28,7 +28,7 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         ExpectCertificateVerify, ExpectEncryptedExtensions, \
         ExpectNewSessionTicket, hrr_ext_handler_key_share, \
         hrr_ext_handler_cookie, ExpectHelloRetryRequest, \
-        gen_srv_ext_handler_psk
+        gen_srv_ext_handler_psk, srv_ext_handler_supp_groups
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
@@ -347,6 +347,21 @@ class TestServerExtensionProcessors(unittest.TestCase):
 
         self.assertIn("(3, 9)", str(exc.exception))
         self.assertIn("didn't advertise", str(exc.exception))
+
+    def test_srv_ext_handler_supp_groups(self):
+        ext = SupportedGroupsExtension().create([GroupName.secp256r1])
+        state = None
+
+        srv_ext_handler_supp_groups(state, ext)
+
+    def test_srv_ext_handler_supp_groups_with_empty_ext(self):
+        ext = SupportedGroupsExtension().create([])
+        state = None
+
+        with self.assertRaises(AssertionError) as exc:
+            srv_ext_handler_supp_groups(state, ext)
+
+        self.assertIn("did not send", str(exc.exception))
 
     def test_gen_srv_ext_handler_psk(self):
         psk_settings = [(b'test', b'bad secret'),
@@ -1605,6 +1620,227 @@ class TestExpectEncryptedExtensions(unittest.TestCase):
         exp.process(state, ee)
 
         self.assertIn(ee, state.handshake_messages)
+
+    def test_process_with_extensions(self):
+        groups = [GroupName.secp256r1]
+        sup_group_ext = SupportedGroupsExtension().create(groups)
+        ext = {ExtensionType.supported_groups: sup_group_ext}
+
+        exp = ExpectEncryptedExtensions(extensions=ext)
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.extensions = [sup_group_ext]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        msg = EncryptedExtensions().create([sup_group_ext])
+
+        exp.process(state, msg)
+
+        self.assertIn(msg, state.handshake_messages)
+
+    def test_process_with_unsupported_extensions(self):
+        key_shares = [key_share_gen(GroupName.secp256r1)]
+        key_share_ext = ClientKeyShareExtension().create(key_shares)
+
+        exp = ExpectEncryptedExtensions()
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.extensions = [key_share_ext]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        msg = EncryptedExtensions().create([key_share_ext])
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
+    def test_process_with_expect_any_supported_extensions(self):
+        groups = [GroupName.secp256r1]
+        sup_group_ext = SupportedGroupsExtension().create(groups)
+
+        exp = ExpectEncryptedExtensions()
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.extensions = [sup_group_ext]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        msg = EncryptedExtensions().create([sup_group_ext])
+
+        exp.process(state, msg)
+
+        self.assertIn(msg, state.handshake_messages)
+
+    def test_process_with_expected_extension_but_empty_message(self):
+        sup_group_ext = SupportedGroupsExtension().create(
+            [GroupName.secp256r1])
+        ext = {ExtensionType.supported_groups: sup_group_ext}
+
+        exp = ExpectEncryptedExtensions(extensions=ext)
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.extensions = [sup_group_ext]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        msg = EncryptedExtensions().create([])
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
+    def test_process_with_missing_specified_extension(self):
+        sup_group_ext = SupportedGroupsExtension().create(
+            [GroupName.secp256r1])
+        sni_ext = SNIExtension().create()
+        ext = {ExtensionType.supported_groups: sup_group_ext,
+               ExtensionType.server_name: sni_ext}
+
+        exp = ExpectEncryptedExtensions(extensions=ext)
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.extensions = [sup_group_ext, sni_ext]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        msg = EncryptedExtensions().create([sup_group_ext])
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
+    def test_process_with_extra_extensions(self):
+        sup_group_ext = SupportedGroupsExtension().create(
+            [GroupName.secp256r1])
+        sni_ext = SNIExtension().create()
+        ext = {ExtensionType.supported_groups: sup_group_ext}
+
+        exp = ExpectEncryptedExtensions(extensions=ext)
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.extensions = [sup_group_ext]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        msg = EncryptedExtensions().create([sup_group_ext, sni_ext])
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
+    def test_process_with_no_autohandler(self):
+        exp = ExpectEncryptedExtensions(extensions={1: None})
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        ext = TLSExtension(extType=1).create(bytearray())
+        client_hello.extensions = [ext]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        msg = EncryptedExtensions().create([ext])
+
+        with self.assertRaises(ValueError):
+            exp.process(state, msg)
+
+    def test_process_with_non_matching_ext_payload(self):
+        sup_group_ext = SupportedGroupsExtension().create(
+            [GroupName.secp256r1])
+        ext = {ExtensionType.supported_groups: sup_group_ext}
+
+        exp = ExpectEncryptedExtensions(extensions=ext)
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.extensions = [sup_group_ext]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        msg = EncryptedExtensions().create([SupportedGroupsExtension().create(
+            [GroupName.secp521r1])])
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
+    def test_process_with_bad_extension_handler(self):
+        sup_group_ext = SupportedGroupsExtension().create(
+            [GroupName.secp256r1])
+        ext = {ExtensionType.supported_groups: sup_group_ext,
+               ExtensionType.alpn: 'BAD_EXTENSION'}
+
+        exp = ExpectEncryptedExtensions(extensions=ext)
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.extensions = [sup_group_ext,
+            ALPNExtension().create([bytearray(b'http/1.1')])]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        msg = EncryptedExtensions().create([sup_group_ext,
+            ALPNExtension().create([bytearray(b'http/1.1')])])
+
+        with self.assertRaises(ValueError):
+            exp.process(state, msg)
+
+    def test_process_with_automatic_extension_handling(self):
+        sup_group_ext = SupportedGroupsExtension().create(
+            [GroupName.secp256r1])
+        alpn_ext = ALPNExtension().create([bytearray(b'http/1.1')])
+
+        ext = {ExtensionType.supported_groups: None,
+               ExtensionType.alpn: None}
+        exp = ExpectEncryptedExtensions(extensions=ext)
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.extensions = [sup_group_ext, alpn_ext]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        msg = EncryptedExtensions().create([sup_group_ext, alpn_ext])
+
+        exp.process(state, msg)
+
+    def test_process_with_extension_missing_from_client_hello(self):
+        sup_group_ext = SupportedGroupsExtension().create(
+            [GroupName.secp256r1])
+        sni_ext = SNIExtension().create()
+
+        exp = ExpectEncryptedExtensions()
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.extensions = [sni_ext]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        msg = EncryptedExtensions().create([sup_group_ext])
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
+    def test_process_with_no_expected_extensions(self):
+        sup_group_ext = SupportedGroupsExtension().create(
+            [GroupName.secp256r1])
+        alpn_ext = ALPNExtension().create([bytearray(b'http/1.1')])
+
+        exp = ExpectEncryptedExtensions(extensions={})
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.extensions = [sup_group_ext, alpn_ext]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        msg = EncryptedExtensions().create([sup_group_ext, alpn_ext])
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
 
 
 class TestExpectNewSessionTicket(unittest.TestCase):
