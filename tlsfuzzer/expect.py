@@ -187,6 +187,9 @@ def srv_ext_handler_key_share(state, extension):
 
     kex = kex_for_group(group_id, state.version)
 
+    state.key['ServerHello.extensions.key_share.key_exchange'] = \
+        extension.server_share.key_exchange
+
     z = kex.calc_shared_key(cl_ext.private,
                             extension.server_share.key_exchange)
 
