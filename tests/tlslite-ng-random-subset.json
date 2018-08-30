@@ -194,6 +194,7 @@
                          "-e", "tls13 signature rsa_pss_pss_sha512"],
           "comment" : "bug tlslite-ng#275"
          },
+         {"name" : "test-tls13-serverhello-random.py"},
          {"name" : "test-tls13-session-resumption.py"},
          {"name" : "test-tls13-signature-algorithms.py"},
          {"name" : "test-tls13-unrecognised-groups.py",
