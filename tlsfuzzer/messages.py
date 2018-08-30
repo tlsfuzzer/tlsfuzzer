@@ -276,6 +276,38 @@ class CollectNonces(Command):
         state.msg_sock._writeState.encContext.seal = collector
 
 
+class CopyVariables(Command):
+    """
+    Copy current random values of connection to provided arrays.
+
+    Available keys are either 'ClientHello.random', 'ServerHello.random' or
+    one of the values in ConnectionState.key (like 'premaster_secret',
+    'master_secret', etc.
+
+    The log should be a dict (where keys have the above specified names)
+    and values should be arrays (the values will be appended there).
+    """
+
+    def __init__(self, log):
+        """Link the randoms to log with session."""
+        super(CopyVariables, self).__init__()
+        self.log = log
+
+    def process(self, state):
+        """Copy current variables to log arrays."""
+        for name, val in self.log.items():
+            if name == 'ClientHello.random':
+                val.append(state.client_random)
+            elif name == 'ServerHello.random':
+                val.append(state.server_random)
+            else:
+                if name not in state.key:
+                    raise ValueError("'{0}' variable is not defined yet or "
+                                     "invalid for ConnectionState.key lookups."
+                                     .format(name))
+                val.append(state.key[name])
+
+
 class PlaintextMessageGenerator(Command):
     """
     Send a plaintext data record even if encryption is already negotiated.
