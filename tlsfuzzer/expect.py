@@ -775,6 +775,8 @@ class ExpectServerKeyExchange(ExpectHandshake):
                                                     clientHello=None,
                                                     serverHello=server_hello,
                                                     privateKey=None)
+            state.key['ServerKeyExchange.key_share'] = \
+                server_key_exchange.dh_Ys
         elif self.cipher_suite in CipherSuite.ecdhAllSuites:
             # extract valid groups from Client Hello
             if valid_groups is None:
@@ -793,6 +795,8 @@ class ExpectServerKeyExchange(ExpectHandshake):
                                      serverHello=server_hello,
                                      privateKey=None,
                                      acceptedCurves=valid_groups)
+            state.key['ServerKeyExchange.key_share'] = \
+                server_key_exchange.ecdh_Ys
         else:
             raise AssertionError("Unsupported cipher selected")
         state.key['premaster_secret'] = state.key_exchange.\
