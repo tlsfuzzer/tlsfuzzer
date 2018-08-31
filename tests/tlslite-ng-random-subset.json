@@ -75,6 +75,10 @@
          {"name" : "test-cve-2016-7054.py",
           "comment" : "a lot of test cases",
           "arguments" : ["-n", "50"]},
+         {"name" : "test-dhe-key-share-random.py",
+          "arguments" : ["-e", "Protocol (3, 0)",
+                         "-e", "Protocol (3, 0) in SSLv2 compatible ClientHello"],
+          "comment": "SSLv3 is not supported by tlslite-ng by default"},
          {"name" : "test-dhe-rsa-key-exchange.py"},
          {"name" : "test-dhe-rsa-key-exchange-signatures.py"},
          {"name" : "test-dhe-rsa-key-exchange-with-bad-messages.py"},
@@ -265,7 +269,8 @@
      "environment": {"PYTHONPATH": "."},
      "comment" : "Tests of the SSLv3 implementation",
      "tests" : [
-         {"name" : "test-SSLv3-padding.py"}
+         {"name" : "test-SSLv3-padding.py"},
+         {"name" : "test-dhe-key-share-random.py"}
      ]
     },
     {"server_command": ["python", "-u", "{command}", "server",
