@@ -163,6 +163,10 @@
           "comment" : "test requires renegotiation support",
           "exp_pass" : false},
          {"name" : "test-record-layer-fragmentation.py"},
+         {"name" : "test-serverhello-random.py",
+          "arguments" : ["-e", "Protocol (3, 0)",
+                         "-e", "Protocol (3, 0) in SSLv2 compatible ClientHello"],
+          "comment" : "tlslite-ng does not support SSLv3 by default"},
          {"name" : "test-sessionID-resumption.py"},
          {"name" : "test-sig-algs.py"},
          {"name" : "test-signature-algorithms.py"},
@@ -275,6 +279,7 @@
      "tests" : [
          {"name" : "test-dhe-key-share-random.py"},
          {"name" : "test-ecdhe-rsa-key-share-random.py"},
+         {"name" : "test-serverhello-random.py"},
          {"name" : "test-SSLv3-padding.py"}
      ]
     },
