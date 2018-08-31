@@ -280,12 +280,19 @@ class CopyVariables(Command):
     """
     Copy current random values of connection to provided arrays.
 
-    Available keys are either 'ClientHello.random', 'ServerHello.random' or
+    Available keys are either 'ClientHello.random', 'ServerHello.random',
+    'ServerHello.session_id' or
     one of the values in ConnectionState.key (like 'premaster_secret',
-    'master_secret', etc.
+    'master_secret', 'ServerHello.extensions.key_share.key_exchange',
+    'server handshake traffic secret', 'exported master secret', etc.)
 
     The log should be a dict (where keys have the above specified names)
     and values should be arrays (the values will be appended there).
+
+    This node needs to be put right after a node that calculate or use the
+    specific values to guarantee correct collection (i.e. if the conversation
+    performs a renegotiation, it needs to be placed after both
+    ExpectServerHello() nodes to collect both 'ServerHello.random' values).
     """
 
     def __init__(self, log):
@@ -300,6 +307,8 @@ class CopyVariables(Command):
                 val.append(state.client_random)
             elif name == 'ServerHello.random':
                 val.append(state.server_random)
+            elif name == 'ServerHello.session_id':
+                val.append(state.session_id)
             else:
                 if name not in state.key:
                     raise ValueError("'{0}' variable is not defined yet or "

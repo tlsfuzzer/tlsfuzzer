@@ -215,6 +215,17 @@ class TestCopyVariables(unittest.TestCase):
 
         self.assertEqual(arr, [bytearray(b'abba')])
 
+    def test_process_server_hello_session_id(self):
+        state = ConnectionState()
+        state.session_id = bytearray(b'some session ID')
+
+        arr = []
+        node = CopyVariables({'ServerHello.session_id': arr})
+
+        node.process(state)
+
+        self.assertEqual(arr, [bytearray(b'some session ID')])
+
     def test_process_premaster_secret(self):
         state = ConnectionState()
         state.key['premaster_secret'] = bytearray(b'premaster secret')
