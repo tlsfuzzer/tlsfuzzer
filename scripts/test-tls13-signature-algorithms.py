@@ -6,7 +6,7 @@ from __future__ import print_function
 import traceback
 import sys
 import getopt
-from itertools import chain
+from itertools import chain, islice
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
@@ -42,17 +42,20 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -n num         only run `num` random tests instead of a full set")
+    print("                (excluding \"sanity\" tests)")
     print(" --help         this message")
 
 
 def main():
     host = "localhost"
     port = 4433
+    num_limit = None
     fatal_alert = "decode_error"
     run_exclude = set()
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:", ["help", "alert="])
+    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help", "alert="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -60,6 +63,8 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-n':
+            num_limit = int(arg)
         elif opt == '--alert':
             fatal_alert = arg
         elif opt == '--help':
@@ -514,13 +519,15 @@ def main():
     good = 0
     bad = 0
     failed = []
+    if not num_limit:
+        num_limit = len(conversations)
 
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throught
     sanity_test = ('sanity', conversations['sanity'])
     ordered_tests = chain([sanity_test],
-                          filter(lambda x: x[0] != 'sanity',
-                                 conversations.items()),
+                          islice(filter(lambda x: x[0] != 'sanity',
+                                        conversations.items()), num_limit),
                           [sanity_test])
 
     for c_name, c_test in ordered_tests:
@@ -533,16 +540,16 @@ def main():
         res = True
         try:
             runner.run()
-        except:
+        except Exception:
             print("Error while processing")
             print(traceback.format_exc())
             res = False
 
         if res:
-            good+=1
-            print("OK")
+            good += 1
+            print("OK\n")
         else:
-            bad+=1
+            bad += 1
             failed.append(c_name)
 
     print("Signature Algorithms in TLS 1.3")
