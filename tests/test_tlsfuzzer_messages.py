@@ -28,7 +28,7 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         TCPBufferingFlush, fuzz_encrypted_message, fuzz_pkcs1_padding, \
         CollectNonces, AlertGenerator, PlaintextMessageGenerator, \
         SetPaddingCallback, replace_plaintext, ch_cookie_handler, \
-        ch_key_share_handler, SetRecordVersion
+        ch_key_share_handler, SetRecordVersion, CopyVariables
 from tlsfuzzer.helpers import psk_ext_gen, psk_ext_updater, \
         psk_session_ext_gen
 from tlsfuzzer.runner import ConnectionState
@@ -182,6 +182,69 @@ class TestCollectNonces(unittest.TestCase):
         self.assertEqual(nonces,
                          [bytearray(b'\xa9\xfc\x88\x1d'
                                     b'\x00\x00\x00\x00\x00\x00\x00\x00')])
+
+
+class TestCopyVariables(unittest.TestCase):
+    def test___init__(self):
+        node = CopyVariables({})
+
+        self.assertIsNotNone(node)
+        self.assertTrue(node.is_command())
+        self.assertFalse(node.is_expect())
+        self.assertFalse(node.is_generator())
+
+    def test_process_client_hello_random(self):
+        state = ConnectionState()
+        state.client_random = bytearray(b'test')
+
+        arr = []
+        node = CopyVariables({'ClientHello.random': arr})
+
+        node.process(state)
+
+        self.assertEqual(arr, [bytearray(b'test')])
+
+    def test_process_server_hello_random(self):
+        state = ConnectionState()
+        state.server_random = bytearray(b'abba')
+
+        arr = []
+        node = CopyVariables({'ServerHello.random': arr})
+
+        node.process(state)
+
+        self.assertEqual(arr, [bytearray(b'abba')])
+
+    def test_process_server_hello_session_id(self):
+        state = ConnectionState()
+        state.session_id = bytearray(b'some session ID')
+
+        arr = []
+        node = CopyVariables({'ServerHello.session_id': arr})
+
+        node.process(state)
+
+        self.assertEqual(arr, [bytearray(b'some session ID')])
+
+    def test_process_premaster_secret(self):
+        state = ConnectionState()
+        state.key['premaster_secret'] = bytearray(b'premaster secret')
+
+        arr = []
+        node = CopyVariables({'premaster_secret': arr})
+
+        node.process(state)
+
+        self.assertEqual(arr, [bytearray(b'premaster secret')])
+
+    def test_process_with_incorrect_name(self):
+        state = ConnectionState()
+
+        arr = []
+        node = CopyVariables({'DH shared secret': arr})
+
+        with self.assertRaises(ValueError):
+            node.process(state)
 
 
 class TestConnect(unittest.TestCase):

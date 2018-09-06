@@ -14,7 +14,7 @@ from .handshake_helpers import kex_for_group
 
 __all__ = ['sig_algs_to_ids', 'key_share_gen', 'psk_ext_gen',
            'psk_ext_updater', 'psk_session_ext_gen', 'flexible_getattr',
-           'key_share_ext_gen']
+           'key_share_ext_gen', 'uniqueness_check']
 
 # List of all rsa signature algorithms
 RSA_SIG_ALL = [(getattr(HashAlgorithm, x), SignatureAlgorithm.rsa) for x in [
@@ -247,3 +247,38 @@ def flexible_getattr(val, val_type):
         return int(val)
     except ValueError:
         return getattr(val_type, val)
+
+
+def _is_hashable(val):
+    """Check if val is hashable."""
+    try:
+        hash(val)
+    except TypeError:
+        return False
+    return True
+
+
+def uniqueness_check(values, count):
+    """
+    Check if values in the lists in the dictionary are unique.
+
+    Also check if all the arrays have the length of "count".
+
+    :param values: dictionary of lists to check
+    :param int count: expected length of lists
+    :return: list of errors found
+    """
+    ret = []
+    for name, array in values.items():
+        if len(array) != count:
+            ret.append("Unexpected number of values in '{0}'. Expected: {1}, "
+                       "got: {2}.".format(name, count, len(array)))
+        # FFDHE key shares in TLS 1.2 are stored as ints and they are not
+        # convertible to "bytes" directly, so we need to treat them specially
+        if array and _is_hashable(array[0]):
+            if len(set(array)) != len(array):
+                ret.append("Duplicated entries in '{0}'.".format(name))
+        else:
+            if len(set(bytes(i) for i in array)) != len(array):
+                ret.append("Duplicated entries in '{0}'.".format(name))
+    return ret

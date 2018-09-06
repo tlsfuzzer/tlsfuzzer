@@ -14,7 +14,8 @@ except ImportError:
 
 
 from tlsfuzzer.helpers import sig_algs_to_ids, key_share_gen, psk_ext_gen, \
-        flexible_getattr, psk_session_ext_gen, key_share_ext_gen
+        flexible_getattr, psk_session_ext_gen, key_share_ext_gen, \
+        uniqueness_check
 from tlsfuzzer.runner import ConnectionState
 from tlslite.extensions import KeyShareEntry, PreSharedKeyExtension, \
         PskIdentity, ClientKeyShareExtension
@@ -193,3 +194,32 @@ class TestFlexibleGetattr(unittest.TestCase):
     def test_with_invalid_name(self):
         with self.assertRaises(AttributeError):
             flexible_getattr("seccc", GroupName)
+
+
+class TestUniquenessCheck(unittest.TestCase):
+    def test_with_empty(self):
+        self.assertEqual([], uniqueness_check({}, 0))
+
+    def test_with_ints(self):
+        self.assertEqual([], uniqueness_check({'ints': [1, 2, 3, 4]}, 4))
+
+    def test_with_duplicated_ints(self):
+        self.assertEqual(["Duplicated entries in 'ints'."],
+                         uniqueness_check({'ints': [1, 2, 3, 1]}, 4))
+
+    def test_with_mismatched_count(self):
+        self.assertEqual(["Unexpected number of values in 'ints'. Expected: "
+                          "4, got: 3."],
+                         uniqueness_check({'ints': [1, 2, 3]}, 4))
+
+    def test_with_bytearrays(self):
+        self.assertEqual(
+            [],
+            uniqueness_check({'bytearrays':
+                             [bytearray(b'a'), bytearray(b'b')]}, 2))
+
+    def test_with_duplicated_bytearrays(self):
+        self.assertEqual(
+            ["Duplicated entries in 'bytearrays'."],
+            uniqueness_check({'bytearrays':
+                             [bytearray(b'a'), bytearray(b'a')]}, 2))
