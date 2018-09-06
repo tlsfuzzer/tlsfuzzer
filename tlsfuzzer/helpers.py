@@ -14,7 +14,7 @@ from .handshake_helpers import kex_for_group
 
 __all__ = ['sig_algs_to_ids', 'key_share_gen', 'psk_ext_gen',
            'psk_ext_updater', 'psk_session_ext_gen', 'flexible_getattr',
-           'key_share_ext_gen', 'uniquness_check']
+           'key_share_ext_gen', 'uniqueness_check']
 
 # List of all rsa signature algorithms
 RSA_SIG_ALL = [(getattr(HashAlgorithm, x), SignatureAlgorithm.rsa) for x in [
@@ -258,7 +258,7 @@ def _is_hashable(val):
     return True
 
 
-def uniquness_check(values, count):
+def uniqueness_check(values, count):
     """
     Check if values in the lists in the dictionary are unique.
 
