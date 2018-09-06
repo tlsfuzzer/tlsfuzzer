@@ -26,7 +26,7 @@ from tlslite.extensions import KeyShareEntry, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL, key_share_ext_gen, \
-        uniquness_check
+        uniqueness_check
 
 
 version = 1
@@ -216,7 +216,7 @@ def main():
                 bad += 1
                 failed.append(c_name)
 
-    failed_tests = uniquness_check(variables_check, good + bad)
+    failed_tests = uniqueness_check(variables_check, good + bad)
     if failed_tests:
         print("\n".join(failed_tests))
     else:

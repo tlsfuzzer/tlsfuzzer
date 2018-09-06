@@ -24,7 +24,7 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
 from tlslite.extensions import ECPointFormatsExtension, \
         SupportedGroupsExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import uniquness_check
+from tlsfuzzer.helpers import uniqueness_check
 
 
 version = 1
@@ -222,7 +222,7 @@ def main():
                 bad += 1
                 failed.append(c_name)
 
-    failed_tests = uniquness_check(variables_check, good + bad)
+    failed_tests = uniqueness_check(variables_check, good + bad)
     if failed_tests:
         print("\n".join(failed_tests))
     else:
