@@ -1,7 +1,7 @@
 # Author: Hubert Kario, (c) 2018
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
-"""Minimal test for verifying uniquness of server DHE key shares."""
+"""Minimal test for verifying uniqueness of server DHE key shares."""
 
 from __future__ import print_function
 import traceback
@@ -22,7 +22,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import uniquness_check
+from tlsfuzzer.helpers import uniqueness_check
 
 
 version = 1
@@ -195,7 +195,7 @@ def main():
                 bad += 1
                 failed.append(c_name)
 
-    failed_tests = uniquness_check(variables_check, good + bad)
+    failed_tests = uniqueness_check(variables_check, good + bad)
     if failed_tests:
         print("\n".join(failed_tests))
     else:
