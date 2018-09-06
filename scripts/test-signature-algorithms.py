@@ -469,6 +469,39 @@ def main():
     conversations["empty list of signature methods"] = \
             conversation
 
+    # generate maximum number of methods (4 bytes for extensions header,
+    # 2 bytes for length of list inside extension, leaving 65528 bytes)
+    for n in [215, 2355, 8132, 23754, 32764]:
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        n = n - 1  # this is the mandatory method in the end
+        sigs = [(HashAlgorithm.sha1, SignatureAlgorithm.dsa)] * n
+        sigs += [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)]
+        ext = {ExtensionType.signature_algorithms :
+               SignatureAlgorithmsExtension().create(sigs)}
+        node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
+                                                   extensions=ext))
+        node = node.add_child(ExpectServerHello(version=(3, 3)))
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerKeyExchange())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ExpectApplicationData())
+        node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                             AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert())
+        node.next_sibling = ExpectClose()
+        conversations["duplicated {0} non-rsa schemes".format(n)] = conversation
+
     for i in range(1, 0x100):
         conversation = Connect(host, port)
         node = conversation
