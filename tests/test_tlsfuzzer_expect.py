@@ -28,13 +28,14 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         ExpectCertificateVerify, ExpectEncryptedExtensions, \
         ExpectNewSessionTicket, hrr_ext_handler_key_share, \
         hrr_ext_handler_cookie, ExpectHelloRetryRequest, \
-        gen_srv_ext_handler_psk, srv_ext_handler_supp_groups
+        gen_srv_ext_handler_psk, srv_ext_handler_supp_groups, \
+        srv_ext_handler_heartbeat
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
         SignatureAlgorithm, CipherSuite, CertificateType, SSL2HandshakeType, \
         SSL2ErrorDescription, GroupName, CertificateStatusType, ECPointFormat,\
-        SignatureScheme, TLS_1_3_HRR
+        SignatureScheme, TLS_1_3_HRR, HeartbeatMode
 from tlslite.messages import Message, ServerHello, CertificateRequest, \
         ClientHello, Certificate, ServerHello2, ServerFinished, \
         ServerKeyExchange, CertificateStatus, CertificateVerify, \
@@ -44,7 +45,8 @@ from tlslite.extensions import SNIExtension, TLSExtension, \
         NPNExtension, ServerKeyShareExtension, ClientKeyShareExtension, \
         SrvSupportedVersionsExtension, SupportedVersionsExtension, \
         HRRKeyShareExtension, CookieExtension, \
-        SrvPreSharedKeyExtension, PskIdentity, PreSharedKeyExtension
+        SrvPreSharedKeyExtension, PskIdentity, PreSharedKeyExtension, \
+        HeartbeatExtension
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509certchain import X509CertChain, X509
 from tlslite.extensions import SNIExtension, SignatureAlgorithmsExtension
@@ -362,6 +364,36 @@ class TestServerExtensionProcessors(unittest.TestCase):
             srv_ext_handler_supp_groups(state, ext)
 
         self.assertIn("did not send", str(exc.exception))
+
+    def test_srv_ext_handler_heartbeat(self):
+        ext = HeartbeatExtension().create(
+            HeartbeatMode.PEER_ALLOWED_TO_SEND)
+        state = None
+
+        srv_ext_handler_heartbeat(state, ext)
+
+        ext = HeartbeatExtension().create(
+            HeartbeatMode.PEER_NOT_ALLOWED_TO_SEND)
+
+        srv_ext_handler_heartbeat(state, ext)
+
+    def test_srv_ext_handler_heartbeat_with_empty_ext(self):
+        ext = HeartbeatExtension().create(None)
+        state = None
+
+        with self.assertRaises(AssertionError) as exc:
+            srv_ext_handler_heartbeat(state, ext)
+
+        self.assertIn("Empty mode", str(exc.exception))
+
+    def test_srv_ext_handler_heartbeat_with_invalid_payload(self):
+        ext = HeartbeatExtension().create(3)
+        state = None
+
+        with self.assertRaises(AssertionError) as exc:
+            srv_ext_handler_heartbeat(state, ext)
+
+        self.assertIn("Invalid mode", str(exc.exception))
 
     def test_gen_srv_ext_handler_psk(self):
         psk_settings = [(b'test', b'bad secret'),
