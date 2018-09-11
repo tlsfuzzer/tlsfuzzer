@@ -28,13 +28,14 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         ExpectCertificateVerify, ExpectEncryptedExtensions, \
         ExpectNewSessionTicket, hrr_ext_handler_key_share, \
         hrr_ext_handler_cookie, ExpectHelloRetryRequest, \
-        gen_srv_ext_handler_psk, srv_ext_handler_supp_groups
+        gen_srv_ext_handler_psk, srv_ext_handler_supp_groups, \
+        srv_ext_handler_heartbeat
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
         SignatureAlgorithm, CipherSuite, CertificateType, SSL2HandshakeType, \
         SSL2ErrorDescription, GroupName, CertificateStatusType, ECPointFormat,\
-        SignatureScheme, TLS_1_3_HRR
+        SignatureScheme, TLS_1_3_HRR, HeartbeatMode
 from tlslite.messages import Message, ServerHello, CertificateRequest, \
         ClientHello, Certificate, ServerHello2, ServerFinished, \
         ServerKeyExchange, CertificateStatus, CertificateVerify, \
@@ -44,7 +45,8 @@ from tlslite.extensions import SNIExtension, TLSExtension, \
         NPNExtension, ServerKeyShareExtension, ClientKeyShareExtension, \
         SrvSupportedVersionsExtension, SupportedVersionsExtension, \
         HRRKeyShareExtension, CookieExtension, \
-        SrvPreSharedKeyExtension, PskIdentity, PreSharedKeyExtension
+        SrvPreSharedKeyExtension, PskIdentity, PreSharedKeyExtension, \
+        HeartbeatExtension
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509certchain import X509CertChain, X509
 from tlslite.extensions import SNIExtension, SignatureAlgorithmsExtension
@@ -362,6 +364,38 @@ class TestServerExtensionProcessors(unittest.TestCase):
             srv_ext_handler_supp_groups(state, ext)
 
         self.assertIn("did not send", str(exc.exception))
+
+    def test_srv_ext_handler_heartbeat_peer_allowed(self):
+        ext = HeartbeatExtension().create(
+            HeartbeatMode.PEER_ALLOWED_TO_SEND)
+        state = None
+
+        srv_ext_handler_heartbeat(state, ext)
+
+    def test_srv_ext_handler_heartbeat_peer_not_allowed(self):
+        ext = HeartbeatExtension().create(
+            HeartbeatMode.PEER_NOT_ALLOWED_TO_SEND)
+        state = None
+
+        srv_ext_handler_heartbeat(state, ext)
+
+    def test_srv_ext_handler_heartbeat_with_empty_ext(self):
+        ext = HeartbeatExtension().create(None)
+        state = None
+
+        with self.assertRaises(AssertionError) as exc:
+            srv_ext_handler_heartbeat(state, ext)
+
+        self.assertIn("Empty mode", str(exc.exception))
+
+    def test_srv_ext_handler_heartbeat_with_invalid_payload(self):
+        ext = HeartbeatExtension().create(3)
+        state = None
+
+        with self.assertRaises(AssertionError) as exc:
+            srv_ext_handler_heartbeat(state, ext)
+
+        self.assertIn("Invalid mode", str(exc.exception))
 
     def test_gen_srv_ext_handler_psk(self):
         psk_settings = [(b'test', b'bad secret'),
@@ -1022,6 +1056,41 @@ class TestExpectServerHello(unittest.TestCase):
         self.assertEqual(state.version, (3, 4))
         self.assertTrue(state.msg_sock.tls13record)
 
+    def test_process_with_tls13_unallowed_extension(self):
+        exp = ExpectServerHello()
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.extensions = []
+        client_hello.cipher_suites = [CipherSuite.TLS_AES_128_GCM_SHA256]
+        ext = SupportedGroupsExtension().create([GroupName.secp256r1])
+        client_hello.extensions.append(ext)
+        c_ks = key_share_gen(GroupName.secp256r1)
+        ext = ClientKeyShareExtension().create([c_ks])
+        client_hello.extensions.append(ext)
+        ext = SupportedVersionsExtension().create([(3, 3), (3, 4)])
+        client_hello.extensions.append(ext)
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        s_ext = []
+        s_ks = key_share_gen(GroupName.secp256r1)
+        ext = ServerKeyShareExtension().create(s_ks)
+        s_ext.append(ext)
+        ext = SrvSupportedVersionsExtension().create((3, 4))
+        s_ext.append(ext)
+        ext = SupportedGroupsExtension().create([GroupName.secp256r1])
+        s_ext.append(ext)
+        server_hello = ServerHello().create(version=(3, 3),
+                                            random=bytearray(32),
+                                            session_id=bytearray(0),
+                                            cipher_suite=
+                                            CipherSuite.TLS_AES_128_GCM_SHA256,
+                                            extensions=s_ext)
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, server_hello)
+
 
 class TestExpectServerHelloWithHelloRetryRequest(unittest.TestCase):
     def setUp(self):
@@ -1149,6 +1218,40 @@ class TestExpectHelloRetryRequest(unittest.TestCase):
             exp.process(state, hrr)
 
         self.assertIn("No autohandler for 5119", str(e.exception))
+
+    def test_process_with_tls13_unallowed_extension(self):
+        exp = ExpectHelloRetryRequest()
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.extensions = []
+        client_hello.cipher_suites = [CipherSuite.TLS_AES_128_GCM_SHA256]
+        ext = SupportedGroupsExtension().create([GroupName.secp256r1])
+        client_hello.extensions.append(ext)
+        c_ks = key_share_gen(GroupName.secp256r1)
+        ext = ClientKeyShareExtension().create([c_ks])
+        client_hello.extensions.append(ext)
+        ext = SupportedVersionsExtension().create([(3, 3), (3, 4)])
+        client_hello.extensions.append(ext)
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        s_ext = []
+        ext = HRRKeyShareExtension().create(GroupName.secp256r1)
+        s_ext.append(ext)
+        ext = SrvSupportedVersionsExtension().create((3, 4))
+        s_ext.append(ext)
+        ext = SupportedGroupsExtension().create([GroupName.secp256r1])
+        s_ext.append(ext)
+        hrr = ServerHello().create(version=(3, 3),
+                                   random=TLS_1_3_HRR,
+                                   session_id=bytearray(0),
+                                   cipher_suite=
+                                   CipherSuite.TLS_AES_128_GCM_SHA256,
+                                   extensions=s_ext)
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, hrr)
 
 
 class TestExpectServerHello2(unittest.TestCase):

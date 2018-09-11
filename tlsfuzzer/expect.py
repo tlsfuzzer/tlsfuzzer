@@ -14,7 +14,7 @@ import tlslite.utils.tlshashlib as hashlib
 from tlslite.constants import ContentType, HandshakeType, CertificateType,\
         HashAlgorithm, SignatureAlgorithm, ExtensionType,\
         SSL2HandshakeType, CipherSuite, GroupName, AlertDescription, \
-        SignatureScheme, TLS_1_3_HRR
+        SignatureScheme, TLS_1_3_HRR, HeartbeatMode
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
         ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus, \
@@ -236,6 +236,16 @@ def srv_ext_handler_supp_groups(state, extension):
         raise AssertionError("Server did not send any supported_groups")
 
 
+def srv_ext_handler_heartbeat(state, extension):
+    """Process the heartbeat extension from server."""
+    del state
+    if not extension.mode:
+        raise AssertionError("Empty mode in heartbeat extension.")
+    if extension.mode != HeartbeatMode.PEER_ALLOWED_TO_SEND and \
+       extension.mode != HeartbeatMode.PEER_NOT_ALLOWED_TO_SEND:
+        raise AssertionError("Invalid mode in heartbeat extension.")
+
+
 def _srv_ext_handler_psk(state, extension, psk_configs):
     """Process the pre_shared_key extension from server.
 
@@ -279,7 +289,8 @@ _srv_ext_handler = \
          ExtensionType.ec_point_formats: srv_ext_handler_ec_point,
          ExtensionType.supports_npn: srv_ext_handler_npn,
          ExtensionType.key_share: srv_ext_handler_key_share,
-         ExtensionType.supported_versions: srv_ext_handler_supp_vers}
+         ExtensionType.supported_versions: srv_ext_handler_supp_vers,
+         ExtensionType.heartbeat: srv_ext_handler_heartbeat}
 
 
 _HRR_EXT_HANDLER = \
@@ -290,7 +301,8 @@ _HRR_EXT_HANDLER = \
 _EE_EXT_HANDLER = \
         {ExtensionType.server_name: srv_ext_handler_sni,
          ExtensionType.alpn: srv_ext_handler_alpn,
-         ExtensionType.supported_groups: srv_ext_handler_supp_groups}
+         ExtensionType.supported_groups: srv_ext_handler_supp_groups,
+         ExtensionType.heartbeat: srv_ext_handler_heartbeat}
 
 
 class ExpectServerHello(ExpectHandshake):
@@ -321,12 +333,7 @@ class ExpectServerHello(ExpectHandshake):
         # with what the server sent
         if self.extensions and not srv_hello.extensions:
             raise AssertionError("Server did not send any extensions")
-        elif self.extensions == dict() and srv_hello.extensions:
-            raise AssertionError("Unexpected extension(s) from server "
-                                 "of type: {0}".format(
-                                     ', '.join(ExtensionType.toStr(i.extType)
-                                               for i in srv_hello.extensions)))
-        elif self.extensions and srv_hello.extensions:
+        elif self.extensions is not None and srv_hello.extensions:
             expected = set(self.extensions.keys())
             got = set(i.extType for i in srv_hello.extensions)
             if got != expected:
@@ -336,6 +343,12 @@ class ExpectServerHello(ExpectHandshake):
                                          "{0}".format(
                                              ", ".join((ExtensionType.toStr(i)
                                                         for i in diff))))
+                diff = got.difference(expected)
+                if diff:
+                    raise AssertionError("Server sent unexpected extension(s):"
+                                         " {0}".format(
+                                             ", ".join(ExtensionType.toStr(i)
+                                                       for i in diff)))
 
     @staticmethod
     def _get_autohandler(ext_id):
@@ -349,8 +362,23 @@ class ExpectServerHello(ExpectHandshake):
 
     def _process_extensions(self, state, cln_hello, srv_hello):
         """Check if extensions are correct."""
+        sh_supported = [ExtensionType.pre_shared_key,
+                        ExtensionType.supported_versions,
+                        ExtensionType.key_share]
+        hrr_supported = [ExtensionType.cookie,
+                         ExtensionType.supported_versions,
+                         ExtensionType.key_share]
         for ext in srv_hello.extensions:
             ext_id = ext.extType
+            if state.version > (3, 3) and \
+                    ((srv_hello.random != TLS_1_3_HRR and
+                      ext_id not in sh_supported) or
+                     (srv_hello.random == TLS_1_3_HRR and
+                      ext_id not in hrr_supported)):
+                raise AssertionError("Server sent unallowed "
+                                     "extension of type {0}"
+                                     .format(ExtensionType
+                                             .toStr(ext_id)))
             cl_ext = cln_hello.getExtension(ext_id)
             if ext_id == ExtensionType.renegotiation_info and \
                     CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV \
@@ -366,13 +394,8 @@ class ExpectServerHello(ExpectHandshake):
                                              .toStr(ext_id)))
             handler = None
             if self.extensions:
-                try:
-                    handler = self.extensions[ext_id]
-                except KeyError:
-                    raise AssertionError("Unexpected extension from "
-                                         "server of type {0}"
-                                         .format(ExtensionType
-                                                 .toStr(ext_id)))
+                handler = self.extensions[ext_id]
+
             # use automatic handlers for some extensions
             if handler is None:
                 handler = self._get_autohandler(ext_id)
@@ -469,10 +492,10 @@ class ExpectServerHello(ExpectHandshake):
         state.extended_master_secret = False
         state.encrypt_then_mac = False
 
+        self._compare_extensions(srv_hello)
+
         if srv_hello.extensions:
             self._process_extensions(state, cln_hello, srv_hello)
-
-        self._compare_extensions(srv_hello)
 
         if state.version > (3, 3):
             self._setup_tls13_handshake_keys(state)
@@ -1083,7 +1106,7 @@ class ExpectEncryptedExtensions(ExpectHandshake):
                         1,  # max_fragment_length - RFC 6066
                         ExtensionType.supported_groups,
                         14,  # use_srtp - RFC 5764
-                        15,  # heartbeat - RFC 6520
+                        ExtensionType.heartbeat,  # RFC 6520
                         ExtensionType.alpn,
                         19,  # client_certificate_type
                              # draft-ietf-tls-tls13-28 / RFC 7250
