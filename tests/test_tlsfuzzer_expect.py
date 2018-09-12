@@ -54,6 +54,7 @@ from tlsfuzzer.runner import ConnectionState
 from tlslite.extensions import RenegotiationInfoExtension
 from tlsfuzzer.helpers import key_share_gen, psk_ext_gen
 from tlslite.keyexchange import ECDHKeyExchange
+from tlslite.mathtls import goodGroupParameters
 
 srv_raw_key = str(
     "-----BEGIN RSA PRIVATE KEY-----\n"\
@@ -2128,6 +2129,9 @@ class TestExpectServerKeyExchange(unittest.TestCase):
         msg = srv_key_exchange.makeServerKeyExchange('sha256')
 
         exp.process(state, msg)
+
+        self.assertEqual(goodGroupParameters[2][1],
+                         state.key['ServerKeyExchange.dh_p'])
 
     def test_process_with_ECDHE_RSA(self):
         exp = ExpectServerKeyExchange()

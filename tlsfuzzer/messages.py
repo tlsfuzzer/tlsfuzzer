@@ -285,7 +285,8 @@ class CopyVariables(Command):
     one of the values in ConnectionState.key (like 'premaster_secret',
     'master_secret', 'ServerHello.extensions.key_share.key_exchange',
     'server handshake traffic secret', 'exported master secret',
-    'ServerKeyExchange.key_share', etc.)
+    'ServerKeyExchange.key_share', 'ServerKeyExchange.dh_p',
+    'DH shared secret', etc.)
 
     The log should be a dict (where keys have the above specified names)
     and values should be arrays (the values will be appended there).
