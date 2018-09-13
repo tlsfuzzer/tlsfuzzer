@@ -812,6 +812,7 @@ class ExpectServerKeyExchange(ExpectHandshake):
                                                     privateKey=None)
             state.key['ServerKeyExchange.key_share'] = \
                 server_key_exchange.dh_Ys
+            state.key['ServerKeyExchange.dh_p'] = server_key_exchange.dh_p
         elif self.cipher_suite in CipherSuite.ecdhAllSuites:
             # extract valid groups from Client Hello
             if valid_groups is None:
