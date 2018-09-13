@@ -178,6 +178,7 @@
          {"name" : "test-tls13-conversation.py"},
          {"name" : "test-tls13-count-tickets.py",
           "arguments" : ["-t", "1"]},
+         {"name" : "test-tls13-crfg-curves.py"},
          {"name" : "test-tls13-empty-alert.py"},
          {"name" : "test-tls13-hrr.py",
           "arguments" : ["--cookie"]},
