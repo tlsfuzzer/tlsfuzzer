@@ -235,6 +235,154 @@ def main():
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
         n = n - 2  # these are the mandatory methods in the end
+        sig_algs = [(HashAlgorithm.sha1, SignatureAlgorithm.dsa)] * n
+        sig_algs += [SignatureScheme.rsa_pss_rsae_sha256,
+                     SignatureScheme.rsa_pss_pss_sha256]
+        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+            .create(sig_algs)
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+        node = node.add_child(ExpectServerHello())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectEncryptedExtensions())
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectCertificateVerify())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+        # This message is optional and may show up 0 to many times
+        cycle = ExpectNewSessionTicket()
+        node = node.add_child(cycle)
+        node.add_child(cycle)
+
+        # ApplicationData message may show up 1 to many times
+        node.next_sibling = ExpectApplicationData()
+        node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                           AlertDescription.close_notify))
+        cycle_alert = ExpectAlert()
+        node = node.add_child(cycle_alert)
+        node.next_sibling = ExpectApplicationData()
+        node.next_sibling.add_child(cycle_alert)
+        node.next_sibling.next_sibling = ExpectClose()
+
+        conversations["duplicated {0} non-rsa schemes".format(n)] = conversation
+
+    for n in [215, 2355, 8132, 23754, 32717]:
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        ext = {}
+        groups = [GroupName.secp256r1]
+        key_shares = []
+        for group in groups:
+            key_shares.append(key_share_gen(group))
+        ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+            .create([TLS_1_3_DRAFT, (3, 3)])
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        n = n - 2  # these are the mandatory methods in the end
+        sig_algs = [SignatureScheme.rsa_pkcs1_sha1] * n
+        sig_algs += [SignatureScheme.rsa_pss_rsae_sha256,
+                     SignatureScheme.rsa_pss_pss_sha256]
+        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+            .create(sig_algs)
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+        node = node.add_child(ExpectServerHello())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectEncryptedExtensions())
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectCertificateVerify())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+        # This message is optional and may show up 0 to many times
+        cycle = ExpectNewSessionTicket()
+        node = node.add_child(cycle)
+        node.add_child(cycle)
+
+        # ApplicationData message may show up 1 to many times
+        node.next_sibling = ExpectApplicationData()
+        node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                           AlertDescription.close_notify))
+        cycle_alert = ExpectAlert()
+        node = node.add_child(cycle_alert)
+        node.next_sibling = ExpectApplicationData()
+        node.next_sibling.add_child(cycle_alert)
+        node.next_sibling.next_sibling = ExpectClose()
+
+        conversations["{0} invalid schemes".format(n)] = conversation
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = []
+    for sig_alg in ['ecdsa', 'dsa']:
+        sig_algs += [(getattr(HashAlgorithm, x), getattr(SignatureAlgorithm, sig_alg))\
+                      for x in ['md5', 'sha1', 'sha224', 'sha256', 'sha384', 'sha512']]
+    sig_algs += RSA_SIG_ALL
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData()
+    node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                       AlertDescription.close_notify))
+
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["unique and well-known sig_algs, rsa algorithms last"] = conversation
+
+    # 32717 is the maximum possible amount of methods that can fit into the
+    # ClientHello packet -- in TLS 1.3, there are also other mandatory
+    # extensions
+    for n in [215, 2355, 8132, 23754, 32717]:
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        ext = {}
+        groups = [GroupName.secp256r1]
+        key_shares = []
+        for group in groups:
+            key_shares.append(key_share_gen(group))
+        ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+            .create([TLS_1_3_DRAFT, (3, 3)])
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        n = n - 2  # these are the mandatory methods in the end
         sig_algs = list(chain(
             ((i, j) for i in range(10, 224) for j in range(10, (n // 214) + 10)),
             ((i, 163) for i in range(10, (n % 214) + 10)),
