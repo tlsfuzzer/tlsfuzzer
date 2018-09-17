@@ -29,7 +29,7 @@ from tlslite.extensions import SignatureAlgorithmsExtension, \
         SupportedGroupsExtension, TLSExtension, \
         SignatureAlgorithmsCertExtension
 
-version = 1
+version = 2
 
 def help_msg():
     print("Usage: <script-name> [-h hostname] [OPTIONS] [[probe-name] ...]")

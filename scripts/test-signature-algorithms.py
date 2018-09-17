@@ -25,6 +25,9 @@ from tlslite.extensions import SignatureAlgorithmsExtension, \
 from tlsfuzzer.helpers import RSA_SIG_ALL
 
 
+version = 2
+
+
 def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
     return [int(text) if text.isdigit() else text.lower()
             for text in re.split(_nsre, s)]
@@ -605,6 +608,11 @@ def main():
         else:
             bad+=1
             failed.append(c_name)
+
+    print("Signature Algorithms in TLS 1.2")
+    print("Check if valid signature algorithm extensions are accepted and")
+    print("invalid properly rejected by the TLS 1.2 server.\n")
+    print("version: {0}\n".format(version))
 
     print("Test end")
     print("successful: {0}".format(good))
