@@ -15,7 +15,7 @@ except ImportError:
 
 from tlsfuzzer.helpers import sig_algs_to_ids, key_share_gen, psk_ext_gen, \
         flexible_getattr, psk_session_ext_gen, key_share_ext_gen, \
-        uniqueness_check
+        uniqueness_check, AutoEmptyExtension
 from tlsfuzzer.runner import ConnectionState
 from tlslite.extensions import KeyShareEntry, PreSharedKeyExtension, \
         PskIdentity, ClientKeyShareExtension
@@ -223,3 +223,22 @@ class TestUniquenessCheck(unittest.TestCase):
             ["Duplicated entries in 'bytearrays'."],
             uniqueness_check({'bytearrays':
                              [bytearray(b'a'), bytearray(b'a')]}, 2))
+
+
+class TestAutoEmptyExtension(unittest.TestCase):
+    def test_equality(self):
+        var1 = AutoEmptyExtension()
+        var2 = AutoEmptyExtension()
+
+        self.assertEqual(var1, var2)
+
+    def test_identity(self):
+        var1 = AutoEmptyExtension()
+        var2 = AutoEmptyExtension()
+
+        self.assertIs(var1, var2)
+
+    def test__init__(self):
+        var = AutoEmptyExtension()
+
+        self.assertIsInstance(var, AutoEmptyExtension)

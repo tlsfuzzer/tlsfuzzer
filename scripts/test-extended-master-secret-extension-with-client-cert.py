@@ -19,7 +19,8 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectCertificateRequest, \
         ExpectApplicationData
-from tlsfuzzer.helpers import sig_algs_to_ids, RSA_SIG_ALL
+from tlsfuzzer.helpers import sig_algs_to_ids, RSA_SIG_ALL, AutoEmptyExtension
+
 from tlslite.extensions import SignatureAlgorithmsExtension, \
         SignatureAlgorithmsCertExtension
 from tlslite.constants import CipherSuite, AlertDescription, \
@@ -111,7 +112,7 @@ def main():
                                                 'sha224', 'sha1', 'md5']]),
            ExtensionType.signature_algorithms_cert :
            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
-    ext[ExtensionType.extended_master_secret] = None
+    ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext = {ExtensionType.renegotiation_info:None,
            ExtensionType.extended_master_secret:None}
@@ -147,7 +148,7 @@ def main():
                                                     'sha224', 'sha1', 'md5']]),
                ExtensionType.signature_algorithms_cert :
                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
-        ext[ExtensionType.extended_master_secret] = None
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         ext = {ExtensionType.renegotiation_info:None,
                ExtensionType.extended_master_secret:None}
@@ -183,7 +184,7 @@ def main():
                                                     'sha224', 'sha1', 'md5']]),
                ExtensionType.signature_algorithms_cert :
                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
-        ext[ExtensionType.extended_master_secret] = None
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         ext = {ExtensionType.renegotiation_info:None,
                ExtensionType.extended_master_secret:None}
@@ -220,7 +221,7 @@ def main():
                                                     'sha224', 'sha1', 'md5']]),
                ExtensionType.signature_algorithms_cert :
                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
-        ext[ExtensionType.extended_master_secret] = None
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         ext[ExtensionType.renegotiation_info] = None
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         ext = {ExtensionType.renegotiation_info:None,

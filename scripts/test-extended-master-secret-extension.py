@@ -17,6 +17,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectApplicationData, \
         ExpectServerKeyExchange
+from tlsfuzzer.helpers import AutoEmptyExtension
 
 from tlslite.extensions import TLSExtension
 from tlslite.extensions import SupportedGroupsExtension
@@ -165,7 +166,8 @@ def main():
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret:None}))
+                    ExtensionType.extended_master_secret: AutoEmptyExtension()
+                    }))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
@@ -195,7 +197,7 @@ def main():
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret:None,
+                    ExtensionType.extended_master_secret: AutoEmptyExtension(),
                     ExtensionType.supported_groups:SupportedGroupsExtension().
                     create([GroupName.secp256r1])}))
     node = node.add_child(ExpectServerHello(
@@ -228,7 +230,8 @@ def main():
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret:None}))
+                    ExtensionType.extended_master_secret: AutoEmptyExtension()
+                    }))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
@@ -276,7 +279,8 @@ def main():
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret:None}))
+                    ExtensionType.extended_master_secret: AutoEmptyExtension()
+                    }))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
@@ -307,7 +311,8 @@ def main():
         ciphers,
         version=(3, 2),
         extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret:None}))
+                    ExtensionType.extended_master_secret: AutoEmptyExtension()
+                    }))
     node = node.add_child(ExpectServerHello(
         version=(3, 2),
         extensions={ExtensionType.renegotiation_info:None,
@@ -360,7 +365,8 @@ def main():
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret:None}))
+                    ExtensionType.extended_master_secret: AutoEmptyExtension()
+                    }))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
@@ -386,7 +392,8 @@ def main():
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret:None}))
+                    ExtensionType.extended_master_secret: AutoEmptyExtension()
+                    }))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None},
@@ -414,7 +421,8 @@ def main():
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret:None}))
+                    ExtensionType.extended_master_secret: AutoEmptyExtension()
+                    }))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
@@ -440,7 +448,8 @@ def main():
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret:None}))
+                    ExtensionType.extended_master_secret: AutoEmptyExtension()
+                    }))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None},
@@ -468,7 +477,8 @@ def main():
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret:None}))
+                    ExtensionType.extended_master_secret: AutoEmptyExtension()
+                    }))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
@@ -533,7 +543,8 @@ def main():
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret:None}))
+                    ExtensionType.extended_master_secret: AutoEmptyExtension()
+                    }))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None},
@@ -566,7 +577,8 @@ def main():
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret:None}))
+                    ExtensionType.extended_master_secret: AutoEmptyExtension()
+                    }))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
@@ -583,7 +595,8 @@ def main():
         ciphers,
         session_id=bytearray(0), # do not resume
         extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret:None}))
+                    ExtensionType.extended_master_secret: AutoEmptyExtension()
+                    }))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
@@ -627,7 +640,8 @@ def main():
         ciphers,
         session_id=bytearray(0), # do not resume
         extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret:None}))
+                    ExtensionType.extended_master_secret: AutoEmptyExtension()
+                    }))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
@@ -656,7 +670,8 @@ def main():
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret:None}))
+                    ExtensionType.extended_master_secret: AutoEmptyExtension()
+                    }))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))

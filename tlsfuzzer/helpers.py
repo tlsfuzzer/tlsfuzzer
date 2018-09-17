@@ -14,7 +14,8 @@ from .handshake_helpers import kex_for_group
 
 __all__ = ['sig_algs_to_ids', 'key_share_gen', 'psk_ext_gen',
            'psk_ext_updater', 'psk_session_ext_gen', 'flexible_getattr',
-           'key_share_ext_gen', 'uniqueness_check', 'RSA_SIG_ALL']
+           'key_share_ext_gen', 'uniqueness_check', 'RSA_SIG_ALL',
+           'AutoEmptyExtension']
 
 
 # List of all rsa signature algorithms
@@ -283,3 +284,15 @@ def uniqueness_check(values, count):
             if len(set(bytes(i) for i in array)) != len(array):
                 ret.append("Duplicated entries in '{0}'.".format(name))
     return ret
+
+
+class AutoEmptyExtension(object):
+    """
+    Identifier used to tell ClientHelloGenerator to create empty extension.
+    """
+
+    def __new__(cls):
+        """Return a singleton object."""
+        if not hasattr(cls, 'instance') or not cls.instance:
+            cls.instance = object.__new__(cls)
+        return cls.instance

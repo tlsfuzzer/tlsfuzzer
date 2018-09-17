@@ -16,6 +16,8 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectApplicationData
+from tlsfuzzer.helpers import AutoEmptyExtension
+
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType
 
@@ -69,7 +71,7 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    extensions = {ExtensionType.encrypt_then_mac:None}
+    extensions = {ExtensionType.encrypt_then_mac: AutoEmptyExtension()}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=extensions))
     extensions = {ExtensionType.encrypt_then_mac:None,
                   ExtensionType.renegotiation_info:None}
@@ -106,7 +108,7 @@ def main():
     node = node.add_child(ExpectFinished())
     # 2nd handshake with encrypt-then-mac extension
     node = node.add_child(ResetHandshakeHashes())
-    extensions = {ExtensionType.encrypt_then_mac:None,
+    extensions = {ExtensionType.encrypt_then_mac: AutoEmptyExtension(),
                   ExtensionType.renegotiation_info:None}
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                session_id=bytearray(0),
