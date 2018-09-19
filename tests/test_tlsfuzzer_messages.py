@@ -30,7 +30,7 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         SetPaddingCallback, replace_plaintext, ch_cookie_handler, \
         ch_key_share_handler, SetRecordVersion, CopyVariables
 from tlsfuzzer.helpers import psk_ext_gen, psk_ext_updater, \
-        psk_session_ext_gen
+        psk_session_ext_gen, AutoEmptyExtension
 from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
@@ -432,9 +432,20 @@ class TestClientHelloGenerator(unittest.TestCase):
         mock_method.assert_called_once_with((3, 3), bytearray(32), bytearray(0),
                                             [], extensions=None)
 
-    def test_generate_extensions_with_empty_extensions(self):
+    def test_generate_extensions_with_missing_generator(self):
         state = ConnectionState()
         chg = ClientHelloGenerator(extensions={0x1234:None})
+
+        return_val = mock.MagicMock()
+        return_val.write = mock.MagicMock(return_value=bytearray(10))
+        with self.assertRaises(ValueError):
+            with mock.patch.object(messages.ClientHello, 'create',
+                    return_value=return_val) as mock_method:
+                chg.generate(state)
+
+    def test_generate_extensions_with_auto_generator(self):
+        state = ConnectionState()
+        chg = ClientHelloGenerator(extensions={0x1234: AutoEmptyExtension()})
 
         return_val = mock.MagicMock()
         return_val.write = mock.MagicMock(return_value=bytearray(10))
@@ -444,9 +455,8 @@ class TestClientHelloGenerator(unittest.TestCase):
 
         self.assertEqual(ch, return_val)
         ext = extensions.TLSExtension().create(0x1234, bytearray(0))
-        mock_method.assert_called_once_with((3, 3), bytearray(32), bytearray(0),
-                                            [],
-                                            extensions=[ext])
+        mock_method.assert_called_once_with((3, 3), bytearray(32),
+                                            bytearray(0), [], extensions=[ext])
 
     def test_generate_extensions_with_raw_extension(self):
         state = ConnectionState()
@@ -552,7 +562,8 @@ class TestClientHelloGenerator(unittest.TestCase):
 
     def test_seesion_id_with_tls13_extension(self):
         state = ConnectionState()
-        exts = {constants.ExtensionType.supported_versions: None}
+        exts = {constants.ExtensionType.supported_versions:
+                AutoEmptyExtension()}
         chg = ClientHelloGenerator(version=(3, 3), extensions=exts)
 
         msg = chg.generate(state)
@@ -561,7 +572,8 @@ class TestClientHelloGenerator(unittest.TestCase):
 
     def test_session_id_with_explicit_id_and_tls13_extension(self):
         state = ConnectionState()
-        exts = {constants.ExtensionType.supported_versions: None}
+        exts = {constants.ExtensionType.supported_versions:
+                AutoEmptyExtension()}
         chg = ClientHelloGenerator(version=(3, 3), extensions=exts,
                                    session_id=b'')
 
@@ -573,7 +585,8 @@ class TestClientHelloGenerator(unittest.TestCase):
         state = ConnectionState()
         psk_configs = [(b'test', b'secret')]
         exts = OrderedDict()
-        exts[constants.ExtensionType.supported_versions] = None
+        exts[constants.ExtensionType.supported_versions] = \
+            AutoEmptyExtension()
         exts[constants.ExtensionType.pre_shared_key] = \
             psk_ext_gen(psk_configs)
         modifiers = [psk_ext_updater(psk_configs)]
@@ -604,7 +617,8 @@ class TestClientHelloGenerator(unittest.TestCase):
                 bytearray(b'ticket identity'), [])]
         state.session_tickets[0].time = 12.12
         exts = OrderedDict()
-        exts[constants.ExtensionType.supported_versions] = None
+        exts[constants.ExtensionType.supported_versions] = \
+            AutoEmptyExtension()
         exts[constants.ExtensionType.pre_shared_key] = \
             psk_session_ext_gen()
         modifiers = [psk_ext_updater()]

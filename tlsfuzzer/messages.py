@@ -24,7 +24,7 @@ from tlslite.utils.cryptomath import getRandomBytes, numBytes, \
     derive_secret
 from tlslite.keyexchange import KeyExchange
 from tlslite.bufferedsocket import BufferedSocket
-from .helpers import key_share_gen
+from .helpers import key_share_gen, AutoEmptyExtension
 from .handshake_helpers import calc_pending_states
 from .tree import TreeNode
 import socket
@@ -517,6 +517,9 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
                     extensions.append(self.extensions[ext_id](state))
                 elif isinstance(self.extensions[ext_id], TLSExtension):
                     extensions.append(self.extensions[ext_id])
+                elif self.extensions[ext_id] is AutoEmptyExtension():
+                    extensions.append(TLSExtension().create(ext_id,
+                                                            bytearray()))
                 else:
                     raise ValueError("Bad extension, id: {0}".format(ext_id))
                 continue
@@ -526,7 +529,8 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
                     .create(state.key['client_verify_data'])
                 extensions.append(ext)
             else:
-                extensions.append(TLSExtension().create(ext_id, bytearray(0)))
+                raise ValueError("No autohandler for extension {0}"
+                                 .format(ExtensionType.toStr(ext_id)))
 
         return extensions
 

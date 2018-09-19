@@ -20,6 +20,7 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose
+from tlsfuzzer.helpers import AutoEmptyExtension
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType
@@ -119,10 +120,10 @@ def main():
         conversation = Connect(host, port)
         node = conversation
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-        ext = OrderedDict((j+64, None) for j in range(i))
+        ext = OrderedDict((j+64, AutoEmptyExtension()) for j in range(i))
         if ExtensionType.supports_npn in ext:
             del ext[ExtensionType.supports_npn]
-            ext[i+64+1] = None
+            ext[i+64+1] = AutoEmptyExtension()
         ext[ExtensionType.renegotiation_info] = None
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         ext = {ExtensionType.renegotiation_info: None}
