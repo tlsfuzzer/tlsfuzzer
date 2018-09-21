@@ -26,6 +26,8 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType, GroupName, ECPointFormat, HashAlgorithm, \
         SignatureAlgorithm
 
+version = 2
+
 
 def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
     return [int(text) if text.isdigit() else text.lower()
@@ -1522,6 +1524,128 @@ def main():
     node = node.add_child(ExpectServerHello())
     conversations["126: Chrome 51 on Win 7"] = conversation
 
+    conversation = Connect(host, port, version=(3, 1))
+    node = conversation
+    ciphers = [14906,
+        4865,
+        4866,
+        4867,
+        49195,
+        49199,
+        49196,
+        49200,
+        52393,
+        52392,
+        49171,
+        49172,
+        156,
+        157,
+        47,
+        53,
+        10]
+    ext = OrderedDict()
+    ext[14906] = TLSExtension(extType=14906).create(bytearray(b''))
+    ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
+    ext[23] = TLSExtension(extType=23).create(bytearray(b''))
+    ext[35] = TLSExtension(extType=35).create(bytearray(b''))
+    ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x12\x04\x03\x08\x04\x04\x01\x05\x03\x08\x05\x05\x01\x08\x06\x06\x01\x02\x01'))
+    ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
+    ext[18] = TLSExtension(extType=18).create(bytearray(b''))
+    ext[16] = TLSExtension(extType=16).create(bytearray(b'\x00\x0c\x02h2\x08http/1.1'))
+    ext[30032] = TLSExtension(extType=30032).create(bytearray(b''))
+    ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
+    ext[40] = TLSExtension(extType=40).create(bytearray(b'\x00)\n\n\x00\x01\x00\x00\x1d\x00 \xbe\xb5^\xc1\x7f\xeeSqV\tX\xf7\x8d\xb4\x9dM\xc37#\xe4* \x0b$dkmw\xa7\xa9Hg'))
+    ext[45] = TLSExtension(extType=45).create(bytearray(b'\x01\x01'))
+    ext[43] = TLSExtension(extType=43).create(bytearray(b'\n\xaa\xaa\x7f\x12\x03\x03\x03\x02\x03\x01'))
+    ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x08\n\n\x00\x1d\x00\x17\x00\x18'))
+    ext[56026] = TLSExtension(extType=56026).create(bytearray(b'\x00'))
+    ext[21] = TLSExtension(extType=21).create(bytearray(b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'))
+    node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 3), compression=[0], extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    conversations["141: Chrome 57 on Win 7"] = conversation
+
+    conversation = Connect(host, port, version=(3, 1))
+    node = conversation
+    ciphers = [43690,
+        4865,
+        4866,
+        4867,
+        49195,
+        49199,
+        49196,
+        49200,
+        52393,
+        52392,
+        49171,
+        49172,
+        156,
+        157,
+        47,
+        53,
+        10]
+    ext = OrderedDict()
+    ext[47802] = TLSExtension(extType=47802).create(bytearray(b''))
+    ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
+    ext[23] = TLSExtension(extType=23).create(bytearray(b''))
+    ext[35] = TLSExtension(extType=35).create(bytearray(b''))
+    ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x12\x04\x03\x08\x04\x04\x01\x05\x03\x08\x05\x05\x01\x08\x06\x06\x01\x02\x01'))
+    ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
+    ext[18] = TLSExtension(extType=18).create(bytearray(b''))
+    ext[16] = TLSExtension(extType=16).create(bytearray(b'\x00\x0c\x02h2\x08http/1.1'))
+    ext[30032] = TLSExtension(extType=30032).create(bytearray(b''))
+    ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
+    ext[51] = TLSExtension(extType=51).create(bytearray(b"\x00)\xfa\xfa\x00\x01\x00\x00\x1d\x00 \xbf\xd1V\x04p-\xb7\xf4\xb6\x93\xd3F\xe3--=\xfc\x8d\xff$81\x0f\x00.\xefy\xd1\xd8\x8a\xc9\'"))
+    ext[45] = TLSExtension(extType=45).create(bytearray(b'\x01\x01'))
+    ext[43] = TLSExtension(extType=43).create(bytearray(b'\nzz\x7f\x17\x03\x03\x03\x02\x03\x01'))
+    ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x08\xfa\xfa\x00\x1d\x00\x17\x00\x18'))
+    ext[23130] = TLSExtension(extType=23130).create(bytearray(b'\x00'))
+    ext[21] = TLSExtension(extType=21).create(bytearray(b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'))
+    node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 3), compression=[0], extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    conversations["149: Chrome 65 on Win 7"] = conversation
+
+    conversation = Connect(host, port, version=(3, 1))
+    node = conversation
+    ciphers = [51914,
+        4865,
+        4866,
+        4867,
+        49195,
+        49199,
+        49196,
+        49200,
+        52393,
+        52392,
+        49171,
+        49172,
+        156,
+        157,
+        47,
+        53,
+        10]
+    ext = OrderedDict()
+    ext[60138] = TLSExtension(extType=60138).create(bytearray(b''))
+    ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
+    ext[23] = TLSExtension(extType=23).create(bytearray(b''))
+    ext[35] = TLSExtension(extType=35).create(bytearray(b''))
+    ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x12\x04\x03\x08\x04\x04\x01\x05\x03\x08\x05\x05\x01\x08\x06\x06\x01\x02\x01'))
+    ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
+    ext[18] = TLSExtension(extType=18).create(bytearray(b''))
+    ext[16] = TLSExtension(extType=16).create(bytearray(b'\x00\x0c\x02h2\x08http/1.1'))
+    ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
+    ext[51] = TLSExtension(extType=51).create(bytearray(b'\x00)\xfa\xfa\x00\x01\x00\x00\x1d\x00 \xa1$\n\xaf!\x0btR\xe6\xed\x11\xb1j \xa6\x8c*O\xeb\\\x87\x06\x86\xa3.\xeb\x8f\xf1t G\x0c'))
+    ext[45] = TLSExtension(extType=45).create(bytearray(b'\x01\x01'))
+    ext[43] = TLSExtension(extType=43).create(bytearray(b'\n\xfa\xfa\x7f\x1c\x03\x03\x03\x02\x03\x01'))
+    ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x08\xfa\xfa\x00\x1d\x00\x17\x00\x18'))
+    ext[39578] = TLSExtension(extType=39578).create(bytearray(b'\x00'))
+    ext[21] = TLSExtension(extType=21).create(bytearray(b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'))
+    node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 3), compression=[0], extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    conversations["152: Chrome 69 on Win 7"] = conversation
+
     conversation = Connect(host, port, version=(3, 3))
     node = conversation
     ciphers = [49200,
@@ -1694,6 +1818,42 @@ def main():
     node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 3), compression=[0], extensions=ext))
     node = node.add_child(ExpectServerHello())
     conversations["120: Edge 13 on Win Phone 10"] = conversation
+
+    conversation = Connect(host, port, version=(3, 3))
+    node = conversation
+    ciphers = [49196,
+        49195,
+        49200,
+        49199,
+        49188,
+        49187,
+        49192,
+        49191,
+        49162,
+        49161,
+        49172,
+        49171,
+        157,
+        156,
+        61,
+        60,
+        53,
+        47,
+        10]
+    ext = OrderedDict()
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
+    ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
+    ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x1d\x00\x17\x00\x18'))
+    ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
+    ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x12\x04\x01\x05\x01\x02\x01\x04\x03\x05\x03\x02\x03\x02\x02\x06\x01\x06\x03'))
+    ext[35] = TLSExtension(extType=35).create(bytearray(b''))
+    ext[16] = TLSExtension(extType=16).create(bytearray(b'\x00\x0c\x02h2\x08http/1.1'))
+    ext[23] = TLSExtension(extType=23).create(bytearray(b''))
+    ext[24] = TLSExtension(extType=24).create(bytearray(b'\x00\n\x03\x02\x01\x00'))
+    ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
+    node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 3), compression=[0], extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    conversations["144: Edge 15 on Win 10"] = conversation
 
     conversation = Connect(host, port, version=(3, 1))
     node = conversation
@@ -2641,6 +2801,111 @@ def main():
 
     conversation = Connect(host, port, version=(3, 1))
     node = conversation
+    ciphers = [4865,
+        4867,
+        4866,
+        49195,
+        49199,
+        52393,
+        52392,
+        49196,
+        49200,
+        49171,
+        49172,
+        51,
+        57,
+        47,
+        53,
+        10]
+    ext = OrderedDict()
+    ext[21] = TLSExtension(extType=21).create(bytearray(b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'))
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
+    ext[23] = TLSExtension(extType=23).create(bytearray(b''))
+    ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
+    ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x0c\x00\x1d\x00\x17\x00\x18\x00\x19\x01\x00\x01\x01'))
+    ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
+    ext[35] = TLSExtension(extType=35).create(bytearray(b''))
+    ext[16] = TLSExtension(extType=16).create(bytearray(b'\x00\x0c\x02h2\x08http/1.1'))
+    ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
+    ext[40] = TLSExtension(extType=40).create(bytearray(b"\x00i\x00\x1d\x00 \xab i\xb8\xbe\x8c\xdd\x01\x8b\xca\x89\x86\x9fb\xbf\xbc\xc0\xe2@\xb2\x8c\xcc(\xf9\xc3J\x0cl=\'\xb3C\x00\x17\x00A\x04\x1a\xbf\x1bt\xec\xef\xdc\xb4f\xe1\x97\xa7\xbeG\xfb\xbd\xbfLm\x10\xe8\xb9\xb7=\xf2\x12v\xa2\xdf\xc4\x03\xdbm\xb3\x07\xb3\x94FS\x00\xde!k*;\xa4}\x87\xce\x88:\xdfe\xea\xe1\xe2\xa0\xad\xb8!\xe0\xa6J\x06"))
+    ext[43] = TLSExtension(extType=43).create(bytearray(b'\x08\x7f\x12\x03\x03\x03\x02\x03\x01'))
+    ext[65283] = TLSExtension(extType=65283).create(bytearray(b''))
+    ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x16\x04\x03\x05\x03\x06\x03\x08\x04\x08\x05\x08\x06\x04\x01\x05\x01\x06\x01\x02\x03\x02\x01'))
+    ext[45] = TLSExtension(extType=45).create(bytearray(b'\x01\x01'))
+    node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 3), compression=[0], extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    conversations["142: Firefox 53 on Win 7"] = conversation
+
+    conversation = Connect(host, port, version=(3, 1))
+    node = conversation
+    ciphers = [4865,
+        4867,
+        4866,
+        49195,
+        49199,
+        52393,
+        52392,
+        49196,
+        49200,
+        49171,
+        49172,
+        47,
+        53,
+        10]
+    ext = OrderedDict()
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
+    ext[23] = TLSExtension(extType=23).create(bytearray(b''))
+    ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
+    ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x0c\x00\x1d\x00\x17\x00\x18\x00\x19\x01\x00\x01\x01'))
+    ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
+    ext[35] = TLSExtension(extType=35).create(bytearray(b''))
+    ext[16] = TLSExtension(extType=16).create(bytearray(b'\x00\x0c\x02h2\x08http/1.1'))
+    ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
+    ext[51] = TLSExtension(extType=51).create(bytearray(b'\x00i\x00\x1d\x00 \x16\xafM\xe5\x96a\xc2\xd9>c\xfb\xc4\x13O\x07\xf5eA^\xc6\xc8k3\xb2\xa2\x05\xe9\xa5\x16\xbe\x1e"\x00\x17\x00A\x04\xf0<\xda,\xf1\x93{\x84\x112#l\x89)j\xcd#\x1b9\x0cHM\x03\x81J\xb5\xcb3v\x0c`\x03jPUn\x1f\x18FaT\x14\x7fA\xd4\xa1J\xce\xa7U+\xaeS:\xa8\xcfrbhf\xfa\xfdN\x0c'))
+    ext[43] = TLSExtension(extType=43).create(bytearray(b'\x08\x7f\x17\x03\x03\x03\x02\x03\x01'))
+    ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x16\x04\x03\x05\x03\x06\x03\x08\x04\x08\x05\x08\x06\x04\x01\x05\x01\x06\x01\x02\x03\x02\x01'))
+    ext[45] = TLSExtension(extType=45).create(bytearray(b'\x01\x01'))
+    ext[21] = TLSExtension(extType=21).create(bytearray(b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'))
+    node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 3), compression=[0], extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    conversations["150: Firefox 59 on Win 7"] = conversation
+
+    conversation = Connect(host, port, version=(3, 1))
+    node = conversation
+    ciphers = [4865,
+        4867,
+        4866,
+        49195,
+        49199,
+        52393,
+        52392,
+        49196,
+        49200,
+        49171,
+        49172,
+        47,
+        53,
+        10]
+    ext = OrderedDict()
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
+    ext[23] = TLSExtension(extType=23).create(bytearray(b''))
+    ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
+    ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x0c\x00\x1d\x00\x17\x00\x18\x00\x19\x01\x00\x01\x01'))
+    ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
+    ext[35] = TLSExtension(extType=35).create(bytearray(b''))
+    ext[16] = TLSExtension(extType=16).create(bytearray(b'\x00\x0c\x02h2\x08http/1.1'))
+    ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
+    ext[51] = TLSExtension(extType=51).create(bytearray(b'\x00i\x00\x1d\x00 3\xdeW\x93\x89|0\x80\xf1\xcep\xff\xbe\x88/\xbe~\x15t\\W\x89\xa4\x004\xafT\xf2@e\x89\t\x00\x17\x00A\x04\xf9z0\xc4\x17\xdczu\xf7R\x92\x87<2\xbc\xac\xb0(\xdc\x90H\xfc\xde\x11\x91x0a\x1b\xd1|\x83O\xfb\x1d\x14\x8e\xb7\x14h\x81\xcc0\xaf;\xd7"\xea\xf5\x9dQ\xd9\xf1\x93\xe4\xc8\x88W\x9e\x82\x85\xcaF\xe7'))
+    ext[43] = TLSExtension(extType=43).create(bytearray(b'\x08\x7f\x1c\x03\x03\x03\x02\x03\x01'))
+    ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x16\x04\x03\x05\x03\x06\x03\x08\x04\x08\x05\x08\x06\x04\x01\x05\x01\x06\x01\x02\x03\x02\x01'))
+    ext[45] = TLSExtension(extType=45).create(bytearray(b'\x01\x01'))
+    ext[21] = TLSExtension(extType=21).create(bytearray(b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'))
+    node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 3), compression=[0], extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    conversations["151: Firefox 62 on Win 7"] = conversation
+
+    conversation = Connect(host, port, version=(3, 1))
+    node = conversation
     ciphers = [49195,
         49199,
         49159,
@@ -2672,6 +2937,38 @@ def main():
     node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 3), compression=[0], extensions=ext))
     node = node.add_child(ExpectServerHello())
     conversations["97: Googlebot Feb 2015 on unknown"] = conversation
+
+    conversation = Connect(host, port, version=(3, 1))
+    node = conversation
+    ciphers = [49195,
+        49199,
+        52393,
+        52392,
+        49196,
+        49200,
+        49161,
+        49171,
+        49162,
+        49172,
+        156,
+        157,
+        47,
+        53,
+        10]
+    ext = OrderedDict()
+    ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
+    ext[23] = TLSExtension(extType=23).create(bytearray(b''))
+    ext[35] = TLSExtension(extType=35).create(bytearray(b''))
+    ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x12\x04\x03\x08\x04\x04\x01\x05\x03\x08\x05\x05\x01\x08\x06\x06\x01\x02\x01'))
+    ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
+    ext[13172] = TLSExtension(extType=13172).create(bytearray(b''))
+    ext[18] = TLSExtension(extType=18).create(bytearray(b''))
+    ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
+    ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x06\x00\x1d\x00\x17\x00\x18'))
+    node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 3), compression=[0], extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    conversations["145: Googlebot Feb 2018 on unknown"] = conversation
 
     conversation = Connect(host, port, version=(3, 1))
     node = conversation
@@ -3040,6 +3337,44 @@ def main():
     node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 3), compression=[0], extensions=ext))
     node = node.add_child(ExpectServerHello())
     conversations["133: IE 11 on Win 7"] = conversation
+
+    conversation = Connect(host, port, version=(3, 3))
+    node = conversation
+    ciphers = [49192,
+        49191,
+        49172,
+        49171,
+        159,
+        158,
+        157,
+        156,
+        61,
+        60,
+        53,
+        47,
+        49196,
+        49195,
+        49188,
+        49187,
+        49162,
+        49161,
+        106,
+        64,
+        56,
+        50,
+        10,
+        19]
+    ext = OrderedDict()
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
+    ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
+    ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x04\x00\x17\x00\x18'))
+    ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
+    ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x12\x06\x01\x06\x03\x04\x01\x05\x01\x02\x01\x04\x03\x05\x03\x02\x03\x02\x02'))
+    ext[23] = TLSExtension(extType=23).create(bytearray(b''))
+    ext[65281] = TLSExtension(extType=65281).create(bytearray(b'\x00'))
+    node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 3), compression=[0], extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    conversations["143: IE 11 on Win 7"] = conversation
 
     conversation = Connect(host, port, version=(3, 3))
     node = conversation
@@ -3650,6 +3985,108 @@ def main():
         49165,
         22,
         19,
+        255]
+    ext = OrderedDict()
+    ext[10] = TLSExtension(extType=10).create(bytearray(b'\x002\x00\x17\x00\x01\x00\x03\x00\x13\x00\x15\x00\x06\x00\x07\x00\t\x00\n\x00\x18\x00\x0b\x00\x0c\x00\x19\x00\r\x00\x0e\x00\x0f\x00\x10\x00\x11\x00\x02\x00\x12\x00\x04\x00\x05\x00\x14\x00\x08\x00\x16'))
+    ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
+    ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x14\x06\x03\x06\x01\x05\x03\x05\x01\x04\x03\x04\x01\x04\x02\x02\x03\x02\x01\x02\x02'))
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
+    node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 3), compression=[0], extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    conversations["146: Java 8u111 on unknown"] = conversation
+
+    conversation = Connect(host, port, version=(3, 3))
+    node = conversation
+    ciphers = [49188,
+        49192,
+        61,
+        49190,
+        49194,
+        107,
+        106,
+        49162,
+        49172,
+        53,
+        49157,
+        49167,
+        57,
+        56,
+        49187,
+        49191,
+        60,
+        49189,
+        49193,
+        103,
+        64,
+        49161,
+        49171,
+        47,
+        49156,
+        49166,
+        51,
+        50,
+        49196,
+        49195,
+        49200,
+        157,
+        49198,
+        49202,
+        159,
+        163,
+        49199,
+        156,
+        49197,
+        49201,
+        158,
+        162,
+        49160,
+        49170,
+        10,
+        49155,
+        49165,
+        22,
+        19,
+        255]
+    ext = OrderedDict()
+    ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x14\x00\x17\x00\x18\x00\x19\x00\t\x00\n\x00\x0b\x00\x0c\x00\r\x00\x0e\x00\x16'))
+    ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
+    ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x14\x06\x03\x06\x01\x05\x03\x05\x01\x04\x03\x04\x01\x04\x02\x02\x03\x02\x01\x02\x02'))
+    ext[23] = TLSExtension(extType=23).create(bytearray(b''))
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
+    node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 3), compression=[0], extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    conversations["147: Java 8u161 on unknown"] = conversation
+
+    conversation = Connect(host, port, version=(3, 3))
+    node = conversation
+    ciphers = [49187,
+        49191,
+        60,
+        49189,
+        49193,
+        103,
+        64,
+        49161,
+        49171,
+        47,
+        49156,
+        49166,
+        51,
+        50,
+        49195,
+        49199,
+        156,
+        49197,
+        49201,
+        158,
+        162,
+        49160,
+        49170,
+        10,
+        49155,
+        49165,
+        22,
+        19,
         49159,
         49169,
         5,
@@ -3665,6 +4102,70 @@ def main():
     node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 3), compression=[0], extensions=ext))
     node = node.add_child(ExpectServerHello())
     conversations["86: Java 8u31 on unknown"] = conversation
+
+    conversation = Connect(host, port, version=(3, 3))
+    node = conversation
+    ciphers = [49196,
+        49195,
+        49200,
+        157,
+        49198,
+        49202,
+        159,
+        163,
+        49199,
+        156,
+        49197,
+        49201,
+        158,
+        162,
+        49188,
+        49192,
+        61,
+        49190,
+        49194,
+        107,
+        106,
+        49162,
+        49172,
+        53,
+        49157,
+        49167,
+        57,
+        56,
+        49187,
+        49191,
+        60,
+        49189,
+        49193,
+        103,
+        64,
+        49161,
+        49171,
+        47,
+        49156,
+        49166,
+        51,
+        50,
+        49160,
+        49170,
+        10,
+        49155,
+        49165,
+        22,
+        19,
+        255]
+    ext = OrderedDict()
+    ext[10] = TLSExtension(extType=10).create(bytearray(b'\x00\x1e\x00\x17\x00\x18\x00\x19\x00\t\x00\n\x00\x0b\x00\x0c\x00\r\x00\x0e\x00\x16\x01\x00\x01\x01\x01\x02\x01\x03\x01\x04'))
+    ext[11] = TLSExtension(extType=11).create(bytearray(b'\x01\x00'))
+    ext[13] = TLSExtension(extType=13).create(bytearray(b'\x00\x14\x06\x03\x06\x01\x05\x03\x05\x01\x04\x03\x04\x01\x04\x02\x02\x03\x02\x01\x02\x02'))
+    ext[23] = TLSExtension(extType=23).create(bytearray(b''))
+    ext[0] = SNIExtension().create(bytearray(host, "ascii"))
+    ext[17] = TLSExtension(extType=17).create(bytearray(b'\x00\x0e\x02\x00\x04\x00\x00\x00\x00\x01\x00\x04\x00\x00\x00\x00'))
+    ext[5] = TLSExtension(extType=5).create(bytearray(b'\x01\x00\x00\x00\x00'))
+    node = node.add_child(ClientHelloGenerator(ciphers=ciphers, version=(3, 3), compression=[0], extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    conversations["148: Java 9.0.4 on unknown"] = conversation
 
     conversation = Connect(host, port, version=(3, 1))
     node = conversation
@@ -5240,6 +5741,7 @@ def main():
             failed.append(c_name)
 
     print("Test end")
+    print("version: {0}".format(version))
     print("successful: {0}".format(good))
     print("failed: {0}".format(bad))
     failed_sorted = sorted(failed, key=natural_sort_keys)
