@@ -2,6 +2,7 @@ from __future__ import print_function
 from cscan.messages import ClientHello
 from tlslite.utils.codec import Parser
 from tlslite.constants import ExtensionType
+from tlslite.extensions import ClientKeyShareExtension
 import json
 import sys
 
@@ -59,6 +60,13 @@ for client in sorted(clients, key=lambda i: "{0[name]} {0[version]} {1}"
         for ch_ext in ch.extensions:
             if ch_ext.extType == ExtensionType.server_name:
                 extCreate = "SNIExtension().create(bytearray(host, \"ascii\"))"
+            elif ch_ext.extType == ExtensionType.key_share:
+                parsedExt = ClientKeyShareExtension().parse(
+                    Parser(ch_ext.extData))
+                extCreate = "ClientKeyShareExtension().create([{0}])".format(
+                    ", ".join("KeyShareEntry().create({0!r}, {1!r})".format(
+                              i.group, i.key_exchange) for
+                              i in parsedExt.client_shares))
             else:
                 extCreate = "TLSExtension(extType={0}).create({1!r})"\
                         .format(ch_ext.extType, ch_ext.extData)
