@@ -206,6 +206,8 @@
           "arguments" : ["-n", "40"]},
          {"name" : "test-tls13-hrr.py",
           "arguments" : ["--cookie"]},
+         {"name" : "test-tls13-invalid-ciphers.py",
+          "arguments" : ["-n", "50"]},
          {"name" : "test-tls13-keyshare-omitted.py"},
          {"name" : "test-tls13-legacy-version.py"},
          {"name" : "test-tls13-nociphers.py"},
