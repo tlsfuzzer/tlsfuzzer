@@ -321,6 +321,28 @@ class TestServerExtensionProcessors(unittest.TestCase):
         self.assertIn("secp256r1", str(exc.exception))
         self.assertIn("didn't advertise", str(exc.exception))
 
+    def test_srv_ext_handler_key_share_missing_private(self):
+        s_ks = key_share_gen(GroupName.secp256r1)
+        s_private = s_ks.private
+        s_ks.private = None
+
+        ext = ServerKeyShareExtension().create(s_ks)
+
+        state = ConnectionState()
+
+        client_hello = ClientHello()
+        c_ks = key_share_gen(GroupName.secp256r1)
+        c_ks.private = None
+        cln_ext = ClientKeyShareExtension().create([c_ks])
+        client_hello.extensions = [cln_ext]
+        state.handshake_messages.append(client_hello)
+
+        with self.assertRaises(ValueError) as exc:
+            srv_ext_handler_key_share(state, ext)
+
+        self.assertIn("secp256r1", str(exc.exception))
+        self.assertIn("private", str(exc.exception))
+
     def test_srv_ext_handler_supp_vers(self):
         ext = SrvSupportedVersionsExtension().create((3, 4))
 

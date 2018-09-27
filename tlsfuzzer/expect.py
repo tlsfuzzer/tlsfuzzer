@@ -190,6 +190,9 @@ def srv_ext_handler_key_share(state, extension):
     state.key['ServerHello.extensions.key_share.key_exchange'] = \
         extension.server_share.key_exchange
 
+    if not cl_ext.private:
+        raise ValueError("private value for key share of group {0} missing"
+                         .format(GroupName.toStr(group_id)))
     z = kex.calc_shared_key(cl_ext.private,
                             extension.server_share.key_exchange)
 
