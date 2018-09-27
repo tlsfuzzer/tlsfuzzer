@@ -1,8 +1,9 @@
 from __future__ import print_function
 from cscan.messages import ClientHello
 from tlslite.utils.codec import Parser
-from tlslite.constants import ExtensionType
+from tlslite.constants import ExtensionType, GroupName
 from tlslite.extensions import ClientKeyShareExtension
+from tlslite.keyexchange import X25519_ORDER_SIZE, X448_ORDER_SIZE
 import json
 import sys
 
@@ -11,6 +12,26 @@ Parser of the ssllabs v3 API getClient call and converts it to tlsfuzzer.
 
 Download the clients from https://api.ssllabs.com/api/v3/getClients
 """
+
+def fake_priv_for_group(group):
+    if group == GroupName.x25519:
+        return bytearray([5] * X25519_ORDER_SIZE)
+    elif group == GroupName.x448:
+        return bytearray([5] * X448_ORDER_SIZE)
+    elif group in GroupName.allEC:
+        return 5
+    elif group in GroupName.allFF:
+        return bytearray([5])
+    return None
+
+
+def client_key_share_gen(extension):
+    parsedExt = ClientKeyShareExtension().parse(
+        Parser(ch_ext.extData))
+    return "ClientKeyShareExtension().create([{0}])".format(
+        ", ".join("KeyShareEntry().create({0!r}, {1!r}, {2!r})".format(
+                  i.group, i.key_exchange, fake_priv_for_group(i.group)) for
+                  i in parsedExt.client_shares))
 
 
 with open(sys.argv[1]) as json_file:
@@ -61,12 +82,7 @@ for client in sorted(clients, key=lambda i: "{0[name]} {0[version]} {1}"
             if ch_ext.extType == ExtensionType.server_name:
                 extCreate = "SNIExtension().create(bytearray(host, \"ascii\"))"
             elif ch_ext.extType == ExtensionType.key_share:
-                parsedExt = ClientKeyShareExtension().parse(
-                    Parser(ch_ext.extData))
-                extCreate = "ClientKeyShareExtension().create([{0}])".format(
-                    ", ".join("KeyShareEntry().create({0!r}, {1!r})".format(
-                              i.group, i.key_exchange) for
-                              i in parsedExt.client_shares))
+                extCreate = client_key_share_gen(ch_ext)
             else:
                 extCreate = "TLSExtension(extType={0}).create({1!r})"\
                         .format(ch_ext.extType, ch_ext.extData)
