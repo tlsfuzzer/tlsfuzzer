@@ -2,7 +2,8 @@ from __future__ import print_function
 from cscan.messages import ClientHello
 from tlslite.utils.codec import Parser
 from tlslite.constants import ExtensionType, GroupName
-from tlslite.extensions import ClientKeyShareExtension
+from tlslite.extensions import ClientKeyShareExtension, \
+        SupportedVersionsExtension
 from tlslite.keyexchange import X25519_ORDER_SIZE, X448_ORDER_SIZE
 import json
 import sys
@@ -27,11 +28,18 @@ def fake_priv_for_group(group):
 
 def client_key_share_gen(extension):
     parsedExt = ClientKeyShareExtension().parse(
-        Parser(ch_ext.extData))
+        Parser(extension.extData))
     return "ClientKeyShareExtension().create([{0}])".format(
         ", ".join("KeyShareEntry().create({0!r}, {1!r}, {2!r})".format(
                   i.group, i.key_exchange, fake_priv_for_group(i.group)) for
                   i in parsedExt.client_shares))
+
+
+def client_supp_version_gen(extension):
+    parsedExt = SupportedVersionsExtension().parse(
+        Parser(extension.extData))
+    return "SupportedVersionsExtension().create({0!r})".format(
+            parsedExt.versions)
 
 
 with open(sys.argv[1]) as json_file:
@@ -83,6 +91,8 @@ for client in sorted(clients, key=lambda i: "{0[name]} {0[version]} {1}"
                 extCreate = "SNIExtension().create(bytearray(host, \"ascii\"))"
             elif ch_ext.extType == ExtensionType.key_share:
                 extCreate = client_key_share_gen(ch_ext)
+            elif ch_ext.extType == ExtensionType.supported_versions:
+                extCreate = client_supp_version_gen(ch_ext)
             else:
                 extCreate = "TLSExtension(extType={0}).create({1!r})"\
                         .format(ch_ext.extType, ch_ext.extData)
