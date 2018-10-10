@@ -195,6 +195,7 @@
          {"name" : "test-tls13-finished.py"},
          {"name" : "test-tls13-invalid-ciphers.py"},
          {"name" : "test-tls13-keyshare-omitted.py"},
+         {"name" : "test-tls13-large-number-of-extensions.py"},
          {"name" : "test-tls13-legacy-version.py"},
          {"name" : "test-tls13-nociphers.py"},
          {"name" : "test-tls13-pkcs-signature.py"},
