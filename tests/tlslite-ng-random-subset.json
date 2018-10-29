@@ -259,9 +259,12 @@
                          "-c", "tests/clientX509Cert.pem"]
          },
          {"name" : "test-certificate-request.py",
-          "arguments" : ["-k", "tests/clientX509Key.pem",
-                         "-c", "tests/clientX509Cert.pem",
-                         "-s", "rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256 rsa_pkcs1_sha512 rsa_pkcs1_sha384 rsa_pkcs1_sha256 sha224+rsa rsa_pkcs1_sha1"]
+            "arguments" : ["-k", "tests/clientX509Key.pem",
+                           "-c", "tests/clientX509Cert.pem"]
+          },
+         {"name" : "test-certificate-request.py",
+          "arguments" : ["-k", "tests/clientRSAPSSKey.pem",
+                         "-c", "tests/clientRSAPSSCert.pem"]
           },
          {"name" : "test-certificate-verify-malformed-sig.py",
           "arguments" : ["-k", "tests/clientX509Key.pem",
@@ -276,11 +279,23 @@
                          "-c", "tests/clientX509Cert.pem"]
           },
          {"name" : "test-rsa-pss-sigs-on-certificate-verify.py",
-          "comment" : "test script has over 2k test cases, limit it; also, we expect specific sigalgs after RSA-PSS support was added to tlslite-ng",
+          "comment" : "test script has over 2k test cases, limit it; bug tlslite-ng #279",
           "arguments" : ["-k", "tests/clientX509Key.pem",
                          "-c", "tests/clientX509Cert.pem",
-                         "-s", "8+6 8+11 8+5 8+10 8+4 8+9 6+1 5+1 4+1 3+1 2+1",
-                         "-n", "15"]
+                         "-n", "15",
+                         "-e", "rsa_pss_pss_sha256 in CertificateVerify with rsa key",
+                         "-e", "rsa_pss_pss_sha384 in CertificateVerify with rsa key",
+                         "-e", "rsa_pss_pss_sha512 in CertificateVerify with rsa key"]
+          },
+         {"name" : "test-rsa-pss-sigs-on-certificate-verify.py",
+          "comment" : "test script has over 2k test cases, limit it; bug tlslite-ng #279",
+          "arguments" : ["-k", "tests/clientRSAPSSKey.pem",
+                         "-c", "tests/clientRSAPSSCert.pem",
+                         "-n", "15",
+                         "-e", "rsa_pss_rsae_sha256 in CertificateVerify with rsa-pss key",
+                         "-e", "rsa_pss_rsae_sha384 in CertificateVerify with rsa-pss key",
+                         "-e", "rsa_pss_rsae_sha512 in CertificateVerify with rsa-pss key",
+                         "-e", "rsa_pkcs1_sha256 signature in CertificateVerify with rsa-pss key"]
           },
          {"name" : "test-extended-master-secret-extension-with-client-cert.py",
           "arguments" : ["-k", "tests/clientX509Key.pem",

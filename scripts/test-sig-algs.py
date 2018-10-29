@@ -24,11 +24,10 @@ from tlslite.extensions import SignatureAlgorithmsExtension, TLSExtension, \
         SignatureAlgorithmsCertExtension
 from tlsfuzzer.helpers import RSA_SIG_ALL
 from tlsfuzzer.utils.ordered_dict import OrderedDict
+from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
-    return [int(text) if text.isdigit() else text.lower()
-            for text in re.split(_nsre, s)]
+version = 2
 
 
 def help_msg():
@@ -72,7 +71,13 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    sigs = [(HashAlgorithm.sha512, SignatureAlgorithm.rsa),
+    sigs = [SignatureScheme.rsa_pss_rsae_sha256,
+            SignatureScheme.rsa_pss_rsae_sha384,
+            SignatureScheme.rsa_pss_rsae_sha512,
+            SignatureScheme.rsa_pss_pss_sha256,
+            SignatureScheme.rsa_pss_pss_sha384,
+            SignatureScheme.rsa_pss_pss_sha512,
+            (HashAlgorithm.sha512, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha224, SignatureAlgorithm.rsa),
@@ -108,9 +113,9 @@ def main():
     # now with RSA-PSS
     conversation = Connect(host, port)
     node = conversation
-    sigs = [SignatureScheme.rsa_pss_sha256,
-            SignatureScheme.rsa_pss_sha384,
-            SignatureScheme.rsa_pss_sha512,
+    sigs = [SignatureScheme.rsa_pss_rsae_sha256,
+            SignatureScheme.rsa_pss_rsae_sha384,
+            SignatureScheme.rsa_pss_rsae_sha512,
             (HashAlgorithm.sha512, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
@@ -144,9 +149,9 @@ def main():
     node = node.add_child(ExpectClose())
     conversations["with RSA-PSS"] = conversation
 
-    for sig in [SignatureScheme.rsa_pss_sha256,
-                SignatureScheme.rsa_pss_sha384,
-                SignatureScheme.rsa_pss_sha512
+    for sig in [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_rsae_sha384,
+                SignatureScheme.rsa_pss_rsae_sha512
                 ]:
         conversation = Connect(host, port)
         node = conversation
@@ -481,6 +486,8 @@ def main():
         else:
             bad += 1
             failed.append(c_name)
+
+    print("version: {0}\n".format(version))
 
     print("Test end")
     print("successful: {0}".format(good))
