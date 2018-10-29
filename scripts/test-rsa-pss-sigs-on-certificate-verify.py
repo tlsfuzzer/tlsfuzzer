@@ -18,6 +18,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
         ExpectServerKeyExchange, ExpectCertificateRequest
+from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import sig_algs_to_ids, RSA_SIG_ALL
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
@@ -30,9 +31,7 @@ from tlslite.x509certchain import X509CertChain
 from tlslite.utils.cryptomath import numBytes
 
 
-def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
-    return [int(text) if text.isdigit() else text.lower()
-            for text in re.split(_nsre, s)]
+version = 2
 
 
 def help_msg():
@@ -49,10 +48,13 @@ def help_msg():
     print("                (excluding \"sanity\" and other short tests)")
     print(" -s sigalgs     signature algorithms expected in")
     print("                CertificateRequest. Format is either the new")
-    print("                signature scheme (rsa_pss_sha256) or old one")
+    print("                signature scheme (rsa_pss_rsae_sha256) or old one")
     print("                (sha512+rsa) separated by spaces")
     print(" -k keyfile     file with private key")
     print(" -c certfile    file with certificate of client")
+    print(" --illegpar     if present, test-case with rsa_pkcs1_sha256 sig in")
+    print("                CertificateVerify with rsa-pss key expect")
+    print("                illegal_parameter as a Alert message description")
     print(" --help         this message")
 
 
@@ -63,10 +65,14 @@ def main():
     run_exclude = set()
     private_key = None
     cert = None
+    exp_illeg_param = False
 
-    sigalgs = [SignatureScheme.rsa_pss_sha512,
-               SignatureScheme.rsa_pss_sha384,
-               SignatureScheme.rsa_pss_sha256,
+    sigalgs = [SignatureScheme.rsa_pss_rsae_sha512,
+               SignatureScheme.rsa_pss_pss_sha512,
+               SignatureScheme.rsa_pss_rsae_sha384,
+               SignatureScheme.rsa_pss_pss_sha384,
+               SignatureScheme.rsa_pss_rsae_sha256,
+               SignatureScheme.rsa_pss_pss_sha256,
                (HashAlgorithm.sha512, SignatureAlgorithm.rsa),
                (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
                (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
@@ -74,7 +80,7 @@ def main():
                (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:k:c:s:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:k:c:s:", ["help", "illegpar"])
     for opt, arg in opts:
         if opt == '-k':
             text_key = open(arg, 'rb').read()
@@ -98,6 +104,8 @@ def main():
             run_exclude.add(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '--illegpar':
+            exp_illeg_param = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -119,9 +127,12 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    sigs = [SignatureScheme.rsa_pss_sha512,
-            SignatureScheme.rsa_pss_sha384,
-            SignatureScheme.rsa_pss_sha256,
+    sigs = [SignatureScheme.rsa_pss_rsae_sha256,
+            SignatureScheme.rsa_pss_rsae_sha384,
+            SignatureScheme.rsa_pss_rsae_sha512,
+            SignatureScheme.rsa_pss_pss_sha256,
+            SignatureScheme.rsa_pss_pss_sha384,
+            SignatureScheme.rsa_pss_pss_sha512,
             (HashAlgorithm.sha512, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
@@ -138,9 +149,13 @@ def main():
                                                extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())
-    algs = [SignatureScheme.rsa_pss_sha512,
-            SignatureScheme.rsa_pss_sha384,
-            SignatureScheme.rsa_pss_sha256]
+    algs = [SignatureScheme.rsa_pss_rsae_sha256,
+            SignatureScheme.rsa_pss_rsae_sha384,
+            SignatureScheme.rsa_pss_rsae_sha512,
+            SignatureScheme.rsa_pss_pss_sha256,
+            SignatureScheme.rsa_pss_pss_sha384,
+            SignatureScheme.rsa_pss_pss_sha512
+            ]
     node = node.add_child(ExpectServerKeyExchange(valid_sig_algs=algs))
     node = node.add_child(ExpectCertificateRequest())
     node = node.add_child(ExpectServerHelloDone())
@@ -164,9 +179,12 @@ def main():
     # check if RSA-PSS can be the only one
     conversation = Connect(host, port)
     node = conversation
-    sigs = [SignatureScheme.rsa_pss_sha256,
-            SignatureScheme.rsa_pss_sha384,
-            SignatureScheme.rsa_pss_sha512
+    sigs = [SignatureScheme.rsa_pss_rsae_sha256,
+            SignatureScheme.rsa_pss_rsae_sha384,
+            SignatureScheme.rsa_pss_rsae_sha512,
+            SignatureScheme.rsa_pss_pss_sha256,
+            SignatureScheme.rsa_pss_pss_sha384,
+            SignatureScheme.rsa_pss_pss_sha512
             ]
     ext = {ExtensionType.signature_algorithms:
             SignatureAlgorithmsExtension().create(sigs),
@@ -202,9 +220,12 @@ def main():
     # check if algs in CertificateRequest are expected
     conversation = Connect(host, port)
     node = conversation
-    sigs = [SignatureScheme.rsa_pss_sha256,
-            SignatureScheme.rsa_pss_sha384,
-            SignatureScheme.rsa_pss_sha512
+    sigs = [SignatureScheme.rsa_pss_rsae_sha256,
+            SignatureScheme.rsa_pss_rsae_sha384,
+            SignatureScheme.rsa_pss_rsae_sha512,
+            SignatureScheme.rsa_pss_pss_sha256,
+            SignatureScheme.rsa_pss_pss_sha384,
+            SignatureScheme.rsa_pss_pss_sha512
             ]
     ext = {ExtensionType.signature_algorithms:
             SignatureAlgorithmsExtension().create(sigs),
@@ -238,15 +259,21 @@ def main():
     conversations["check CertificateRequest sigalgs"] = conversation
 
     # check if CertificateVerify can be signed with any algorithm
-    for scheme in [SignatureScheme.rsa_pss_sha256,
-                   SignatureScheme.rsa_pss_sha384,
-                   SignatureScheme.rsa_pss_sha512
+    for scheme in [SignatureScheme.rsa_pss_rsae_sha256,
+                   SignatureScheme.rsa_pss_rsae_sha384,
+                   SignatureScheme.rsa_pss_rsae_sha512,
+                   SignatureScheme.rsa_pss_pss_sha256,
+                   SignatureScheme.rsa_pss_pss_sha384,
+                   SignatureScheme.rsa_pss_pss_sha512
                    ]:
         conversation = Connect(host, port)
         node = conversation
-        sigs = [SignatureScheme.rsa_pss_sha256,
-                SignatureScheme.rsa_pss_sha384,
-                SignatureScheme.rsa_pss_sha512
+        sigs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_rsae_sha384,
+                SignatureScheme.rsa_pss_rsae_sha512,
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.rsa_pss_pss_sha384,
+                SignatureScheme.rsa_pss_pss_sha512
                 ]
         ext = {ExtensionType.signature_algorithms:
                 SignatureAlgorithmsExtension().create(sigs),
@@ -282,15 +309,21 @@ def main():
                       .format(SignatureScheme.toRepr(scheme))] = conversation
 
     # check if CertificateVerify with wrong salt size is rejected
-    for scheme in [SignatureScheme.rsa_pss_sha256,
-                   SignatureScheme.rsa_pss_sha384,
-                   SignatureScheme.rsa_pss_sha512
+    for scheme in [SignatureScheme.rsa_pss_rsae_sha256,
+                   SignatureScheme.rsa_pss_rsae_sha384,
+                   SignatureScheme.rsa_pss_rsae_sha512,
+                   SignatureScheme.rsa_pss_pss_sha256,
+                   SignatureScheme.rsa_pss_pss_sha384,
+                   SignatureScheme.rsa_pss_pss_sha512
                    ]:
         conversation = Connect(host, port)
         node = conversation
-        sigs = [SignatureScheme.rsa_pss_sha256,
-                SignatureScheme.rsa_pss_sha384,
-                SignatureScheme.rsa_pss_sha512
+        sigs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_rsae_sha384,
+                SignatureScheme.rsa_pss_rsae_sha512,
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.rsa_pss_pss_sha384,
+                SignatureScheme.rsa_pss_pss_sha512
                 ]
         ext = {ExtensionType.signature_algorithms:
                 SignatureAlgorithmsExtension().create(sigs),
@@ -328,9 +361,12 @@ def main():
         for xor in [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80]:
             conversation = Connect(host, port)
             node = conversation
-            sigs = [SignatureScheme.rsa_pss_sha256,
-                    SignatureScheme.rsa_pss_sha384,
-                    SignatureScheme.rsa_pss_sha512
+            sigs = [SignatureScheme.rsa_pss_rsae_sha256,
+                    SignatureScheme.rsa_pss_rsae_sha384,
+                    SignatureScheme.rsa_pss_rsae_sha512,
+                    SignatureScheme.rsa_pss_pss_sha256,
+                    SignatureScheme.rsa_pss_pss_sha384,
+                    SignatureScheme.rsa_pss_pss_sha512
                     ]
             ext = {ExtensionType.signature_algorithms:
                     SignatureAlgorithmsExtension().create(sigs),
@@ -349,7 +385,7 @@ def main():
             node = node.add_child(TCPBufferingEnable())
             node = node.add_child(CertificateGenerator(X509CertChain([cert])))
             node = node.add_child(ClientKeyExchangeGenerator())
-            scheme = SignatureScheme.rsa_pss_sha256
+            scheme = SignatureScheme.rsa_pss_rsae_sha256
             node = node.add_child(CertificateVerifyGenerator(private_key,
                                                              msg_alg=scheme,
                                                              padding_xors={pos:xor}))
@@ -368,9 +404,12 @@ def main():
     if cert.certAlg == "rsa-pss":
         conversation = Connect(host, port)
         node = conversation
-        sigs = [SignatureScheme.rsa_pss_sha256,
-                SignatureScheme.rsa_pss_sha384,
-                SignatureScheme.rsa_pss_sha512
+        sigs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_rsae_sha384,
+                SignatureScheme.rsa_pss_rsae_sha512,
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.rsa_pss_pss_sha384,
+                SignatureScheme.rsa_pss_pss_sha512
                 ]
         ext = {ExtensionType.signature_algorithms:
                 SignatureAlgorithmsExtension().create(sigs),
@@ -405,9 +444,12 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    sigs = [SignatureScheme.rsa_pss_sha256,
-            SignatureScheme.rsa_pss_sha384,
-            SignatureScheme.rsa_pss_sha512
+    sigs = [SignatureScheme.rsa_pss_rsae_sha256,
+            SignatureScheme.rsa_pss_rsae_sha384,
+            SignatureScheme.rsa_pss_rsae_sha512,
+            SignatureScheme.rsa_pss_pss_sha256,
+            SignatureScheme.rsa_pss_pss_sha384,
+            SignatureScheme.rsa_pss_pss_sha512
             ]
     ext = {ExtensionType.signature_algorithms:
             SignatureAlgorithmsExtension().create(sigs),
@@ -428,7 +470,7 @@ def main():
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(CertificateVerifyGenerator(private_key,
                                                      msg_alg=SignatureScheme.rsa_pkcs1_sha256,
-                                                     sig_alg=SignatureScheme.rsa_pss_sha256))
+                                                     sig_alg=SignatureScheme.rsa_pss_rsae_sha256))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -437,14 +479,17 @@ def main():
                                       AlertDescription.decrypt_error))
     node.next_sibling = ExpectClose()
     node = node.add_child(ExpectClose())
-    conversations["rsa_pss_sha256 signature in CertificateVerify"
+    conversations["rsa_pss_rsae_sha256 signature in CertificateVerify "
                   "with rsa_pkcs1_sha256 id"] = conversation
 
     conversation = Connect(host, port)
     node = conversation
-    sigs = [SignatureScheme.rsa_pss_sha256,
-            SignatureScheme.rsa_pss_sha384,
-            SignatureScheme.rsa_pss_sha512
+    sigs = [SignatureScheme.rsa_pss_rsae_sha256,
+            SignatureScheme.rsa_pss_rsae_sha384,
+            SignatureScheme.rsa_pss_rsae_sha512,
+            SignatureScheme.rsa_pss_pss_sha256,
+            SignatureScheme.rsa_pss_pss_sha384,
+            SignatureScheme.rsa_pss_pss_sha512
             ]
     ext = {ExtensionType.signature_algorithms:
             SignatureAlgorithmsExtension().create(sigs),
@@ -463,7 +508,7 @@ def main():
     node = node.add_child(TCPBufferingEnable())
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(ClientKeyExchangeGenerator())
-    scheme = SignatureScheme.rsa_pss_sha256
+    scheme = SignatureScheme.rsa_pss_rsae_sha256
     sig = bytearray(b'\xfa\xbc\x0f\x4c')
     node = node.add_child(CertificateVerifyGenerator(private_key,
                                                      msg_alg=scheme,
@@ -476,9 +521,8 @@ def main():
                                       AlertDescription.decrypt_error))
     node.next_sibling = ExpectClose()
     node = node.add_child(ExpectClose())
-    conversations["short sig with rsa_pss_sha256 id"] = \
+    conversations["short sig with rsa_pss_rsae_sha256 id"] = \
                   conversation
-
 
     # run the conversation
     good = 0
@@ -517,6 +561,8 @@ def main():
         else:
             bad += 1
             failed.append(c_name)
+
+    print("version: {0}\n".format(version))
 
     print("Test end")
     print("successful: {0}".format(good))
