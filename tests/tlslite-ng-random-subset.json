@@ -230,6 +230,8 @@
          {"name" : "test-tls13-serverhello-random.py",
           "arguments" : ["--repeat", "5"]},
          {"name" : "test-tls13-session-resumption.py"},
+         {"name" : "test-tls13-shuffled-extentions.py",
+          "arguments" : ["--cookie"]},
          {"name" : "test-tls13-signature-algorithms.py",
           "arguments" : ["-n", "100"]},
          {"name" : "test-tls13-unrecognised-groups.py",
