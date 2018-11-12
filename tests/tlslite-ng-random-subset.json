@@ -220,6 +220,8 @@
          {"name" : "test-tls13-legacy-version.py"},
          {"name" : "test-tls13-nociphers.py"},
          {"name" : "test-tls13-pkcs-signature.py"},
+         {"name" : "test-tls13-record-layer-limits.py",
+          "arguments" : ["-n", "5"]},
          {"name" : "test-tls13-record-padding.py"},
          {"name" : "test-tls13-rsa-signatures.py",
           "arguments" : ["-e", "tls13 signature rsa_pss_pss_sha256",

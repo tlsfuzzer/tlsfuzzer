@@ -202,6 +202,23 @@ class SetPaddingCallback(Command):
         """
         return max_padding - length
 
+    @staticmethod
+    def add_fixed_padding_cb(size):
+        """
+        Returns a callback function which returns a fixed number as the
+        padding size
+        """
+        def _add_fixed_passing_cb(length, contenttype, max_padding,
+                                  zeros=size):
+            """
+            Simple callback which returns a fixed number as the padding size
+            to be added to the message.
+            This function does not check a correct size of padding, can cause
+            buffer overflow alert.
+            """
+            return zeros
+        return _add_fixed_passing_cb
+
     def process(self, state):
         """
         Set the callback which returns the length of the padding in record
