@@ -192,6 +192,7 @@
          {"name" : "test-tls13-hrr.py",
           "arguments" : ["--cookie"]},
          {"name" : "test-tls13-ffdhe-sanity.py"},
+         {"name" : "test-tls13-finished-plaintext"},
          {"name" : "test-tls13-finished.py"},
          {"name" : "test-tls13-invalid-ciphers.py"},
          {"name" : "test-tls13-keyshare-omitted.py"},

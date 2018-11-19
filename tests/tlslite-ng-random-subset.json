@@ -202,6 +202,7 @@
           "comment" : "test is non-deterministic and long, run just one case"},
          {"name" : "test-tls13-empty-alert.py"},
          {"name" : "test-tls13-ffdhe-sanity.py"},
+         {"name" : "test-tls13-finished-plaintext"},
          {"name" : "test-tls13-finished.py",
           "arguments" : ["-n", "40"]},
          {"name" : "test-tls13-hrr.py",
