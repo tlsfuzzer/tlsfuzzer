@@ -925,7 +925,14 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
 
 
 class ChangeCipherSpecGenerator(MessageGenerator):
-    """Generator for TLS Change Cipher Spec messages."""
+    """
+    Generator for TLS Change Cipher Spec messages.
+
+    @note: After sending the ChangeCipherSpec message, in TLS 1.2 and earlier,
+    the record layer will switch to encrypted communication (or newly
+    negotiated keys). In TLS 1.3 the message has no effect on encryption
+    or record layer state.
+    """
 
     def __init__(self, extended_master_secret=None, fake=False):
         """Create an object for generating CCS messages."""
@@ -979,7 +986,18 @@ class ChangeCipherSpecGenerator(MessageGenerator):
 
 
 class FinishedGenerator(HandshakeProtocolMessageGenerator):
-    """Generator for TLS handshake protocol Finished messages."""
+    """
+    Generator for TLS handshake protocol Finished messages.
+
+    @note:
+    The FinishedGenerator may influence the record layer encryption.
+    In SSLv2, the record layer will be configured to expect encrypted
+    records and send encrypted records I{before} the message is sent.
+    In SSLv3 up to TLS 1.2 the message has no impact on state of
+    encryption. In TLS 1.3, I{after} the message is sent, the record layer
+    will be switched to use C{client_application_traffic_secret} keys for
+    I{sending}.
+    """
 
     def __init__(self, protocol=None,
                  trunc_start=0, trunc_end=None,
