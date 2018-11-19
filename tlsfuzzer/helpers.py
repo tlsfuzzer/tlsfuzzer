@@ -18,7 +18,6 @@ __all__ = ['sig_algs_to_ids', 'key_share_gen', 'psk_ext_gen',
            'AutoEmptyExtension']
 
 
-# List of all rsa signature algorithms
 RSA_SIG_ALL = [(getattr(HashAlgorithm, x), SignatureAlgorithm.rsa) for x in
                ['sha512', 'sha384', 'sha256', 'sha224', 'sha1', 'md5']] + [
                    SignatureScheme.rsa_pss_rsae_sha256,
@@ -27,6 +26,9 @@ RSA_SIG_ALL = [(getattr(HashAlgorithm, x), SignatureAlgorithm.rsa) for x in
                    SignatureScheme.rsa_pss_pss_sha256,
                    SignatureScheme.rsa_pss_pss_sha384,
                    SignatureScheme.rsa_pss_pss_sha512]
+"""List of all RSA signature algorithms supported by tlsfuzzer,
+as used in C{signature_algorithms} or C{signature_algorithms_cert} extensions.
+"""
 
 
 def _hash_name_to_id(h_alg):
@@ -54,14 +56,17 @@ def _sign_alg_name_to_id(s_alg):
 def sig_algs_to_ids(names):
     """Convert a string with signature algorithm names to list of IDs.
 
-    :param str names: whitespace separated list of names of hash algorithm
+    @type names: str
+    @param names: whitespace separated list of names of hash algorithm
         names. Names can be specified as the legacy (TLS1.2) hash algorithm
-        and hash type pairs (e.g. sha256+rsa), as a pair of numbers (e.g 4+1)
-        or as the new TLS 1.3 signature scheme (e.g. rsa_pkcs1_sha256).
-        Full string then could look like "sha256+rsa 5+rsa rsa_pss_pss_sha256"
-    :raises AttributeError: when the specified identifier is not defined in
+        and hash type pairs (e.g. C{sha256+rsa}), as a pair of numbers (e.g
+        C{4+1}) or as the new TLS 1.3 signature scheme (e.g.
+        C{rsa_pkcs1_sha256}).
+        Full parameter string then can look like: C{sha256+rsa 5+rsa
+        rsa_pss_pss_sha256}.
+    @raises AttributeError: when the specified identifier is not defined in
         HashAlgorithm, SignatureAlgorithm or SignatureScheme
-    :return: list of tuples
+    @return: list of tuples
     """
     ids = []
 
@@ -86,9 +91,10 @@ def key_share_ext_gen(groups):
     Generator that can be used to delay the generation of key shares for
     TLS 1.3 ClientHello.
 
-    :param list groups: TLS numerical IDs from GroupName identifying groups
+    @type groups: list
+    @param groups: TLS numerical IDs from GroupName identifying groups
        that should be present in the extension or ready to use KeyShareEntries.
-    :return: callable
+    @return: callable
     """
     def _key_share_ext_gen(state, groups=groups):
         del state
@@ -106,10 +112,12 @@ def key_share_gen(group, version=(3, 4)):
     """
     Create a random key share for a group of a given id.
 
-    :param int group: TLS numerical ID from GroupName identifying the group
-    :param tuple version: TLS protocol version as a tuple, as encoded on the
+    @type group: int
+    @param group: TLS numerical ID from GroupName identifying the group
+    @type version: tuple
+    @param version: TLS protocol version as a tuple, as encoded on the
         wire
-    :return: KeyShareEntry
+    @return: L{KeyShareEntry<tlslite.extensions.KeyShareEntry>}
     """
     kex = kex_for_group(group, version)
     private = kex.get_random_private_key()
@@ -142,8 +150,9 @@ def psk_ext_gen(psk_settings):
     of the associated hash ("sha256" or "sha384", with "sha256" being the
     default).
 
-    :param list psk_settings: list of tuples
-    :return: extension
+    @type psk_settings: list
+    @param psk_settings: list of tuples
+    @return: extension
     """
     identities = []
     binders = []
@@ -192,10 +201,11 @@ def psk_session_ext_gen(psk_settings=None):
 
     Can optionally take a list of tuples that define static PSKs that will
     be added after the NST PSK.
-    See psk_ext_gen() for description of their format.
+    See L{psk_ext_gen} for description of their format.
 
-    :param list psk_settings: list of tuples
-    :return: extension generator
+    @type psk_settings: list
+    @param psk_settings: list of tuples
+    @return: extension generator
     """
     return partial(_psk_session_ext_gen, psk_settings=psk_settings)
 
@@ -220,7 +230,7 @@ def psk_ext_updater(psk_settings=tuple()):
     Generator that can be used to generate the callback for the
     ClientHelloGenerator.modifiers setting.
 
-    See psk_ext_gen for a specification of psk_settings.
+    See L{psk_ext_gen} for a specification of C{psk_settings}.
 
     This updater requires that the PSK extension be the last one in
     ClientHello.
@@ -238,7 +248,7 @@ def psk_ext_updater(psk_settings=tuple()):
 def flexible_getattr(val, val_type):
     """Convert a string of number, name, or None to object.
 
-    If the val is a number, return a number, when it's a string
+    If the C{val} is a number, return a number, when it's a string
     like "none" return None object.
     When it's a string representing one of the fields in provided type, return
     that value.
@@ -266,9 +276,10 @@ def uniqueness_check(values, count):
 
     Also check if all the arrays have the length of "count".
 
-    :param values: dictionary of lists to check
-    :param int count: expected length of lists
-    :return: list of errors found
+    @param values: dictionary of lists to check
+    @type count: int
+    @param count: expected length of lists
+    @return: list of errors found
     """
     ret = []
     for name, array in values.items():

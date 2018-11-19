@@ -1198,13 +1198,14 @@ class ExpectNewSessionTicket(ExpectHandshake):
         """
         Initialise object.
 
-        Note that "note" parameter MUST be specified as a keyword argument,
-        i.e. read the definition as `(self, *, note=None)` (see PEP 3102).
+        @note: the C{note} parameter MUST be specified as a keyword argument,
+        i.e. read the definition as C{(self, *, note=None)} (see PEP 3102).
         Otherwise the behaviour of this node is not guaranteed if new
-        arguments are added to it (as they will be added *before* the "note"
+        arguments are added to it (as they will be added I{before} the C{note}
         argument).
 
-        :param str note: name or comment attached to the node, will be printed
+        @type note: str
+        @param note: name or comment attached to the node, will be printed
            when str() or repr() is called on the node
         """
         super(ExpectNewSessionTicket, self).__init__(
