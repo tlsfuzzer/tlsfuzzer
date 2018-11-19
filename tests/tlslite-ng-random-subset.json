@@ -204,6 +204,7 @@
          {"name" : "test-tls13-ffdhe-sanity.py"},
          {"name" : "test-tls13-finished.py",
           "arguments" : ["-n", "40"]},
+         {"name" : "test-tls13-finished-plaintext.py"},
          {"name" : "test-tls13-hrr.py",
           "arguments" : ["--cookie"]},
          {"name" : "test-tls13-invalid-ciphers.py",
