@@ -309,7 +309,15 @@ _EE_EXT_HANDLER = \
 
 
 class ExpectServerHello(ExpectHandshake):
-    """Parsing TLS Handshake protocol Server Hello messages"""
+    """
+    Parsing TLS Handshake protocol Server Hello messages.
+
+    @note: Receiving of the ServerHello in TLS 1.3 influences record layer
+    encryption. After the message is received, the
+    C{client_handshake_traffic_secret} and C{server_handshake_traffic_secret}
+    is derived and record layer is configured to expect encrypted records
+    on the I{receiving} side.
+    """
 
     def __init__(self, extensions=None, version=None, resume=False,
                  cipher=None):
@@ -908,7 +916,16 @@ class ExpectServerHelloDone(ExpectHandshake):
 
 
 class ExpectChangeCipherSpec(Expect):
-    """Processing TLS Change Cipher Spec messages"""
+    """
+    Processing TLS Change Cipher Spec messages.
+
+    @note:
+    In SSLv3 up to TLS 1.2, the message modifies the state of record layer
+    to expect encrypted records I{after} receiving this message.
+    In case of renegotiation, record layer will expect records encrypted
+    with the newly negotiated keys. In TLS 1.3 it has no effect record layer
+    encryption.
+    """
 
     def __init__(self):
         super(ExpectChangeCipherSpec,
@@ -951,7 +968,14 @@ class ExpectVerify(ExpectHandshake):
 
 
 class ExpectFinished(ExpectHandshake):
-    """Processing TLS handshake protocol Finished message"""
+    """
+    Processing TLS handshake protocol Finished message.
+
+    @note: In TLS 1.3 the message will modify record layer to start I{sending}
+    records with encryption using the C{client_handshake_traffic_secret} keys.
+    It will also modify the record layer to start expecting the records
+    to be encrypted with C{server_application_traffic_secret} keys.
+    """
 
     def __init__(self, version=None):
         if version in ((0, 2), (2, 0)):
@@ -1174,13 +1198,14 @@ class ExpectNewSessionTicket(ExpectHandshake):
         """
         Initialise object.
 
-        Note that "note" parameter MUST be specified as a keyword argument,
-        i.e. read the definition as `(self, *, note=None)` (see PEP 3102).
+        @note: the C{note} parameter MUST be specified as a keyword argument,
+        i.e. read the definition as C{(self, *, note=None)} (see PEP 3102).
         Otherwise the behaviour of this node is not guaranteed if new
-        arguments are added to it (as they will be added *before* the "note"
+        arguments are added to it (as they will be added I{before} the C{note}
         argument).
 
-        :param str note: name or comment attached to the node, will be printed
+        @type note: str
+        @param note: name or comment attached to the node, will be printed
            when str() or repr() is called on the node
         """
         super(ExpectNewSessionTicket, self).__init__(
