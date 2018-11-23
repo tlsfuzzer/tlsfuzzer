@@ -19,6 +19,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectCertificateRequest, \
         ExpectApplicationData
+from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import sig_algs_to_ids, RSA_SIG_ALL
 from tlslite.extensions import SignatureAlgorithmsExtension, \
         SignatureAlgorithmsCertExtension
@@ -29,9 +30,7 @@ from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 
 
-def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
-    return [int(text) if text.isdigit() else text.lower()
-            for text in re.split(_nsre, s)]
+version = 2
 
 
 def help_msg():
@@ -56,16 +55,20 @@ def main():
     hostname = "localhost"
     port = 4433
     run_exclude = set()
-    sigalgs = [SignatureScheme.rsa_pss_sha512,
-               SignatureScheme.rsa_pss_sha384,
-               SignatureScheme.rsa_pss_sha256,
+    cert = None
+    private_key = None
+
+    sigalgs = [SignatureScheme.rsa_pss_rsae_sha512,
+               SignatureScheme.rsa_pss_pss_sha512,
+               SignatureScheme.rsa_pss_rsae_sha384,
+               SignatureScheme.rsa_pss_pss_sha384,
+               SignatureScheme.rsa_pss_rsae_sha256,
+               SignatureScheme.rsa_pss_pss_sha256,
                (HashAlgorithm.sha512, SignatureAlgorithm.rsa),
                (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
                (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
                (HashAlgorithm.sha224, SignatureAlgorithm.rsa),
                (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
-    cert = None
-    private_key = None
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "h:p:e:s:k:c:", ["help"])
@@ -107,13 +110,22 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    sigs = [SignatureScheme.rsa_pss_rsae_sha256,
+            SignatureScheme.rsa_pss_rsae_sha384,
+            SignatureScheme.rsa_pss_rsae_sha512,
+            SignatureScheme.rsa_pss_pss_sha256,
+            SignatureScheme.rsa_pss_pss_sha384,
+            SignatureScheme.rsa_pss_pss_sha512,
+            (HashAlgorithm.sha512, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha224, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha1, SignatureAlgorithm.rsa),
+            (HashAlgorithm.md5, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([
-             (getattr(HashAlgorithm, x),
-              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1', 'md5']]),
+            SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())
@@ -140,13 +152,22 @@ def main():
         node = conversation
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        sigs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_rsae_sha384,
+                SignatureScheme.rsa_pss_rsae_sha512,
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.rsa_pss_pss_sha384,
+                SignatureScheme.rsa_pss_pss_sha512,
+                (HashAlgorithm.sha512, SignatureAlgorithm.rsa),
+                (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
+                (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+                (HashAlgorithm.sha224, SignatureAlgorithm.rsa),
+                (HashAlgorithm.sha1, SignatureAlgorithm.rsa),
+                (HashAlgorithm.md5, SignatureAlgorithm.rsa)]
         ext = {ExtensionType.signature_algorithms :
-               SignatureAlgorithmsExtension().create([
-                 (getattr(HashAlgorithm, x),
-                  SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                    'sha224', 'sha1', 'md5']]),
+                SignatureAlgorithmsExtension().create(sigs),
                ExtensionType.signature_algorithms_cert :
-               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello(version=(3, 3)))
         node = node.add_child(ExpectCertificate())
@@ -168,18 +189,27 @@ def main():
 
         conversations["with certificate"] = conversation
 
-    # verify the advertised hashse
+    # verify the advertised hashes
     conversation = Connect(hostname, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    sigs = [SignatureScheme.rsa_pss_rsae_sha256,
+            SignatureScheme.rsa_pss_rsae_sha384,
+            SignatureScheme.rsa_pss_rsae_sha512,
+            SignatureScheme.rsa_pss_pss_sha256,
+            SignatureScheme.rsa_pss_pss_sha384,
+            SignatureScheme.rsa_pss_pss_sha512,
+            (HashAlgorithm.sha512, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha224, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha1, SignatureAlgorithm.rsa),
+            (HashAlgorithm.md5, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([
-             (getattr(HashAlgorithm, x),
-              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1', 'md5']]),
+            SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())
@@ -238,7 +268,7 @@ def main():
     print("Test to verify if server accepts empty certificate messages and")
     print("advertises only expected signature algotithms in Certificate")
     print("Request message\n")
-    print("Test version 1\n")
+    print("version: {0}\n".format(version))
 
     print("Test end")
     print("successful: {0}".format(good))
