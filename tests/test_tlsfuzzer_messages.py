@@ -28,7 +28,8 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         TCPBufferingFlush, fuzz_encrypted_message, fuzz_pkcs1_padding, \
         CollectNonces, AlertGenerator, PlaintextMessageGenerator, \
         SetPaddingCallback, replace_plaintext, ch_cookie_handler, \
-        ch_key_share_handler, SetRecordVersion, CopyVariables
+        ch_key_share_handler, SetRecordVersion, CopyVariables, \
+        ResetWriteConnectionState
 from tlsfuzzer.helpers import psk_ext_gen, psk_ext_updater, \
         psk_session_ext_gen, AutoEmptyExtension
 from tlsfuzzer.runner import ConnectionState
@@ -140,6 +141,41 @@ class TestTCPBufferingFlush(unittest.TestCase):
 
         raw_sock.return_value.sendall.assert_called_once_with(
                 bytearray(b'\x0c\x03\x00\x00\x01\xff'))
+
+
+class TestResetWriteConnectionState(unittest.TestCase):
+    def test__init__(self):
+        node = ResetWriteConnectionState()
+
+        self.assertIsNotNone(node)
+        self.assertTrue(node.is_command())
+        self.assertFalse(node.is_expect())
+        self.assertFalse(node.is_generator())
+
+    def test_process(self):
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        self.assertIsNotNone(state.msg_sock._writeState.macContext)
+        self.assertIsNotNone(state.msg_sock._writeState.encContext)
+        self.assertIsNotNone(state.msg_sock._writeState.fixedNonce)
+        self.assertIsNotNone(state.msg_sock._writeState.seqnum)
+        self.assertIsNotNone(state.msg_sock._writeState.encryptThenMAC)
+
+        node = ResetWriteConnectionState()
+        node.process(state)
+
+        self.assertIsNotNone(state.msg_sock._readState.macContext)
+        self.assertIsNotNone(state.msg_sock._readState.encContext)
+        self.assertIsNotNone(state.msg_sock._readState.fixedNonce)
+        self.assertIsNotNone(state.msg_sock._readState.seqnum)
+        self.assertIsNotNone(state.msg_sock._readState.encryptThenMAC)
+
+        self.assertIsNone(state.msg_sock._writeState.macContext)
+        self.assertIsNone(state.msg_sock._writeState.encContext)
+        self.assertIsNone(state.msg_sock._writeState.fixedNonce)
+        self.assertEqual(state.msg_sock._writeState.seqnum, 0)
+        self.assertFalse(state.msg_sock._writeState.encryptThenMAC)
 
 
 class TestCollectNonces(unittest.TestCase):
