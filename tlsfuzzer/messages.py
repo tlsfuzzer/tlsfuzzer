@@ -24,6 +24,7 @@ from tlslite.utils.cryptomath import getRandomBytes, numBytes, \
     derive_secret
 from tlslite.keyexchange import KeyExchange
 from tlslite.bufferedsocket import BufferedSocket
+from tlslite.recordlayer import ConnectionState
 from .helpers import key_share_gen, AutoEmptyExtension
 from .handshake_helpers import calc_pending_states
 from .tree import TreeNode
@@ -244,6 +245,17 @@ class TCPBufferingFlush(Command):
     def process(self, state):
         """Flush all messages to TCP socket."""
         state.msg_sock.sock.flush()
+
+
+class ResetWriteConnectionState(Command):
+    """
+    Reset _writeState configuration to default values
+
+    All sent messages will be unencrypted now
+    """
+
+    def process(self, state):
+        state.msg_sock._writeState = ConnectionState()
 
 
 class CollectNonces(Command):
