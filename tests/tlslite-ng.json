@@ -80,6 +80,10 @@
          {"name" : "test-dhe-rsa-key-exchange.py"},
          {"name" : "test-dhe-rsa-key-exchange-signatures.py"},
          {"name" : "test-dhe-rsa-key-exchange-with-bad-messages.py"},
+         {"name" : "test-downgrade-protection.py",
+          "comments": "expects server to support TLSv1.3 by default",
+          "arguments" : ["--server-max-protocol=TLSv1.3"]
+         },
          {"name" : "test-early-application-data.py"},
          {"name" : "test-ecdhe-padded-shared-secret.py",
           "arguments" : ["-e", "Protocol (3, 0)",
