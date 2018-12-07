@@ -80,6 +80,10 @@
          {"name" : "test-dhe-rsa-key-exchange.py"},
          {"name" : "test-dhe-rsa-key-exchange-signatures.py"},
          {"name" : "test-dhe-rsa-key-exchange-with-bad-messages.py"},
+         {"name" : "test-downgrade-protection.py",
+          "comments": "expects server to support TLSv1.3 by default",
+          "arguments" : ["--server-max-protocol=TLSv1.3"]
+         },
          {"name" : "test-early-application-data.py"},
          {"name" : "test-ecdhe-padded-shared-secret.py",
           "arguments" : ["-e", "Protocol (3, 0)",
@@ -350,6 +354,21 @@
                         "-e", "tls13 signature rsa_pss_rsae_sha512"],
          "comment" : "bug tlslite-ng#275"
         }
+     ]
+    },
+    {"server_command": ["python", "-u", "{command}", "server",
+                 "-k", "tests/serverX509Key.pem",
+                 "-c", "tests/serverX509Cert.pem",
+                 "--max-ver", "tls1.2",
+                 "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "tests" : [
+         {"name" : "test-downgrade-protection.py",
+          "comments": "expects server to support TLSv1.2 by default",
+          "arguments" : ["--server-max-protocol=TLSv1.2"]
+         }
      ]
     }
 ]

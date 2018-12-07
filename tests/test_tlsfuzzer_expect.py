@@ -35,7 +35,8 @@ from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
         SignatureAlgorithm, CipherSuite, CertificateType, SSL2HandshakeType, \
         SSL2ErrorDescription, GroupName, CertificateStatusType, ECPointFormat,\
-        SignatureScheme, TLS_1_3_HRR, HeartbeatMode
+        SignatureScheme, TLS_1_3_HRR, HeartbeatMode, \
+        TLS_1_1_DOWNGRADE_SENTINEL, TLS_1_2_DOWNGRADE_SENTINEL
 from tlslite.messages import Message, ServerHello, CertificateRequest, \
         ClientHello, Certificate, ServerHello2, ServerFinished, \
         ServerKeyExchange, CertificateStatus, CertificateVerify, \
@@ -1113,6 +1114,262 @@ class TestExpectServerHello(unittest.TestCase):
 
         with self.assertRaises(AssertionError):
             exp.process(state, server_hello)
+
+    def test_process_with_tls_1_3_no_downgrade_protection(self):
+        exp = ExpectServerHello(version=(3, 4), server_max_protocol=(3, 4))
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        ciph = CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV
+        client_hello.cipher_suites = [4, ciph]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        msg = ServerHello().create(version=(3, 4),
+                                   random=bytearray(32),
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=None)
+
+        self.assertTrue(exp.is_match(msg))
+
+        exp.process(state, msg)
+
+    def test_process_with_tls_1_3_wrong_downgrade_protection(self):
+        exp = ExpectServerHello(extensions={ExtensionType.renegotiation_info:
+                                            None},
+                                version=(3, 4), server_max_protocol=(3, 4))
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        ciph = CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV
+        client_hello.cipher_suites = [4, ciph]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        rndbuf=bytearray(32)
+        rndbuf[-8:] = TLS_1_2_DOWNGRADE_SENTINEL
+
+        msg = ServerHello().create(version=(3, 4),
+                                   random=rndbuf,
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=None)
+
+        self.assertTrue(exp.is_match(msg))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
+    def test_process_with_tls_1_2_downgrade_protection(self):
+        exp = ExpectServerHello(extensions={ExtensionType.renegotiation_info:
+                                            None},
+                                version=(3, 3), server_max_protocol=(3, 4))
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        ciph = CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV
+        client_hello.cipher_suites = [4, ciph]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        ext = RenegotiationInfoExtension().create(bytearray())
+
+        rndbuf=bytearray(32)
+        rndbuf[-8:] = TLS_1_2_DOWNGRADE_SENTINEL
+
+        msg = ServerHello().create(version=(3, 3),
+                                   random=rndbuf,
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=[ext])
+
+        self.assertTrue(exp.is_match(msg))
+
+        exp.process(state, msg)
+
+    def test_process_with_tls_1_2_missing_downgrade_protection(self):
+        exp = ExpectServerHello(extensions={ExtensionType.renegotiation_info:
+                                            None},
+                                version=(3, 3), server_max_protocol=(3, 4))
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        ciph = CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV
+        client_hello.cipher_suites = [4, ciph]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        ext = RenegotiationInfoExtension().create(bytearray())
+
+        msg = ServerHello().create(version=(3, 3),
+                                   random=bytearray(32),
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=[ext])
+
+        self.assertTrue(exp.is_match(msg))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
+    def test_process_with_tls_1_2_no_downgrade_protection(self):
+        exp = ExpectServerHello(extensions={ExtensionType.renegotiation_info:
+                                            None},
+                                version=(3, 3), server_max_protocol=(3, 3))
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        ciph = CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV
+        client_hello.cipher_suites = [4, ciph]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        ext = RenegotiationInfoExtension().create(bytearray())
+
+        msg = ServerHello().create(version=(3, 3),
+                                   random=bytearray(32),
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=[ext])
+
+        self.assertTrue(exp.is_match(msg))
+
+        exp.process(state, msg)
+
+    def test_process_with_tls_1_2_wrong_downgrade_protection(self):
+        exp = ExpectServerHello(extensions={ExtensionType.renegotiation_info:
+                                            None},
+                                version=(3, 3), server_max_protocol=(3, 3))
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        ciph = CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV
+        client_hello.cipher_suites = [4, ciph]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        ext = RenegotiationInfoExtension().create(bytearray())
+
+        rndbuf=bytearray(32)
+        rndbuf[-8:] = TLS_1_2_DOWNGRADE_SENTINEL
+
+        msg = ServerHello().create(version=(3, 3),
+                                   random=rndbuf,
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=[ext])
+
+        self.assertTrue(exp.is_match(msg))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
+    def test_process_with_tls_1_1_downgrade_protection(self):
+        exp = ExpectServerHello(extensions={ExtensionType.renegotiation_info:
+                                            None},
+                                server_max_protocol=(3, 4))
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        ciph = CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV
+        client_hello.cipher_suites = [4, ciph]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        ext = RenegotiationInfoExtension().create(bytearray())
+
+        rndbuf=bytearray(32)
+        rndbuf[-8:] = TLS_1_1_DOWNGRADE_SENTINEL
+
+        msg = ServerHello().create(version=(3, 2),
+                                   random=rndbuf,
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=[ext])
+
+        self.assertTrue(exp.is_match(msg))
+
+        exp.process(state, msg)
+
+    def test_process_with_tls_1_2_server_downgrade_protection(self):
+        exp = ExpectServerHello(extensions={ExtensionType.renegotiation_info:
+                                            None},
+                                server_max_protocol=(3, 3))
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        ciph = CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV
+        client_hello.cipher_suites = [4, ciph]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        ext = RenegotiationInfoExtension().create(bytearray())
+
+        rndbuf=bytearray(32)
+        rndbuf[-8:] = TLS_1_1_DOWNGRADE_SENTINEL
+
+        msg = ServerHello().create(version=(3, 2),
+                                   random=rndbuf,
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=[ext])
+
+        self.assertTrue(exp.is_match(msg))
+
+        exp.process(state, msg)
+
+    def test_process_with_tls_1_1_no_downgrade_protection(self):
+        exp = ExpectServerHello(extensions={ExtensionType.renegotiation_info:
+                                            None},
+                                server_max_protocol=(3, 2))
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        ciph = CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV
+        client_hello.cipher_suites = [4, ciph]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        ext = RenegotiationInfoExtension().create(bytearray())
+
+        msg = ServerHello().create(version=(3, 2),
+                                   random=bytearray(32),
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=[ext])
+
+        self.assertTrue(exp.is_match(msg))
+
+        exp.process(state, msg)
+
+    def test_process_with_tls_1_1_wrong_downgrade_protection(self):
+        exp = ExpectServerHello(extensions={ExtensionType.renegotiation_info:
+                                            None},
+                                version=(3, 1), server_max_protocol=(3, 2))
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        ciph = CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV
+        client_hello.cipher_suites = [4, ciph]
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        ext = RenegotiationInfoExtension().create(bytearray())
+
+        rndbuf=bytearray(32)
+        rndbuf[-8:] = TLS_1_1_DOWNGRADE_SENTINEL
+
+        msg = ServerHello().create(version=(3, 1),
+                                   random=rndbuf,
+                                   session_id=bytearray(0),
+                                   cipher_suite=4,
+                                   extensions=[ext])
+
+        self.assertTrue(exp.is_match(msg))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
 
 
 class TestExpectServerHelloWithHelloRetryRequest(unittest.TestCase):

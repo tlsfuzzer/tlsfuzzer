@@ -14,7 +14,8 @@ import tlslite.utils.tlshashlib as hashlib
 from tlslite.constants import ContentType, HandshakeType, CertificateType,\
         HashAlgorithm, SignatureAlgorithm, ExtensionType,\
         SSL2HandshakeType, CipherSuite, GroupName, AlertDescription, \
-        SignatureScheme, TLS_1_3_HRR, HeartbeatMode
+        SignatureScheme, TLS_1_3_HRR, HeartbeatMode, \
+        TLS_1_1_DOWNGRADE_SENTINEL, TLS_1_2_DOWNGRADE_SENTINEL
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
         ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus, \
@@ -320,7 +321,7 @@ class ExpectServerHello(ExpectHandshake):
     """
 
     def __init__(self, extensions=None, version=None, resume=False,
-                 cipher=None):
+                 cipher=None, server_max_protocol=None):
         """
         Initialize the object
 
@@ -335,6 +336,7 @@ class ExpectServerHello(ExpectHandshake):
         self.extensions = extensions
         self.version = version
         self.resume = resume
+        self.srv_max_prot = server_max_protocol
 
     def _compare_extensions(self, srv_hello):
         """
@@ -503,6 +505,8 @@ class ExpectServerHello(ExpectHandshake):
         state.extended_master_secret = False
         state.encrypt_then_mac = False
 
+        self._check_downgrade_protection(srv_hello)
+
         self._compare_extensions(srv_hello)
 
         if srv_hello.extensions:
@@ -568,6 +572,32 @@ class ExpectServerHello(ExpectHandshake):
             state.cipher, c_traffic_secret, s_traffic_secret, None)
 
         state.msg_sock.changeReadState()
+
+    def _check_downgrade_protection(self, srv_hello):
+        """
+        Verify that server provided downgrade protection as specified in
+        RFC 8446, Section 4.1.3
+        """
+        if self.srv_max_prot is None:
+            return
+
+        downgrade_value = None
+        if self.srv_max_prot > (3, 3) and srv_hello.server_version == (3, 3):
+            downgrade_value = TLS_1_2_DOWNGRADE_SENTINEL
+        elif self.srv_max_prot > (3, 2) and srv_hello.server_version < (3, 3):
+            downgrade_value = TLS_1_1_DOWNGRADE_SENTINEL
+
+        if downgrade_value is None:
+            if srv_hello.random[24:] == TLS_1_1_DOWNGRADE_SENTINEL or \
+                srv_hello.random[24:] == TLS_1_2_DOWNGRADE_SENTINEL:
+                raise AssertionError(
+                    "Server set downgrade protection sentinel but shouldn't "
+                    "have done that")
+        else:
+            if srv_hello.random[24:] != downgrade_value:
+                raise AssertionError(
+                    "Server failed to set downgrade protection sentinel in "
+                    "ServerHello.random value")
 
 
 class ExpectHelloRetryRequest(ExpectServerHello):
