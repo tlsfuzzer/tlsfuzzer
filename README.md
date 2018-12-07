@@ -37,7 +37,9 @@ following libraries (see tlslite-ng README for details):
  * gmp
 
 To get `pip` (if your python installation doesn't already have it) download
-[get-pip.py](https://bootstrap.pypa.io/get-pip.py) and run:
+[get-pip.py](https://bootstrap.pypa.io/get-pip.py) and run
+(or see [USAGE.md](https://github.com/tomato42/tlsfuzzer/blob/master/USAGE.md)
+for alternative configuration that does not require installation of packages):
 
 ```
 python get-pip.py
