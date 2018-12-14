@@ -98,9 +98,10 @@ The python module dependencies are as follows:
 On Fedora they can be installed using:
 
 ```
-dnf install python-ecdsa python3-ecdsa pylint python3-pylint python-diff-cover \
-    python3-diff-cover python-coverage python3-coverage python2-hypothesis \
-    python3-hypothesis python3-libs python-unittest2 python-mock epydoc
+dnf install python2-ecdsa python3-ecdsa pylint python3-pylint \
+    python2-diff-cover python3-diff-cover python2-coverage python3-coverage \
+    python2-hypothesis python3-hypothesis python3-libs python2-unittest2 \
+    python2-mock epydoc
 ```
 
 On RHEL 7 you will need to enable [EPEL](https://fedoraproject.org/wiki/EPEL),
@@ -126,7 +127,8 @@ On Fedora they can be installed using:
 
 ```
 pip install tackpy
-dnf install m2crypto python-crypto python3-crypto python-gmpy2 python3-gmpy2
+dnf install m2crypto python3-m2crypto python2-crypto python3-crypto \
+    python2-gmpy2 python3-gmpy2
 ```
 
 #### Virtual environment
