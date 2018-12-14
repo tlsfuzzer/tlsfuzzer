@@ -1317,7 +1317,7 @@ def fuzz_padding(generator, min_length=None, substitutions=None, xors=None):
     the min_length specifies the minimum length of the padding created,
     including the byte specifying length of padding
 
-    substitutions and xors are dicionaries the specify the values to which
+    substitutions and xors are dictionaries that specify the values to which
     the padding should be set, note that the "-1" position is the byte with
     length of padding while "-2" is the last byte of padding (if padding
     has non-zero length)
