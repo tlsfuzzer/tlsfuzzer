@@ -20,7 +20,7 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 2
+version = 3
 
 
 def help_msg():
@@ -35,6 +35,7 @@ def help_msg():
     print("                may be specified multiple times")
     print(" -n num         only run `num` random tests instead of a full set")
     print("                (excluding \"sanity\" tests)")
+    print(" --no-ssl2      expect the server to not support SSL2 Client Hello")
     print(" --help         this message")
 
 
@@ -49,9 +50,10 @@ def main():
     port = 4433
     num_limit = None
     run_exclude = set()
+    no_ssl2 = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help", "no-ssl2"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -61,6 +63,8 @@ def main():
             run_exclude.add(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '--no-ssl2':
+            no_ssl2 = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -78,6 +82,9 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if no_ssl2:
+        # any unassigned ciphers are ok, they just work as padding
+        ciphers += [0x0a00 + i for i in range(1, 1+256-len(ciphers))]
     node = node.add_child(ClientHelloGenerator(ciphers))
     ext={ExtensionType.renegotiation_info:None}
     node = node.add_child(ExpectServerHello(extensions=ext))
@@ -107,28 +114,38 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if no_ssl2:
+        # to create a SSLv2 CH that is clearly broken SSLv3 CH we need
+        # SSLv2 CH with a list of ciphers that has length divisible by 256
+        # (as cipher IDs in SSLv2 are 3 byte long, 256*3 is the smallest common
+        # multiple of 3 and 256)
+        ciphers += [0x0a00 + i for i in range(1, 1+256-len(ciphers))]
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                ssl2=True))
-    ext={ExtensionType.renegotiation_info:None}
-    node = node.add_child(ExpectServerHello(extensions=ext))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\n\n")))
-    node = node.add_child(ExpectApplicationData())
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                         AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert())
-    node.child = ExpectClose()
-    # if we're doing TLSv1.0 the server should be doing 1/n-1 splitting
-    node.next_sibling = ExpectApplicationData()
-    node = node.next_sibling
-    node.next_sibling = ExpectClose()
+    if no_ssl2:
+        node = node.add_child(ExpectAlert())
+        node.add_child(ExpectClose())
+    else:
+        ext={ExtensionType.renegotiation_info:None}
+        node = node.add_child(ExpectServerHello(extensions=ext))
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ExpectApplicationData())
+        node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                             AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert())
+        node.child = ExpectClose()
+        # if we're doing TLSv1.0 the server should be doing 1/n-1 splitting
+        node.next_sibling = ExpectApplicationData()
+        node = node.next_sibling
+        node.next_sibling = ExpectClose()
 
     conversations["SSLv2 Client Hello"] = conversation
 
@@ -138,12 +155,37 @@ def main():
                                               bytearray()))
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               ssl2=True))
+    if no_ssl2:
+        ciphers += [0x0a00 + i for i in range(1, 1+256-len(ciphers))]
+        # we depend on alignment of the SSLv2 CH ciphers length and session id
+        # length with the SSLv3 CH handshake protocol length value
+        # so for the same kind of test, we need to send 0 bytes as the 7th to
+        # 9th byte
+        # the first message is two bytes so it will be interpreted as
+        # protocol \x80 and first byte of version \x00
+        # then this header will be interpreted as second byte of version \x80
+        # and first byte of length - we thus need to send something that is
+        # multiple of 256
+        data = bytearray(b'\x04' +  # will be interpreted as second byte of
+                                    # SSLv3 RecordLayer header
+                         b'\x01' +  # will be interpreted as handshake protocol
+                                    # message type - client_hello
+                         b'\x00' * 3 + # length of handshake message - 0 bytes
+                                    # (invalid)
+                         b'\xff' * (256-5) # padding needed to bring SSLv2
+                                    # record length to be multiple of 256
+                        )
+        assert len(data) % 256 == 0
+        node = node.add_child(RawMessageGenerator(0, data))
+    else:
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   ssl2=True))
     # SSLv2 does not have well defined error handling, so usually errors
     # just cause connection close. But sending TLS alert is correct too.
     node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
+    if not no_ssl2:
+        # but be strict with Alerts when SSLv2 is not supported
+        node.next_sibling = ExpectClose()
     node.add_child(ExpectClose())
 
     conversations["Empty SSLv2 record"] = conversation
@@ -154,10 +196,13 @@ def main():
                                               bytearray(1)))
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if no_ssl2:
+        ciphers += [0x0a00 + i for i in range(1, 1+256-len(ciphers))]
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                ssl2=True))
     node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
+    if not no_ssl2:
+        node.next_sibling = ExpectClose()
     node.add_child(ExpectClose())
 
     conversations["Empty SSLv2 record - type 0"] = conversation
@@ -168,10 +213,13 @@ def main():
                                               bytearray([1])))
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if no_ssl2:
+        ciphers += [0x0a00 + i for i in range(1, 1+256-len(ciphers))]
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                ssl2=True))
     node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
+    if not no_ssl2:
+        node.next_sibling = ExpectClose()
     node.add_child(ExpectClose())
 
     conversations["Empty SSLv2 record - type 1"] = conversation
@@ -182,10 +230,13 @@ def main():
                                               bytearray(b'\x01\x03\x03')))
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if no_ssl2:
+        ciphers += [0x0a00 + i for i in range(1, 1+256-len(ciphers))]
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                ssl2=True))
     node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
+    if not no_ssl2:
+        node.next_sibling = ExpectClose()
     node = node.add_child(ExpectClose())
 
     conversations["Just version in SSLv2 hello"] = conversation
@@ -233,6 +284,8 @@ def main():
     print("Checks if the server can negotiate TLS when client initiated the")
     print("connection using a SSLv2 compatible ClientHello but included TLS")
     print("compatible ciphersuites")
+    print("Alternatively, verifies that SSLv2 records are rejected when run")
+    print("with --no-ssl2 option")
     print("version: {0}".format(version))
     print("Test end")
     print("successful: {0}".format(good))
