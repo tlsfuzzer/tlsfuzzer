@@ -1,10 +1,11 @@
-# Author: Hubert Kario, (c) 2015
+# Author: Hubert Kario, (c) 2015-2018
 # Released under Gnu GPL v2.0, see LICENSE file for details
 """Check for SSLv2 Client Hello support for negotiating TLS"""
 from __future__ import print_function
 import traceback
 import sys
 import getopt
+from itertools import chain, islice
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
@@ -14,16 +15,29 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectApplicationData
-
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType, ContentType
+from tlsfuzzer.utils.lists import natural_sort_keys
+
+
+version = 3
+
 
 def help_msg():
     """Usage information"""
-    print("Usage: <script-name> [-h hostname] [-p port]")
-    print(" -h hostname   hostname to connect to, \"localhost\" by default")
-    print(" -p port       port to use for connection, \"4433\" by default")
-    print(" --help        this message")
+    print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
+    print(" -h hostname    name of the host to run the test against")
+    print("                localhost by default")
+    print(" -p port        port number to use for connection, 4433 by default")
+    print(" probe-name     if present, will run only the probes with given")
+    print("                names and not all of them, e.g \"sanity\"")
+    print(" -e probe-name  exclude the probe from the list of the ones run")
+    print("                may be specified multiple times")
+    print(" -n num         only run `num` random tests instead of a full set")
+    print("                (excluding \"sanity\" tests)")
+    print(" --no-ssl2      expect the server to not support SSL2 Client Hello")
+    print(" --help         this message")
+
 
 def main():
     """
@@ -32,33 +46,46 @@ def main():
     Test if the server supports SSLv2-style Client Hello messages for
     negotiating TLS connections
     """
-    conversations = {}
     host = "localhost"
     port = 4433
+    num_limit = None
+    run_exclude = set()
+    no_ssl2 = False
 
     argv = sys.argv[1:]
-    opts, argv = getopt.getopt(argv, "h:p:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help", "no-ssl2"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
         elif opt == '-p':
             port = int(arg)
+        elif opt == '-e':
+            run_exclude.add(arg)
+        elif opt == '-n':
+            num_limit = int(arg)
+        elif opt == '--no-ssl2':
+            no_ssl2 = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
         else:
             raise ValueError("Unknown option: {0}".format(opt))
-    if argv:
-        help_msg()
-        raise ValueError("Unknown options: {0}".format(argv))
 
-    # instruct RecordLayer to use SSLv2 record layer protocol (0, 2)
-    conversation = Connect(host, port, version=(0, 2))
+    if args:
+        run_only = set(args)
+    else:
+        run_only = None
+
+    conversations = {}
+
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               ssl2=True))
+    if no_ssl2:
+        # any unassigned ciphers are ok, they just work as padding
+        ciphers += [0x0a00 + i for i in range(1, 1+256-len(ciphers))]
+    node = node.add_child(ClientHelloGenerator(ciphers))
     ext={ExtensionType.renegotiation_info:None}
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectCertificate())
@@ -80,6 +107,46 @@ def main():
     node = node.next_sibling
     node.next_sibling = ExpectClose()
 
+    conversations["sanity"] = conversation
+
+    # instruct RecordLayer to use SSLv2 record layer protocol (0, 2)
+    conversation = Connect(host, port, version=(0, 2))
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if no_ssl2:
+        # to create a SSLv2 CH that is clearly broken SSLv3 CH we need
+        # SSLv2 CH with a list of ciphers that has length divisible by 256
+        # (as cipher IDs in SSLv2 are 3 byte long, 256*3 is the smallest common
+        # multiple of 3 and 256)
+        ciphers += [0x0a00 + i for i in range(1, 1+256-len(ciphers))]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               ssl2=True))
+    if no_ssl2:
+        node = node.add_child(ExpectAlert())
+        node.add_child(ExpectClose())
+    else:
+        ext={ExtensionType.renegotiation_info:None}
+        node = node.add_child(ExpectServerHello(extensions=ext))
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ExpectApplicationData())
+        node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                             AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert())
+        node.child = ExpectClose()
+        # if we're doing TLSv1.0 the server should be doing 1/n-1 splitting
+        node.next_sibling = ExpectApplicationData()
+        node = node.next_sibling
+        node.next_sibling = ExpectClose()
+
     conversations["SSLv2 Client Hello"] = conversation
 
     conversation = Connect(host, port, version=(0, 2))
@@ -88,12 +155,37 @@ def main():
                                               bytearray()))
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               ssl2=True))
+    if no_ssl2:
+        ciphers += [0x0a00 + i for i in range(1, 1+256-len(ciphers))]
+        # we depend on alignment of the SSLv2 CH ciphers length and session id
+        # length with the SSLv3 CH handshake protocol length value
+        # so for the same kind of test, we need to send 0 bytes as the 7th to
+        # 9th byte
+        # the first message is two bytes so it will be interpreted as
+        # protocol \x80 and first byte of version \x00
+        # then this header will be interpreted as second byte of version \x80
+        # and first byte of length - we thus need to send something that is
+        # multiple of 256
+        data = bytearray(b'\x04' +  # will be interpreted as second byte of
+                                    # SSLv3 RecordLayer header
+                         b'\x01' +  # will be interpreted as handshake protocol
+                                    # message type - client_hello
+                         b'\x00' * 3 + # length of handshake message - 0 bytes
+                                    # (invalid)
+                         b'\xff' * (256-5) # padding needed to bring SSLv2
+                                    # record length to be multiple of 256
+                        )
+        assert len(data) % 256 == 0
+        node = node.add_child(RawMessageGenerator(0, data))
+    else:
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   ssl2=True))
     # SSLv2 does not have well defined error handling, so usually errors
     # just cause connection close. But sending TLS alert is correct too.
     node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
+    if not no_ssl2:
+        # but be strict with Alerts when SSLv2 is not supported
+        node.next_sibling = ExpectClose()
     node.add_child(ExpectClose())
 
     conversations["Empty SSLv2 record"] = conversation
@@ -104,10 +196,13 @@ def main():
                                               bytearray(1)))
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if no_ssl2:
+        ciphers += [0x0a00 + i for i in range(1, 1+256-len(ciphers))]
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                ssl2=True))
     node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
+    if not no_ssl2:
+        node.next_sibling = ExpectClose()
     node.add_child(ExpectClose())
 
     conversations["Empty SSLv2 record - type 0"] = conversation
@@ -118,10 +213,13 @@ def main():
                                               bytearray([1])))
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if no_ssl2:
+        ciphers += [0x0a00 + i for i in range(1, 1+256-len(ciphers))]
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                ssl2=True))
     node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
+    if not no_ssl2:
+        node.next_sibling = ExpectClose()
     node.add_child(ExpectClose())
 
     conversations["Empty SSLv2 record - type 1"] = conversation
@@ -132,41 +230,68 @@ def main():
                                               bytearray(b'\x01\x03\x03')))
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if no_ssl2:
+        ciphers += [0x0a00 + i for i in range(1, 1+256-len(ciphers))]
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                ssl2=True))
     node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
+    if not no_ssl2:
+        node.next_sibling = ExpectClose()
     node = node.add_child(ExpectClose())
 
     conversations["Just version in SSLv2 hello"] = conversation
 
 
+    # run the conversations
     good = 0
     bad = 0
+    failed = []
+    if not num_limit:
+        num_limit = len(conversations)
 
-    for conversation_name, conversation in conversations.items():
-        print("{0} ...".format(conversation_name))
+    # make sure that sanity test is run first and last
+    # to verify that server was running and kept running throught
+    sanity_test = ('sanity', conversations['sanity'])
+    ordered_tests = chain([sanity_test],
+                          islice(filter(lambda x: x[0] != 'sanity',
+                                        conversations.items()), num_limit),
+                          [sanity_test])
 
-        runner = Runner(conversation)
+    for c_name, c_test in ordered_tests:
+        if run_only and c_name not in run_only or c_name in run_exclude:
+            continue
+        print("{0} ...".format(c_name))
+
+        runner = Runner(c_test)
 
         res = True
         try:
             runner.run()
-        except:
+        except Exception:
             print("Error while processing")
             print(traceback.format_exc())
-            print("")
             res = False
 
         if res:
-            good+=1
+            good += 1
             print("OK\n")
         else:
-            bad+=1
+            bad += 1
+            failed.append(c_name)
 
+    print("Basic test for SSLv2 Hello protocol for TLS 1.0 to TLS 1.2 "
+          "negotiation")
+    print("Checks if the server can negotiate TLS when client initiated the")
+    print("connection using a SSLv2 compatible ClientHello but included TLS")
+    print("compatible ciphersuites")
+    print("Alternatively, verifies that SSLv2 records are rejected when run")
+    print("with --no-ssl2 option")
+    print("version: {0}".format(version))
     print("Test end")
     print("successful: {0}".format(good))
     print("failed: {0}".format(bad))
+    failed_sorted = sorted(failed, key=natural_sort_keys)
+    print("  {0}".format('\n  '.join(repr(i) for i in failed_sorted)))
 
     if bad > 0:
         sys.exit(1)
