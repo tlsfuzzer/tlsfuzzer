@@ -7,6 +7,8 @@ import sys
 import getopt
 from itertools import chain, islice
 
+from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
+        ExtensionType
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
@@ -15,10 +17,10 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectApplicationData
-
-from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType
 from tlsfuzzer.utils.lists import natural_sort_keys
+
+
+version = 1
 
 
 def help_msg():
@@ -191,7 +193,7 @@ def main():
         res = True
         try:
             runner.run()
-        except:
+        except Exception:
             print("Error while processing")
             print(traceback.format_exc())
             res = False
@@ -202,6 +204,10 @@ def main():
         else:
             bad += 1
             failed.append(c_name)
+
+    print("Basic session resumption script")
+    print("Check if session resumption using session IDs works\n")
+    print("version: {0}\n".format(version))
 
     print("Test end")
     print("successful: {0}".format(good))
