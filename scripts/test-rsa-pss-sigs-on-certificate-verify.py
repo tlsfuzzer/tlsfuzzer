@@ -356,8 +356,8 @@ def main():
         node = node.add_child(ExpectAlert())
         node.next_sibling = ExpectClose()
         node = node.add_child(ExpectClose())
-        conversations["{0} in CertificateVerify"
-                      .format(SignatureScheme.toRepr(scheme))] = conversation
+        conversations["{0} in CertificateVerify with {1} key"
+                      .format(SignatureScheme.toRepr(scheme), cert.certAlg)] = conversation
 
     # check if CertificateVerify with wrong salt size is rejected
     for scheme in schemes:
@@ -445,9 +445,8 @@ def main():
                                               AlertDescription.decrypt_error))
             node.next_sibling = ExpectClose()
             node = node.add_child(ExpectClose())
-            conversations_long["malformed rsa-pss in CertificateVerify - "
-                          "xor {1} at {0}"
-                          .format(pos, hex(xor))] = conversation
+            conversations_long["malformed {0} in CertificateVerify - xor {1} at {2}"
+                               .format(cert.certAlg, hex(xor), pos)] = conversation
 
     if cert.certAlg == "rsa-pss":
         conversation = Connect(host, port)
@@ -539,8 +538,8 @@ def main():
                                           AlertDescription.decrypt_error))
     node.next_sibling = ExpectClose()
     node = node.add_child(ExpectClose())
-    conversations["rsa_pss_rsae_sha256 signature in CertificateVerify "
-                  "with rsa_pkcs1_sha256 id"] = conversation
+    conversations["{0} signature in CertificateVerify with rsa_pkcs1_sha256 id"
+                  .format(SignatureScheme.toRepr(sig_alg))] = conversation
 
     conversation = Connect(host, port)
     node = conversation
@@ -584,8 +583,8 @@ def main():
                                       AlertDescription.decrypt_error))
     node.next_sibling = ExpectClose()
     node = node.add_child(ExpectClose())
-    conversations["short sig with rsa_pss_rsae_sha256 id"] = \
-                  conversation
+    conversations["short sig with {0} id".format(
+                  SignatureScheme.toRepr(scheme))] = conversation
 
     # run the conversation
     good = 0
