@@ -22,6 +22,9 @@ from tlslite.extensions import TLSExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
+version = 2
+
+
 def help_msg():
     print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
     print(" -h hostname    name of the host to run the test against")
@@ -91,13 +94,28 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                compression=range(1, 256)))
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.illegal_parameter))
+    node.add_child(ExpectClose())
 
     conversations['invalid compression methods'] = conversation
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               compression=[1]))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.illegal_parameter))
+    node.add_child(ExpectClose())
+
+    conversations['only deflate compression method'] = conversation
+
 
     # run the conversation
     good = 0
@@ -124,7 +142,7 @@ def main():
         res = True
         try:
             runner.run()
-        except:
+        except Exception:
             print("Error while processing")
             print(traceback.format_exc())
             res = False
@@ -136,7 +154,11 @@ def main():
             bad += 1
             failed.append(c_name)
 
+    print("Verify if server checks compressions field in ClientHello")
+    print("version: {0}\n".format(version))
+
     print("Test end")
+
     print("successful: {0}".format(good))
     print("failed: {0}".format(bad))
     failed_sorted = sorted(failed, key=natural_sort_keys)
