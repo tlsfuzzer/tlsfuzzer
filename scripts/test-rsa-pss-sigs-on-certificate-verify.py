@@ -310,7 +310,6 @@ def main():
         else:
             node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                               AlertDescription.decrypt_error))
-        node.next_sibling = ExpectClose()
         node = node.add_child(ExpectClose())
         conversations["{0} in CertificateVerify with {1} key"
                       .format(SignatureScheme.toRepr(scheme), cert.certAlg)] = conversation
@@ -396,7 +395,6 @@ def main():
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                           AlertDescription.decrypt_error))
-        node.next_sibling = ExpectClose()
         node = node.add_child(ExpectClose())
         conversations["{0} in CertificateVerify with incorrect salt len"
                       .format(SignatureScheme.toRepr(scheme))] = conversation
@@ -443,7 +441,6 @@ def main():
             node = node.add_child(TCPBufferingFlush())
             node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                               AlertDescription.decrypt_error))
-            node.next_sibling = ExpectClose()
             node = node.add_child(ExpectClose())
             conversations_long["malformed {0} in CertificateVerify - xor {1} at {2}"
                                .format(cert.certAlg, hex(xor), pos)] = conversation
@@ -488,7 +485,6 @@ def main():
         else:
             node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                               AlertDescription.decrypt_error))
-        node.next_sibling = ExpectClose()
         node = node.add_child(ExpectClose())
         conversations["rsa_pkcs1_sha256 signature in CertificateVerify "
                       "with rsa-pss key"] = conversation
@@ -536,7 +532,6 @@ def main():
     else:
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                           AlertDescription.decrypt_error))
-    node.next_sibling = ExpectClose()
     node = node.add_child(ExpectClose())
     conversations["{0} signature in CertificateVerify with rsa_pkcs1_sha256 id"
                   .format(SignatureScheme.toRepr(sig_alg))] = conversation
@@ -581,7 +576,6 @@ def main():
     node = node.add_child(TCPBufferingFlush())
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decrypt_error))
-    node.next_sibling = ExpectClose()
     node = node.add_child(ExpectClose())
     conversations["short sig with {0} id".format(
                   SignatureScheme.toRepr(scheme))] = conversation
