@@ -298,12 +298,15 @@ def main():
         node = node.add_child(ExpectServerKeyExchange())
         node = node.add_child(ExpectCertificateRequest())
         node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
         node = node.add_child(CertificateGenerator(X509CertChain([cert])))
         node = node.add_child(ClientKeyExchangeGenerator())
         node = node.add_child(CertificateVerifyGenerator(private_key,
                                                          msg_alg=scheme))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
         if exp_illeg_param:
             node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                               AlertDescription.illegal_parameter))
