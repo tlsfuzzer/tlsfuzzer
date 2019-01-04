@@ -1041,8 +1041,9 @@ class TestCertificateGenerator(unittest.TestCase):
 
     def test_generate(self):
         certg = CertificateGenerator()
+        state = ConnectionState()
 
-        msg = certg.generate(None)
+        msg = certg.generate(state)
 
         self.assertIsInstance(msg, messages.Certificate)
         self.assertIsNone(msg.certChain)
