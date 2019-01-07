@@ -31,7 +31,7 @@ from tlslite.x509certchain import X509CertChain
 from tlslite.utils.cryptomath import numBytes
 
 
-version = 2
+version = 3
 
 
 def help_msg():
@@ -52,10 +52,12 @@ def help_msg():
     print("                (sha512+rsa) separated by spaces")
     print(" -k keyfile     file with private key")
     print(" -c certfile    file with certificate of client")
-    print(" --illegpar     if present, test-cases:")
-    print("                'rsa_pkcs1_sha256 sig in CV with rsa-pss key' and")
-    print("                'rsae/rsa-pss in CV with rsa-pss/rsae key', expect")
-    print("                illegal_parameter as a Alert message description")
+    print(" --illegpar     expect illegal_parameter instead of decode_error")
+    print("                alert for mismatched signatures. Should be used")
+    print("                with TLS implementations that do inspect")
+    print("                certificiate type and check if it is compatible")
+    print("                with given CertificateVerify signature before")
+    print("                passing both of them to verification.")
     print(" --help         this message")
 
 
@@ -529,10 +531,14 @@ def main():
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
     node = node.add_child(TCPBufferingFlush())
-    if exp_illeg_param:
+    if exp_illeg_param and cert.certAlg != "rsa":
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                           AlertDescription.illegal_parameter))
     else:
+        # with rsaEncryption key in certificate, there is nothing the TLS
+        # layer can inspect to decide if the signature is valid before actually
+        # verifying it
+        # for rsassa-pss, rsa_pkcs1 signature is illegal
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                           AlertDescription.decrypt_error))
     node = node.add_child(ExpectClose())
@@ -621,6 +627,12 @@ def main():
             bad += 1
             failed.append(c_name)
 
+    print("Check handling of rsa-pss signatures")
+    print("Test should be run twice, once with certificate with")
+    print("rsaEncryption key and once with certificate with rsassa-pss key.")
+    print("Implementations that inspect certificate type and check signature")
+    print("scheme in CertificateVerify before verifying signature need to use")
+    print("--illegpar option")
     print("version: {0}\n".format(version))
 
     print("Test end")
