@@ -802,19 +802,20 @@ class ClientMasterKeyGenerator(HandshakeProtocolMessageGenerator):
 class CertificateGenerator(HandshakeProtocolMessageGenerator):
     """Generator for TLS handshake protocol Certificate message."""
 
-    def __init__(self, certs=None, cert_type=None):
+    def __init__(self, certs=None, cert_type=None, version=None):
         """Set the certificates to send to server."""
         super(CertificateGenerator, self).__init__()
         self.certs = certs
         self.cert_type = cert_type
+        self.version = version
 
     def generate(self, status):
         """Create a Certificate message."""
-        del status  # unused
-        # TODO: support client certs
+        if self.version is None:
+            self.version = status.version
         if self.cert_type is None:
             self.cert_type = CertificateType.x509
-        cert = Certificate(self.cert_type)
+        cert = Certificate(self.cert_type, version=self.version)
         cert.create(self.certs)
 
         self.msg = cert
@@ -900,13 +901,13 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                                             self.sig_alg,
                                             status.key['premaster_secret'],
                                             status.client_random,
-                                            status.server_random)
+                                            status.server_random,
+                                            status.prf_name)
 
             # we don't have to handle non pkcs1 padding because the
             # calcVerifyBytes does everything
             scheme = SignatureScheme.toRepr(self.sig_alg)
             hashName = None
-            saltLen = 0
             if scheme is None:
                 padding = "pkcs1"
             else:
