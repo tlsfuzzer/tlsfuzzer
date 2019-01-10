@@ -236,12 +236,7 @@
          {"name" : "test-tls13-record-layer-limits.py",
           "arguments" : ["-n", "50"]},
          {"name" : "test-tls13-record-padding.py"},
-         {"name" : "test-tls13-rsa-signatures.py",
-          "arguments" : ["-e", "tls13 signature rsa_pss_pss_sha256",
-                         "-e", "tls13 signature rsa_pss_pss_sha384",
-                         "-e", "tls13 signature rsa_pss_pss_sha512"],
-          "comment" : "bug tlslite-ng#275"
-         },
+         {"name" : "test-tls13-rsa-signatures.py"},
          {"name" : "test-tls13-serverhello-random.py",
           "arguments" : ["--repeat", "5"]},
          {"name" : "test-tls13-session-resumption.py"},
@@ -274,8 +269,8 @@
                          "-c", "tests/clientX509Cert.pem"]
          },
          {"name" : "test-certificate-request.py",
-            "arguments" : ["-k", "tests/clientX509Key.pem",
-                           "-c", "tests/clientX509Cert.pem"]
+          "arguments" : ["-k", "tests/clientX509Key.pem",
+                         "-c", "tests/clientX509Cert.pem"]
           },
          {"name" : "test-certificate-request.py",
           "arguments" : ["-k", "tests/clientRSAPSSKey.pem",
@@ -294,23 +289,18 @@
                          "-c", "tests/clientX509Cert.pem"]
           },
          {"name" : "test-rsa-pss-sigs-on-certificate-verify.py",
-          "comment" : "test script has over 2k test cases, limit it; bug tlslite-ng #279",
+          "comment" : "test script has over 2k test cases, limit it",
           "arguments" : ["-k", "tests/clientX509Key.pem",
                          "-c", "tests/clientX509Cert.pem",
                          "-n", "15",
-                         "-e", "rsa_pss_pss_sha256 in CertificateVerify with rsa key",
-                         "-e", "rsa_pss_pss_sha384 in CertificateVerify with rsa key",
-                         "-e", "rsa_pss_pss_sha512 in CertificateVerify with rsa key"]
+                         "--illegpar"]
           },
          {"name" : "test-rsa-pss-sigs-on-certificate-verify.py",
-          "comment" : "test script has over 2k test cases, limit it; bug tlslite-ng #279",
+          "comment" : "test script has over 2k test cases, limit it",
           "arguments" : ["-k", "tests/clientRSAPSSKey.pem",
                          "-c", "tests/clientRSAPSSCert.pem",
                          "-n", "15",
-                         "-e", "rsa_pss_rsae_sha256 in CertificateVerify with rsa-pss key",
-                         "-e", "rsa_pss_rsae_sha384 in CertificateVerify with rsa-pss key",
-                         "-e", "rsa_pss_rsae_sha512 in CertificateVerify with rsa-pss key",
-                         "-e", "rsa_pkcs1_sha256 signature in CertificateVerify with rsa-pss key"]
+                         "--illegpar"]
           },
          {"name" : "test-extended-master-secret-extension-with-client-cert.py",
           "arguments" : ["-k", "tests/clientX509Key.pem",
@@ -381,12 +371,7 @@
      "server_port": 4433,
      "environment": {"PYTHONPATH": "."},
      "tests" : [
-        {"name" : "test-tls13-rsapss-signatures.py",
-         "arguments" : ["-e", "tls13 signature rsa_pss_rsae_sha256",
-                        "-e", "tls13 signature rsa_pss_rsae_sha384",
-                        "-e", "tls13 signature rsa_pss_rsae_sha512"],
-         "comment" : "bug tlslite-ng#275"
-        }
+        {"name" : "test-tls13-rsapss-signatures.py"}
      ]
     },
     {"server_command": ["python", "-u", "{command}", "server",
