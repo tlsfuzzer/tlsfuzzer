@@ -93,6 +93,63 @@ srv_raw_certificate = str(
     "-----END CERTIFICATE-----\n"\
     )
 
+
+srv_raw_pss_key = str(
+    "-----BEGIN PRIVATE KEY-----\n"
+    "MIIEugIBADALBgkqhkiG9w0BAQoEggSmMIIEogIBAAKCAQEApq5FnZRNmtJy+WjN\n"
+    "RB8w0ol2+IEcATrUkZpz7HNqq8+EL/GN21m35luz5fcA8ifkm4pKxfwtxY7u912t\n"
+    "AfsEavUr/UoyLScXQevhr6SLXR8UO3XE6ne1F88eZNpgKVpocDVKRLjIqKHSSbBN\n"
+    "kG76mGKFYyNZXm3qRxaUSHVLnN/opOGfgVK8Vbj0v2EH5L5dGLQLV2ZfQ75I4OGr\n"
+    "g8wse5fhgt2oczhhe72sEuMDc08WHGRp9744mMQvVYrtpWUHkP5tdD4i7/zYf3ni\n"
+    "g21/G56JY20JpW+1J5fEn+PEqiJsv5prNJuPp/zdjD3uImqfXZzXUeRIQr9l1qXI\n"
+    "6JPInwIDAQABAoIBAA0BqFkFi5C7P1GLBgl8zZiANZJqsL6/0nqSLN2UnAxQIyaC\n"
+    "mOk29Qy6ty0Iu0AqMMKaZf9REFlMMAWJf8iZx9x4yTf4pDW1yTDRsUi9dEqN9Ew3\n"
+    "gmgxcyYqeVqxV7OiZGftIKCAMthF2Fz7rvHIVzGw7muwBHdD6HYnouaMkJvrFLkW\n"
+    "a41VKi2oJJA4ZXrxHORm9lfAfnvoJVIRvG9z9NDMvi+PBx/wSdFwlVXhSjVnYuTH\n"
+    "laaYBUaH7D9BL8O1aVIRLCDw3Q/4ciTHGByI+6Iremk9nRZEO5igYlK427eKIRGW\n"
+    "lvvy+/+EXPiVwWX9V11CDWm2hOTWYs8wNE7fsSECgYEA2h+gK81yGTpR3/SXxW3i\n"
+    "ojRXXLVxZpi94ZUAvBmOgb+wZQeHWDO0dN37MwAhimHrWsaBEezVKVj6ntBU3Je2\n"
+    "oC+MjLxDaTDvTsvuKvh4zhuiUGcY+XfP9yv9HX3U8Ys3GISJ4HdOBLsISA8zJs+D\n"
+    "vNC6Be/ez9uORb9jfDBG9BcCgYEAw5/UZGWmZLFcwhO5QX8JytXAj9xiMANGBhJb\n"
+    "wQBMEgRpSgHvKI2i32oUOuCQz7wcIgwtgmIhCBz8ld4ky6CYOfQXj+sW9V/drRTl\n"
+    "4M9H+wdwOsB0/ELIZYlFZ82zMgMYJrEFGZR05DSFbeUHEzm8RG9hbsdxkRBtHQIv\n"
+    "AJOoPLkCgYAJZUlZ+ayLh6aVNgz/lR8pC4Yj2TD8UWIEgI2ajKNF1YL8pxleZEPG\n"
+    "sPUsGjpXoqYnr9tJcWExOcL56lFtex+DwOiV+1oQAuqcA07MDQ3vGuOgAQDjZhTQ\n"
+    "OdXaWlw811lVNghWYe07aO8PY5A5gMDU9ky9CrsXSwbS3E6lv9KemwKBgBhjEm05\n"
+    "ptairbecEdoyZhwdLZZBmRP3NIGJRFr5GIKefim1uATMM2O6q67zU9oxzygHcJzy\n"
+    "cr+6LVrZiKjB6ng/D7jnS8NnIhFzq3ytGoIW2UzZtTvFb4oI5Ngd8prne9lG9CXO\n"
+    "NgxE5+VdSdaBuhCl+fV/c47sB044eXeO8MgxAoGAQUL40ZtfXrbPHBjHwsEHf8hS\n"
+    "XUPtd3cVyPZigz+6P3Cr54GvicRaoaYeUt2zrbjqgiX/bAW/Xq6Pu+UpDyCQ6Er5\n"
+    "OvDrbz1v5sfhn3Eubh2a4LZy7EiKveTtOpmqFs6XZ1FYoMSdeMr44Mql8G2MGa2d\n"
+    "n15sR5bRKF3dVy2qO0A=\n"
+    "-----END PRIVATE KEY-----\n"
+    )
+
+
+srv_raw_pss_certificate = str(
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIDWzCCAhKgAwIBAgIJAM94DjB2Qf+GMD4GCSqGSIb3DQEBCjAxoA0wCwYJYIZI\n"
+    "AWUDBAIBoRowGAYJKoZIhvcNAQEIMAsGCWCGSAFlAwQCAaIEAgIA3jAUMRIwEAYD\n"
+    "VQQDDAlsb2NhbGhvc3QwHhcNMTcwMzA4MTMzMzU4WhcNMTcwNDA3MTMzMzU4WjAU\n"
+    "MRIwEAYDVQQDDAlsb2NhbGhvc3QwggEgMAsGCSqGSIb3DQEBCgOCAQ8AMIIBCgKC\n"
+    "AQEApq5FnZRNmtJy+WjNRB8w0ol2+IEcATrUkZpz7HNqq8+EL/GN21m35luz5fcA\n"
+    "8ifkm4pKxfwtxY7u912tAfsEavUr/UoyLScXQevhr6SLXR8UO3XE6ne1F88eZNpg\n"
+    "KVpocDVKRLjIqKHSSbBNkG76mGKFYyNZXm3qRxaUSHVLnN/opOGfgVK8Vbj0v2EH\n"
+    "5L5dGLQLV2ZfQ75I4OGrg8wse5fhgt2oczhhe72sEuMDc08WHGRp9744mMQvVYrt\n"
+    "pWUHkP5tdD4i7/zYf3nig21/G56JY20JpW+1J5fEn+PEqiJsv5prNJuPp/zdjD3u\n"
+    "ImqfXZzXUeRIQr9l1qXI6JPInwIDAQABo1AwTjAdBgNVHQ4EFgQUcTYhLu7pODIv\n"
+    "B6KhR6eyFBB5wacwHwYDVR0jBBgwFoAUcTYhLu7pODIvB6KhR6eyFBB5wacwDAYD\n"
+    "VR0TBAUwAwEB/zA+BgkqhkiG9w0BAQowMaANMAsGCWCGSAFlAwQCAaEaMBgGCSqG\n"
+    "SIb3DQEBCDALBglghkgBZQMEAgGiBAICAN4DggEBAKMgweHM6WTwlWEQHLG5K+7B\n"
+    "hrAUEAsuK8F7sKGKzLEFzYdzZpkJw8LahE4dFayjx/7MD4rZ5IiHQhJcGCdHIVVv\n"
+    "ocunlEUTgiKkMxTw4JxqSq0snvNBie04vnn+zUjD7FrctTUutzlH1yKftwbJpGk6\n"
+    "CrTW6ctFTAIDwZHd+WX4RPewGY0LTfC+RjcMwWZBmbfVLxuJs0sidSUoNW6GgGE1\n"
+    "DIDVeW2yKGeNhjK/3aDzfQWbz1J64aRfccVzXYMPsoABnNJnJgRETh1/Ci0sQ9Vd\n"
+    "1OR6iS4hl88/1d7utc00MyFVk1sUIGf54EeCvrNB4bhKtawEJk8Q8AGIRhs93sk=\n"
+    "-----END CERTIFICATE-----\n"
+    )
+
+
 class TestExpect(unittest.TestCase):
     def test___init__(self):
         exp = Expect(ContentType.handshake)
@@ -1652,6 +1709,48 @@ class TestExpectCertificateVerify(unittest.TestCase):
 
         self.assertFalse(exp.is_match(msg))
 
+    def test_process_with_non_matching_pss_signature(self):
+        exp = ExpectCertificateVerify()
+
+        state = ConnectionState()
+        mock_cert = mock.Mock()
+        mock_cert.key_type = "rsa"
+        state.get_server_public_key = mock.MagicMock(return_value=mock_cert)
+
+        client_hello = ClientHello()
+        ext = SignatureAlgorithmsExtension().\
+            create([SignatureScheme.rsa_pss_rsae_sha256,
+                    SignatureScheme.rsa_pss_pss_sha256])
+        client_hello.extensions = [ext]
+        state.handshake_messages.append(client_hello)
+
+        cert_verify = CertificateVerify((3, 4)).create(
+            bytearray(b'x'*256), SignatureScheme.rsa_pss_pss_sha256)
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, cert_verify)
+
+    def test_process_with_non_matching_rsae_signature(self):
+        exp = ExpectCertificateVerify()
+
+        state = ConnectionState()
+        mock_cert = mock.Mock()
+        mock_cert.key_type = "rsa-pss"
+        state.get_server_public_key = mock.MagicMock(return_value=mock_cert)
+
+        client_hello = ClientHello()
+        ext = SignatureAlgorithmsExtension().\
+            create([SignatureScheme.rsa_pss_rsae_sha256,
+                    SignatureScheme.rsa_pss_pss_sha256])
+        client_hello.extensions = [ext]
+        state.handshake_messages.append(client_hello)
+
+        cert_verify = CertificateVerify((3, 4)).create(
+            bytearray(b'x'*256), SignatureScheme.rsa_pss_rsae_sha256)
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, cert_verify)
+
     def test_process(self):
         exp = ExpectCertificateVerify()
 
@@ -1682,6 +1781,41 @@ class TestExpectCertificateVerify(unittest.TestCase):
                                       "sha384",
                                       48)
         scheme = SignatureScheme.rsa_pss_rsae_sha384
+        cer_verify = CertificateVerify((3, 4)).create(sig, scheme)
+
+        exp.process(state, cer_verify)
+
+    def test_process_with_expected_rsa_pss_sig_alg(self):
+        exp = ExpectCertificateVerify(
+            sig_alg=SignatureScheme.rsa_pss_pss_sha256)
+
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+
+        cert = Certificate(CertificateType.x509, (3, 4)).create(
+            X509CertChain([X509().parse(srv_raw_pss_certificate)]))
+
+        private_key = parsePEMKey(srv_raw_pss_key, private=True)
+
+        client_hello = ClientHello()
+        ext = SignatureAlgorithmsExtension().\
+            create([SignatureScheme.rsa_pss_pss_sha256])
+        client_hello.extensions = [ext]
+        state.handshake_messages.append(client_hello)
+
+        state.handshake_messages.append(cert)
+
+        hh_digest = state.handshake_hashes.digest('sha256')
+        self.assertEqual(state.prf_name, "sha256")
+        signature_context = bytearray(b'\x20' * 64 +
+                                      b'TLS 1.3, server CertificateVerify' +
+                                      b'\x00') + hh_digest
+        sig = private_key.hashAndSign(signature_context,
+                                      "PSS",
+                                      "sha256",
+                                      32)
+        scheme = SignatureScheme.rsa_pss_pss_sha256
         cer_verify = CertificateVerify((3, 4)).create(sig, scheme)
 
         exp.process(state, cer_verify)
