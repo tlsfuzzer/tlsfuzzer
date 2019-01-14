@@ -168,6 +168,8 @@
           "comment" : "test requires renegotiation support",
           "exp_pass" : false},
          {"name" : "test-record-layer-fragmentation.py"},
+         {"name" : "test-record-size-limit.py",
+          "arguments" : ["--reply-AD-size", "1576"]},
          {"name" : "test-renegotiation-disabled.py"},
          {"name" : "test-resumption-with-wrong-ciphers.py"},
          {"name" : "test-serverhello-random.py",
