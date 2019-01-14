@@ -181,6 +181,7 @@
           "exp_pass" : false},
          {"name" : "test-record-layer-fragmentation.py"},
          {"name" : "test-renegotiation-disabled.py"},
+         {"name" : "test-resumption-with-wrong-ciphers.py"},
          {"name" : "test-serverhello-random.py",
           "arguments" : ["-e", "Protocol (3, 0)",
                          "-e", "Protocol (3, 0) in SSLv2 compatible ClientHello"],

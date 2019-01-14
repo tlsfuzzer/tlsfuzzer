@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2015
+# Author: Hubert Kario, (c) 2015-2018
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 from __future__ import print_function
@@ -34,18 +34,20 @@ def help_msg():
     print("                may be specified multiple times")
     print(" -n num         only run `num` random tests instead of a full set")
     print("                (excluding \"sanity\" tests)")
+    print(" --swap-ciphers expect the server to pick AES-128 over AES-256")
     print(" --help         this message")
 
 
 def main():
-    """Test if server supports session ID based session resumption."""
+    """Test if server does not allow resumption with different cipher."""
     host = "localhost"
     port = 4433
     num_limit = None
     run_exclude = set()
+    swap_ciphers = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help", "swap-ciphers"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -55,6 +57,8 @@ def main():
             run_exclude.add(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == "--swap-ciphers":
+            swap_ciphers = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -92,11 +96,36 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_256_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["sanity - aes-256 cipher"] = conversation
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_256_CBC_SHA,
+               CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectServerHello(
+        cipher=CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA if swap_ciphers else
+               CipherSuite.TLS_RSA_WITH_AES_256_CBC_SHA,
         extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
@@ -136,14 +165,57 @@ def main():
     node.next_sibling = ExpectClose()
     node = node.add_child(ExpectClose())
 
-    conversations["session ID resume"] = conversation
+    conversations["sanity - session ID resume"] = conversation
+
+    # check if resumption with a different cipher fails
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_256_CBC_SHA,
+               CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(
+        ciphers,
+        extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectServerHello(
+        cipher=CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA if swap_ciphers else
+               CipherSuite.TLS_RSA_WITH_AES_256_CBC_SHA,
+        extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    close = ExpectClose()
+    node.next_sibling = close
+    node = node.add_child(ExpectClose())
+    node = node.add_child(Close())
+    node = node.add_child(Connect(host, port))
+    close.add_child(node)
+
+    node = node.add_child(ResetHandshakeHashes())
+    node = node.add_child(ResetRenegotiationInfo())
+    if swap_ciphers:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_256_CBC_SHA]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(
+        ciphers,
+        extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.illegal_parameter))
+    node.add_child(ExpectClose())
+
+    conversations["resumption with cipher from old CH but not selected by server"] = conversation
 
     conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(
         ciphers,
-        session_id=bytearray(32),
         extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None}))
@@ -154,9 +226,6 @@ def main():
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\n\n")))
-    node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
     node = node.add_child(ExpectAlert())
@@ -164,10 +233,22 @@ def main():
     node.next_sibling = close
     node = node.add_child(ExpectClose())
     node = node.add_child(Close())
+    node = node.add_child(Connect(host, port))
+    close.add_child(node)
 
-    conversations["Client Hello with garbage session ID"] = conversation
+    node = node.add_child(ResetHandshakeHashes())
+    node = node.add_child(ResetRenegotiationInfo())
+    ciphers = [CipherSuite.TLS_RSA_WITH_NULL_SHA]
+    node = node.add_child(ClientHelloGenerator(
+        ciphers,
+        extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.illegal_parameter))
+    node.add_child(ExpectClose())
 
-    # run the conversation
+    conversations["resumption of safe session with NULL cipher"] = conversation
+
+
     # run the conversation
     good = 0
     bad = 0
@@ -205,8 +286,10 @@ def main():
             bad += 1
             failed.append(c_name)
 
-    print("Basic session resumption script")
-    print("Check if session resumption using session IDs works\n")
+    print("Misbehaving client session resumption script")
+    print("Check if server detects a misbehaving client in session"
+          " resumption\n")
+    print("Reproducer for CVE-2010-4180\n")
     print("version: {0}\n".format(version))
 
     print("Test end")
