@@ -1339,10 +1339,11 @@ class ExpectApplicationData(Expect):
 
     """Processing Application Data message"""
 
-    def __init__(self, data=None):
+    def __init__(self, data=None, size=None):
         super(ExpectApplicationData, self).\
                 __init__(ContentType.application_data)
         self.data = data
+        self.size = size
 
     def process(self, state, msg):
         assert msg.contentType == ContentType.application_data
@@ -1350,6 +1351,9 @@ class ExpectApplicationData(Expect):
 
         if self.data:
             assert self.data == data
+        if self.size and len(data) != self.size:
+            raise AssertionError("ApplicationData of unexpected size: {0}, "
+                                 "expected: {1}".format(len(data), self.size))
 
 
 class ExpectNoMessage(Expect):

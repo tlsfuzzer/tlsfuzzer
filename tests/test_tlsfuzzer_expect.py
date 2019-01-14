@@ -2595,6 +2595,28 @@ class TestExpectApplicationData(unittest.TestCase):
         with self.assertRaises(AssertionError):
             exp.process(state, msg)
 
+    def test_process_with_size(self):
+        exp = ExpectApplicationData(size=5)
+
+        state = ConnectionState()
+        msg = Message(ContentType.application_data, bytearray(b'hello'))
+
+        self.assertTrue(exp.is_match(msg))
+
+        exp.process(state, msg)
+
+    def test_process_with_mismatched_size(self):
+        exp = ExpectApplicationData(size=1024)
+
+        state = ConnectionState()
+        msg = Message(ContentType.application_data, bytearray(b'hello'))
+
+        self.assertTrue(exp.is_match(msg))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
+
 class TestExpectServerKeyExchange(unittest.TestCase):
     def test__init__(self):
         exp = ExpectServerKeyExchange()
