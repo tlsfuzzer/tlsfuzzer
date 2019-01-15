@@ -1039,11 +1039,8 @@ class ExpectChangeCipherSpec(Expect):
 
             state.msg_sock.changeReadState()
 
-            if state._peer_record_size_limit:
+            if state._our_record_size_limit:
                 state.msg_sock.recv_record_limit = state._our_record_size_limit
-                state.msg_sock.send_record_limit = \
-                    state._peer_record_size_limit
-                state.msg_sock.recordSize = state._peer_record_size_limit
 
 
 class ExpectVerify(ExpectHandshake):

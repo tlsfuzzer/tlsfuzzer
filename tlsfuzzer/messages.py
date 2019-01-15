@@ -115,6 +115,8 @@ class ResetHandshakeHashes(Command):
     Object used to reset current state of handshake hashes to zero.
 
     Used for session renegotiation or resumption.
+
+    Also prepares for negotiation (or dropping) of record_size_limit extension.
     """
 
     def __init__(self):
@@ -129,6 +131,12 @@ class ResetHandshakeHashes(Command):
         # to actually resume next session
         state.key.pop('PSK secret', None)
         state.key.pop('DH shared secret', None)
+
+        # while not part of handshake hashes, it needs to be done every time
+        # renegotiation or resumption is performed as the extension needs to
+        # be negotiated every time
+        state._our_record_size_limit = 2**14
+        state._peer_record_size_limit = 2**14
 
 
 class ResetRenegotiationInfo(Command):
@@ -1038,6 +1046,11 @@ class ChangeCipherSpecGenerator(MessageGenerator):
             calc_pending_states(status)
 
         status.msg_sock.changeWriteState()
+
+        if status._peer_record_size_limit:
+            status.msg_sock.send_record_limit = \
+                status._peer_record_size_limit
+            status.msg_sock.recordSize = status._peer_record_size_limit
 
 
 class FinishedGenerator(HandshakeProtocolMessageGenerator):
