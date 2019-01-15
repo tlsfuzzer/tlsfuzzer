@@ -11,7 +11,7 @@ from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        SetMaxRecordSize, SetPaddingCallback
+        SetMaxRecordSize, SetPaddingCallback, ResetHandshakeHashes
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
@@ -631,6 +631,102 @@ def main():
                                     AlertDescription.record_overflow)
     node.next_sibling.add_child(ExpectClose())
     conversations["too large record payload in TLS 1.3"] = conversation
+
+    # renegotiation with changed value
+    conversation = Connect(host, port)
+    node = conversation
+
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.record_size_limit:
+           RecordSizeLimitExtension().create(2**14+1)}
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.record_size_limit:
+           gen_srv_ext_handler_record_limit(expect_size)}
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    # 2nd handshake
+    node = node.add_child(ResetHandshakeHashes())
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.record_size_limit:
+           RecordSizeLimitExtension().create(64)}
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               session_id=bytearray(0),
+                                               extensions=ext))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.record_size_limit:
+           gen_srv_ext_handler_record_limit(expect_size)}
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    # send GET request
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+    for _ in range(0, max(0, reply_size - 64), 64):
+        node = node.add_child(ExpectApplicationData(size=64))
+    node = node.add_child(ExpectApplicationData(size=reply_size % 64))
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["renegotiation with changed limit"] = conversation
+
+    # renegotiation with dropped extension
+    conversation = Connect(host, port)
+    node = conversation
+
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.record_size_limit:
+           RecordSizeLimitExtension().create(64)}
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.record_size_limit:
+           gen_srv_ext_handler_record_limit(expect_size)}
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    # 2nd handshake
+    node = node.add_child(ResetHandshakeHashes())
+    ext = {ExtensionType.renegotiation_info: None}
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               session_id=bytearray(0),
+                                               extensions=ext))
+    ext = {ExtensionType.renegotiation_info: None}
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    # send GET request
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+    node = node.add_child(ExpectApplicationData(size=reply_size))
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["renegotiation with dropped extension"] = conversation
 
     # run the conversation
     good = 0
