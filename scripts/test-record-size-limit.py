@@ -30,7 +30,7 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
 from tlslite.extensions import RecordSizeLimitExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension, \
-        PskKeyExchangeModesExtension
+        PskKeyExchangeModesExtension, TLSExtension
 
 
 version = 1
@@ -536,6 +536,48 @@ def main():
     node.add_child(ExpectClose())
     conversations["empty extension in TLS 1.3"] = conversation
 
+    # padded extension in TLS 1.2
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    extensions = {ExtensionType.record_size_limit:
+                  TLSExtension(extType=ExtensionType.record_size_limit).
+                  create(bytearray(b'\x00\x40\x00'))}
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=extensions))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.decode_error))
+    node.add_child(ExpectClose())
+    conversations["padded extension in TLS 1.2"] = conversation
+
+    # padded extension in TLS 1.3
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    ext[ExtensionType.record_size_limit] = \
+        TLSExtension(extType=ExtensionType.record_size_limit).\
+            create(bytearray(b'\x00\x40\x00'))
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.decode_error))
+    node.add_child(ExpectClose())
+    conversations["padded extension in TLS 1.3"] = conversation
+
+    # too large records
     conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
