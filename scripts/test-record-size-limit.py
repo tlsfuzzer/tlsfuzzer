@@ -274,6 +274,36 @@ def main():
         node.next_sibling = ExpectClose()
         conversations["check if server accepts maximum size in {0}".format(name)] = conversation
 
+    for ciph, prf in [(CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA256, "sha256"),
+                      (CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384, "sha384")]:
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [ciph,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        extensions = {ExtensionType.record_size_limit:
+                      RecordSizeLimitExtension().create(2**14+1)}
+        node = node.add_child(ClientHelloGenerator(
+            ciphers, version=(3, 3), extensions=extensions))
+        ext = {ExtensionType.record_size_limit:
+               gen_srv_ext_handler_record_limit(expect_size),
+               ExtensionType.renegotiation_info: None}
+        node = node.add_child(ExpectServerHello(extensions=ext))
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        node = node.add_child(ExpectApplicationData(size=reply_size))
+        node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                             AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert())
+        node.next_sibling = ExpectClose()
+        conversations["check interaction with {0} prf".format(prf)] = conversation
+
     # verify that the size advertised by server is the expected one
     conversation = Connect(host, port)
     node = conversation
