@@ -12,16 +12,16 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
         SetMaxRecordSize, SetPaddingCallback, ResetHandshakeHashes, \
-        Close, ResetRenegotiationInfo
+        Close, ResetRenegotiationInfo, ch_cookie_handler
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
         gen_srv_ext_handler_record_limit, ExpectEncryptedExtensions, \
         ExpectCertificateVerify, ExpectNewSessionTicket, \
         srv_ext_handler_supp_vers, gen_srv_ext_handler_psk, \
-        srv_ext_handler_key_share
+        srv_ext_handler_key_share, ExpectHelloRetryRequest
 from tlsfuzzer.helpers import key_share_ext_gen, RSA_SIG_ALL, \
-        psk_session_ext_gen, psk_ext_updater
+        psk_session_ext_gen, psk_ext_updater, key_share_gen
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
@@ -30,7 +30,7 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
 from tlslite.extensions import RecordSizeLimitExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension, \
-        PskKeyExchangeModesExtension, TLSExtension
+        PskKeyExchangeModesExtension, TLSExtension, ClientKeyShareExtension
 
 
 version = 1
@@ -51,7 +51,12 @@ def help_msg():
     print("                by default")
     print(" --supported-groups expect the server to send supported_groups")
     print("                extension in EncryptedExtensions in TLS 1.3")
+    print(" --hrr-supported-groups expect the server to send supported_groups")
+    print("                extension in EncryptedExtension in HRR handshake")
+    print("                in TLS 1.3")
     print(" --reply-AD-size size in bytes of the server reply (Application Data)")
+    print(" --cookie       expect server to send cookie extension in Hello")
+    print("                Retry Request message")
     print(" --help         this message")
 
 
@@ -62,12 +67,15 @@ def main():
     run_exclude = set()
     expect_size = 2**14
     supported_groups = False
+    hrr_supported_groups = False
     reply_size = None
+    cookie = False
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "h:p:e:n:",
                                ["help", "expect-size=",
-                                "supported-groups", "reply-AD-size="])
+                                "supported-groups", "reply-AD-size=",
+                                "cookie", "hrr-supported-groups"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -84,8 +92,12 @@ def main():
             expect_size = int(arg)
         elif opt == '--supported-groups':
             supported_groups = True
+        elif opt == '--hrr-supported-groups':
+            hrr_supported_groups = True
         elif opt == '--reply-AD-size':
             reply_size = int(arg)
+        elif opt == "--cookie":
+            cookie = True
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -1130,6 +1142,139 @@ def main():
     node.next_sibling = ExpectClose()
     node.add_child(ExpectClose())
     conversations["drop extension in TLS 1.3 session resumption"] = conversation
+
+    # changed value in HRR
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = OrderedDict()
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+    ext[ExtensionType.record_size_limit] = \
+        RecordSizeLimitExtension().create(2**14+1)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+
+    ext = OrderedDict()
+    if cookie:
+        ext[ExtensionType.cookie] = None
+    ext[ExtensionType.key_share] = None
+    ext[ExtensionType.supported_versions] = None
+    node = node.add_child(ExpectHelloRetryRequest(extensions=ext))
+    node = node.add_child(ExpectChangeCipherSpec())
+
+    ext = OrderedDict()
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    if cookie:
+        ext[ExtensionType.cookie] = ch_cookie_handler
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+    ext[ExtensionType.record_size_limit] = \
+        RecordSizeLimitExtension().create(2**14+1)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    ee_ext = {}
+    ee_ext[ExtensionType.record_size_limit] = \
+        gen_srv_ext_handler_record_limit(expect_size + 1)
+    if hrr_supported_groups:
+        ee_ext[ExtensionType.supported_groups] = None
+    node = node.add_child(ExpectEncryptedExtensions(extensions=ee_ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+    # this message can be sent arbitrary number of times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData()
+    node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                       AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["HRR sanity"] = conversation
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = OrderedDict()
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+    ext[ExtensionType.record_size_limit] = \
+        RecordSizeLimitExtension().create(2**14+1)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+
+    ext = OrderedDict()
+    if cookie:
+        ext[ExtensionType.cookie] = None
+    ext[ExtensionType.key_share] = None
+    ext[ExtensionType.supported_versions] = None
+    node = node.add_child(ExpectHelloRetryRequest(extensions=ext))
+    node = node.add_child(ExpectChangeCipherSpec())
+
+    ext = OrderedDict()
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    if cookie:
+        ext[ExtensionType.cookie] = ch_cookie_handler
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+    ext[ExtensionType.record_size_limit] = \
+        RecordSizeLimitExtension().create(2**14)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.illegal_parameter))
+    node.add_child(ExpectClose())
+    conversations["modified extension in 2nd CH in HRR handshake"] = conversation
 
     # run the conversation
     good = 0
