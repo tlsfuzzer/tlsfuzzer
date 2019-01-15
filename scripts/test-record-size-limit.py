@@ -159,7 +159,6 @@ def main():
     node.next_sibling = ExpectClose()
     conversations["sanity in TLS 1.3"] = conversation
 
-
     # check sizes
     for name, vers in [("TLS 1.0", (3, 1)),
                        ("TLS 1.1", (3, 2)),
@@ -232,6 +231,40 @@ def main():
         node = node.add_child(ExpectAlert())
         node.next_sibling = ExpectClose()
         conversations["check if server accepts minimal size in {0}".format(name)] = conversation
+
+        # maximal size test
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        extensions = {ExtensionType.record_size_limit:
+                      RecordSizeLimitExtension().create(2**16-1)}
+        node = node.add_child(ClientHelloGenerator(
+            ciphers, version=vers, extensions=extensions))
+        ext = {ExtensionType.record_size_limit:
+               gen_srv_ext_handler_record_limit(expect_size),
+               ExtensionType.renegotiation_info: None}
+        node = node.add_child(ExpectServerHello(extensions=ext))
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        if vers == (3, 1):
+            # 1/n-1 record splitting
+            node = node.add_child(ExpectApplicationData(size=1))
+            node = node.add_child(ExpectApplicationData(size=reply_size-1))
+        else:
+            node = node.add_child(ExpectApplicationData(size=reply_size))
+        node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                             AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert())
+        node.next_sibling = ExpectClose()
+        conversations["check if server accepts maximum size in {0}".format(name)] = conversation
 
     # verify that the size advertised by server is the expected one
     conversation = Connect(host, port)
@@ -338,6 +371,55 @@ def main():
     node.next_sibling = ExpectClose()
     conversations["check if server accepts minimal size in TLS 1.3"] = conversation
 
+    # maximum size test
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
+        .create(2**16-1)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    ext = {}
+    ext[ExtensionType.record_size_limit] = \
+        gen_srv_ext_handler_record_limit(expect_size + 1)
+    if supported_groups:
+        ext[ExtensionType.supported_groups] = None
+    node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData(size=reply_size)
+    node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                       AlertDescription.close_notify))
+
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["check if server accepts maximum size in TLS 1.3"] = conversation
+
     # run the conversation
     good = 0
     bad = 0
@@ -376,6 +458,9 @@ def main():
             failed.append(c_name)
 
     print("Checks for record_size_limit extension")
+    print("Verify that the record_size_limit extension is correctly handled")
+    print("by the server: parsing, validation and interaction with basic TLS")
+    print("features")
     print("version: {0}\n".format(version))
 
     print("Test end")
