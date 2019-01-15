@@ -11,19 +11,26 @@ from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        SetMaxRecordSize, SetPaddingCallback, ResetHandshakeHashes
+        SetMaxRecordSize, SetPaddingCallback, ResetHandshakeHashes, \
+        Close, ResetRenegotiationInfo
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
         gen_srv_ext_handler_record_limit, ExpectEncryptedExtensions, \
-        ExpectCertificateVerify, ExpectNewSessionTicket
-from tlsfuzzer.helpers import key_share_ext_gen, RSA_SIG_ALL
+        ExpectCertificateVerify, ExpectNewSessionTicket, \
+        srv_ext_handler_supp_vers, gen_srv_ext_handler_psk, \
+        srv_ext_handler_key_share
+from tlsfuzzer.helpers import key_share_ext_gen, RSA_SIG_ALL, \
+        psk_session_ext_gen, psk_ext_updater
 from tlsfuzzer.utils.lists import natural_sort_keys
+from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType, GroupName, TLS_1_3_DRAFT, SignatureScheme
+        ExtensionType, GroupName, TLS_1_3_DRAFT, SignatureScheme, \
+        PskKeyExchangeMode
 from tlslite.extensions import RecordSizeLimitExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
-        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
+        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension, \
+        PskKeyExchangeModesExtension
 
 
 version = 1
@@ -727,6 +734,330 @@ def main():
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
     conversations["renegotiation with dropped extension"] = conversation
+
+    # resumption in TLS 1.2
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.record_size_limit:
+           RecordSizeLimitExtension().create(2**14)}
+    node = node.add_child(ClientHelloGenerator(
+        ciphers,
+        extensions=ext))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.record_size_limit:
+           gen_srv_ext_handler_record_limit(expect_size)}
+    node = node.add_child(ExpectServerHello(
+        cipher=CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+        extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    close = ExpectClose()
+    node.next_sibling = close
+    node = node.add_child(ExpectClose())
+    node = node.add_child(Close())
+    node = node.add_child(Connect(host, port))
+    close.add_child(node)
+
+    node = node.add_child(ResetHandshakeHashes())
+    node = node.add_child(ResetRenegotiationInfo())
+    node = node.add_child(ClientHelloGenerator(
+        ciphers,
+        extensions={ExtensionType.renegotiation_info: None,
+                    ExtensionType.record_size_limit:
+                    RecordSizeLimitExtension().create(64)}))
+    node = node.add_child(ExpectServerHello(
+        extensions={ExtensionType.renegotiation_info: None,
+                    ExtensionType.record_size_limit:
+                    gen_srv_ext_handler_record_limit(expect_size)},
+        resume=True))
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+    for _ in range(0, max(0, reply_size - 64), 64):
+        node = node.add_child(ExpectApplicationData(size=64))
+    node = node.add_child(ExpectApplicationData(size=reply_size % 64))
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+    conversations["change size in TLS 1.2 resumption"] = conversation
+
+    # drop in resumption in TLS 1.2
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.record_size_limit:
+           RecordSizeLimitExtension().create(64)}
+    node = node.add_child(ClientHelloGenerator(
+        ciphers,
+        extensions=ext))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.record_size_limit:
+           gen_srv_ext_handler_record_limit(expect_size)}
+    node = node.add_child(ExpectServerHello(
+        cipher=CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+        extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    close = ExpectClose()
+    node.next_sibling = close
+    node = node.add_child(ExpectClose())
+    node = node.add_child(Close())
+    node = node.add_child(Connect(host, port))
+    close.add_child(node)
+
+    node = node.add_child(ResetHandshakeHashes())
+    node = node.add_child(ResetRenegotiationInfo())
+    node = node.add_child(ClientHelloGenerator(
+        ciphers,
+        extensions={ExtensionType.renegotiation_info: None}))
+    node = node.add_child(ExpectServerHello(
+        extensions={ExtensionType.renegotiation_info: None},
+        resume=True))
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+    node = node.add_child(ExpectApplicationData(size=reply_size))
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+    conversations["drop extension in TLS 1.2 resumption"] = conversation
+
+    # changing size in TLS 1.3 resumption
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
+    ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
+        .create(2**14)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    ee_ext = {}
+    ee_ext[ExtensionType.record_size_limit] = \
+        gen_srv_ext_handler_record_limit(expect_size + 1)
+    if supported_groups:
+        ee_ext[ExtensionType.supported_groups] = None
+    node = node.add_child(ExpectEncryptedExtensions(extensions=ee_ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+    # ensure that the server sends at least one NST always
+    node = node.add_child(ExpectNewSessionTicket())
+
+    # but multiple ones are OK too
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData()
+    node = node.next_sibling.add_child(
+        AlertGenerator(AlertLevel.warning,
+                       AlertDescription.close_notify))
+
+    node = node.add_child(ExpectAlert(AlertLevel.warning,
+                                      AlertDescription.close_notify))
+    # server can close connection without sending alert
+    close = ExpectClose()
+    node.next_sibling = close
+    node = node.add_child(close)
+    node = node.add_child(Close())
+    node = node.add_child(Connect(host, port))
+
+    # start the second handshake
+    node = node.add_child(ResetHandshakeHashes())
+    node = node.add_child(ResetRenegotiationInfo())
+    ext = OrderedDict(ext)
+    ext[ExtensionType.pre_shared_key] = psk_session_ext_gen()
+    ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
+        .create(64)
+    mods = []
+    mods.append(psk_ext_updater())
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext,
+                                               modifiers=mods))
+    ext = {}
+    ext[ExtensionType.supported_versions] = srv_ext_handler_supp_vers
+    ext[ExtensionType.pre_shared_key] = gen_srv_ext_handler_psk()
+    ext[ExtensionType.key_share] = srv_ext_handler_key_share
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectChangeCipherSpec())
+    ext = {}
+    ext[ExtensionType.record_size_limit] = \
+        gen_srv_ext_handler_record_limit(expect_size + 1)
+    if supported_groups:
+        ext[ExtensionType.supported_groups] = None
+    node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+    # ensure that the server sends at least one NST always
+    node = node.add_child(ExpectNewSessionTicket())
+
+    # but multiple ones are OK too
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData(size=63)
+    node = node.next_sibling
+    for _ in range(0, max(reply_size-63*2, 0), 63):
+        node = node.add_child(ExpectApplicationData(size=63))
+    node = node.add_child(ExpectApplicationData(size=reply_size%63))
+    node = node.add_child(
+        AlertGenerator(AlertLevel.warning,
+                       AlertDescription.close_notify))
+
+    node = node.add_child(ExpectAlert(AlertLevel.warning,
+                                      AlertDescription.close_notify))
+    node.next_sibling = ExpectClose()
+    node.add_child(ExpectClose())
+    conversations["change size in TLS 1.3 session resumption"] = conversation
+
+    # drop it in TLS 1.3 resumption
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
+    ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
+        .create(64)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    ee_ext = {}
+    ee_ext[ExtensionType.record_size_limit] = \
+        gen_srv_ext_handler_record_limit(expect_size + 1)
+    if supported_groups:
+        ee_ext[ExtensionType.supported_groups] = None
+    node = node.add_child(ExpectEncryptedExtensions(extensions=ee_ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    # ensure that the server sends at least one NST always
+    node = node.add_child(ExpectNewSessionTicket())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+
+    # but multiple ones are OK too
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectAlert(AlertLevel.warning,
+                                    AlertDescription.close_notify)
+    node = node.next_sibling
+    # server can close connection without sending alert
+    close = ExpectClose()
+    node.next_sibling = close
+    node = node.add_child(close)
+    node = node.add_child(Close())
+    node = node.add_child(Connect(host, port))
+
+    # start the second handshake
+    node = node.add_child(ResetHandshakeHashes())
+    node = node.add_child(ResetRenegotiationInfo())
+    ext = OrderedDict(ext)
+    ext[ExtensionType.pre_shared_key] = psk_session_ext_gen()
+    del ext[ExtensionType.record_size_limit]
+    mods = []
+    mods.append(psk_ext_updater())
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext,
+                                               modifiers=mods))
+    ext = {}
+    ext[ExtensionType.supported_versions] = srv_ext_handler_supp_vers
+    ext[ExtensionType.pre_shared_key] = gen_srv_ext_handler_psk()
+    ext[ExtensionType.key_share] = srv_ext_handler_key_share
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectChangeCipherSpec())
+    ext = {}
+    if supported_groups:
+        ext[ExtensionType.supported_groups] = None
+    node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+    # ensure that the server sends at least one NST always
+    node = node.add_child(ExpectNewSessionTicket())
+
+    # but multiple ones are OK too
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData(size=reply_size)
+    node = node.next_sibling
+    node = node.add_child(
+        AlertGenerator(AlertLevel.warning,
+                       AlertDescription.close_notify))
+
+    node = node.add_child(ExpectAlert(AlertLevel.warning,
+                                      AlertDescription.close_notify))
+    node.next_sibling = ExpectClose()
+    node.add_child(ExpectClose())
+    conversations["drop extension in TLS 1.3 session resumption"] = conversation
 
     # run the conversation
     good = 0
