@@ -10,7 +10,8 @@ from itertools import chain, islice
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator
+        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+        SetMaxRecordSize, SetPaddingCallback
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
@@ -497,6 +498,139 @@ def main():
                                       AlertDescription.decode_error))
     node.add_child(ExpectClose())
     conversations["empty extension in TLS 1.3"] = conversation
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    extensions = {ExtensionType.record_size_limit:
+                  RecordSizeLimitExtension().create(2**14+2)}
+    node = node.add_child(ClientHelloGenerator(
+        ciphers, version=(3, 3), extensions=extensions))
+    ext = {ExtensionType.record_size_limit:
+           gen_srv_ext_handler_record_limit(expect_size),
+           ExtensionType.renegotiation_info: None}
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(SetMaxRecordSize(expect_size+1))
+    data = bytearray(b"GET / HTTP/1.0\r\nX-bad: ") + \
+           bytearray(b"A" * (expect_size + 1 - 27)) + \
+           bytearray(b"\r\n\r\n")
+    assert len(data) == expect_size+1
+    node = node.add_child(ApplicationDataGenerator(data))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.record_overflow))
+    node.add_child(ExpectClose())
+    conversations["too large record in TLS 1.2"] = conversation
+
+    # too big records in TLSv1.3
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
+        .create(2**14+2)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    ext = {}
+    ext[ExtensionType.record_size_limit] = \
+        gen_srv_ext_handler_record_limit(expect_size + 1)
+    if supported_groups:
+        ext[ExtensionType.supported_groups] = None
+    node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    # while the server will advertise expect_size+1, it does include
+    # content type, which is added transparently to application data
+    node = node.add_child(SetMaxRecordSize(expect_size+1))
+    data = bytearray(b"GET / HTTP/1.0\r\nX-bad: ") + \
+           bytearray(b"A" * (expect_size + 1 - 27)) + \
+           bytearray(b"\r\n\r\n")
+    assert len(data) == expect_size+1
+    node = node.add_child(ApplicationDataGenerator(data))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                    AlertDescription.record_overflow)
+    node.next_sibling.add_child(ExpectClose())
+    conversations["too large record payload in TLS 1.3"] = conversation
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
+        .create(2**14+2)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    ext = {}
+    ext[ExtensionType.record_size_limit] = \
+        gen_srv_ext_handler_record_limit(expect_size + 1)
+    if supported_groups:
+        ext[ExtensionType.supported_groups] = None
+    node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    # while the server will advertise expect_size+1, it does include
+    # content type, which is added transparently to application data
+    node = node.add_child(SetMaxRecordSize(expect_size+1))
+    data = bytearray(b"GET / HTTP/1.0\r\n\r\n")
+    padding_size = expect_size - len(data) + 1
+    node = node.add_child(SetPaddingCallback(
+        SetPaddingCallback.add_fixed_padding_cb(padding_size)))
+    node = node.add_child(ApplicationDataGenerator(data))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                    AlertDescription.record_overflow)
+    node.next_sibling.add_child(ExpectClose())
+    conversations["too large record payload in TLS 1.3"] = conversation
 
     # run the conversation
     good = 0
