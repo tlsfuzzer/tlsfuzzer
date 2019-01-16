@@ -320,6 +320,14 @@
          {"name" : "test-tls13-certificate-request.py",
           "arguments" : ["-k", "tests/clientX509Key.pem",
                          "-c", "tests/clientX509Cert.pem"]
+          },
+         {"name" : "test-tls13-certificate-verify.py",
+          "arguments" : ["-k", "tests/clientRSAPSSKey.pem",
+                         "-c", "tests/clientRSAPSSCert.pem", "-n", "10"]
+          },
+         {"name" : "test-tls13-certificate-verify.py",
+          "arguments" : ["-k", "tests/clientX509Key.pem",
+                         "-c", "tests/clientX509Cert.pem", "-n", "10"]
           }
      ]
     },
