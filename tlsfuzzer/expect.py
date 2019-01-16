@@ -749,6 +749,18 @@ class ExpectCertificateVerify(ExpectHandshake):
             c_hello = state.get_last_message_of_type(ClientHello)
             ext = c_hello.getExtension(ExtensionType.signature_algorithms)
             assert cert_v.signatureAlgorithm in ext.sigalgs
+            if state.get_server_public_key().key_type == "rsa-pss":
+                # in TLS 1.3 only RSA-PSS signatures are allowed
+                assert cert_v.signatureAlgorithm in (
+                    SignatureScheme.rsa_pss_pss_sha256,
+                    SignatureScheme.rsa_pss_pss_sha384,
+                    SignatureScheme.rsa_pss_pss_sha512)
+            elif state.get_server_public_key().key_type == "rsa":
+                # in TLS 1.3 only RSA-PSS signatures are allowed
+                assert cert_v.signatureAlgorithm in (
+                    SignatureScheme.rsa_pss_rsae_sha256,
+                    SignatureScheme.rsa_pss_rsae_sha384,
+                    SignatureScheme.rsa_pss_rsae_sha512)
 
         salg = cert_v.signatureAlgorithm
 

@@ -45,6 +45,7 @@ from tlslite.utils.codec import Parser
 from tests.mocksock import MockSocket
 from tlslite.utils.keyfactory import generateRSAKey
 from tlslite.utils.cryptomath import numberToByteArray
+from tlslite.utils.python_rsakey import Python_RSAKey
 
 class TestClose(unittest.TestCase):
     def test___init__(self):
@@ -1131,7 +1132,7 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
                          (constants.HashAlgorithm.sha256,
                           constants.SignatureAlgorithm.rsa))
 
-    def test_generate_with_rsa_pss_alg(self):
+    def test_generate_with_rsa_pss_rsae_alg(self):
         priv_key = generateRSAKey(1024)
         cert_ver_g = CertificateVerifyGenerator(priv_key)
         state = ConnectionState()
@@ -1148,6 +1149,44 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
         self.assertEqual(len(msg.signature), 128)
         self.assertEqual(msg.signatureAlgorithm,
                          constants.SignatureScheme.rsa_pss_sha256)
+
+    def test_generate_with_no_key(self):
+        cert_ver_g = CertificateVerifyGenerator(signature=bytearray(b'xxxx'))
+        state = ConnectionState()
+        state.version = (3, 3)
+        req = CertificateRequest((3, 3)).create([], [],
+            [constants.SignatureScheme.rsa_pss_rsae_sha256,
+             constants.SignatureScheme.rsa_pss_pss_sha256,
+             (constants.HashAlgorithm.sha1,
+              constants.SignatureAlgorithm.rsa)])
+        state.handshake_messages = [req]
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertEqual(msg.signature, bytearray(b'xxxx'))
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.rsa_pss_rsae_sha256)
+
+    def test_generate_with_rsa_pss_pss_alg(self):
+        priv_key = Python_RSAKey.generate(1024, "rsa-pss")
+        cert_ver_g = CertificateVerifyGenerator(priv_key)
+        state = ConnectionState()
+        state.version = (3, 3)
+        req = CertificateRequest((3, 3)).create([], [],
+            [constants.SignatureScheme.rsa_pss_rsae_sha256,
+             constants.SignatureScheme.rsa_pss_pss_sha256,
+             (constants.HashAlgorithm.sha1,
+              constants.SignatureAlgorithm.rsa)])
+        state.handshake_messages = [req]
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertEqual(len(msg.signature), 128)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.rsa_pss_pss_sha256)
+
 
     def test_generate_with_subs(self):
         priv_key = generateRSAKey(1024)

@@ -876,11 +876,27 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         if self.msg_alg is None and self.msg_version >= (3, 3):
             cert_req = status.get_last_message_of_type(CertificateRequest)
             if cert_req is not None:
-                self.msg_alg = next((sig for sig in
-                                     cert_req.supported_signature_algs
-                                     if sig[1] == SignatureAlgorithm.rsa or
-                                     sig[0] == 8 and sig[1] in (4, 5, 6)),
-                                    None)
+                if not self.private_key:
+                    # when sending malformed messages, the key may not be
+                    # even loaded, so select any algorithm acceptable to server
+                    self.msg_alg = cert_req.supported_signature_algs[0]
+                else:
+                    if self.private_key.key_type == "rsa-pss":
+                        self.msg_alg = next((sig for sig in
+                                             cert_req.supported_signature_algs
+                                             if sig[0] == 8 and
+                                             sig[1] in (9, 10, 11)),
+                                            None)
+                    else:
+                        assert self.private_key.key_type == "rsa"
+                        self.msg_alg = next((sig for sig in
+                                             cert_req.supported_signature_algs
+                                             if
+                                             sig[1] == SignatureAlgorithm.rsa
+                                             or
+                                             sig[0] == 8 and
+                                             sig[1] in (4, 5, 6)),
+                                            None)
             if self.msg_alg is None:
                 self.msg_alg = (HashAlgorithm.sha1,
                                 SignatureAlgorithm.rsa)
