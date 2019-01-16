@@ -862,7 +862,8 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
 
     def __init__(self, private_key=None, msg_version=None, msg_alg=None,
                  sig_version=None, sig_alg=None, signature=None,
-                 rsa_pss_salt_len=None, padding_xors=None, padding_subs=None):
+                 rsa_pss_salt_len=None, padding_xors=None, padding_subs=None,
+                 mgf1_hash=None):
         """Create object for generating Certificate Verify messages."""
         super(CertificateVerifyGenerator, self).__init__()
         self.private_key = private_key
@@ -874,6 +875,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         self.rsa_pss_salt_len = rsa_pss_salt_len
         self.padding_xors = padding_xors
         self.padding_subs = padding_subs
+        self.mgf1_hash = mgf1_hash
 
     def _select_sig_alg(self, cert_req):
         for sig in cert_req.supported_signature_algs:
@@ -950,6 +952,8 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                     if self.rsa_pss_salt_len is None:
                         self.rsa_pss_salt_len = \
                                 getattr(hashlib, hashName)().digest_size
+            if not self.mgf1_hash:
+                self.mgf1_hash = hashName
 
             def _newRawPrivateKeyOp(self, m, original_rawPrivateKeyOp,
                                     subs=None, xors=None):
@@ -974,7 +978,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             try:
                 signature = self.private_key.sign(verify_bytes,
                                                   padding,
-                                                  hashName,
+                                                  self.mgf1_hash,
                                                   self.rsa_pss_salt_len)
             finally:
                 # make sure the changes are undone even if the signing fails

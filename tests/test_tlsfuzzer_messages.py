@@ -1259,6 +1259,21 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
         self.assertIsNotNone(msg)
         self.assertEqual(msg.signature, bytearray())
 
+    def test_generate_with_mismatched_mgf1(self):
+        priv_key = generateRSAKey(1024)
+        cert_ver_g = CertificateVerifyGenerator(priv_key, sig_version=(3, 4),
+                                                mgf1_hash="sha512")
+        state = ConnectionState()
+        state.version = (3, 3)
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertEqual(len(msg.signature), 128)
+        self.assertEqual(msg.signatureAlgorithm,
+                         (constants.HashAlgorithm.sha1,
+                          constants.SignatureAlgorithm.rsa))
+
 
 class TestAlertGenerator(unittest.TestCase):
     def test_default_settings(self):
