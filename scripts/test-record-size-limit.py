@@ -31,6 +31,7 @@ from tlslite.extensions import RecordSizeLimitExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension, \
         PskKeyExchangeModesExtension, TLSExtension, ClientKeyShareExtension
+from tlslite.utils.compat import compatAscii2Bytes
 
 
 version = 1
@@ -57,6 +58,9 @@ def help_msg():
     print(" --reply-AD-size size in bytes of the server reply (Application Data)")
     print(" --cookie       expect server to send cookie extension in Hello")
     print("                Retry Request message")
+    print(" --request      the request to send to server, HTTP/1.0 GET by")
+    print("                default. Needs to include the two new lines for")
+    print("                HTTP requests")
     print(" --help         this message")
 
 
@@ -70,12 +74,14 @@ def main():
     hrr_supported_groups = False
     reply_size = None
     cookie = False
+    request = b"GET / HTTP/1.0\r\n\r\n"
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "h:p:e:n:",
                                ["help", "expect-size=",
                                 "supported-groups", "reply-AD-size=",
-                                "cookie", "hrr-supported-groups"])
+                                "cookie", "hrr-supported-groups",
+                                "request="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -98,6 +104,8 @@ def main():
             reply_size = int(arg)
         elif opt == "--cookie":
             cookie = True
+        elif opt == "--request":
+            request = compatAscii2Bytes(arg)
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -127,7 +135,7 @@ def main():
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
     node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        bytearray(request)))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -164,7 +172,7 @@ def main():
     node = node.add_child(ExpectFinished())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        bytearray(request)))
 
     # This message is optional and may show up 0 to many times
     cycle = ExpectNewSessionTicket()
@@ -203,7 +211,7 @@ def main():
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectFinished())
         node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+            bytearray(request)))
         if vers == (3, 1):
             # 1/n-1 record splitting
             node = node.add_child(ExpectApplicationData(size=1))
@@ -237,7 +245,7 @@ def main():
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectFinished())
         node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+            bytearray(request)))
         remaining_size = reply_size
         if vers == (3, 1):
             # 1/n-1 record splitting
@@ -273,7 +281,7 @@ def main():
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectFinished())
         node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+            bytearray(request)))
         if vers == (3, 1):
             # 1/n-1 record splitting
             node = node.add_child(ExpectApplicationData(size=1))
@@ -308,7 +316,7 @@ def main():
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectFinished())
         node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+            bytearray(request)))
         node = node.add_child(ExpectApplicationData(size=reply_size))
         node = node.add_child(AlertGenerator(AlertLevel.warning,
                                              AlertDescription.close_notify))
@@ -350,7 +358,7 @@ def main():
     node = node.add_child(ExpectFinished())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        bytearray(request)))
 
     # This message is optional and may show up 0 to many times
     cycle = ExpectNewSessionTicket()
@@ -399,7 +407,7 @@ def main():
     node = node.add_child(ExpectFinished())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        bytearray(request)))
 
     # This message is optional and may show up 0 to many times
     cycle = ExpectNewSessionTicket()
@@ -455,7 +463,7 @@ def main():
     node = node.add_child(ExpectFinished())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        bytearray(request)))
 
     # This message is optional and may show up 0 to many times
     cycle = ExpectNewSessionTicket()
@@ -707,7 +715,7 @@ def main():
     # while the server will advertise expect_size+1, it does include
     # content type, which is added transparently to application data
     node = node.add_child(SetMaxRecordSize(expect_size+1))
-    data = bytearray(b"GET / HTTP/1.0\r\n\r\n")
+    data = bytearray(request)
     padding_size = expect_size - len(data) + 1
     node = node.add_child(SetPaddingCallback(
         SetPaddingCallback.add_fixed_padding_cb(padding_size)))
@@ -762,9 +770,8 @@ def main():
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
-    # send GET request
     node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        bytearray(request)))
     for _ in range(0, max(0, reply_size - 64), 64):
         node = node.add_child(ExpectApplicationData(size=64))
     node = node.add_child(ExpectApplicationData(size=reply_size % 64))
@@ -809,9 +816,8 @@ def main():
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
-    # send GET request
     node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        bytearray(request)))
     node = node.add_child(ExpectApplicationData(size=reply_size))
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -869,7 +875,7 @@ def main():
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        bytearray(request)))
     for _ in range(0, max(0, reply_size - 64), 64):
         node = node.add_child(ExpectApplicationData(size=64))
     node = node.add_child(ExpectApplicationData(size=reply_size % 64))
@@ -926,7 +932,7 @@ def main():
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        bytearray(request)))
     node = node.add_child(ExpectApplicationData(size=reply_size))
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -971,7 +977,7 @@ def main():
     node = node.add_child(ExpectFinished())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        bytearray(request)))
     # ensure that the server sends at least one NST always
     node = node.add_child(ExpectNewSessionTicket())
 
@@ -1020,7 +1026,7 @@ def main():
     node = node.add_child(ExpectFinished())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        bytearray(request)))
     # ensure that the server sends at least one NST always
     node = node.add_child(ExpectNewSessionTicket())
 
@@ -1122,7 +1128,7 @@ def main():
     node = node.add_child(ExpectFinished())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        bytearray(request)))
     # ensure that the server sends at least one NST always
     node = node.add_child(ExpectNewSessionTicket())
 
@@ -1207,7 +1213,7 @@ def main():
     node = node.add_child(ExpectFinished())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        bytearray(request)))
     # this message can be sent arbitrary number of times
     cycle = ExpectNewSessionTicket()
     node = node.add_child(cycle)
