@@ -867,6 +867,30 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         self.padding_xors = padding_xors
         self.padding_subs = padding_subs
 
+    def _select_sig_alg(self, cert_req):
+        for sig in cert_req.supported_signature_algs:
+            if self.private_key.key_type == "rsa-pss":
+                if sig in (SignatureScheme.rsa_pss_pss_sha256,
+                           SignatureScheme.rsa_pss_pss_sha384,
+                           SignatureScheme.rsa_pss_pss_sha512):
+                    return sig
+            else:
+                assert self.private_key.key_type == "rsa"
+                if sig in (SignatureScheme.rsa_pss_sha256,
+                           SignatureScheme.rsa_pss_sha384,
+                           SignatureScheme.rsa_pss_sha512):
+                    return sig
+                # as a fallback check for pkcs1 only if TLS < 1.3
+                if (self.sig_version < (3, 4) and
+                        sig in ((HashAlgorithm.md5, SignatureAlgorithm.rsa),
+                                SignatureScheme.rsa_pkcs1_sha1,
+                                SignatureScheme.rsa_pkcs1_sha224,
+                                SignatureScheme.rsa_pkcs1_sha256,
+                                SignatureScheme.rsa_pkcs1_sha384,
+                                SignatureScheme.rsa_pkcs1_sha512)):
+                    return sig
+        return None
+
     def generate(self, status):
         """Create a CertificateVerify message."""
         if self.msg_version is None:
@@ -881,22 +905,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                     # even loaded, so select any algorithm acceptable to server
                     self.msg_alg = cert_req.supported_signature_algs[0]
                 else:
-                    if self.private_key.key_type == "rsa-pss":
-                        self.msg_alg = next((sig for sig in
-                                             cert_req.supported_signature_algs
-                                             if sig[0] == 8 and
-                                             sig[1] in (9, 10, 11)),
-                                            None)
-                    else:
-                        assert self.private_key.key_type == "rsa"
-                        self.msg_alg = next((sig for sig in
-                                             cert_req.supported_signature_algs
-                                             if
-                                             sig[1] == SignatureAlgorithm.rsa
-                                             or
-                                             sig[0] == 8 and
-                                             sig[1] in (4, 5, 6)),
-                                            None)
+                    self.msg_alg = self._select_sig_alg(cert_req)
             if self.msg_alg is None:
                 self.msg_alg = (HashAlgorithm.sha1,
                                 SignatureAlgorithm.rsa)
