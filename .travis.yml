@@ -8,6 +8,22 @@ python:
   - 3.4
   - 3.5
   - 3.6
+  - 3.7
+
+# workaround for 3.7 not available in default configuration
+# travis-ci/travis-ci#9815
+dist: trusty
+sudo: false
+
+matrix:
+ exclude:
+   - python: 3.7
+ include:
+# workaround for 3.7 not available in default configuration
+# travis-ci/travis-ci#9815
+   - python: 3.7
+     dist: xenial
+     sudo: true
 
 branches:
   only:
