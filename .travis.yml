@@ -57,7 +57,14 @@ script:
   - coverage report -m
   # check if all scripts are included in the json files
   - python tests/verify-scripts-json.py tests/tlslite-ng-random-subset.json tests/tlslite-ng.json
-  - travis_wait 30 python tests/scripts_retention.py tests/tlslite-ng-random-subset.json `which tls.py`
+  # the HTTP header includes python version, since "2.7.15" is longer than "2.6.9", the reply itself is longer too
+  - |
+      if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]]; then
+        export REPLY_SIZE=1850
+      else
+        export REPLY_SIZE=1849
+      fi
+  - travis_wait 30 python tests/scripts_retention.py tests/tlslite-ng-random-subset.json `which tls.py` $REPLY_SIZE
   # pylint doesn't work on 2.6: https://bitbucket.org/logilab/pylint/issue/390/py26-compatiblity-broken
   # diff-quality doesn't work on 3.2: https://github.com/edx/diff-cover/issues/94
   - |

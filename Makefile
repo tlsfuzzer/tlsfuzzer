@@ -32,4 +32,4 @@ test:
 
 test-scripts:
 	python tests/verify-scripts-json.py tests/tlslite-ng.json tests/tlslite-ng-random-subset.json
-	python tests/scripts_retention.py tests/tlslite-ng.json `which tls.py`
+	python tests/scripts_retention.py tests/tlslite-ng.json `which tls.py` 1850

@@ -29,7 +29,7 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         ExpectNewSessionTicket, hrr_ext_handler_key_share, \
         hrr_ext_handler_cookie, ExpectHelloRetryRequest, \
         gen_srv_ext_handler_psk, srv_ext_handler_supp_groups, \
-        srv_ext_handler_heartbeat
+        srv_ext_handler_heartbeat, gen_srv_ext_handler_record_limit
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
@@ -54,7 +54,8 @@ from tlslite.extensions import SNIExtension, SignatureAlgorithmsExtension
 from tlslite.keyexchange import DHE_RSAKeyExchange, ECDHE_RSAKeyExchange
 from tlslite.errors import TLSIllegalParameterException, TLSDecryptionFailed
 from tlsfuzzer.runner import ConnectionState
-from tlslite.extensions import RenegotiationInfoExtension
+from tlslite.extensions import RenegotiationInfoExtension, \
+        RecordSizeLimitExtension
 from tlsfuzzer.helpers import key_share_gen, psk_ext_gen
 from tlslite.keyexchange import ECDHKeyExchange
 from tlslite.mathtls import goodGroupParameters
@@ -555,6 +556,118 @@ class TestServerExtensionProcessors(unittest.TestCase):
                 bytearray(b"\'Rv\'\xbd\xb6Soh\xe6Y\xfb6w\xda+\xd5\x94$V\xfc"
                           b"\xdd\xac>\xbb\xeb\xa2\xd5\x8d\x00\xe6\x9a\x99{"
                           b"\x00\x98\x9b\xf9%\x1fAFz\x13\xfc\xc4\x11,"))
+
+    def test_gen_srv_ext_handler_record_limit(self):
+        ext = RecordSizeLimitExtension().create(2**14)
+
+        state = ConnectionState()
+        state.version = (3, 3)
+
+        client_hello = ClientHello()
+        cl_ext = RecordSizeLimitExtension().create(2**10)
+        client_hello.extensions = [cl_ext]
+        state.handshake_messages.append(client_hello)
+
+        handler = gen_srv_ext_handler_record_limit()
+
+        handler(state, ext)
+
+        self.assertEqual(state._peer_record_size_limit, 2**14)
+        self.assertEqual(state._our_record_size_limit, 2**10)
+
+    def test_gen_srv_ext_handler_record_limit_with_minimal_value(self):
+        ext = RecordSizeLimitExtension().create(64)
+
+        state = ConnectionState()
+        state.version = (3, 3)
+
+        client_hello = ClientHello()
+        cl_ext = RecordSizeLimitExtension().create(2**10)
+        client_hello.extensions = [cl_ext]
+        state.handshake_messages.append(client_hello)
+
+        handler = gen_srv_ext_handler_record_limit()
+
+        handler(state, ext)
+
+        self.assertEqual(state._peer_record_size_limit, 64)
+        self.assertEqual(state._our_record_size_limit, 2**10)
+
+    def test_gen_srv_ext_handler_record_limit_too_large_value(self):
+        # in tls 1.2 maximum size the server can select is 2**14
+        ext = RecordSizeLimitExtension().create(2**14+1)
+
+        state = ConnectionState()
+        state.version = (3, 3)
+
+        client_hello = ClientHello()
+        cl_ext = RecordSizeLimitExtension().create(2**10)
+        client_hello.extensions = [cl_ext]
+        state.handshake_messages.append(client_hello)
+
+        handler = gen_srv_ext_handler_record_limit()
+
+        with self.assertRaises(AssertionError):
+            handler(state, ext)
+
+    def test_gen_srv_ext_handler_record_limit_in_TLS_1_3(self):
+        ext = RecordSizeLimitExtension().create(2**14+1)
+
+        state = ConnectionState()
+        state.version = (3, 4)
+
+        client_hello = ClientHello()
+        cl_ext = RecordSizeLimitExtension().create(2**10+1)
+        client_hello.extensions = [cl_ext]
+        state.handshake_messages.append(client_hello)
+
+        state.msg_sock = mock.MagicMock()
+
+        handler = gen_srv_ext_handler_record_limit()
+
+        handler(state, ext)
+
+        self.assertEqual(state.msg_sock.recv_record_limit, 2**10)
+        self.assertEqual(state.msg_sock.send_record_limit, 2**14)
+        self.assertEqual(state.msg_sock.recordSize, 2**14)
+
+    def test_gen_srv_ext_handler_record_limit_with_too_large_size_in_TLS_1_3(self):
+        # in TLS 1.3 the maximum size supported is 2**14 + 1, check if we
+        # reject sizes larger than that
+        ext = RecordSizeLimitExtension().create(2**14+2)
+
+        state = ConnectionState()
+        state.version = (3, 4)
+
+        client_hello = ClientHello()
+        cl_ext = RecordSizeLimitExtension().create(2**10+1)
+        client_hello.extensions = [cl_ext]
+        state.handshake_messages.append(client_hello)
+
+        state.msg_sock = mock.MagicMock()
+
+        handler = gen_srv_ext_handler_record_limit()
+
+        with self.assertRaises(AssertionError):
+            handler(state, ext)
+
+    def test_gen_srv_ext_handler_record_limit_with_unexpected_size(self):
+        ext = RecordSizeLimitExtension().create(2**14+1)
+
+        state = ConnectionState()
+        state.version = (3, 4)
+
+        client_hello = ClientHello()
+        cl_ext = RecordSizeLimitExtension().create(2**10)
+        client_hello.extensions = [cl_ext]
+        state.handshake_messages.append(client_hello)
+
+        state.msg_sock = mock.MagicMock()
+
+        handler = gen_srv_ext_handler_record_limit(2**14)
+
+        with self.assertRaises(AssertionError):
+            handler(state, ext)
 
 
 class TestHRRExtensionProcessors(unittest.TestCase):
@@ -2594,6 +2707,28 @@ class TestExpectApplicationData(unittest.TestCase):
 
         with self.assertRaises(AssertionError):
             exp.process(state, msg)
+
+    def test_process_with_size(self):
+        exp = ExpectApplicationData(size=5)
+
+        state = ConnectionState()
+        msg = Message(ContentType.application_data, bytearray(b'hello'))
+
+        self.assertTrue(exp.is_match(msg))
+
+        exp.process(state, msg)
+
+    def test_process_with_mismatched_size(self):
+        exp = ExpectApplicationData(size=1024)
+
+        state = ConnectionState()
+        msg = Message(ContentType.application_data, bytearray(b'hello'))
+
+        self.assertTrue(exp.is_match(msg))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, msg)
+
 
 class TestExpectServerKeyExchange(unittest.TestCase):
     def test__init__(self):

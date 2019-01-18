@@ -88,6 +88,10 @@ class ConnectionState(object):
         # list of tickets received from the server
         self.session_tickets = []
 
+        # used to enforce record_size_limit in TLS 1.2 and earlier
+        self._peer_record_size_limit = None
+        self._our_record_size_limit = None
+
     @property
     def prf_name(self):
         """Return the name of the PRF used for session.

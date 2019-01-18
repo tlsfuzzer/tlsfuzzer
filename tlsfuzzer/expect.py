@@ -284,6 +284,51 @@ def gen_srv_ext_handler_psk(psk_configs=tuple()):
     return partial(_srv_ext_handler_psk, psk_configs=psk_configs)
 
 
+def _srv_ext_handler_record_limit(state, extension, size=None):
+    """Process record_size_limit extension from server."""
+    cln_hello = state.get_last_message_of_type(ClientHello)
+    cln_ext = cln_hello.getExtension(ExtensionType.record_size_limit)
+
+    assert extension.record_size_limit is not None
+    assert 64 <= extension.record_size_limit <= 2**14 + \
+        int(state.version > (3, 3))
+
+    if size:
+        assert extension.record_size_limit == size
+
+    if state.version <= (3, 3):
+        # in TLS 1.2 and earlier we need to delay that to processing of
+        # server CCS
+        state._peer_record_size_limit = extension.record_size_limit
+        state._our_record_size_limit = min(2**14, cln_ext.record_size_limit)
+    else:
+        # in TLS 1.3 we need to implement it right away (as the extension
+        # applies only to encrypted messages)
+        # the RecordLayer expects value that excludes content type
+        state.msg_sock.recv_record_limit = min(
+            2**14,
+            cln_ext.record_size_limit-1)
+        # this is just hint for padding callback
+        state.msg_sock.send_record_limit = min(
+            2**14,
+            extension.record_size_limit-1)
+        # this guides fragmentation
+        state.msg_sock.recordSize = state.msg_sock.send_record_limit
+
+
+def gen_srv_ext_handler_record_limit(size=None):
+    """
+    Create a handler for record_size_limit_extension from the server.
+
+    Note that if the extension is actually negotiated, it will override
+    any SetMaxRecordSize() before EncryptedExtensions in TLS 1.3 and
+    before ChangeCipherSpec in TLS 1.2 and earlier.
+
+    :param int size: expected value from server, None for any valid
+    """
+    return partial(_srv_ext_handler_record_limit, size=size)
+
+
 _srv_ext_handler = \
         {ExtensionType.extended_master_secret: srv_ext_handler_ems,
          ExtensionType.encrypt_then_mac: srv_ext_handler_etm,
@@ -294,7 +339,8 @@ _srv_ext_handler = \
          ExtensionType.supports_npn: srv_ext_handler_npn,
          ExtensionType.key_share: srv_ext_handler_key_share,
          ExtensionType.supported_versions: srv_ext_handler_supp_vers,
-         ExtensionType.heartbeat: srv_ext_handler_heartbeat}
+         ExtensionType.heartbeat: srv_ext_handler_heartbeat,
+         ExtensionType.record_size_limit: _srv_ext_handler_record_limit}
 
 
 _HRR_EXT_HANDLER = \
@@ -306,7 +352,8 @@ _EE_EXT_HANDLER = \
         {ExtensionType.server_name: srv_ext_handler_sni,
          ExtensionType.alpn: srv_ext_handler_alpn,
          ExtensionType.supported_groups: srv_ext_handler_supp_groups,
-         ExtensionType.heartbeat: srv_ext_handler_heartbeat}
+         ExtensionType.heartbeat: srv_ext_handler_heartbeat,
+         ExtensionType.record_size_limit: _srv_ext_handler_record_limit}
 
 
 class ExpectServerHello(ExpectHandshake):
@@ -992,6 +1039,9 @@ class ExpectChangeCipherSpec(Expect):
 
             state.msg_sock.changeReadState()
 
+            if state._our_record_size_limit:
+                state.msg_sock.recv_record_limit = state._our_record_size_limit
+
 
 class ExpectVerify(ExpectHandshake):
     """Processing of SSLv2 SERVER-VERIFY message"""
@@ -1182,6 +1232,7 @@ class ExpectEncryptedExtensions(ExpectHandshake):
                              # draft-ietf-tls-tls13-28 / RFC 7250
                         20,  # server_certificate_type
                              # draft-ietf-tls-tls13-28 / RFC 7250
+                        ExtensionType.record_size_limit,  # RFC 8449
                         ExtensionType.early_data]
 
         for ext in srv_exts.extensions:
@@ -1339,10 +1390,11 @@ class ExpectApplicationData(Expect):
 
     """Processing Application Data message"""
 
-    def __init__(self, data=None):
+    def __init__(self, data=None, size=None):
         super(ExpectApplicationData, self).\
                 __init__(ContentType.application_data)
         self.data = data
+        self.size = size
 
     def process(self, state, msg):
         assert msg.contentType == ContentType.application_data
@@ -1350,6 +1402,9 @@ class ExpectApplicationData(Expect):
 
         if self.data:
             assert self.data == data
+        if self.size and len(data) != self.size:
+            raise AssertionError("ApplicationData of unexpected size: {0}, "
+                                 "expected: {1}".format(len(data), self.size))
 
 
 class ExpectNoMessage(Expect):

@@ -109,7 +109,7 @@ def flush_queue():
             break
 
 
-def run_clients(tests, srv):
+def run_clients(tests, srv, expected_size):
     good = 0
     bad = 0
     failed = []
@@ -120,7 +120,10 @@ def run_clients(tests, srv):
         start_time = time.time()
         proc_args = ['python', '-u',
                      'scripts/{0}'.format(script)]
-        proc_args.extend(params.get("arguments", []))
+        arguments = params.get("arguments", [])
+        arguments = [expected_size if arg == "{expected_size}" else arg for
+                     arg in arguments]
+        proc_args.extend(arguments)
         my_env = os.environ.copy()
         my_env["PYTHONPATH"]="."
         proc = Popen(proc_args, env=my_env,
@@ -153,7 +156,7 @@ def run_clients(tests, srv):
     return good, bad, failed
 
 
-def run_with_json(config_file, srv_path):
+def run_with_json(config_file, srv_path, expected_size):
     with open(config_file) as f:
         config = json.load(f)
 
@@ -177,7 +180,8 @@ def run_with_json(config_file, srv_path):
         logger.info("Server process started")
 
         try:
-            n_good, n_bad, f_cmds = run_clients(srv_conf["tests"], srv)
+            n_good, n_bad, f_cmds = run_clients(srv_conf["tests"], srv,
+                                                expected_size)
             good += n_good
             bad += n_bad
             failed.extend(f_cmds)
@@ -197,11 +201,11 @@ def run_with_json(config_file, srv_path):
 
 
 def main():
-    if len(sys.argv) != 3:
-        print("provide path to config file and server")
+    if len(sys.argv) != 4:
+        print("provide path to config file, server executable and expected reply size")
         sys.exit(2)
 
-    good, bad, failed = run_with_json(sys.argv[1], sys.argv[2])
+    good, bad, failed = run_with_json(sys.argv[1], sys.argv[2], sys.argv[3])
 
     logging.shutdown()
 
