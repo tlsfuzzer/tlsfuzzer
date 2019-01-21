@@ -52,7 +52,7 @@ def help_msg():
     print("                (sha512+rsa) separated by spaces")
     print(" -k keyfile     file with private key")
     print(" -c certfile    file with certificate of client")
-    print(" --illegpar     expect illegal_parameter instead of decode_error")
+    print(" --illegpar     expect illegal_parameter instead of decrypt_error")
     print("                alert for mismatched signatures. Should be used")
     print("                with TLS implementations that do inspect")
     print("                certificiate type and check if it is compatible")
