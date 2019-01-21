@@ -214,7 +214,7 @@
           "exp_pass" : false},
          {"name" : "test-tls13-conversation.py"},
          {"name" : "test-tls13-count-tickets.py",
-          "arguments" : ["-t", "1"]},
+          "arguments" : ["-t", "2"]},
          {"name" : "test-tls13-crfg-curves.py"},
          {"name" : "test-tls13-dhe-shared-secret-padding.py",
           "arguments" : ["TLS 1.3 with ffdhe2048"],
