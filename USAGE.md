@@ -373,9 +373,9 @@ negative to the user.
 Test specific notes
 ===================
 
-
 `test-bleichenbacher-workaround.py`
 -----------------------------------
+
 This test requires a HTTP server with a RSA ciphersuite (`TLS_RSA_WITH_*_*`)
 enabled and not asking for client certificates (only for GnuTLS it's not a
 default configuration).
@@ -417,8 +417,50 @@ and [test-truncating-of-kRSA-client-key-exchange.py](https://github.com/tomato42
 perform checks related to RSA key exchange. Failures there may be a sign of
 other problems.
 
+`test-record-size-limit.py`
+---------------------------
+
+This test is very stict on the size of returned reply and expects the reply
+to be sent in a single record, if its size allows for that.
+
+To quickly check what is the size that the server sends, it's possible to run
+the test as such:
+```
+test-record-size-limit.py --reply-AD-size 1 \
+'check if server accepts maximum size in TLS 1.2'
+```
+or as such:
+```
+test-record-size-limit.py --reply-AD-size 1 \
+'check if server accepts maximum size in TLS 1.3'
+```
+
+It should fail with a
+`AssertionError: ApplicationData of unexpected size: X, expected: 1`
+where X is the value that needs to be passed as argument to `--reply-AD-size`.
+
+To make the test case more deterministic, it is possible to specify the
+exact (HTTP) request being sent to server using `--request` option. For example,
+to perform a GET request for specific file, not the `/` object.
+
+`--cookie` option needs to be used if the server sends `cookie` extension in
+HelloRetryRequest message.
+
+`--supported-groups` needs to be used when the server sends `supported_groups`
+in EncryptedExtension during regular TLS 1.3 handshakes while
+`--hrr-supported-groups` is to be used when the server does that for handshakes
+that force the server to send HelloRetryRequest message.
+
+In case the server does limit the size it advertises in its extension,
+`--expect-size` can be used to set it. Note though, the value expected from
+server in TLS 1.3 will be one byte larger than for TLS 1.2 and earlier
+protocols as this is the expected behaviour of servers that support the biggest
+possible records and it makes the size of actual application data payload the
+same irrespective of negotiated protocol version.
+
 `test-tls13-certificate-verify.py`
 ----------------------------------
+
 This test verifies server's support for different Signature Algorithms for
 client certificates and CertificateVerify messages. It tests all the
 algorithms supported by tlsfuzzer, and verifies that only the advertised ones
