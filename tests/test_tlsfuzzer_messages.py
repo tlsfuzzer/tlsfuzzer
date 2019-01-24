@@ -29,7 +29,7 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         CollectNonces, AlertGenerator, PlaintextMessageGenerator, \
         SetPaddingCallback, replace_plaintext, ch_cookie_handler, \
         ch_key_share_handler, SetRecordVersion, CopyVariables, \
-        ResetWriteConnectionState
+        ResetWriteConnectionState, KeyUpdateGenerator
 from tlsfuzzer.helpers import psk_ext_gen, psk_ext_updater, \
         psk_session_ext_gen, AutoEmptyExtension
 from tlsfuzzer.runner import ConnectionState
@@ -45,6 +45,7 @@ from tlslite.utils.codec import Parser
 from tests.mocksock import MockSocket
 from tlslite.utils.keyfactory import generateRSAKey
 from tlslite.utils.cryptomath import numberToByteArray
+from tlslite.utils.cipherfactory import createAESGCM
 
 class TestClose(unittest.TestCase):
     def test___init__(self):
@@ -1328,6 +1329,50 @@ class TestFinishedGenerator(unittest.TestCase):
         self.assertEqual(ret.verify_data, bytearray(
             b'\x00\x14\xa5e\xa67\xfe\xa3(\xd3\xac\x95\xecX\xb7\xc0\xd4u\xef'
             b'\xb3V\x8f\xc7[\xcdD\xc8\xa4\x86\xcf\xd3\xc9\x0c\x00'))
+
+
+class TestKeyUpdateGenerator(unittest.TestCase):
+
+    def test_default_settings(self):
+        ku = KeyUpdateGenerator()
+
+        self.assertIsNotNone(ku)
+
+        state = ConnectionState()
+
+        ret = ku.generate(state)
+        self.assertEqual(ret.message_type,
+                         constants.KeyUpdateMessageType.update_not_requested)
+
+    def test___init___with_parameters(self):
+        ku = KeyUpdateGenerator(
+            constants.KeyUpdateMessageType.update_requested)
+
+        self.assertIsNotNone(ku)
+
+        state = ConnectionState()
+
+        ret = ku.generate(state)
+        self.assertEqual(ret.message_type,
+                         constants.KeyUpdateMessageType.update_requested)
+
+    def test___init___with_invalid_parameters(self):
+        with self.assertRaises(ValueError):
+            ku = KeyUpdateGenerator(message_type=3)
+
+    def test_post_send(self):
+        ku = KeyUpdateGenerator()
+        
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        state.msg_sock._getCipherSettings.return_value = (16, 4, createAESGCM)
+        state.cipher = constants.CipherSuite.TLS_AES_128_GCM_SHA256
+        state.key['client application traffic secret'] = bytearray(32)
+        cl_app_secret = state.key['client application traffic secret']
+
+        ku.post_send(state)
+        self.assertNotEqual(cl_app_secret,
+                            state.key['client application traffic secret'])
 
 
 class TestResetHandshakeHashes(unittest.TestCase):
