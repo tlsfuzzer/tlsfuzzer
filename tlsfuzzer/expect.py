@@ -19,7 +19,7 @@ from tlslite.constants import ContentType, HandshakeType, CertificateType,\
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
         ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus, \
-        CertificateVerify, EncryptedExtensions, NewSessionTicket
+        CertificateVerify, EncryptedExtensions, NewSessionTicket, KeyUpdate
 from tlslite.extensions import TLSExtension, ALPNExtension
 from tlslite.utils.codec import Parser, Writer
 from tlslite.utils.compat import b2a_hex
@@ -1455,3 +1455,42 @@ class ExpectCertificateStatus(ExpectHandshake):
 
         state.handshake_messages.append(cert_status)
         state.handshake_hashes.update(msg.write())
+
+
+class ExpectKeyUpdate(ExpectHandshake):
+    """Processing of post-handshake KeyUpdate message from RFC 8446"""
+
+    def __init__(self, message_type=None):
+        """
+        Initialize object.
+
+        @type message_type: int
+        @param message_type: type of KeyUpdate msg, either
+            update_not_requested or update_requested
+        """
+        super(ExpectKeyUpdate, self).__init__(
+            ContentType.handshake,
+            HandshakeType.key_update)
+        self.message_type = message_type
+
+    def process(self, state, msg):
+        """
+        Parse, verify and process the message.
+
+        @type state: ConnectionState
+        @type msg: Message
+        """
+        assert msg.contentType == self.content_type
+        parser = Parser(msg.write())
+        hs_type = parser.get(1)
+        assert hs_type == self.handshake_type
+
+        keyupdate = KeyUpdate().parse(parser)
+        assert keyupdate.message_type == self.message_type
+
+        _, sr_app_secret = state.msg_sock.\
+            calcTLS1_3KeyUpdate_sender(
+                state.cipher,
+                state.key['client application traffic secret'],
+                state.key['server application traffic secret'])
+        state.key['server application traffic secret'] = sr_app_secret

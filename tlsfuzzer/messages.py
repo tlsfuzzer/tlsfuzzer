@@ -6,10 +6,11 @@
 from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         Finished, Alert, ApplicationData, Message, Certificate, \
         CertificateVerify, CertificateRequest, ClientMasterKey, \
-        ClientFinished, ServerKeyExchange, ServerHello
+        ClientFinished, ServerKeyExchange, ServerHello, KeyUpdate
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
         ExtensionType, CertificateType, ClientCertificateType, HashAlgorithm, \
-        SignatureAlgorithm, CipherSuite, SignatureScheme, TLS_1_3_HRR
+        SignatureAlgorithm, CipherSuite, SignatureScheme, TLS_1_3_HRR, \
+        KeyUpdateMessageType
 import tlslite.utils.tlshashlib as hashlib
 from tlslite.extensions import TLSExtension, RenegotiationInfoExtension, \
         ClientKeyShareExtension
@@ -1182,6 +1183,30 @@ class ApplicationDataGenerator(MessageGenerator):
         """Send data to server in Application Data messages."""
         app_data = ApplicationData().create(self.payload)
         return app_data
+
+
+class KeyUpdateGenerator(MessageGenerator):
+    """Generator for TLS 1.3 KeyUpdate message."""
+
+    def __init__(self, message_type=0):
+        """Save the type of the KeyUpdate message."""
+        super(KeyUpdateGenerator, self).__init__()
+        self.message_type = message_type
+
+    def generate(self, status):
+        """Generate a KeyUpdate message."""
+        key_update = KeyUpdate().create(self.message_type)
+        return key_update
+
+    def post_send(self, status):
+        """Perform post-transmit changes needed by generation of KeyUpdate."""
+        super(KeyUpdateGenerator, self).post_send(status)
+        cl_app_secret, _ = status.msg_sock.\
+            calcTLS1_3KeyUpdate_reciever(
+                status.cipher,
+                status.key['client application traffic secret'],
+                status.key['server application traffic secret'])
+        status.key['client application traffic secret'] = cl_app_secret
 
 
 def pad_handshake(generator, size=0, pad_byte=0, pad=None):
