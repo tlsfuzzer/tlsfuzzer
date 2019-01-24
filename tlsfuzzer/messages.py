@@ -6,10 +6,11 @@
 from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         Finished, Alert, ApplicationData, Message, Certificate, \
         CertificateVerify, CertificateRequest, ClientMasterKey, \
-        ClientFinished, ServerKeyExchange, ServerHello
+        ClientFinished, ServerKeyExchange, ServerHello, KeyUpdate
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
         ExtensionType, CertificateType, ClientCertificateType, HashAlgorithm, \
-        SignatureAlgorithm, CipherSuite, SignatureScheme, TLS_1_3_HRR
+        SignatureAlgorithm, CipherSuite, SignatureScheme, TLS_1_3_HRR, \
+        KeyUpdateMessageType
 import tlslite.utils.tlshashlib as hashlib
 from tlslite.extensions import TLSExtension, RenegotiationInfoExtension, \
         ClientKeyShareExtension
@@ -1140,6 +1141,57 @@ class ApplicationDataGenerator(MessageGenerator):
         """Send data to server in Application Data messages."""
         app_data = ApplicationData().create(self.payload)
         return app_data
+
+
+class KeyUpdateGenerator(MessageGenerator):
+    """Generator for TLS 1.3 KeyUpdate message."""
+
+    def __init__(self, message_type=0):
+        """Save the type of the KeyUpdate message."""
+        super(KeyUpdateGenerator, self).__init__()
+        self.message_type = message_type
+        if self.message_type != KeyUpdateMessageType.update_not_requested and\
+                self.message_type != KeyUpdateMessageType.update_requested:
+            raise ValueError("Invalid message_type for KeyUpdate msg.")
+
+    def generate(self, status):
+        """Generate a KeyUpdate message."""
+        key_update = KeyUpdate().create(self.message_type)
+        return key_update
+
+    def post_send(self, status):
+        """Perform post-transmit changes needed by generation of KeyUpdate."""
+        super(KeyUpdateGenerator, self).post_send(status)
+
+        prf_name, prf_length = ('sha384', 48) if status.cipher \
+                                in CipherSuite.sha384PrfSuites \
+                                else ('sha256', 32)
+
+        key_length, iv_length, cipher_func = \
+            status.msg_sock._getCipherSettings(status.cipher)
+        iv_length = 12
+
+        # Calculate N+1 application traffic secret
+        new_cl_app_secret = HKDF_expand_label(status.key['client application traffic secret'],
+                                              b"traffic upd", b"",
+                                              prf_length,
+                                              prf_name)
+        status.key['client application traffic secret'] = new_cl_app_secret
+
+        # Calculate keys for write-state
+        clientState = ConnectionState()
+        clientState.macContext = None
+        clientState.encContext = \
+            cipher_func(HKDF_expand_label(new_cl_app_secret,
+                                          b"key", b"",
+                                          key_length,
+                                          prf_name),
+                        None)
+        clientState.fixedNonce = HKDF_expand_label(new_cl_app_secret,
+                                                   b"iv", b"",
+                                                   iv_length,
+                                                   prf_name)
+        status.msg_sock._writeState = clientState
 
 
 def pad_handshake(generator, size=0, pad_byte=0, pad=None):
