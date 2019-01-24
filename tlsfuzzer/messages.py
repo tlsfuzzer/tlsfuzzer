@@ -6,7 +6,8 @@
 from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         Finished, Alert, ApplicationData, Message, Certificate, \
         CertificateVerify, CertificateRequest, ClientMasterKey, \
-        ClientFinished, ServerKeyExchange, ServerHello, Heartbeat
+        ClientFinished, ServerKeyExchange, ServerHello, Heartbeat, \
+        KeyUpdate
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
         ExtensionType, CertificateType, HashAlgorithm, \
         SignatureAlgorithm, CipherSuite, SignatureScheme, TLS_1_3_HRR, \
@@ -1364,6 +1365,31 @@ class ApplicationDataGenerator(MessageGenerator):
         """Send data to server in Application Data messages."""
         app_data = ApplicationData().create(self.payload)
         return app_data
+
+
+class KeyUpdateGenerator(MessageGenerator):
+    """Generator for TLS 1.3 KeyUpdate message."""
+
+    def __init__(self, message_type=0):
+        """Save the type of the KeyUpdate message."""
+        super(KeyUpdateGenerator, self).__init__()
+        self.message_type = message_type
+
+    def generate(self, state):
+        """Generate a KeyUpdate message."""
+        del state  # needed only for API compatibility
+        key_update = KeyUpdate().create(self.message_type)
+        return key_update
+
+    def post_send(self, state):
+        """Perform post-transmit changes needed by generation of KeyUpdate."""
+        super(KeyUpdateGenerator, self).post_send(state)
+        cl_app_secret, _ = state.msg_sock.\
+            calcTLS1_3KeyUpdate_reciever(
+                state.cipher,
+                state.key['client application traffic secret'],
+                state.key['server application traffic secret'])
+        state.key['client application traffic secret'] = cl_app_secret
 
 
 class HeartbeatGenerator(MessageGenerator):
