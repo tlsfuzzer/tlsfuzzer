@@ -414,3 +414,47 @@ While not testing for Bleichenbacher directly, the tests
 and [test-truncating-of-kRSA-client-key-exchange.py](https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-truncating-of-kRSA-client-key-exchange.py)
 perform checks related to RSA key exchange. Failures there may be a sign of
 other problems.
+
+`test-tls13-certificate-verify.py`
+----------------------------------
+This test verifies server's support for different Signature Algorithms for
+client certificates and CertificateVerify messages. It tests all the
+algorithms supported by tlsfuzzer, and verifies that only the advertised ones
+are accepted by the server. It also verifies that algorithms incompatible with
+the certificate type provided (e.g rsa_pss_rsae_sha256 with "rsa-pss"
+certificates) are refused as well.
+It also fuzzes signatures in various ways to make sure servers behave according
+to TLS1.3 specifications.
+
+NOTE: To test all algorithms it is necessary to run this test twice, once with
+an "rsa" certificate and once with an "rsa-pss" certificate.
+
+The list of server supported Signature Algorithm's must be provided via the -s
+command line option, the default is set to match tlslite-ng sigalg selection.
+The algorithms can be defined both via shorthand strings, type+hash strings,
+type and hash can also be expressed via numeric ids.
+Example: `-s "sha256+rsa rsa_pss_pss_sha384 8+11"`
+
+For some correctness tests, only one among multiple algorithms of the same
+type will be used. For example there is a test that checks that a "correct"
+signature using one hash but being advertised as using different hash is
+refused. The test machinery will select a signature algorithm matching the
+first hash in an ordered list and use the second hash in the actual signature.
+The ordered list of hashes to select from can be changed using the -o
+parameter. The default is "sha256 sha384 sha512", in that order.
+The test that uses the wrong mgf1 hash, assuming a server that accepts all
+standard rsa algorithms, will choose an algorithm that uses the sha256 (the
+first in the list) for the envelope, and actually uses sha384 (the second in
+the list) for the signature operation.
+To test different combinations one can simply change the order to something
+like -o "sha512 sha256 sha384"; this will cause the test to send an envelope
+for rsa_pss_pss_sha512 (for "rsa-pss" certificates), but will use sha256 as
+the actual mgf1 hash when generating the signature.
+Other tests also uses the ordered hash list to choose an algorithm among
+multiple viable ones advertised by the server and can similarly be affected by
+changing the ordered list of hashes.
+At least two hashes must be provided in the list, although only one need
+to be supported by the server. If a hash is not supported by the server it will
+be skipped in test that select algorithms that need to be supported by the
+server, skipped hashes may still be selected to generate signatures or invalid
+envelope values as needed by the test.
