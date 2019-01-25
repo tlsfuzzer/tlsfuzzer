@@ -279,6 +279,8 @@ Some situations where multiple Application Data messages being sent is not ok:
 
  * splits happening on line end - that leaks the line lengths to a passive
    observer
+ * splits happening on HTTP headers end - that leaks the size of headers to a
+   passive observer
  * 1/n-1 split in TLS 1.1 or later or in stream ciphers - it's unnecessary and
    wastes bandwidth
 
