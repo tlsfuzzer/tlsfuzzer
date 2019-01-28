@@ -229,6 +229,8 @@
          {"name" : "test-tls13-invalid-ciphers.py",
           "arguments" : ["-n", "50"]},
          {"name" : "test-tls13-keyshare-omitted.py"},
+         {"name" : "test-tls13-keyupdate.py",
+          "arguments" : ["-n", "60"]},
          {"name" : "test-tls13-large-number-of-extensions.py",
           "arguments" : ["-n", "20",
                          "--exc", "9",
