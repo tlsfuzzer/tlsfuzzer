@@ -1545,6 +1545,9 @@ def split_message(generator, fragment_list, size):
             fragment_list.append(Message(content_type, data[:size]))
             data = data[size:]
 
+        fragment_list.append(generator.post_send)
+        generator.post_send = lambda x: None
+
         return fragment_list.pop(0)
 
     generator.generate = new_generate
@@ -1564,6 +1567,12 @@ class PopMessageFromList(MessageGenerator):
         msg = self.fragment_list.pop(0)
         return msg
 
+    def post_send(self, state):
+        super(PopMessageFromList, self).post_send(state)
+        if len(self.fragment_list) > 0 and callable(self.fragment_list[0]):
+            func = self.fragment_list.pop(0)
+            func(state)
+
 
 class FlushMessageList(MessageGenerator):
     """Takes a reference to list, empties it to generate a message."""
@@ -1578,12 +1587,19 @@ class FlushMessageList(MessageGenerator):
         msg = self.fragment_list.pop(0)
         content_type = msg.contentType
         data = msg.write()
-        while len(self.fragment_list) > 0:
+        while len(self.fragment_list) > 0 and \
+                not callable(self.fragment_list[0]):
             msg_frag = self.fragment_list.pop(0)
             assert msg_frag.contentType == content_type
             data += msg_frag.write()
         msg_ret = Message(content_type, data)
         return msg_ret
+
+    def post_send(self, state):
+        super(FlushMessageList, self).post_send(state)
+        if len(self.fragment_list) > 0 and callable(self.fragment_list[0]):
+            msg_frag = self.fragment_list.pop(0)
+            msg_frag(state)
 
 
 def fuzz_pkcs1_padding(key, substitutions=None, xors=None):
