@@ -3142,19 +3142,25 @@ class TestFuzzPlaintext(unittest.TestCase):
         self.assertEqual(self.socket.sent[0][:5], unchanged[:5])
         self.assertEqual(self.socket.sent[0][5:], expected)
 
+
 class TestSplitMessage(unittest.TestCase):
     def test_split_to_two(self):
         state = ConnectionState()
         vanilla_hello = ClientHelloGenerator().generate(state).write()
         fragments = []
-        hello_gen = split_message(ClientHelloGenerator(), fragments, 30)
+
+        msg = ClientHelloGenerator()
+        post_send = msg.post_send
+        hello_gen = split_message(msg, fragments, 30)
 
         self.assertEqual(fragments, [])
 
         first_part = hello_gen.generate(state).write()
 
         self.assertEqual(len(first_part), 30)
-        self.assertEqual(len(fragments), 1)
+        self.assertEqual(len(fragments), 2)
+        self.assertEqual(len(fragments[0].write()), 13)
+        self.assertEqual(fragments[1], post_send)
 
     def test_split_of_zero_length(self):
         # 0 length messages are intentionally unhandled
@@ -3165,6 +3171,7 @@ class TestSplitMessage(unittest.TestCase):
         state = ConnectionState()
         with self.assertRaises(IndexError):
             msg_gen.generate(state)
+
 
 class TestPopMessageFromList(unittest.TestCase):
     def test_with_message_list(self):
@@ -3181,6 +3188,30 @@ class TestPopMessageFromList(unittest.TestCase):
         self.assertEqual(msg.write(), bytearray(b'\x20\x30'))
 
         self.assertEqual(len(msg_list), 1)
+
+    def test_with_post_send_call(self):
+        msg_list = []
+
+        msg_gen = PopMessageFromList(msg_list)
+
+        msg_list.append(messages.Message(20, bytearray(b'\x20\x20')))
+        post_send = mock.MagicMock()
+        msg_list.append(post_send)
+
+        msg = msg_gen.generate(None)
+
+        self.assertEqual(msg.contentType, 20)
+        self.assertEqual(msg.write(), bytearray(b'\x20\x20'))
+
+        self.assertEqual(len(msg_list), 1)
+
+        state = mock.Mock()
+        msg_gen.post_send(state)
+
+        post_send.assert_called_once_with(state)
+
+        self.assertEqual(msg_list, [])
+
 
 class TestFlushMessageList(unittest.TestCase):
     def test_with_message_list(self):
@@ -3208,6 +3239,31 @@ class TestFlushMessageList(unittest.TestCase):
 
         with self.assertRaises(AssertionError):
             msg_gen.generate(None)
+
+    def test_with_post_send_call(self):
+        msg_list = []
+
+        msg_gen = FlushMessageList(msg_list)
+
+        msg_list.append(messages.Message(20, bytearray(b'\x20\x20')))
+        msg_list.append(messages.Message(20, bytearray(b'\x30\x03')))
+        post_send = mock.MagicMock()
+        msg_list.append(post_send)
+
+        msg = msg_gen.generate(None)
+
+        self.assertEqual(msg.contentType, 20)
+        self.assertEqual(msg.write(), bytearray(b'\x20\x20\x30\x03'))
+
+        self.assertEqual(len(msg_list), 1)
+
+        state = mock.Mock()
+        msg_gen.post_send(state)
+
+        post_send.assert_called_once_with(state)
+
+        self.assertEqual(msg_list, [])
+
 
 class TestFuzzPKCS1Padding(unittest.TestCase):
     @classmethod
