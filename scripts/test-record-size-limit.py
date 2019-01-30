@@ -378,6 +378,56 @@ def main():
     node.next_sibling = ExpectClose()
     conversations["check server sent size in TLS 1.3"] = conversation
 
+    # verify that server omits record_size_limit if value in
+    # [64..minimal_size-1] is specified
+    if minimal_size > 64:
+        for size in [64, minimal_size-1]:
+            conversation = Connect(host, port)
+            node = conversation
+            ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+            ext = {}
+            groups = [GroupName.secp256r1]
+            ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+            ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+                .create([TLS_1_3_DRAFT, (3, 3)])
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                .create(groups)
+            ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
+                .create(size)
+            sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                        SignatureScheme.rsa_pss_pss_sha256]
+            ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+                .create(sig_algs)
+            ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+                .create(RSA_SIG_ALL)
+            node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+            node = node.add_child(ExpectServerHello())
+            node = node.add_child(ExpectChangeCipherSpec())
+            ext = {}
+            if supported_groups:
+                ext[ExtensionType.supported_groups] = None
+            node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
+            node = node.add_child(ExpectCertificate())
+            node = node.add_child(ExpectCertificateVerify())
+            node = node.add_child(ExpectFinished())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(ApplicationDataGenerator(
+                bytearray(request)))
+
+            # This message is optional and may show up 0 to many times
+            cycle = ExpectNewSessionTicket()
+            node = node.add_child(cycle)
+            node.add_child(cycle)
+
+            node.next_sibling = ExpectApplicationData(size=reply_size)
+            node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                                              AlertDescription.close_notify))
+
+            node = node.add_child(ExpectAlert())
+            node.next_sibling = ExpectClose()
+            conversations["check if server omits extension for unrecognized size {0} in TLS 1.3".format(size)] = conversation
+
     # check if server accepts small sizes
     conversation = Connect(host, port)
     node = conversation
