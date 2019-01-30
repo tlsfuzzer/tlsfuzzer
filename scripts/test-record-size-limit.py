@@ -50,6 +50,8 @@ def help_msg():
     print("                (excluding \"sanity\" tests)")
     print(" --expect-size  size to expect from server (+1 for TLS 1.3), 2^14")
     print("                by default")
+    print(" --minimal-size minimal size to expect from server, 64")
+    print("                by default")
     print(" --supported-groups expect the server to send supported_groups")
     print("                extension in EncryptedExtensions in TLS 1.3")
     print(" --hrr-supported-groups expect the server to send supported_groups")
@@ -70,6 +72,7 @@ def main():
     num_limit = None
     run_exclude = set()
     expect_size = 2**14
+    minimal_size = 64
     supported_groups = False
     hrr_supported_groups = False
     reply_size = None
@@ -78,7 +81,7 @@ def main():
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "h:p:e:n:",
-                               ["help", "expect-size=",
+                               ["help", "expect-size=", "minimal-size=",
                                 "supported-groups", "reply-AD-size=",
                                 "cookie", "hrr-supported-groups",
                                 "request="])
@@ -96,6 +99,8 @@ def main():
             sys.exit(0)
         elif opt == '--expect-size':
             expect_size = int(arg)
+        elif opt == '--minimal-size':
+            minimal_size = int(arg)
         elif opt == '--supported-groups':
             supported_groups = True
         elif opt == '--hrr-supported-groups':
@@ -230,7 +235,7 @@ def main():
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         extensions = {ExtensionType.record_size_limit:
-                      RecordSizeLimitExtension().create(64)}
+                      RecordSizeLimitExtension().create(minimal_size)}
         node = node.add_child(ClientHelloGenerator(
             ciphers, version=vers, extensions=extensions))
         ext = {ExtensionType.record_size_limit:
@@ -251,9 +256,9 @@ def main():
             # 1/n-1 record splitting
             node = node.add_child(ExpectApplicationData(size=1))
             remaining_size -= 1
-        for _ in range(0, max(0, remaining_size - 64), 64):
-            node = node.add_child(ExpectApplicationData(size=64))
-        node = node.add_child(ExpectApplicationData(size=remaining_size % 64))
+        for _ in range(0, max(0, remaining_size - minimal_size), minimal_size):
+            node = node.add_child(ExpectApplicationData(size=minimal_size))
+        node = node.add_child(ExpectApplicationData(size=remaining_size % minimal_size))
         node = node.add_child(AlertGenerator(AlertLevel.warning,
                                              AlertDescription.close_notify))
         node = node.add_child(ExpectAlert())
@@ -373,6 +378,56 @@ def main():
     node.next_sibling = ExpectClose()
     conversations["check server sent size in TLS 1.3"] = conversation
 
+    # verify that server omits record_size_limit if value in
+    # [64..minimal_size-1] is specified
+    if minimal_size > 64:
+        for size in [64, minimal_size-1]:
+            conversation = Connect(host, port)
+            node = conversation
+            ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+            ext = {}
+            groups = [GroupName.secp256r1]
+            ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+            ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+                .create([TLS_1_3_DRAFT, (3, 3)])
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                .create(groups)
+            ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
+                .create(size)
+            sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                        SignatureScheme.rsa_pss_pss_sha256]
+            ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+                .create(sig_algs)
+            ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+                .create(RSA_SIG_ALL)
+            node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+            node = node.add_child(ExpectServerHello())
+            node = node.add_child(ExpectChangeCipherSpec())
+            ext = {}
+            if supported_groups:
+                ext[ExtensionType.supported_groups] = None
+            node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
+            node = node.add_child(ExpectCertificate())
+            node = node.add_child(ExpectCertificateVerify())
+            node = node.add_child(ExpectFinished())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(ApplicationDataGenerator(
+                bytearray(request)))
+
+            # This message is optional and may show up 0 to many times
+            cycle = ExpectNewSessionTicket()
+            node = node.add_child(cycle)
+            node.add_child(cycle)
+
+            node.next_sibling = ExpectApplicationData(size=reply_size)
+            node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                                              AlertDescription.close_notify))
+
+            node = node.add_child(ExpectAlert())
+            node.next_sibling = ExpectClose()
+            conversations["check if server omits extension for unrecognized size {0} in TLS 1.3".format(size)] = conversation
+
     # check if server accepts small sizes
     conversation = Connect(host, port)
     node = conversation
@@ -386,7 +441,7 @@ def main():
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
-        .create(64)
+        .create(minimal_size)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
@@ -414,14 +469,14 @@ def main():
     node = node.add_child(cycle)
     node.add_child(cycle)
 
-    node.next_sibling = ExpectApplicationData(size=63)
+    node.next_sibling = ExpectApplicationData(size=minimal_size-1)
     node = node.next_sibling
     # in TLS 1.3 the content type is included in the limit so every
     # record will send one byte less than simple reading of extension would
     # indicate
-    for _ in range(0, max(reply_size-63*2, 0), 63):
-        node = node.add_child(ExpectApplicationData(size=63))
-    node = node.add_child(ExpectApplicationData(size=reply_size%63))
+    for _ in range(0, max(reply_size-(minimal_size-1)*2, 0), minimal_size-1):
+        node = node.add_child(ExpectApplicationData(size=minimal_size-1))
+    node = node.add_child(ExpectApplicationData(size=reply_size%(minimal_size-1)))
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                           AlertDescription.close_notify))
 
@@ -755,7 +810,7 @@ def main():
     node = node.add_child(ResetHandshakeHashes())
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.record_size_limit:
-           RecordSizeLimitExtension().create(64)}
+           RecordSizeLimitExtension().create(minimal_size)}
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                session_id=bytearray(0),
                                                extensions=ext))
@@ -772,9 +827,9 @@ def main():
     node = node.add_child(ExpectFinished())
     node = node.add_child(ApplicationDataGenerator(
         bytearray(request)))
-    for _ in range(0, max(0, reply_size - 64), 64):
-        node = node.add_child(ExpectApplicationData(size=64))
-    node = node.add_child(ExpectApplicationData(size=reply_size % 64))
+    for _ in range(0, max(0, reply_size - minimal_size), minimal_size):
+        node = node.add_child(ExpectApplicationData(size=minimal_size))
+    node = node.add_child(ExpectApplicationData(size=reply_size % minimal_size))
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
     node = node.add_child(ExpectAlert())
@@ -788,7 +843,7 @@ def main():
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.record_size_limit:
-           RecordSizeLimitExtension().create(64)}
+           RecordSizeLimitExtension().create(minimal_size)}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.record_size_limit:
@@ -864,7 +919,7 @@ def main():
         ciphers,
         extensions={ExtensionType.renegotiation_info: None,
                     ExtensionType.record_size_limit:
-                    RecordSizeLimitExtension().create(64)}))
+                    RecordSizeLimitExtension().create(minimal_size)}))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info: None,
                     ExtensionType.record_size_limit:
@@ -876,9 +931,9 @@ def main():
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ApplicationDataGenerator(
         bytearray(request)))
-    for _ in range(0, max(0, reply_size - 64), 64):
-        node = node.add_child(ExpectApplicationData(size=64))
-    node = node.add_child(ExpectApplicationData(size=reply_size % 64))
+    for _ in range(0, max(0, reply_size - minimal_size), minimal_size):
+        node = node.add_child(ExpectApplicationData(size=minimal_size))
+    node = node.add_child(ExpectApplicationData(size=reply_size % minimal_size))
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
     node = node.add_child(ExpectAlert())
@@ -892,7 +947,7 @@ def main():
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.record_size_limit:
-           RecordSizeLimitExtension().create(64)}
+           RecordSizeLimitExtension().create(minimal_size)}
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         extensions=ext))
@@ -1006,7 +1061,7 @@ def main():
     ext = OrderedDict(ext)
     ext[ExtensionType.pre_shared_key] = psk_session_ext_gen()
     ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
-        .create(64)
+        .create(minimal_size)
     mods = []
     mods.append(psk_ext_updater())
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext,
@@ -1035,11 +1090,11 @@ def main():
     node = node.add_child(cycle)
     node.add_child(cycle)
 
-    node.next_sibling = ExpectApplicationData(size=63)
+    node.next_sibling = ExpectApplicationData(size=minimal_size-1)
     node = node.next_sibling
-    for _ in range(0, max(reply_size-63*2, 0), 63):
-        node = node.add_child(ExpectApplicationData(size=63))
-    node = node.add_child(ExpectApplicationData(size=reply_size%63))
+    for _ in range(0, max(reply_size-(minimal_size-1)*2, 0), minimal_size-1):
+        node = node.add_child(ExpectApplicationData(size=minimal_size-1))
+    node = node.add_child(ExpectApplicationData(size=reply_size%(minimal_size-1)))
     node = node.add_child(
         AlertGenerator(AlertLevel.warning,
                        AlertDescription.close_notify))
@@ -1071,7 +1126,7 @@ def main():
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
         .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
     ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
-        .create(64)
+        .create(minimal_size)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
