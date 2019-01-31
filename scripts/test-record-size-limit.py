@@ -784,7 +784,7 @@ def main():
     node.next_sibling = ExpectAlert(AlertLevel.fatal,
                                     AlertDescription.record_overflow)
     node.next_sibling.add_child(ExpectClose())
-    conversations["too large record payload in TLS 1.3"] = conversation
+    conversations["too large record payload in TLS 1.3 with padding"] = conversation
 
     # renegotiation with changed value
     conversation = Connect(host, port)
