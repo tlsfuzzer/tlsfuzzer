@@ -1,0 +1,5 @@
+coverage
+coveralls
+pylint
+diff_cover
+typed_ast<1.3.0
