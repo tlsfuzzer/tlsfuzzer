@@ -86,6 +86,10 @@ def main():
     else:
         run_only = None
 
+    if srv_max_prot is None:
+        raise ValueError("Highest protocol version supported by server unset,"
+                         " use --server-max-protocol to set it")
+
     conversations = {}
 
     # normal connection
@@ -112,7 +116,8 @@ def main():
         ext[ExtensionType.signature_algorithms_cert] = \
             SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-        node = node.add_child(ExpectServerHello())
+        node = node.add_child(ExpectServerHello(
+            server_max_protocol=srv_max_prot))
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectEncryptedExtensions())
         node = node.add_child(ExpectCertificate())
@@ -136,7 +141,8 @@ def main():
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         node = node.add_child(ClientHelloGenerator(ciphers))
-        node = node.add_child(ExpectServerHello())
+        node = node.add_child(ExpectServerHello(
+            server_max_protocol=srv_max_prot))
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(ClientKeyExchangeGenerator())
