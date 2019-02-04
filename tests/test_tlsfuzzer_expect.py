@@ -1285,8 +1285,8 @@ class TestExpectServerHello(unittest.TestCase):
         with self.assertRaises(AssertionError):
             exp.process(state, server_hello)
 
-    def test_process_with_tls_1_3_no_downgrade_protection(self):
-        exp = ExpectServerHello(version=(3, 4), server_max_protocol=(3, 4))
+    def test_process_with_tls_1_3_in_legacy_version(self):
+        exp = ExpectServerHello()
 
         state = ConnectionState()
         client_hello = ClientHello()
@@ -1294,42 +1294,132 @@ class TestExpectServerHello(unittest.TestCase):
         client_hello.cipher_suites = [4, ciph]
         state.handshake_messages.append(client_hello)
         state.msg_sock = mock.MagicMock()
+        ext = []
+        ext.append(SrvSupportedVersionsExtension().create((3, 4)))
 
         msg = ServerHello().create(version=(3, 4),
                                    random=bytearray(32),
                                    session_id=bytearray(0),
                                    cipher_suite=4,
-                                   extensions=None)
+                                   extensions=ext)
+
+        self.assertTrue(exp.is_match(msg))
+
+        with self.assertRaises(ValueError) as e:
+            exp.process(state, msg)
+
+        self.assertIn("invalid version in legacy_version", str(e.exception))
+
+    def test_process_with_tls_1_3_no_downgrade_protection(self):
+        # use default extension handlers
+        exp = ExpectServerHello(version=(3, 3), server_max_protocol=(3, 4))
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.extensions = []
+        client_hello.cipher_suites = [CipherSuite.TLS_AES_128_GCM_SHA256]
+        ext = SupportedGroupsExtension().create([GroupName.secp256r1])
+        client_hello.extensions.append(ext)
+        c_ks = key_share_gen(GroupName.secp256r1)
+        ext = ClientKeyShareExtension().create([c_ks])
+        client_hello.extensions.append(ext)
+        ext = SupportedVersionsExtension().create([(3, 3), (3, 4)])
+        client_hello.extensions.append(ext)
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+        ext = []
+        ext.append(SrvSupportedVersionsExtension().create((3, 4)))
+
+        msg = ServerHello().create(version=(3, 3),
+                                   random=bytearray(32),
+                                   session_id=bytearray(0),
+                                   cipher_suite=
+                                   CipherSuite.TLS_AES_128_GCM_SHA256,
+                                   extensions=ext)
 
         self.assertTrue(exp.is_match(msg))
 
         exp.process(state, msg)
 
-    def test_process_with_tls_1_3_wrong_downgrade_protection(self):
-        exp = ExpectServerHello(extensions={ExtensionType.renegotiation_info:
-                                            None},
-                                version=(3, 4), server_max_protocol=(3, 4))
+    def test_process_with_default_settings_and_tls_1_3_reply_with_1_2_downgrade_sentinel(self):
+        # check that if the server reply is obviously bogus (like when TLS 1.3
+        # ServerHello indicates that we are downgrading to TLS 1.2), the
+        # ServerHello is rejected
+        exp = ExpectServerHello()
 
         state = ConnectionState()
         client_hello = ClientHello()
-        ciph = CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV
-        client_hello.cipher_suites = [4, ciph]
+        client_hello.extensions = []
+        client_hello.cipher_suites = [CipherSuite.TLS_AES_128_GCM_SHA256]
+        ext = SupportedGroupsExtension().create([GroupName.secp256r1])
+        client_hello.extensions.append(ext)
+        c_ks = key_share_gen(GroupName.secp256r1)
+        ext = ClientKeyShareExtension().create([c_ks])
+        client_hello.extensions.append(ext)
+        ext = SupportedVersionsExtension().create([(3, 3), (3, 4)])
+        client_hello.extensions.append(ext)
         state.handshake_messages.append(client_hello)
         state.msg_sock = mock.MagicMock()
 
         rndbuf=bytearray(32)
         rndbuf[-8:] = TLS_1_2_DOWNGRADE_SENTINEL
+        ext = []
+        ext.append(SrvSupportedVersionsExtension().create((3, 4)))
 
-        msg = ServerHello().create(version=(3, 4),
+        msg = ServerHello().create(version=(3, 3),
                                    random=rndbuf,
                                    session_id=bytearray(0),
-                                   cipher_suite=4,
-                                   extensions=None)
+                                   cipher_suite=
+                                   CipherSuite.TLS_AES_128_GCM_SHA256,
+                                   extensions=ext)
 
         self.assertTrue(exp.is_match(msg))
 
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(AssertionError) as e:
             exp.process(state, msg)
+
+        self.assertIn("downgrade protection sentinel but shouldn't",
+                      str(e.exception))
+
+    def test_process_with_default_settings_and_tls_1_3_reply_with_1_1_downgrade_sentinel(self):
+        # check that if the server reply is obviously bogus (like when TLS 1.3
+        # ServerHello indicates that we are downgrading to TLS 1.1), the
+        # ServerHello is rejected
+        exp = ExpectServerHello()
+
+        state = ConnectionState()
+        client_hello = ClientHello()
+        client_hello.extensions = []
+        client_hello.cipher_suites = [CipherSuite.TLS_AES_128_GCM_SHA256]
+        ext = SupportedGroupsExtension().create([GroupName.secp256r1])
+        client_hello.extensions.append(ext)
+        c_ks = key_share_gen(GroupName.secp256r1)
+        ext = ClientKeyShareExtension().create([c_ks])
+        client_hello.extensions.append(ext)
+        ext = SupportedVersionsExtension().create([(3, 3), (3, 4)])
+        client_hello.extensions.append(ext)
+        state.handshake_messages.append(client_hello)
+        state.msg_sock = mock.MagicMock()
+
+        rndbuf=bytearray(32)
+        rndbuf[-8:] = TLS_1_1_DOWNGRADE_SENTINEL
+        ext = []
+        ext.append(SrvSupportedVersionsExtension().create((3, 4)))
+
+        msg = ServerHello().create(version=(3, 3),
+                                   random=rndbuf,
+                                   session_id=bytearray(0),
+                                   cipher_suite=
+                                   CipherSuite.TLS_AES_128_GCM_SHA256,
+                                   extensions=ext)
+
+        self.assertTrue(exp.is_match(msg))
+
+        with self.assertRaises(AssertionError) as e:
+            exp.process(state, msg)
+
+        self.assertIn("downgrade protection sentinel but shouldn't",
+                      str(e.exception))
 
     def test_process_with_tls_1_2_downgrade_protection(self):
         exp = ExpectServerHello(extensions={ExtensionType.renegotiation_info:
@@ -1380,8 +1470,11 @@ class TestExpectServerHello(unittest.TestCase):
 
         self.assertTrue(exp.is_match(msg))
 
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(AssertionError) as e:
             exp.process(state, msg)
+
+        self.assertIn("failed to set downgrade protection sentinel",
+                      str(e.exception))
 
     def test_process_with_tls_1_2_no_downgrade_protection(self):
         exp = ExpectServerHello(extensions={ExtensionType.renegotiation_info:
@@ -1432,8 +1525,11 @@ class TestExpectServerHello(unittest.TestCase):
 
         self.assertTrue(exp.is_match(msg))
 
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(AssertionError) as e:
             exp.process(state, msg)
+
+        self.assertIn("downgrade protection sentinel but shouldn't",
+                      str(e.exception))
 
     def test_process_with_tls_1_1_downgrade_protection(self):
         exp = ExpectServerHello(extensions={ExtensionType.renegotiation_info:
@@ -1538,8 +1634,11 @@ class TestExpectServerHello(unittest.TestCase):
 
         self.assertTrue(exp.is_match(msg))
 
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(AssertionError) as e:
             exp.process(state, msg)
+
+        self.assertIn("downgrade protection sentinel but shouldn't",
+                      str(e.exception))
 
 
 class TestExpectServerHelloWithHelloRetryRequest(unittest.TestCase):
