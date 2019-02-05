@@ -372,10 +372,32 @@ class ExpectServerHello(ExpectHandshake):
         """
         Initialize the object
 
+        @param dict extensions: extension objects to match the server sent
+        extensions or callbacks to process and verify them. None means use
+        automatic handlers that will verify the response against the extensions
+        sent in ClientHello. Empty dict means that the server is expected to
+        send no extensions. Order does not matter, but all extensions present
+        and only extensions present in the list must be sent by server. None
+        as the value of the relevant extension type can be used to select
+        autohandler for a given extension type.
+
+        @param tuple version: the literal version in the Server Hello message
+        (needs to be (3, 3) for TLS 1.3, use extensions to expect TLS 1.3
+        negotiation)
+
+        @param tuple server_max_protocol: the higher protocol version supported
+        by server. Used for testing downgrade signaling of servers.
+
+        @param int cipher: the id of the cipher that is expected to be
+        negotiated by server. None (the default) means any valid cipher
+        (i.e. not SCSV or GREASE) sent in ClientHello can be selected by
+        server.
+
         @type resume: boolean
         @param resume: whether the session id should match the one from
         current state - IOW, if the server hello should belong to a resumed
-        session.
+        session. TLS 1.2 and earlier only. In TLS 1.3 resumption is handled
+        by providing handler for pre_shared_key extension.
         """
         super(ExpectServerHello, self).__init__(ContentType.handshake,
                                                 HandshakeType.server_hello)
@@ -404,11 +426,13 @@ class ExpectServerHello(ExpectHandshake):
                                              ", ".join((ExtensionType.toStr(i)
                                                         for i in diff))))
                 diff = got.difference(expected)
-                if diff:
-                    raise AssertionError("Server sent unexpected extension(s):"
-                                         " {0}".format(
-                                             ", ".join(ExtensionType.toStr(i)
-                                                       for i in diff)))
+                # we already checked if got != expected so diff here
+                # must be non-empty if the one checked above is
+                assert diff
+                raise AssertionError("Server sent unexpected extension(s):"
+                                     " {0}".format(
+                                         ", ".join(ExtensionType.toStr(i)
+                                                   for i in diff)))
 
     @staticmethod
     def _get_autohandler(ext_id):
@@ -479,7 +503,12 @@ class ExpectServerHello(ExpectHandshake):
         """Extract the real version from the message if TLS 1.3 is in use."""
         ext = msg.getExtension(ExtensionType.supported_versions)
 
-        if ext and msg.server_version >= (3, 3):
+        # RFC 8446 "legacy_version field MUST be set to 0x0303"
+        if msg.server_version > (3, 3):
+            raise ValueError("Server sent invalid version in legacy_version "
+                             "field")
+
+        if ext and msg.server_version == (3, 3):
             return ext.version
 
         return msg.server_version
@@ -625,22 +654,37 @@ class ExpectServerHello(ExpectHandshake):
         Verify that server provided downgrade protection as specified in
         RFC 8446, Section 4.1.3
         """
+        # even if we don't know which version server supports, some values
+        # are obviously incorrect:
+        if (self._extract_version(srv_hello) > (3, 3) and
+                srv_hello.random[24:] == TLS_1_2_DOWNGRADE_SENTINEL) or \
+                (self._extract_version(srv_hello) > (3, 2) and
+                 srv_hello.random[24:] == TLS_1_1_DOWNGRADE_SENTINEL):
+            raise AssertionError(
+                "Server set downgrade protection sentinel but shouldn't "
+                "have done that")
+        # as we're doing both TLS 1.2 tests and TLS 1.3 tests with `scripts/`
+        # we don't know when setting the sentinel is expected and when
+        # it is not as the negotiation might have ended up with TLS 1.2
+        # because that was the highest version we advertised
         if self.srv_max_prot is None:
             return
 
         downgrade_value = None
-        if self.srv_max_prot > (3, 3) and srv_hello.server_version == (3, 3):
+        if self.srv_max_prot > (3, 3) \
+                and self._extract_version(srv_hello) == (3, 3):
             downgrade_value = TLS_1_2_DOWNGRADE_SENTINEL
-        elif self.srv_max_prot > (3, 2) and srv_hello.server_version < (3, 3):
+        elif self.srv_max_prot > (3, 2) \
+                and self._extract_version(srv_hello) < (3, 3):
             downgrade_value = TLS_1_1_DOWNGRADE_SENTINEL
-
-        if downgrade_value is None:
+        else:
             if srv_hello.random[24:] == TLS_1_1_DOWNGRADE_SENTINEL or \
                 srv_hello.random[24:] == TLS_1_2_DOWNGRADE_SENTINEL:
                 raise AssertionError(
                     "Server set downgrade protection sentinel but shouldn't "
                     "have done that")
-        else:
+
+        if downgrade_value is not None:
             if srv_hello.random[24:] != downgrade_value:
                 raise AssertionError(
                     "Server failed to set downgrade protection sentinel in "
