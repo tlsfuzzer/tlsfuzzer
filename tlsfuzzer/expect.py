@@ -293,8 +293,10 @@ def _srv_ext_handler_record_limit(state, extension, size=None):
     assert 64 <= extension.record_size_limit <= 2**14 + \
         int(state.version > (3, 3))
 
-    if size:
-        assert extension.record_size_limit == size
+    if size and extension.record_size_limit != size:
+        raise AssertionError("Server sent unexpected size in extension, "
+                             "expected size: {0}, received size: {1}"
+                             .format(size, extension.record_size_limit))
 
     if state.version <= (3, 3):
         # in TLS 1.2 and earlier we need to delay that to processing of
