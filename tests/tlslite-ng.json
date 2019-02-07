@@ -108,7 +108,9 @@
           "comment" : "Test requires renegotiation support",
           "exp_pass" : false
          },
-         {"name" : "test-export-ciphers-rejected.py"},
+         {"name" : "test-export-ciphers-rejected.py",
+          "comment": "tlslite-ng doesn't support SSLv3 by default",
+          "arguments": ["--min-ver", "TLSv1.0"]},
          {"name" : "test-extensions.py"},
          {"name" : "test-extended-master-secret-extension.py",
           "arguments" : ["-e", "extended master secret with renegotiation",

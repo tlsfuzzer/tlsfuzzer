@@ -5,8 +5,7 @@ from __future__ import print_function
 import traceback
 import sys
 import getopt
-import re
-from itertools import chain
+from itertools import chain, islice
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
@@ -17,11 +16,11 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectAlert, ExpectApplicationData, ExpectClose
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription
+from tlsfuzzer.utils.lists import natural_sort_keys
+from tlsfuzzer.helpers import protocol_name_to_tuple
 
 
-def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
-    return [int(text) if text.isdigit() else text.lower()
-            for text in re.split(_nsre, s)]
+version = 3
 
 
 def help_msg():
@@ -33,18 +32,22 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
-    print(" --ssl3         expect SSLv3 to be enabled")
+    print(" -n num         only run `num` random tests instead of a full set")
+    print("                (excluding \"sanity\" tests)")
+    print(" --min-ver val  The lowest version support, \"SSLv3\" by default")
+    print("                may be \"TLSv1.0\", \"TLSv1.1\" or \"TLSv1.2\"")
     print(" --help         this message")
 
 
 def main():
     host = "localhost"
     port = 4433
+    num_limit = None
     run_exclude = set()
-    ssl3 = False
+    min_ver = (3, 0)
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:", ["help", "ssl3"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help", "min-ver="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -52,11 +55,13 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-n':
+            num_limit = int(arg)
         elif opt == '--help':
             help_msg()
             sys.exit(0)
-        elif opt == '--ssl3':
-            ssl3 = True
+        elif opt == '--min-ver':
+            min_ver = protocol_name_to_tuple(arg)
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -81,7 +86,7 @@ def main():
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
     node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\n\n")))
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -118,9 +123,11 @@ def main():
                        CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
             node = node.add_child(ClientHelloGenerator(ciphers, version=prot))
-            if prot == (3, 0) and not ssl3:
-                node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                                  AlertDescription.protocol_version))
+            if prot < min_ver:
+                node = node.add_child(
+                    ExpectAlert(AlertLevel.fatal,
+                                (AlertDescription.protocol_version,
+                                 AlertDescription.handshake_failure)))
                 node = node.add_child(ExpectClose())
             else:
                 node = node.add_child(ExpectServerHello(cipher=CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA))
@@ -132,7 +139,7 @@ def main():
                 node = node.add_child(ExpectChangeCipherSpec())
                 node = node.add_child(ExpectFinished())
                 node = node.add_child(ApplicationDataGenerator(
-                    bytearray(b"GET / HTTP/1.0\n\n")))
+                    bytearray(b"GET / HTTP/1.0\r\n\r\n")))
                 node = node.add_child(ExpectApplicationData())
                 node = node.add_child(AlertGenerator(AlertLevel.warning,
                                                      AlertDescription.close_notify))
@@ -153,8 +160,10 @@ def main():
             ciphers = [c_id,
                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
             node = node.add_child(ClientHelloGenerator(ciphers))
-            node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                              AlertDescription.handshake_failure))
+            node = node.add_child(
+                ExpectAlert(AlertLevel.fatal,
+                            (AlertDescription.handshake_failure,
+                             AlertDescription.protocol_version)))
             node = node.add_child(ExpectClose())
             conversations["{0} in {1}".format(name, prot_name)] = conversation
 
@@ -163,13 +172,15 @@ def main():
     good = 0
     bad = 0
     failed = []
+    if not num_limit:
+        num_limit = len(conversations)
 
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throught
     sanity_test = ('sanity', conversations['sanity'])
     ordered_tests = chain([sanity_test],
-                          filter(lambda x: x[0] != 'sanity',
-                                 conversations.items()),
+                          islice(filter(lambda x: x[0] != 'sanity',
+                                        conversations.items()), num_limit),
                           [sanity_test])
 
     for c_name, c_test in ordered_tests:
@@ -182,7 +193,7 @@ def main():
         res = True
         try:
             runner.run()
-        except:
+        except Exception:
             print("Error while processing")
             print(traceback.format_exc())
             res = False
@@ -194,7 +205,9 @@ def main():
             bad += 1
             failed.append(c_name)
 
-    print("Test if export grade ciphers are rejected by server. Version 2\n")
+    print("Test if export grade ciphers are rejected by server.\n")
+    print("version: {0}\n".format(version))
+
     print("Test end")
     print("successful: {0}".format(good))
     print("failed: {0}".format(bad))
