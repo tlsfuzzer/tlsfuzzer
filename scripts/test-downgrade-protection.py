@@ -23,7 +23,8 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL
+from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL, \
+        protocol_name_to_tuple
 
 
 version = 1
@@ -68,16 +69,7 @@ def main():
             help_msg()
             sys.exit(0)
         elif opt == '--server-max-protocol':
-            if arg == 'TLSv1.3':
-                srv_max_prot = (3, 4)
-            elif arg == 'TLSv1.2':
-                srv_max_prot = (3, 3)
-            elif arg == 'TLSv1.1':
-                srv_max_prot = (3, 2)
-            elif arg == 'TLSv1.0':
-                srv_max_prot = (3, 1)
-            else:
-                raise ValueError("Unknown protocol version: {0}".format(arg))
+            srv_max_prot = protocol_name_to_tuple(arg)
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
