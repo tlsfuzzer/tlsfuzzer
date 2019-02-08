@@ -370,10 +370,10 @@ def main():
     node = node.add_child(ExpectCertificateVerify())
     node = node.add_child(ExpectFinished())
     node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET")))
     node = node.add_child(KeyUpdateGenerator(
         message_type=KeyUpdateMessageType.update_requested))
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / ")))
 
     # This message is optional and may show up 0 to many times
     cycle = ExpectNewSessionTicket()
@@ -383,7 +383,7 @@ def main():
     node.next_sibling = ExpectKeyUpdate(
         message_type=KeyUpdateMessageType.update_not_requested)
     node = node.next_sibling.add_child(ApplicationDataGenerator(
-        bytearray(b"HTTP/1.0\r\n\r\n")))
+        bytearray(b" / HTTP/1.0\r\n\r\n")))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                           AlertDescription.close_notify))
