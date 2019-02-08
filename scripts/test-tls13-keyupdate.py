@@ -498,53 +498,55 @@ def main():
     node.next_sibling = ExpectClose()
     conversations["fragmented keyupdate msg"] = conversation
 
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    for group in groups:
-        key_shares.append(key_share_gen(group))
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
+    for fragment_len in range(1, 5):
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        ext = {}
+        groups = [GroupName.secp256r1]
+        key_shares = []
+        for group in groups:
+            key_shares.append(key_share_gen(group))
+        ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+            .create([TLS_1_3_DRAFT, (3, 3)])
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                    SignatureScheme.rsa_pss_pss_sha256]
+        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+            .create(sig_algs)
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+            .create(RSA_SIG_ALL)
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+        node = node.add_child(ExpectServerHello())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectEncryptedExtensions())
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectCertificateVerify())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(FinishedGenerator())
 
-    fragment_list = []
-    keyupdate_gen = KeyUpdateGenerator(
-        message_type=KeyUpdateMessageType.update_requested)
-    node = node.add_child(split_message(keyupdate_gen, fragment_list, 2))
-    node = node.add_child(PopMessageFromList(fragment_list))
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
-    node = node.add_child(PopMessageFromList(fragment_list))
+        fragment_list = []
+        keyupdate_gen = KeyUpdateGenerator(
+            message_type=KeyUpdateMessageType.update_requested)
+        node = node.add_child(split_message(keyupdate_gen, fragment_list,
+                                            fragment_len))
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        node = node.add_child(FlushMessageList(fragment_list))
 
-    # This message is optional and may show up 0 to many times
-    cycle = ExpectNewSessionTicket()
-    node = node.add_child(cycle)
-    node.add_child(cycle)
+        # This message is optional and may show up 0 to many times
+        cycle = ExpectNewSessionTicket()
+        node = node.add_child(cycle)
+        node.add_child(cycle)
 
-    node.next_sibling = ExpectAlert(AlertLevel.fatal,
-                                    AlertDescription.unexpected_message)
-    node.next_sibling.add_child(ExpectClose())
-    conversations["fragmented keyupdate msg, appdata btw these 2 fragments"] = conversation
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.unexpected_message)
+        node.next_sibling.add_child(ExpectClose())
+        conversations["{0}/{1} fragmented keyupdate msg, appdata between"
+                      .format(fragment_len, 5-fragment_len)] = conversation
 
     # run the conversation
     good = 0
