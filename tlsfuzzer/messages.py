@@ -8,7 +8,7 @@ from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         CertificateVerify, CertificateRequest, ClientMasterKey, \
         ClientFinished, ServerKeyExchange, ServerHello
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
-        ExtensionType, CertificateType, ClientCertificateType, HashAlgorithm, \
+        ExtensionType, CertificateType, HashAlgorithm, \
         SignatureAlgorithm, CipherSuite, SignatureScheme, TLS_1_3_HRR
 import tlslite.utils.tlshashlib as hashlib
 from tlslite.extensions import TLSExtension, RenegotiationInfoExtension, \
