@@ -45,6 +45,9 @@ def help_msg():
     print("                may be specified multiple times")
     print(" -n num         only run `num` random tests instead of a full set")
     print("                (excluding \"sanity\" tests)")
+    print(" --coalescing   the server coalesces the KeyUpdate responses if")
+    print("                client asks for multiple key updates without")
+    print("                waiting for server reply")
     print(" --help         this message")
 
 
@@ -53,9 +56,10 @@ def main():
     port = 4433
     num_limit = None
     run_exclude = set()
+    coalescing = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help", "coalescing"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -65,6 +69,8 @@ def main():
             run_exclude.add(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '--coalescing':
+            coalescing = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -432,12 +438,16 @@ def main():
     node = node.add_child(cycle)
     node.add_child(cycle)
 
+
     node.next_sibling = ExpectKeyUpdate(
         message_type=KeyUpdateMessageType.update_not_requested)
     node = node.next_sibling
-    for i in range(number_of_ku_msg - 1):
-        node = node.add_child(ExpectKeyUpdate(
-            message_type=KeyUpdateMessageType.update_not_requested))
+    # the server can coalesce the respone to a single key update
+    # or it may reply to every message in particular
+    if not coalescing:
+        for i in range(number_of_ku_msg - 1):
+            node = node.add_child(ExpectKeyUpdate(
+                message_type=KeyUpdateMessageType.update_not_requested))
 
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
