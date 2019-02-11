@@ -30,7 +30,7 @@ Wanting to be the definite test suite for TLS places few limitation on us:
   * needs to be runnable on different architectures (x86_64, aarch64, ppc64,
     …)
   * needs to run also on very old systems (RHEL 5 with Python 2.6 from EPEL is
-    currently the oldest explicitly targetted)
+    currently the oldest explicitly targeted)
   * needs not to be limited by system FIPS mode
     (implementations like OpenSSL, when running in FIPS mode disable certain
     hashes, ciphers and protocols, this must not be the case for tlsfuzzer)
@@ -41,7 +41,7 @@ Wanting to be the definite test suite for TLS places few limitation on us:
 
 ## Medium term
 
-Currenly, the main focus is on testing servers, this will likely remain
+Currently, the main focus is on testing servers, this will likely remain
 until the system has feature partity with OpenSSL, GnuTLS and
 [NSS](https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS) (not to be
 confused with the unix

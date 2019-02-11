@@ -193,7 +193,7 @@ H2Server_authentication == "anon" => (H2Key_exchange = "DHE" || H2Key_exchange =
 -- 3DES is only specified with SHA1 HMAC
 Cipher == "3DES_EDE_CBC" => Integrity  = "SHA1_HMAC"
 H2Cipher == "3DES_EDE_CBC" => H2Integrity  = "SHA1_HMAC"
--- all GCM ciphersuites specifiy PRF
+-- all GCM ciphersuites specify PRF
 Cipher == "AES_128_GCM" => PRF == "sha256"
 H2Cipher == "AES_128_GCM" => H2PRF == "sha256"
 Cipher == "AES_256_GCM" => PRF == "sha384"
@@ -337,7 +337,7 @@ H2SH_compression = "deflate" => H2CH_compression = "null_and_deflate"
 -- renegotiation info limitations
 SH_renegotiation_info_ext = true => SH_extensions_present = true
 H2SH_renegotiation_info_ext = true => H2SH_extensions_present = true
--- can send only as a reponse
+-- can send only as a response
 SH_renegotiation_info_ext = true => (CH_renegotiation_info_SCSV != "absent" || CH_renegotiation_info_ext = true)
 H2SH_renegotiation_info_ext = true => (H2CH_renegotiation_info_SCSV != "absent" || H2CH_renegotiation_info_ext = true)
 -- when secure renego was negotiatied in first connection, it must be present in second

@@ -431,7 +431,7 @@ def main():
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     n = n - 2  # these are the mandatory methods in the end
-    n = n - len(RSA_SIG_ALL)  # number of methods in sig_alg_cert extention
+    n = n - len(RSA_SIG_ALL)  # number of methods in sig_alg_cert extension
     sig_algs = list(chain(
         ((i, j) for i in range(10, 224) for j in range(10, (n // 214) + 10)),
         ((i, 163) for i in range(10, (n % 214) + 10)),

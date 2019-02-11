@@ -1016,7 +1016,7 @@ def main():
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(TCPBufferingEnable())
         # move the start of the padding forward, essentially encrypting two 0 bytes
-        # at the beggining of the padding, but since those are transformed into a number
+        # at the beginning of the padding, but since those are transformed into a number
         # their existence is lost and it just like the padding was too small
         node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1:0, 2:2}))
         node = node.add_child(ChangeCipherSpecGenerator())
@@ -1044,7 +1044,7 @@ def main():
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
         # move the start of the padding forward, essentially encrypting two 0 bytes
-        # at the beggining of the padding, but since those are transformed into a number
+        # at the beginning of the padding, but since those are transformed into a number
         # their existence is lost and it just like the padding was too small
         node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1:0, 2:2}))
         node = node.add_child(ExpectNoMessage(timeout))
@@ -1072,7 +1072,7 @@ def main():
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(TCPBufferingEnable())
         # move the start of the padding backward, essentially encrypting no 0 bytes
-        # at the beggining of the padding, but since those are transformed into a number
+        # at the beginning of the padding, but since those are transformed into a number
         # its lack is lost and it just like the padding was too big
         node = node.add_child(ClientKeyExchangeGenerator(padding_subs={0:2}))
         node = node.add_child(ChangeCipherSpecGenerator())
@@ -1100,7 +1100,7 @@ def main():
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
         # move the start of the padding backward, essentially encrypting no 0 bytes
-        # at the beggining of the padding, but since those are transformed into a number
+        # at the beginning of the padding, but since those are transformed into a number
         # its lack is lost and it just like the padding was too big
         node = node.add_child(ClientKeyExchangeGenerator(padding_subs={0:2}))
         node = node.add_child(ExpectNoMessage(timeout))

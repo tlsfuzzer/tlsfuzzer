@@ -395,7 +395,7 @@ def main():
         node = node.add_child(ExpectCertificateVerify())
         node = node.add_child(ExpectFinished())
         # 32 bytes added as finished msg payload
-        # 16 bytes added after encyption
+        # 16 bytes added after encryption
         # 3 bytes for msg length
         # 1 byte for content type
         padding_size = 2**14 + 256 - 32 - 16 - 5
@@ -444,7 +444,7 @@ def main():
         node = node.add_child(ExpectCertificateVerify())
         node = node.add_child(ExpectFinished())
         # 32 bytes added as finished msg payload
-        # 16 bytes added after encyption
+        # 16 bytes added after encryption
         # 3 bytes for msg length
         # 1 byte for content type
         padding_size = 2**14 + 256 - 32 - 16 - 5 + 1

@@ -88,7 +88,7 @@ def main():
                           ("Unknown 0x6000", range(0x6000, 0x7001)),
                           ("Unknown 0x7000", range(0x7000, 0x8001)),
                           ("Unknown 0x8000", range(0x8000, 0x9001)),
-                          ("Unknwon 0x9000", range(0x9000, 0xa001)),
+                          ("Unknown 0x9000", range(0x9000, 0xa001)),
                           ("Unknown 0xa000", range(0xa000, 0xb001)),
                           ("Unknown 0xb000", range(0xb000, 0xc001)),
                           ("Unknown 0xc0b0", range(0xc0b0, 0xcca8)),

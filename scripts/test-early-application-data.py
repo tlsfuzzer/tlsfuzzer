@@ -37,7 +37,7 @@ def help_msg():
 
 def main():
     """
-    Test if server aborts connection upon receiving applicaiton data
+    Test if server aborts connection upon receiving application data
     before Finished
     """
     host = "localhost"

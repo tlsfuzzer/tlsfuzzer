@@ -65,7 +65,7 @@ def main():
         run_only = None
 
     #
-    # Test if server aborts connection upon receiving applicaiton data
+    # Test if server aborts connection upon receiving application data
     # before Finished
     #
 

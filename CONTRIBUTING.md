@@ -28,7 +28,7 @@
   are good choices
 * Report ideas for
   [new test scripts](https://github.com/tomato42/tlsfuzzer/issues/new?template=New_test_script.md)
-  to verify TLS implementaions with
+  to verify TLS implementations with
 * Run static code analyses on tlsfuzzer, report issues they found
   * Integrate them into CI or development scripts
   * [yala](https://github.com/cemsbr/yala) may be a good place to start
@@ -152,7 +152,7 @@ require use of package like
   * usually this is based on the master branch
   * to create branch based on master:
     `git checkout master; git branch <example-name>` then
-    checkout the branch `git checkout <example-name>`. For your own convinience
+    checkout the branch `git checkout <example-name>`. For your own convenience
     avoid working directly on the `master` branch.
 * Make sure you stick to the coding style that is used in surrounding code
   * you can use `pylint --msg-template="{path}:{line}: [{msg_id}({symbol}),

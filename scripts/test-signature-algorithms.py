@@ -387,7 +387,7 @@ def main():
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    # generate maximum number of methods for 2 extentions
+    # generate maximum number of methods for 2 extensions
     # (4 bytes for extensions header, 2 bytes for length of list inside
     # extension leaving 65522 bytes)
     sigs = list(chain(
@@ -421,12 +421,12 @@ def main():
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    # generate maximum number of methods for 2 extentions
+    # generate maximum number of methods for 2 extensions
     # (4 bytes for extensions header, 2 bytes for length of list inside
     # extension leaving 65522 bytes)
     n = 32761
     n = n - 1  # this is the mandatory method in the end
-    n = n - len(RSA_SIG_ALL)  # number of methods in sig_alg_cert extention
+    n = n - len(RSA_SIG_ALL)  # number of methods in sig_alg_cert extension
     sigs = list(chain(
         ((i, j) for i in range(10, 224) for j in range(10, (n // 214) + 10)),
         ((i, 163) for i in range(10, (n % 214) + 10)),
@@ -472,7 +472,7 @@ def main():
     conversations["empty list of signature methods"] = \
             conversation
 
-    # generate maximum number of methods for 2 extentions
+    # generate maximum number of methods for 2 extensions
     # (4 bytes for extensions header, 2 bytes for length of list inside
     # extension leaving 65522 bytes)
     for n in [215, 2355, 8132, 23754, 32761]:
@@ -482,7 +482,7 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         n = n - 1  # this is the mandatory method in the end
-        n = n - len(RSA_SIG_ALL)  # number of methods in sig_alg_cert extention
+        n = n - len(RSA_SIG_ALL)  # number of methods in sig_alg_cert extension
         sigs = [(HashAlgorithm.sha1, SignatureAlgorithm.dsa)] * n
         sigs += [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)]
         ext = {ExtensionType.signature_algorithms :
