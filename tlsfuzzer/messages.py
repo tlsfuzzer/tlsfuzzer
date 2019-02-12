@@ -834,7 +834,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
     """
     Generator for TLS handshake protocol Certificate Verify message.
 
-    @type msg_alg: touple of two integers
+    @type msg_alg: tuple of two integers
     @ivar msg_alg: signature and hash algorithm to be set on in the
       digitally-signed structure of TLSv1.2 Certificate Verify message.
       By default the first RSA hash advertised by server. SHA-1 if no RSA
@@ -842,16 +842,16 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
       HashAlgorithm) and the second value specifies the signature algorithm
       (from SignatureAlgorithm).
 
-    @type msg_version: touple of two integers
+    @type msg_version: tuple of two integers
     @ivar msg_version: protocol version that the message is to use,
       default is taken from current connection state
 
-    @type sig_version: touple of two integers
+    @type sig_version: tuple of two integers
     @ivar sig_version: protocol version to use for calculating the verify bytes
       for the signature (overrides msg_version, but just for the signature).
       Equal to msg_version by default.
 
-    @type sig_alg: touple of two integers
+    @type sig_alg: tuple of two integers
     @ivar sig_alg: hash and signature algorithm to be used for creating the
       signature in the message. Equal to msg_alg by default. Requires the
       protocol of the signature to be set to at least TLSv1.2 to be effective.

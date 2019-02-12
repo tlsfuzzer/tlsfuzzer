@@ -350,7 +350,7 @@ def main():
         ciphers += list(range(0x5601, 0x5601 + i))
     ciphers += [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
                 CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    # the 4 bytes substracted from 0xffff are for ext ID and ext len
+    # the 4 bytes subtracted from 0xffff are for ext ID and ext len
     ext = {80:TLSExtension(extType=80).create(bytearray(0xffff-4))}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())

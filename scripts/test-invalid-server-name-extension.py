@@ -37,7 +37,7 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
-    print(" --sni hostname name the server expects to recieve with SNI")
+    print(" --sni hostname name the server expects to receive with SNI")
     print("                \"localhost\" by default")
     print(" --sni-fatal    expect unrecognised names to be fatal alerts")
     print(" --help         this message")

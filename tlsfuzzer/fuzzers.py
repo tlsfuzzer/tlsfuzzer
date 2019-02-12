@@ -9,7 +9,7 @@ import random
 class StructuredRandom(object):
     """Random data with structure.
 
-    This class alows easy creation of random data that is structured,
+    This class allows easy creation of random data that is structured,
     either by having a random bytes of specific length, or intermediate bytes
     that are constant.
 

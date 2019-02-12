@@ -1,1 +1,1 @@
-"""Various convinience functions, unrelated to TLS or crypto"""
+"""Various convenience functions, unrelated to TLS or crypto"""

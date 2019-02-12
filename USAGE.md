@@ -21,7 +21,7 @@ Alternatively it can be installed by running `pip install six` as root.
 
 The other two can be installed (again, using `pip install ecdsa` and
 `pip install tlslite-ng`) or they all can be downloaded to a single location to
-minimise dependence on root privilages and permanent changes to the system. For
+minimise dependence on root privileges and permanent changes to the system. For
 the rest of this tutorial, I'll follow the latter approach.
 
 **Note:** the above libraries and `tlsfuzzer` support both Python 2 and Python

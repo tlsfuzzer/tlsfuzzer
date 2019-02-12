@@ -131,7 +131,7 @@ def main():
     }
     known_groups = [GroupName.secp256r1, GroupName.ffdhe2048]
 
-    # Unknown key_shares, one known group and range of unkown groups in supported_groups
+    # Unknown key_shares, one known group and range of unknown groups in supported_groups
     for group_name, unknown_group in unknown_groups.items():
         for size in [64, 128, 256]:
             for known_group in known_groups:

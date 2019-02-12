@@ -101,7 +101,7 @@ def sigalg_select(alg_type, hash_pref, supported=None, cert_type=None):
 
     raise ValueError(
         "Couldn't find a supported Signature Algorithm that  matches the" +
-        " provided paramters: {0}, {1}, {3}".format(alg_type, hash_pref,
+        " provided parameters: {0}, {1}, {3}".format(alg_type, hash_pref,
                                                     cert_type))
 
 

@@ -423,7 +423,7 @@ class ExpectServerHello(ExpectHandshake):
             if got != expected:
                 diff = expected.difference(got)
                 if diff:
-                    raise AssertionError("Server did not send extention(s): "
+                    raise AssertionError("Server did not send extension(s): "
                                          "{0}".format(
                                              ", ".join((ExtensionType.toStr(i)
                                                         for i in diff))))
@@ -1318,7 +1318,7 @@ class ExpectEncryptedExtensions(ExpectHandshake):
 
         srv_exts = EncryptedExtensions().parse(parser)
 
-        # get client_hello message with CH extentions
+        # get client_hello message with CH extensions
         cln_hello = state.get_last_message_of_type(ClientHello)
 
         self._compare_extensions(srv_exts, cln_hello)
