@@ -126,7 +126,7 @@ def main():
     conversations["sanity"] = conversation
 
     unknown_groups = {
-        'EC': list(range(31, 255)),  # Unassigned groups from EC range
+        'EC': list(range(34, 255)),  # Unassigned groups from EC range
         'FFDHE': list(range(261, 507)),  # Unassigned groups from FFDHE range
     }
     known_groups = [GroupName.secp256r1, GroupName.ffdhe2048]
