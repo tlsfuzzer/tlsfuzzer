@@ -141,6 +141,12 @@ def main():
                                 ("hello truncate", -11, 0),
                                 ("hello truncate", -12, 0),
                                 ("hello truncate", -13, 0),
+                                ("hello truncate", -32, 0),
+                                ("hello truncate", -39, 0),
+                                # truncate so that only one byte...
+                                ("hello truncate", -47, 0),
+                                # ...or no message remains
+                                ("full message truncate", -48, 0)
                                 ]:
 
         conversation = Connect(host, port)
