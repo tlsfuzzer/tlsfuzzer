@@ -11,7 +11,8 @@ from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        pad_handshake
+        pad_handshake, \
+        TCPBufferingEnable, TCPBufferingDisable, TCPBufferingFlush
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose
@@ -21,7 +22,7 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType
 
 
-version = 1
+version = 2
 
 
 def help_msg():
@@ -106,8 +107,9 @@ def main():
                                         pad=bytearray(b'\xff\x01\x00\x01\x00')))
     # responding to a malformed client hello is not correct, but tested below
     node = node.add_child(ExpectServerHello(extensions={}))
-    node.next_sibling = ExpectAlert()
-    node.next_sibling.next_sibling = ExpectClose()
+    node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                    AlertDescription.decode_error)
+    node.next_sibling.add_child(ExpectClose())
 
     conversations["extension past extensions"] = conversation
 
@@ -120,8 +122,10 @@ def main():
                                 ("small pad", 2, 0xff),
                                 ("small pad", 3, 0xff),
                                 ("medium pad", 256, 0),
-                                ("big pad", 4096, 0),
-                                ("huge pad", 2**16, 0),
+                                ("large pad", 4096, 0),
+                                ("big pad", 2**16, 0),
+                                ("huge pad", 2**17+512, 0),
+                                ("max pad", 2**24-1-48, 0),
                                 ("small truncate", -1, 0),
                                 ("small truncate", -2, 0),
                                 ("small truncate", -3, 0),
@@ -142,12 +146,15 @@ def main():
         conversation = Connect(host, port)
         node = conversation
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+
+        node = node.add_child(TCPBufferingEnable())
         node = node.add_child(pad_handshake(ClientHelloGenerator(ciphers,
                                                    extensions={ExtensionType.renegotiation_info: None}),
                                             pad_len, pad_byte))
-        # we expect Alert and Close or just Close
-        node = node.add_child(ExpectAlert())
-        node.next_sibling = ExpectClose()
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.decode_error))
         node.add_child(ExpectClose())
 
         if "pad" in name:
