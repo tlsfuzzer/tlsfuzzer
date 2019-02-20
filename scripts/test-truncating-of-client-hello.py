@@ -1,29 +1,27 @@
-# Author: Hubert Kario, (c) 2015
+# Author: Hubert Kario, (c) 2015-2019
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 from __future__ import print_function
 import traceback
 import sys
 import getopt
-import re
-from itertools import chain
+from itertools import chain, islice
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        ResetHandshakeHashes, SetMaxRecordSize, pad_handshake
+        pad_handshake
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose
+from tlsfuzzer.utils.lists import natural_sort_keys
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType
-from tlslite.extensions import TLSExtension
 
-def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
-    return [int(text) if text.isdigit() else text.lower()
-            for text in re.split(_nsre, s)]
+
+version = 1
 
 
 def help_msg():
@@ -35,6 +33,8 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -n num         only run `num` random tests instead of a full set")
+    print("                (excluding \"sanity\" tests)")
     print(" --help         this message")
 
 
@@ -46,10 +46,11 @@ def main():
 
     host = "localhost"
     port = 4433
+    num_limit = None
     run_exclude = set()
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -57,6 +58,8 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-n':
+            num_limit = int(arg)
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -73,7 +76,7 @@ def main():
     # sanity check
     conversation = Connect(host, port)
     node = conversation
-    ext={ExtensionType.renegotiation_info: None}
+    ext = {ExtensionType.renegotiation_info: None}
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
@@ -158,13 +161,15 @@ def main():
     good = 0
     bad = 0
     failed = []
+    if not num_limit:
+        num_limit = len(conversations)
 
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throught
     sanity_test = ('sanity', conversations['sanity'])
     ordered_tests = chain([sanity_test],
-                          filter(lambda x: x[0] != 'sanity',
-                                 conversations.items()),
+                          islice(filter(lambda x: x[0] != 'sanity',
+                                        conversations.items()), num_limit),
                           [sanity_test])
 
     for c_name, c_test in ordered_tests:
@@ -177,7 +182,7 @@ def main():
         res = True
         try:
             runner.run()
-        except:
+        except Exception:
             print("Error while processing")
             print(traceback.format_exc())
             res = False
@@ -188,6 +193,9 @@ def main():
         else:
             bad += 1
             failed.append(c_name)
+
+    print("Check if ClientHello length checking is correct in server")
+    print("version: {0}\n".format(version))
 
     print("Test end")
     print("successful: {0}".format(good))
