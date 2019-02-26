@@ -27,7 +27,7 @@ from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 2
+version = 3
 
 
 def help_msg():
@@ -110,48 +110,12 @@ def main():
     node = node.add_child(ExpectClose())
     conversations["sanity"] = conversation
 
-    # now with RSA-PSS
-    conversation = Connect(host, port)
-    node = conversation
-    sigs = [SignatureScheme.rsa_pss_rsae_sha256,
-            SignatureScheme.rsa_pss_rsae_sha384,
-            SignatureScheme.rsa_pss_rsae_sha512,
-            (HashAlgorithm.sha512, SignatureAlgorithm.rsa),
-            (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
-            (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
-            (HashAlgorithm.sha224, SignatureAlgorithm.rsa),
-            (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
-    ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
-           ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=ext))
-    node = node.add_child(ExpectServerHello(version=(3, 3)))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerKeyExchange())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\n\n")))
-    node = node.add_child(ExpectApplicationData())
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                         AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
-    node = node.add_child(ExpectClose())
-    conversations["with RSA-PSS"] = conversation
-
     for sig in [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_rsae_sha384,
-                SignatureScheme.rsa_pss_rsae_sha512
+                SignatureScheme.rsa_pss_rsae_sha512,
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.rsa_pss_pss_sha384,
+                SignatureScheme.rsa_pss_pss_sha512
                 ]:
         conversation = Connect(host, port)
         node = conversation
@@ -192,7 +156,10 @@ def main():
             (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha224, SignatureAlgorithm.rsa),
-            (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
+            (HashAlgorithm.sha1, SignatureAlgorithm.rsa),
+            SignatureScheme.rsa_pss_pss_sha256,
+            SignatureScheme.rsa_pss_pss_sha384,
+            SignatureScheme.rsa_pss_pss_sha512]
     ext = {ExtensionType.signature_algorithms:
             SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
@@ -227,7 +194,10 @@ def main():
             (HashAlgorithm.sha512, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
-            (HashAlgorithm.sha224, SignatureAlgorithm.rsa)]
+            (HashAlgorithm.sha224, SignatureAlgorithm.rsa),
+            SignatureScheme.rsa_pss_pss_sha256,
+            SignatureScheme.rsa_pss_pss_sha384,
+            SignatureScheme.rsa_pss_pss_sha512]
     ext = {ExtensionType.signature_algorithms:
             SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
@@ -256,14 +226,16 @@ def main():
     node = node.add_child(ExpectClose())
     conversations["MD5 first, no SHA-1"] = conversation
 
-
     # sha-1 must not be the only option
     conversation = Connect(host, port)
     node = conversation
     sigs = [(HashAlgorithm.sha512, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
-            (HashAlgorithm.sha224, SignatureAlgorithm.rsa)]
+            (HashAlgorithm.sha224, SignatureAlgorithm.rsa),
+            SignatureScheme.rsa_pss_pss_sha256,
+            SignatureScheme.rsa_pss_pss_sha384,
+            SignatureScheme.rsa_pss_pss_sha512]
     ext = {ExtensionType.signature_algorithms:
             SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
@@ -303,7 +275,10 @@ def main():
             (HashAlgorithm.sha512, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
-            (HashAlgorithm.sha224, SignatureAlgorithm.rsa)]
+            (HashAlgorithm.sha224, SignatureAlgorithm.rsa),
+            SignatureScheme.rsa_pss_pss_sha256,
+            SignatureScheme.rsa_pss_pss_sha384,
+            SignatureScheme.rsa_pss_pss_sha512]
     ext = {ExtensionType.signature_algorithms:
             SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
@@ -374,10 +349,10 @@ def main():
     # invalid length
     conversation = Connect(host, port)
     node = conversation
-    sigs = [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)]
     ext = OrderedDict()
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
+    sigs = [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sigs)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
@@ -412,7 +387,6 @@ def main():
     # odd length
     conversation = Connect(host, port)
     node = conversation
-    sigs = [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
             TLSExtension(extType=ExtensionType.signature_algorithms)
             .create(bytearray(b'\x00\x03'  # length of array
@@ -433,7 +407,6 @@ def main():
     # padded extension
     conversation = Connect(host, port)
     node = conversation
-    sigs = [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
             TLSExtension(extType=ExtensionType.signature_algorithms)
             .create(bytearray(b'\x00\x04'  # length of array
@@ -486,6 +459,16 @@ def main():
         else:
             bad += 1
             failed.append(c_name)
+
+    print("Check if server correctly selects signature algorithm for SKE")
+    print("Test to verify that Server Key Exchange is signed with safe")
+    print("and correct algorithms.")
+    print("Note that test expects server with support for both rsa_pss_rsae_*")
+    print("and rsa_pss_pss_* signatures, in other words, one with both")
+    print("rsaEncryption key in one certificate and rsasse-pss in second")
+    print("certificate. If there's only one certificate installed in server,")
+    print("some of the tests that advertise just one algorithm may need to be")
+    print("disabled.")
 
     print("version: {0}\n".format(version))
 
