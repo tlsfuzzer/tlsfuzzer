@@ -11,11 +11,11 @@ from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        pad_handshake, \
+        pad_handshake, split_message, FlushMessageList, \
         TCPBufferingEnable, TCPBufferingDisable, TCPBufferingFlush
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose
+        ExpectAlert, ExpectApplicationData, ExpectClose, ExpectNoMessage
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
@@ -153,10 +153,17 @@ def main():
         node = conversation
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
 
+        msg = pad_handshake(ClientHelloGenerator(ciphers,
+                                                 extensions={ExtensionType.renegotiation_info: None}),
+                            pad_len, pad_byte)
+        fragments = []
+        node = node.add_child(split_message(msg, fragments, 2**14))
+        node = node.add_child(ExpectNoMessage())
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                         AlertDescription.decode_error)
+        node.next_sibling.add_child(ExpectClose())
         node = node.add_child(TCPBufferingEnable())
-        node = node.add_child(pad_handshake(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.renegotiation_info: None}),
-                                            pad_len, pad_byte))
+        node = node.add_child(FlushMessageList(fragments))
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
