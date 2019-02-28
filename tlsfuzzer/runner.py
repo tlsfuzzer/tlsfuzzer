@@ -194,7 +194,11 @@ class Runner(object):
                         close_node = next((n for n in node.get_all_siblings()
                                            if isinstance(n, ExpectClose)),
                                           None)
-                        if close_node:
+                        # timeout will happen if the other side hanged, to
+                        # try differentiated between (when no alerts are sent)
+                        # allow for close only when the connection was actively
+                        # closed
+                        if close_node and not isinstance(exc, socket.timeout):
                             close_node.process(self.state, None)
                             node = close_node.child
                             continue
