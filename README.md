@@ -153,6 +153,11 @@ ciphers and with the above certificate:
 selfserv -d sql:./nssdb -p 4433 -V tls1.0: -H 1 -n localhost
 ```
 
+### Advanced configuration
+More advanced and complex configurations as well as description how to compile
+the above servers from source is available on the wiki page
+[Server setup](https://github.com/tomato42/tlsfuzzer/wiki/Server-setup).
+
 ## Contributing
 
 See the
