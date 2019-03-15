@@ -35,7 +35,7 @@ from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 
 
-version = 1
+version = 2
 
 
 def help_msg():
@@ -51,7 +51,10 @@ def help_msg():
     print("                instead of a full set")
     print("                (excluding \"sanity\" and other short tests)")
     print(" -s sigalgs     hash and signature algorithm pairs that the server")
-    print("                is expected to support.")
+    print("                is expected to support. Either pairs of algorithms")
+    print("                (\"sha1+ecdsa\"), pairs of identifiers (\"1+1\")")
+    print("                or the TLS 1.3 names (\"rsa_pss_rsae_sha256\").")
+    print("                Multiple values separated by spaces.")
     print(" --hash-order   the order in which hashes are preferred in some")
     print("                tests, can be used to test different combinations")
     print(" -k keyfile     file with private key of client")
@@ -114,17 +117,24 @@ def main():
     cert = None
     private_key = None
 
-    sigalgs = [SignatureScheme.rsa_pss_rsae_sha512,
-               SignatureScheme.rsa_pss_pss_sha512,
-               SignatureScheme.rsa_pss_rsae_sha384,
-               SignatureScheme.rsa_pss_pss_sha384,
-               SignatureScheme.rsa_pss_rsae_sha256,
-               SignatureScheme.rsa_pss_pss_sha256,
-               SignatureScheme.rsa_pkcs1_sha512,
-               SignatureScheme.rsa_pkcs1_sha384,
-               SignatureScheme.rsa_pkcs1_sha256,
-               SignatureScheme.rsa_pkcs1_sha224,
-               SignatureScheme.rsa_pkcs1_sha1]
+    # algorithms to expect from server in Certificate Request
+    cr_sigalgs = [SignatureScheme.rsa_pss_rsae_sha512,
+                  SignatureScheme.rsa_pss_pss_sha512,
+                  SignatureScheme.rsa_pss_rsae_sha384,
+                  SignatureScheme.rsa_pss_pss_sha384,
+                  SignatureScheme.rsa_pss_rsae_sha256,
+                  SignatureScheme.rsa_pss_pss_sha256,
+                  SignatureScheme.rsa_pkcs1_sha512,
+                  SignatureScheme.rsa_pkcs1_sha384,
+                  SignatureScheme.rsa_pkcs1_sha256,
+                  SignatureScheme.rsa_pkcs1_sha224,
+                  SignatureScheme.rsa_pkcs1_sha1]
+
+    # algorithms to advertise in ClientHello
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.rsa_pss_rsae_sha384,
+                SignatureScheme.rsa_pss_pss_sha384]
 
     hashalgs = hashes_to_list("sha256 sha384 sha512")
 
@@ -143,7 +153,7 @@ def main():
             help_msg()
             sys.exit(0)
         elif opt == '-s':
-            sigalgs = sig_algs_to_ids(arg)
+            cr_sigalgs = sig_algs_to_ids(arg)
         elif opt == '--hash-order':
             hashalgs = hashes_to_list(arg)
         elif opt == '-k':
@@ -185,8 +195,6 @@ def main():
         SupportedVersionsExtension().create([(3, 4), (3, 3)])
     ext[ExtensionType.supported_groups] = \
         SupportedGroupsExtension().create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = \
         SignatureAlgorithmsExtension().create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = \
@@ -229,8 +237,6 @@ def main():
         SupportedVersionsExtension().create([(3, 4), (3, 3)])
     ext[ExtensionType.supported_groups] = \
         SupportedGroupsExtension().create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = \
         SignatureAlgorithmsExtension().create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = \
@@ -239,7 +245,7 @@ def main():
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectEncryptedExtensions())
-    node = node.add_child(ExpectCertificateRequest(sigalgs))
+    node = node.add_child(ExpectCertificateRequest(cr_sigalgs))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectCertificateVerify())
     node = node.add_child(ExpectFinished())
@@ -282,7 +288,7 @@ def main():
                       SignatureScheme.rsa_pkcs1_sha512):
             expectPass = False
         # also expect failure if an algorithm is not advertized
-        if sigalg not in sigalgs:
+        if sigalg not in cr_sigalgs:
             expectPass = False
 
         conversation = Connect(hostname, port)
@@ -297,7 +303,7 @@ def main():
         ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create(groups)
         ext[ExtensionType.signature_algorithms] = \
-            SignatureAlgorithmsExtension().create(sigalgs)
+            SignatureAlgorithmsExtension().create(sig_algs)
         ext[ExtensionType.signature_algorithms_cert] = \
             SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -343,7 +349,7 @@ def main():
 
     # verify that rsa-pss signatures with empty, too short or too long
     # salt fail
-    msgalg = sigalg_select("rsa_pss", hashalgs, sigalgs, certType)
+    msgalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, certType)
     hash_name = SignatureScheme.getHash(SignatureScheme.toRepr(msgalg))
     digest_len = getattr(tlshashlib, hash_name)().digest_size
     for saltlen in (0, digest_len - 1, digest_len + 1):
@@ -358,8 +364,6 @@ def main():
             SupportedVersionsExtension().create([(3, 4), (3, 3)])
         ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create(groups)
-        sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                    SignatureScheme.rsa_pss_pss_sha256]
         ext[ExtensionType.signature_algorithms] = \
             SignatureAlgorithmsExtension().create(sig_algs)
         ext[ExtensionType.signature_algorithms_cert] = \
@@ -386,7 +390,7 @@ def main():
 
     # verify that a rsa-pkcs1 signature in a rsa-pss ID envelope fails
     sigalg = sigalg_select("rsa_pkcs1", hashalgs)
-    msgalg = sigalg_select("rsa_pss", hashalgs, sigalgs, certType)
+    msgalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, certType)
     conversation = Connect(hostname, port)
     node = conversation
     ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
@@ -398,8 +402,6 @@ def main():
         SupportedVersionsExtension().create([(3, 4), (3, 3)])
     ext[ExtensionType.supported_groups] = \
         SupportedGroupsExtension().create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = \
         SignatureAlgorithmsExtension().create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = \
@@ -425,7 +427,7 @@ def main():
         conversation
 
     # verify that a rsa-pss signature with mismatched message hash fails
-    msgalg = sigalg_select("rsa_pss", hashalgs, sigalgs, certType)
+    msgalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, certType)
 
     # choose a similar scheme with just a different hash, doesn't need to be
     # a server supported sigalg
@@ -444,8 +446,6 @@ def main():
         SupportedVersionsExtension().create([(3, 4), (3, 3)])
     ext[ExtensionType.supported_groups] = \
         SupportedGroupsExtension().create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = \
         SignatureAlgorithmsExtension().create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = \
@@ -470,7 +470,7 @@ def main():
         conversation
 
     # verify that a rsa-pss signature with mismatched MGF1 hash fails
-    sigalg = sigalg_select("rsa_pss", hashalgs, sigalgs, certType)
+    sigalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, certType)
 
     # choose a different hash to cause mismtach
     hash_name = SignatureScheme.getHash(SignatureScheme.toRepr(msgalg))
@@ -487,8 +487,6 @@ def main():
         SupportedVersionsExtension().create([(3, 4), (3, 3)])
     ext[ExtensionType.supported_groups] = \
         SupportedGroupsExtension().create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = \
         SignatureAlgorithmsExtension().create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = \
@@ -526,8 +524,6 @@ def main():
                 SupportedVersionsExtension().create([(3, 4), (3, 3)])
             ext[ExtensionType.supported_groups] = \
                 SupportedGroupsExtension().create(groups)
-            sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                        SignatureScheme.rsa_pss_pss_sha256]
             ext[ExtensionType.signature_algorithms] = \
                 SignatureAlgorithmsExtension().create(sig_algs)
             ext[ExtensionType.signature_algorithms_cert] = \
@@ -581,7 +577,7 @@ def main():
         res = True
         try:
             runner.run()
-        except:
+        except Exception:
             print("Error while processing")
             print(traceback.format_exc())
             res = False
