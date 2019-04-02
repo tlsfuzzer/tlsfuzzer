@@ -37,6 +37,9 @@ def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
             for text in re.split(_nsre, s)]
 
 
+version = 2
+
+
 def help_msg():
     print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
     print(" -h hostname    name of the host to run the test against")
@@ -217,7 +220,7 @@ def main():
         node = node.add_child(CertificateGenerator(X509CertChain([cert])))
         node = node.add_child(ClientKeyExchangeGenerator())
         node = node.add_child(TCPBufferingFlush())
-        node = node.add_child(CertificateVerifyGenerator(signature=sig[:i]))
+        node = node.add_child(CertificateVerifyGenerator(private_key, signature=sig[:i]))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
         node = node.add_child(TCPBufferingDisable())
@@ -333,7 +336,8 @@ def main():
             bad += 1
             failed.append(c_name)
 
-    print("Malformed CertificateVerify test version 1\n")
+    print("Malformed CertificateVerify test\n")
+    print("version: {0}\n".format(version))
     print("Test end")
     print("successful: {0}".format(good))
     print("failed: {0}".format(bad))

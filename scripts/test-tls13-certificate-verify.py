@@ -36,7 +36,7 @@ from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 
 
-version = 2
+version = 3
 
 
 def help_msg():
@@ -119,7 +119,12 @@ def main():
     private_key = None
 
     # algorithms to expect from server in Certificate Request
-    cr_sigalgs = [SignatureScheme.rsa_pss_rsae_sha512,
+    cr_sigalgs = [SignatureScheme.ecdsa_secp521r1_sha512,
+                  SignatureScheme.ecdsa_secp384r1_sha384,
+                  SignatureScheme.ecdsa_secp256r1_sha256,
+                  (HashAlgorithm.sha224, SignatureAlgorithm.ecdsa),
+                  (HashAlgorithm.sha1, SignatureAlgorithm.ecdsa),
+                  SignatureScheme.rsa_pss_rsae_sha512,
                   SignatureScheme.rsa_pss_pss_sha512,
                   SignatureScheme.rsa_pss_rsae_sha384,
                   SignatureScheme.rsa_pss_pss_sha384,

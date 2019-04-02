@@ -32,7 +32,7 @@ from tlslite.x509certchain import X509CertChain
 from tlslite.utils.cryptomath import numBytes
 
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -71,7 +71,12 @@ def main():
     cert = None
     exp_illeg_param = False
 
-    sigalgs = [SignatureScheme.rsa_pss_rsae_sha512,
+    sigalgs = [SignatureScheme.ecdsa_secp521r1_sha512,
+               SignatureScheme.ecdsa_secp384r1_sha384,
+               SignatureScheme.ecdsa_secp256r1_sha256,
+               (HashAlgorithm.sha224, SignatureAlgorithm.ecdsa),
+               (HashAlgorithm.sha1, SignatureAlgorithm.ecdsa),
+               SignatureScheme.rsa_pss_rsae_sha512,
                SignatureScheme.rsa_pss_pss_sha512,
                SignatureScheme.rsa_pss_rsae_sha384,
                SignatureScheme.rsa_pss_pss_sha384,
