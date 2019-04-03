@@ -516,5 +516,20 @@
          },
          {"name" : "test-tls13-non-support.py"}
      ]
+    },
+    {"server_command": ["python", "-u", "{command}", "server",
+                "-k", "tests/serverECKey.pem",
+                "-c", "tests/serverECCert.pem",
+                "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "tests" : [
+         {"name": "test-tls13-ecdsa-support.py",
+          "comments": "tlslite can't load multiple ECDSA keys at the same time",
+          "arguments": ["-e", "Test with ecdsa_secp384r1_sha384",
+                        "-e", "Test with ecdsa_secp521r1_sha512"]
+         }
+     ]
     }
 ]

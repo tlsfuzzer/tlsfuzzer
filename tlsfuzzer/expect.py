@@ -34,7 +34,9 @@ from tlslite.x509certchain import X509CertChain
 from tlslite.errors import TLSDecryptionFailed
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.handshakehelpers import HandshakeHelpers
-from .handshake_helpers import calc_pending_states, kex_for_group
+from .handshake_helpers import calc_pending_states, kex_for_group, \
+        curve_name_to_hash_tls13
+from .helpers import ECDSA_SIG_TLS1_3_ALL
 from .tree import TreeNode
 
 
@@ -908,11 +910,30 @@ class ExpectCertificateVerify(ExpectHandshake):
                     SignatureScheme.rsa_pss_rsae_sha256,
                     SignatureScheme.rsa_pss_rsae_sha384,
                     SignatureScheme.rsa_pss_rsae_sha512)
+            else:
+                assert state.get_server_public_key().key_type == "ecdsa"
+                curve_name = state.get_server_public_key().curve_name
+                assert curve_name in ("NIST256p", "NIST384p", "NIST521p")
+                sigalg = cert_v.signatureAlgorithm
+                assert sigalg in ECDSA_SIG_TLS1_3_ALL
+                hash_name = curve_name_to_hash_tls13(curve_name)
+                # in TLS 1.3 the hash is bound to key curve
+                if sigalg != (getattr(HashAlgorithm, hash_name),
+                              SignatureAlgorithm.ecdsa):
+                    raise AssertionError(
+                        "Invalid signature type for {1} key, "
+                        "received: {0}"
+                        .format(SignatureScheme.toStr(sigalg), curve_name))
 
         salg = cert_v.signatureAlgorithm
 
-        scheme = SignatureScheme.toRepr(salg)
-        hash_name = SignatureScheme.getHash(scheme)
+        if salg[1] == SignatureAlgorithm.ecdsa:
+            hash_name = HashAlgorithm.toStr(salg[0])
+            padding = None
+        else:
+            scheme = SignatureScheme.toRepr(salg)
+            hash_name = SignatureScheme.getHash(scheme)
+            padding = SignatureScheme.getPadding(scheme)
 
         transcript_hash = state.handshake_hashes.digest(state.prf_name)
         sig_context = bytearray(b'\x20' * 64 +
@@ -922,7 +943,7 @@ class ExpectCertificateVerify(ExpectHandshake):
         if not state.get_server_public_key().hashAndVerify(
                 cert_v.signature,
                 sig_context,
-                SignatureScheme.getPadding(scheme),
+                padding,
                 hash_name,
                 getattr(hashlib, hash_name)().digest_size):
             raise AssertionError("Signature verification failed")
