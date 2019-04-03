@@ -1,13 +1,17 @@
-# Author: Hubert Kario, (c) 2018
+# Author: Hubert Kario, (c) 2019
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 from __future__ import print_function
 import traceback
 import sys
 import getopt
-from itertools import chain
-from random import sample
+from itertools import chain, islice
 
+from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
+        TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme
+from tlslite.extensions import ClientKeyShareExtension, \
+        SupportedVersionsExtension, SupportedGroupsExtension, \
+        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
@@ -17,18 +21,11 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
         ExpectEncryptedExtensions, ExpectCertificateVerify, \
         ExpectNewSessionTicket
-
-from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme
-from tlslite.keyexchange import ECDHKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
-        SupportedVersionsExtension, SupportedGroupsExtension, \
-        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
-from tlsfuzzer.helpers import key_share_gen, SIG_ALL
+from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL
 
 
-version = 2
+version = 1
 
 
 def help_msg():
@@ -89,13 +86,13 @@ def main():
         .create([TLS_1_3_DRAFT, (3, 3)])
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256,
+    sig_algs = [SignatureScheme.ecdsa_secp521r1_sha512,
+                SignatureScheme.ecdsa_secp384r1_sha384,
                 SignatureScheme.ecdsa_secp256r1_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(SIG_ALL)
+        .create(sig_algs + RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -120,6 +117,49 @@ def main():
     node.next_sibling = ExpectClose()
     conversations["sanity"] = conversation
 
+    for sigalg in sig_algs:
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        ext = {}
+        groups = [GroupName.secp256r1]
+        key_shares = []
+        for group in groups:
+            key_shares.append(key_share_gen(group))
+        ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+            .create([TLS_1_3_DRAFT, (3, 3)])
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+            .create([sigalg])
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+            .create(sig_algs + RSA_SIG_ALL)
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+        node = node.add_child(ExpectServerHello())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectEncryptedExtensions())
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectCertificateVerify())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+        # This message is optional and may show up 0 to many times
+        cycle = ExpectNewSessionTicket()
+        node = node.add_child(cycle)
+        node.add_child(cycle)
+
+        node.next_sibling = ExpectApplicationData()
+        node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                           AlertDescription.close_notify))
+
+        node = node.add_child(ExpectAlert())
+        node.next_sibling = ExpectClose()
+        conversations["Test with {0}".format(SignatureScheme.toStr(sigalg))] = conversation
+
     # run the conversation
     good = 0
     bad = 0
@@ -128,11 +168,12 @@ def main():
         num_limit = len(conversations)
 
     # make sure that sanity test is run first and last
-    # to verify that server was running and kept running throughout
-    sanity_tests = [('sanity', conversations['sanity'])]
-    regular_tests = [(k, v) for k, v in conversations.items() if k != 'sanity']
-    sampled_tests = sample(regular_tests, min(num_limit, len(regular_tests)))
-    ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
+    # to verify that server was running and kept running throught
+    sanity_test = ('sanity', conversations['sanity'])
+    ordered_tests = chain([sanity_test],
+                          islice(filter(lambda x: x[0] != 'sanity',
+                                        conversations.items()), num_limit),
+                          [sanity_test])
 
     for c_name, c_test in ordered_tests:
         if run_only and c_name not in run_only or c_name in run_exclude:
@@ -156,9 +197,9 @@ def main():
             bad += 1
             failed.append(c_name)
 
-    print("Basic communication test with TLS 1.3 server")
+    print("Basic ECDSA cert test with TLS 1.3 server")
     print("Check if communication with typical group and cipher works with")
-    print("the TLS 1.3 server.\n")
+    print("the TLS 1.3 server that has ECDSA certificate.\n")
     print("version: {0}\n".format(version))
 
     print("Test end")
