@@ -26,10 +26,10 @@ from tlslite.extensions import \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 
 
-"""Script to verify that the DH shared secret is computed correctly."""
+"""Script to verify that the DH keys are computed correctly."""
 
 
-version = 1
+version = 2
 
 
 def help_msg():
@@ -81,9 +81,12 @@ def main():
         run_only = None
 
     collected_shared_secrets = []
+    collected_key_shares = []
     variables_check = \
         {'DH shared secret':
-         collected_shared_secrets}
+         collected_shared_secrets,
+         'ServerHello.extensions.key_share.key_exchange':
+         collected_key_shares}
 
     conversations = {}
 
@@ -195,14 +198,16 @@ def main():
         if run_only and c_name not in run_only or c_name in run_exclude:
             continue
         i = 0
-        break_loop = False
+        break_shared = False
+        break_key_share = False
         while True:
             # don't hog the memory unnecessairly
             collected_shared_secrets[:] = []
             print("\"{1}\" repeat {0}...".format(i, c_name))
             i += 1
             if c_name == 'sanity':
-                break_loop = True
+                break_shared = True
+                break_key_share = True
 
             runner = Runner(c_test)
 
@@ -221,19 +226,35 @@ def main():
                     print("Got shared secret with {0} most significant "
                           "bytes equal to zero."
                           .format(min_zeros))
-                    break_loop = True
+                    break_shared = True
+                # ECDSA key shares have a constant first byte indicating
+                # the point encoding
+                if "secp" in c_name:
+                    if collected_key_shares[-1][:min_zeros+1] == \
+                            bytearray(b'\x04') + bytearray(min_zeros):
+                        print("Got key share with {0} most significant bytes equal"
+                              " to zero.".format(min_zeros))
+                        break_key_share = True
+                else:
+                    if collected_key_shares[-1][:min_zeros] == \
+                            bytearray(min_zeros):
+                        print("Got key share with {0} most significant bytes equal"
+                              " to zero.".format(min_zeros))
+                        break_key_share = True
                 print("OK\n")
             else:
                 bad += 1
                 failed.append(c_name)
                 break
-            if break_loop:
+
+            if break_shared and break_key_share:
                 break
 
     print('')
 
     print("Check if the connections work when the calculated DH shared secret")
-    print("must be padded on the left with zeros")
+    print("must be padded on the left with zeros or when the server needs")
+    print("to pad its key share")
     print("version: {0}\n".format(version))
 
     print("Test end")
