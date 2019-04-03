@@ -61,6 +61,8 @@ from tlslite.extensions import RenegotiationInfoExtension, \
 from tlsfuzzer.helpers import key_share_gen, psk_ext_gen
 from tlslite.keyexchange import ECDHKeyExchange
 from tlslite.mathtls import goodGroupParameters
+from tlslite.utils.cryptomath import secureHash
+
 
 srv_raw_key = str(
     "-----BEGIN RSA PRIVATE KEY-----\n"\
@@ -149,6 +151,29 @@ srv_raw_pss_certificate = str(
     "CrTW6ctFTAIDwZHd+WX4RPewGY0LTfC+RjcMwWZBmbfVLxuJs0sidSUoNW6GgGE1\n"
     "DIDVeW2yKGeNhjK/3aDzfQWbz1J64aRfccVzXYMPsoABnNJnJgRETh1/Ci0sQ9Vd\n"
     "1OR6iS4hl88/1d7utc00MyFVk1sUIGf54EeCvrNB4bhKtawEJk8Q8AGIRhs93sk=\n"
+    "-----END CERTIFICATE-----\n"
+    )
+
+
+srv_raw_ecdsa_key = str(
+    "-----BEGIN PRIVATE KEY-----\n"
+    "MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgCOZr0Ovs0eCmh+XM\n"
+    "QWDYVpsQ+sJdjiq/itp/kYnWNSahRANCAATINGMQAl7cXlPrYzJluGOgmc8sYvae\n"
+    "tO2EsXKYG6lnYhudZiepVYORP8vqLyxCF/bMIuuVKOPWSfsRGo/H8pnK\n"
+    "-----END PRIVATE KEY-----\n"
+    )
+
+
+srv_raw_ecdsa_certificate = str(
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIBbTCCARSgAwIBAgIJAPM58cskyK+yMAkGByqGSM49BAEwFDESMBAGA1UEAwwJ\n"
+    "bG9jYWxob3N0MB4XDTE3MTAyMzExNDI0MVoXDTE3MTEyMjExNDI0MVowFDESMBAG\n"
+    "A1UEAwwJbG9jYWxob3N0MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEyDRjEAJe\n"
+    "3F5T62MyZbhjoJnPLGL2nrTthLFymBupZ2IbnWYnqVWDkT/L6i8sQhf2zCLrlSjj\n"
+    "1kn7ERqPx/KZyqNQME4wHQYDVR0OBBYEFPfFTUg9o3t6ehLsschSnC8Te8oaMB8G\n"
+    "A1UdIwQYMBaAFPfFTUg9o3t6ehLsschSnC8Te8oaMAwGA1UdEwQFMAMBAf8wCQYH\n"
+    "KoZIzj0EAQNIADBFAiA6p0YM5ZzfW+klHPRU2r13/IfKgeRfDR3dtBngmPvxUgIh\n"
+    "APTeSDeJvYWVBLzyrKTeSerNDKKHU2Rt7sufipv76+7s\n"
     "-----END CERTIFICATE-----\n"
     )
 
@@ -2047,6 +2072,80 @@ class TestExpectCertificateVerify(unittest.TestCase):
         cer_verify = CertificateVerify((3, 4)).create(sig, scheme)
 
         exp.process(state, cer_verify)
+
+    def test_process_with_ecdsa_sig_alg(self):
+        exp = ExpectCertificateVerify()
+
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+
+        cert = Certificate(CertificateType.x509, (3, 4)).create(
+            X509CertChain([X509().parse(srv_raw_ecdsa_certificate)]))
+
+        private_key = parsePEMKey(srv_raw_ecdsa_key, private=True)
+
+        client_hello = ClientHello()
+        ext = SignatureAlgorithmsExtension().\
+            create([SignatureScheme.ecdsa_secp256r1_sha256])
+        client_hello.extensions = [ext]
+        state.handshake_messages.append(client_hello)
+
+        state.handshake_messages.append(cert)
+
+        hh_digest = state.handshake_hashes.digest('sha256')
+        self.assertEqual(state.prf_name, "sha256")
+        signature_context = bytearray(b'\x20' * 64 +
+                                      b'TLS 1.3, server CertificateVerify' +
+                                      b'\x00') + hh_digest
+        sig = private_key.hashAndSign(signature_context,
+                                      "ecdsa",
+                                      "sha256",
+                                      32)
+        scheme = SignatureScheme.ecdsa_secp256r1_sha256
+        cer_verify = CertificateVerify((3, 4)).create(sig, scheme)
+
+        exp.process(state, cer_verify)
+
+    def test_process_with_ecdsa_and_mismatches_algorithm(self):
+        # in TLS 1.3 the curves are bound to hashes, see if that mismatch
+        # is detected
+        exp = ExpectCertificateVerify()
+
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+
+        cert = Certificate(CertificateType.x509, (3, 4)).create(
+            X509CertChain([X509().parse(srv_raw_ecdsa_certificate)]))
+
+        private_key = parsePEMKey(srv_raw_ecdsa_key, private=True)
+
+        client_hello = ClientHello()
+        ext = SignatureAlgorithmsExtension().\
+            create([SignatureScheme.ecdsa_secp256r1_sha256,
+                    SignatureScheme.ecdsa_secp384r1_sha384])
+        client_hello.extensions = [ext]
+        state.handshake_messages.append(client_hello)
+
+        state.handshake_messages.append(cert)
+
+        hh_digest = state.handshake_hashes.digest('sha384')
+        self.assertEqual(state.prf_name, "sha256")
+        signature_context = bytearray(b'\x20' * 64 +
+                                      b'TLS 1.3, server CertificateVerify' +
+                                      b'\x00') + hh_digest
+        sig = private_key.sign(secureHash(signature_context, "sha384")[:32],
+                               "ecdsa",
+                               "sha384")
+        scheme = SignatureScheme.ecdsa_secp384r1_sha384
+        cer_verify = CertificateVerify((3, 4)).create(sig, scheme)
+
+        with self.assertRaises(AssertionError) as exc:
+            exp.process(state, cer_verify)
+
+        self.assertIn("Invalid signature type for NIST256p key, received: "
+                      "ecdsa_secp384r1_sha384", str(exc.exception))
 
     def test_process_with_expected_sig_alg(self):
         exp = ExpectCertificateVerify(

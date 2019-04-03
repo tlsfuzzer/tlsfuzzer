@@ -21,3 +21,16 @@ def kex_for_group(group, version=(3, 4)):
     if group in GroupName.allFF:
         return FFDHKeyExchange(group, version)
     return ECDHKeyExchange(group, version)
+
+
+def curve_name_to_hash_tls13(curve_name):
+    """Find the matching hash given the curve name, as specified in TLS 1.3."""
+    if curve_name == "NIST256p":
+        return "sha256"
+    if curve_name == "NIST384p":
+        return "sha384"
+    if curve_name == "NIST521p":
+        return "sha512"
+    raise ValueError("Curve {0} is not allowed in TLS 1.3 "
+                     "(wrong name? please use python-ecdsa names)"
+                     .format(curve_name))
