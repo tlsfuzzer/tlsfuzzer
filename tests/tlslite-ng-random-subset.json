@@ -386,6 +386,10 @@
           "arguments" : ["-k", "tests/clientX509Key.pem",
                          "-c", "tests/clientX509Cert.pem", "-d"]
           },
+         {"name" : "test-ecdsa-in-certificate-verify.py",
+          "arguments" : ["-k", "tests/serverECKey.pem",
+                         "-c", "tests/serverECCert.pem"]
+          },
          {"name" : "test-rsa-pss-sigs-on-certificate-verify.py",
           "comment" : "test script has over 2k test cases, limit it",
           "arguments" : ["-k", "tests/clientX509Key.pem",
