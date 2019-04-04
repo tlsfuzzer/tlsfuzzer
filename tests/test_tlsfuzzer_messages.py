@@ -46,6 +46,7 @@ from tests.mocksock import MockSocket
 from tlslite.utils.keyfactory import generateRSAKey
 from tlslite.utils.cryptomath import numberToByteArray
 from tlslite.utils.python_rsakey import Python_RSAKey
+from tlslite.utils.python_ecdsakey import Python_ECDSAKey
 
 class TestClose(unittest.TestCase):
     def test___init__(self):
@@ -1209,6 +1210,134 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
         self.assertEqual(msg.signatureAlgorithm,
                          constants.SignatureScheme.rsa_pss_pss_sha256)
 
+    def test_generate_with_ecdsa_256_alg(self):
+        priv_key = Python_ECDSAKey(None, None, "NIST256p", 12)
+        cert_ver_g = CertificateVerifyGenerator(priv_key)
+        state = ConnectionState()
+        state.version = (3, 3)
+        req = CertificateRequest((3, 3)).create([], [],
+            [constants.SignatureScheme.ecdsa_secp521r1_sha512,
+             constants.SignatureScheme.ecdsa_secp384r1_sha384,
+             constants.SignatureScheme.ecdsa_secp256r1_sha256,
+             constants.SignatureScheme.rsa_pss_pss_sha256,
+             (constants.HashAlgorithm.sha1,
+              constants.SignatureAlgorithm.rsa)])
+        state.handshake_messages = [req]
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertTrue(msg.signature)
+        # the SignatureScheme.ecdsa_secp*_sha* ignore the curve type in
+        # TLS 1.2, so the negotiation will always select SHA512 algorithm
+        self.assertEqual(msg.signatureAlgorithm,
+                         (constants.HashAlgorithm.sha512,
+                          constants.SignatureAlgorithm.ecdsa))
+
+    def test_generate_with_ecdsa_384_alg(self):
+        priv_key = Python_ECDSAKey(None, None, "NIST384p", 11)
+        cert_ver_g = CertificateVerifyGenerator(priv_key)
+        state = ConnectionState()
+        state.version = (3, 3)
+        req = CertificateRequest((3, 3)).create([], [],
+            [constants.SignatureScheme.ecdsa_secp521r1_sha512,
+             constants.SignatureScheme.ecdsa_secp384r1_sha384,
+             constants.SignatureScheme.ecdsa_secp256r1_sha256,
+             constants.SignatureScheme.rsa_pss_pss_sha256,
+             (constants.HashAlgorithm.sha1,
+              constants.SignatureAlgorithm.rsa)])
+        state.handshake_messages = [req]
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertTrue(msg.signature)
+        # the SignatureScheme.ecdsa_secp*_sha* ignore the curve type in
+        # TLS 1.2, so the negotiation will always select SHA512 algorithm
+        self.assertEqual(msg.signatureAlgorithm,
+                         (constants.HashAlgorithm.sha512,
+                          constants.SignatureAlgorithm.ecdsa))
+
+    def test_generate_with_ecdsa_521_alg(self):
+        priv_key = Python_ECDSAKey(None, None, "NIST521p", 10)
+        cert_ver_g = CertificateVerifyGenerator(priv_key)
+        state = ConnectionState()
+        state.version = (3, 3)
+        req = CertificateRequest((3, 3)).create([], [],
+            [constants.SignatureScheme.ecdsa_secp521r1_sha512,
+             constants.SignatureScheme.ecdsa_secp384r1_sha384,
+             constants.SignatureScheme.ecdsa_secp256r1_sha256,
+             constants.SignatureScheme.rsa_pss_pss_sha256,
+             (constants.HashAlgorithm.sha1,
+              constants.SignatureAlgorithm.rsa)])
+        state.handshake_messages = [req]
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertTrue(msg.signature)
+        # the SignatureScheme.ecdsa_secp*_sha* ignore the curve type in
+        # TLS 1.2, so the negotiation will always select SHA512 algorithm
+        self.assertEqual(msg.signatureAlgorithm,
+                         (constants.HashAlgorithm.sha512,
+                          constants.SignatureAlgorithm.ecdsa))
+
+    def test_generate_with_ecdsa_256_alg_in_tls1_3(self):
+        priv_key = Python_ECDSAKey(None, None, "NIST256p", 12)
+        cert_ver_g = CertificateVerifyGenerator(priv_key)
+        state = ConnectionState()
+        state.version = (3, 4)
+        req = CertificateRequest((3, 4)).create([], [],
+            [constants.SignatureScheme.ecdsa_secp521r1_sha512,
+             constants.SignatureScheme.ecdsa_secp384r1_sha384,
+             constants.SignatureScheme.ecdsa_secp256r1_sha256,
+             constants.SignatureScheme.rsa_pss_pss_sha256])
+        state.handshake_messages = [req]
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertTrue(msg.signature)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.ecdsa_secp256r1_sha256)
+
+    def test_generate_with_ecdsa_384_alg(self):
+        priv_key = Python_ECDSAKey(None, None, "NIST384p", 11)
+        cert_ver_g = CertificateVerifyGenerator(priv_key)
+        state = ConnectionState()
+        state.version = (3, 4)
+        req = CertificateRequest((3, 4)).create([], [],
+            [constants.SignatureScheme.ecdsa_secp521r1_sha512,
+             constants.SignatureScheme.ecdsa_secp384r1_sha384,
+             constants.SignatureScheme.ecdsa_secp256r1_sha256,
+             constants.SignatureScheme.rsa_pss_pss_sha256])
+        state.handshake_messages = [req]
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertTrue(msg.signature)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.ecdsa_secp384r1_sha384)
+
+    def test_generate_with_ecdsa_521_alg(self):
+        priv_key = Python_ECDSAKey(None, None, "NIST521p", 10)
+        cert_ver_g = CertificateVerifyGenerator(priv_key)
+        state = ConnectionState()
+        state.version = (3, 4)
+        req = CertificateRequest((3, 4)).create([], [],
+            [constants.SignatureScheme.ecdsa_secp521r1_sha512,
+             constants.SignatureScheme.ecdsa_secp384r1_sha384,
+             constants.SignatureScheme.ecdsa_secp256r1_sha256,
+             constants.SignatureScheme.rsa_pss_pss_sha256])
+        state.handshake_messages = [req]
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertTrue(msg.signature)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.ecdsa_secp521r1_sha512)
 
     def test_generate_with_subs(self):
         priv_key = generateRSAKey(1024)

@@ -27,7 +27,7 @@ from tlslite.keyexchange import KeyExchange
 from tlslite.bufferedsocket import BufferedSocket
 from tlslite.recordlayer import ConnectionState
 from .helpers import key_share_gen, AutoEmptyExtension
-from .handshake_helpers import calc_pending_states
+from .handshake_helpers import calc_pending_states, curve_name_to_hash_tls13
 from .tree import TreeNode
 import socket
 from functools import partial
@@ -859,6 +859,14 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
 
     @type signature: bytearray
     @ivar signature: bytes to sent as the signature of the message
+
+    @type padding_xors: dictionary
+    @ivar padding_xors: which bytes of the pre-encryption RSA padding or
+        post-signature ECDSA signature should be xored and with what values
+
+    @type padding_subs: dictionary
+    @ivar padding_subs: same as padding_xors but substitues specified bytes
+        instead
     """
 
     def __init__(self, private_key=None, msg_version=None, msg_alg=None,
@@ -885,6 +893,23 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                            SignatureScheme.rsa_pss_pss_sha384,
                            SignatureScheme.rsa_pss_pss_sha512):
                     return sig
+            elif self.private_key.key_type == "ecdsa"\
+                    and self.sig_version < (3, 4):
+                if sig in (SignatureScheme.ecdsa_secp521r1_sha512,
+                           SignatureScheme.ecdsa_secp384r1_sha384,
+                           SignatureScheme.ecdsa_secp256r1_sha256,
+                           (HashAlgorithm.sha224, SignatureAlgorithm.ecdsa),
+                           (HashAlgorithm.sha1, SignatureAlgorithm.ecdsa)):
+                    return sig
+            elif self.private_key.key_type == "ecdsa" and \
+                    self.sig_version > (3, 3):
+                h_alg = curve_name_to_hash_tls13(self.private_key.curve_name)
+                # the tls1.3 ecdsa SignatureSchemes reused assigned code points
+                # so we just need to know the hash to create valid
+                # SignatureScheme
+                if sig == (getattr(HashAlgorithm, h_alg),
+                        SignatureAlgorithm.ecdsa):
+                    return sig
             else:
                 assert self.private_key.key_type == "rsa"
                 if sig in (SignatureScheme.rsa_pss_sha256,
@@ -909,15 +934,18 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         if self.sig_version is None:
             self.sig_version = self.msg_version
         if self.msg_alg is None and self.msg_version >= (3, 3):
+            # TODO: verify that subs and xors work in TLS 1.1 and earlier
             cert_req = status.get_last_message_of_type(CertificateRequest)
             if cert_req is not None:
                 if not self.private_key:
                     # when sending malformed messages, the key may not be
                     # even loaded, so select any algorithm acceptable to server
+                    # TODO: check if it matches the certificate we sent!
                     self.msg_alg = cert_req.supported_signature_algs[0]
                 else:
                     self.msg_alg = self._select_sig_alg(cert_req)
             if self.msg_alg is None:
+                # TODO: should reflect certificate
                 self.msg_alg = (HashAlgorithm.sha1,
                                 SignatureAlgorithm.rsa)
         if self.sig_alg is None:
@@ -940,42 +968,50 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                                             status.server_random,
                                             status.prf_name)
 
-            # we don't have to handle non pkcs1 padding because the
-            # calcVerifyBytes does everything
-            scheme = SignatureScheme.toRepr(self.sig_alg)
-            hashName = None
-            if scheme is None:
-                padding = "pkcs1"
+            if self.sig_alg and self.sig_alg[1] == SignatureAlgorithm.ecdsa:
+                self.mgf1_hash = HashAlgorithm.toStr(self.sig_alg[0])
+                padding = None
+                oldPrivateKeyOp = None
+                verify_bytes = verify_bytes[:self.private_key.
+                                            private_key.curve.baselen]
             else:
-                padding = SignatureScheme.getPadding(scheme)
-                if padding == 'pss':
-                    hashName = SignatureScheme.getHash(scheme)
-                    if self.rsa_pss_salt_len is None:
-                        self.rsa_pss_salt_len = \
-                                getattr(hashlib, hashName)().digest_size
-            if not self.mgf1_hash:
-                self.mgf1_hash = hashName
+                # we don't have to handle non pkcs1 padding because the
+                # calcVerifyBytes does everything
+                scheme = SignatureScheme.toRepr(self.sig_alg)
+                hashName = None
+                if scheme is None:
+                    padding = "pkcs1"
+                else:
+                    padding = SignatureScheme.getPadding(scheme)
+                    if padding == 'pss':
+                        hashName = SignatureScheme.getHash(scheme)
+                        if self.rsa_pss_salt_len is None:
+                            self.rsa_pss_salt_len = \
+                                    getattr(hashlib, hashName)().digest_size
+                if not self.mgf1_hash:
+                    self.mgf1_hash = hashName
 
-            def _newRawPrivateKeyOp(self, m, original_rawPrivateKeyOp,
-                                    subs=None, xors=None):
-                signBytes = numberToByteArray(m, numBytes(self.n))
-                signBytes = substitute_and_xor(signBytes, subs, xors)
-                m = bytesToNumber(signBytes)
-                # RSA operations are defined only on numbers that are smaller
-                # than the modulus, so ensure the XORing or substitutions
-                # didn't break it (especially necessary for pycrypto as
-                # it raises exception in such case)
-                if m > self.n:
-                    m %= self.n
-                return original_rawPrivateKeyOp(m)
+                def _newRawPrivateKeyOp(self, m, original_rawPrivateKeyOp,
+                                        subs=None, xors=None):
+                    signBytes = numberToByteArray(m, numBytes(self.n))
+                    signBytes = substitute_and_xor(signBytes, subs, xors)
+                    m = bytesToNumber(signBytes)
+                    # RSA operations are defined only on numbers that are
+                    # smaller than the modulus, so ensure the XORing or
+                    # substitutions
+                    # didn't break it (especially necessary for pycrypto as
+                    # it raises exception in such case)
+                    if m > self.n:
+                        m %= self.n
+                    return original_rawPrivateKeyOp(m)
 
-            oldPrivateKeyOp = self.private_key._rawPrivateKeyOp
-            self.private_key._rawPrivateKeyOp = \
-                partial(_newRawPrivateKeyOp,
-                        self.private_key,
-                        original_rawPrivateKeyOp=oldPrivateKeyOp,
-                        subs=self.padding_subs,
-                        xors=self.padding_xors)
+                oldPrivateKeyOp = self.private_key._rawPrivateKeyOp
+                self.private_key._rawPrivateKeyOp = \
+                    partial(_newRawPrivateKeyOp,
+                            self.private_key,
+                            original_rawPrivateKeyOp=oldPrivateKeyOp,
+                            subs=self.padding_subs,
+                            xors=self.padding_xors)
             try:
                 signature = self.private_key.sign(verify_bytes,
                                                   padding,
@@ -984,6 +1020,24 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             finally:
                 # make sure the changes are undone even if the signing fails
                 self.private_key._rawPrivateKeyOp = oldPrivateKeyOp
+            if self.sig_alg and self.sig_alg[1] == SignatureAlgorithm.ecdsa:
+                # because ECDSA signatures are ANS.1 DER objects, they
+                # can have different lengths depending on the bit size of
+                # "r" and "s" variables
+                # given that indexing would fail if it was asked to index
+                # over an inexistent byte, we need to limit the numbers
+                signature = bytearray(signature)
+                max_byte = len(signature) - 1
+                subs = None
+                xors = None
+                if self.padding_subs:
+                    subs = dict([(min(k, max_byte), v) for k, v in
+                                 self.padding_subs.items()])
+                if self.padding_xors:
+                    xors = dict([(min(k, max_byte), v) for k, v in
+                                 self.padding_xors.items()])
+                signature = substitute_and_xor(signature, subs,
+                                               xors)
 
         cert_verify = CertificateVerify(self.msg_version)
         cert_verify.create(signature, self.msg_alg)
