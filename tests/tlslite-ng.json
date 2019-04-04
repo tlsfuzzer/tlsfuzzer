@@ -395,6 +395,11 @@
          {"name" : "test-tls13-certificate-verify.py",
           "arguments" : ["-k", "tests/clientX509Key.pem",
                          "-c", "tests/clientX509Cert.pem"]
+          },
+         {"name" : "test-tls13-ecdsa-in-certificate-verify.py",
+          "arguments" : ["-k", "tests/serverECKey.pem",
+                         "-c", "tests/serverECCert.pem"
+                         ]
           }
      ]
     },
