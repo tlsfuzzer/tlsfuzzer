@@ -31,6 +31,13 @@ as used in C{signature_algorithms} or C{signature_algorithms_cert} extensions.
 """
 
 
+ECDSA_SIG_ALL = [(getattr(HashAlgorithm, x), SignatureAlgorithm.ecdsa) for x in
+                 ["sha512", "sha384", "sha256", "sha224", "sha1"]]
+"""List of all ECDSA signature algorithms supported by tlsfuzzer,
+as used in C{signature_algorithms} or C{signature_algorithms_cert} extensions.
+"""
+
+
 def _hash_name_to_id(h_alg):
     """Try to convert hash algorithm name to HashAlgorithm TLS ID.
 
