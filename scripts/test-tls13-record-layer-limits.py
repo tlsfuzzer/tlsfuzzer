@@ -628,6 +628,13 @@ def main():
     print("Verify that too big Application Data messages, with")
     print("different ciphers or fuzzed AEAD tag in TLS 1.3 communication ")
     print("are rejected with record_overflow alert.\n")
+    print("Note that there are three limits: one for TLSCiphertext (encrypted")
+    print("records, as visible on the line), a second one for")
+    print("TLSInnertPlaintext (the data that the ciphertext decrypts to) and")
+    print("a third one for TLSPlaintext (the records that are not encrypted,")
+    print("like ClientHello).")
+    print("This test checks all three of them.\n")
+    print("See RFC 8446 Section 5.1, 5.2 and 5.4.\n")
     print("version: {0}\n".format(version))
 
     print("Test end")
