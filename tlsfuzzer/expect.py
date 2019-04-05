@@ -16,7 +16,7 @@ from tlslite.constants import ContentType, HandshakeType, CertificateType,\
         SSL2HandshakeType, CipherSuite, GroupName, AlertDescription, \
         SignatureScheme, TLS_1_3_HRR, HeartbeatMode, \
         TLS_1_1_DOWNGRADE_SENTINEL, TLS_1_2_DOWNGRADE_SENTINEL, \
-        HeartbeatMessageType
+        HeartbeatMessageType, ClientCertificateType
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
         ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus, \
@@ -113,7 +113,34 @@ class ExpectMessage(Expect):
             received = recv
 
         if not f_str:
-            f_str = "Expected: {0}, recieved: {1}"
+            f_str = "Expected: {0}, received: {1}"
+        raise AssertionError(f_str.format(expected, received))
+
+    @staticmethod
+    def _cmp_eq_list(our, recv, field_type=None, f_str=None):
+        """
+        Check if expected list of values matched received, if defined.
+
+        If our is not None, compare with recv. If they don't match, try
+        translating items in the lists with field_type.toStr() method and rise
+        AssertionError with message formatted with f_str. First parameter
+        to .format() will be list of expected values and the second one will be
+        the received one
+        """
+        if our is None or our == recv:
+            return
+
+        if field_type:
+            expected = ", ".join(field_type.toStr(i) for i in our)
+            expected = "({0})".format(expected)
+            received = ", ".join(field_type.toStr(i) for i in recv)
+            received = "({0})".format(received)
+        else:
+            expected = repr(our)
+            received = repr(recv)
+
+        if not f_str:
+            f_str = "Expected: {0}, received: {1}"
         raise AssertionError(f_str.format(expected, received))
 
 
@@ -1067,11 +1094,43 @@ class ExpectServerKeyExchange(ExpectHandshake):
 class ExpectCertificateRequest(ExpectHandshake):
     """Processing TLS Handshake protocol Certificate Request message"""
 
-    def __init__(self, sig_algs=None):
+    def __init__(self, sig_algs=None, cert_types=None,
+                 sanity_check_cert_types=True):
         msg_type = HandshakeType.certificate_request
         super(ExpectCertificateRequest, self).__init__(ContentType.handshake,
                                                        msg_type)
         self.sig_algs = sig_algs
+        self.cert_types = cert_types
+        self.sanity_check_cert_types = sanity_check_cert_types
+
+    @staticmethod
+    def _sanity_check_cert_types(cert_request):
+        """Verify that the CertificateRequest is self-consistent."""
+        for sig_alg in cert_request.supported_signature_algs:
+            if sig_alg[1] in (SignatureAlgorithm.ecdsa,
+                              SignatureAlgorithm.ed25519,
+                              SignatureAlgorithm.ed448):
+                key_type = "ECDSA"
+                cert_type = "ecdsa_sign"
+            elif sig_alg[1] == SignatureAlgorithm.rsa:
+                key_type = "RSA"
+                cert_type = "rsa_sign"
+            elif sig_alg[1] == SignatureAlgorithm.dsa:
+                key_type = "DSA"
+                cert_type = "dss_sign"
+            else:
+                sig_scheme = SignatureScheme.toRepr(sig_alg)
+                key_type = SignatureScheme.getKeyType(sig_scheme)
+                assert key_type == "rsa", \
+                    "Unsupported signature algorithm: {0}".format(sig_alg)
+                cert_type = "rsa_sign"
+
+            if getattr(ClientCertificateType, cert_type) \
+                    not in cert_request.certificate_types:
+                raise AssertionError(
+                    "CertificateRequest includes {1} signature algorithms "
+                    "({0}) but does not include {2} client "
+                    "certificate type".format(sig_alg, key_type, cert_type))
 
     def process(self, state, msg):
         """
@@ -1088,9 +1147,19 @@ class ExpectCertificateRequest(ExpectHandshake):
         cert_request = CertificateRequest(state.version)
         cert_request.parse(parser)
 
-        self._cmp_eq(self.sig_algs, cert_request.supported_signature_algs,
-                     f_str="Unexpected signature algorithms. Got: {1}, "
-                           "expected: {0}")
+        self._cmp_eq_list(self.sig_algs, cert_request.supported_signature_algs,
+                          SignatureScheme,
+                          f_str="Unexpected signature algorithms. Got: {1}, "
+                                "expected: {0}")
+
+        self._cmp_eq_list(self.cert_types, cert_request.certificate_types,
+                          ClientCertificateType,
+                          f_str="Unexpected client certificate types. Got: "
+                                "{1}, expected: {0}")
+
+        if state.version == (3, 3) and self.sanity_check_cert_types:
+            # only in TLS 1.2 do the sig algs coexist with cert types
+            self._sanity_check_cert_types(cert_request)
 
         state.handshake_messages.append(cert_request)
         state.handshake_hashes.update(msg.write())
