@@ -21,17 +21,19 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectAlert, ExpectClose, ExpectCertificateRequest, \
         ExpectApplicationData
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import sig_algs_to_ids, RSA_SIG_ALL
+from tlsfuzzer.helpers import sig_algs_to_ids, RSA_SIG_ALL, \
+        client_cert_types_to_ids
 from tlslite.extensions import SignatureAlgorithmsExtension, \
         SignatureAlgorithmsCertExtension
 from tlslite.constants import CipherSuite, AlertDescription, \
-        HashAlgorithm, SignatureAlgorithm, ExtensionType, SignatureScheme
+        HashAlgorithm, SignatureAlgorithm, ExtensionType, SignatureScheme, \
+        ClientCertificateType
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -48,6 +50,8 @@ def help_msg():
     print("                sha256+rsa sha224+rsa sha1+rsa\" by default")
     print(" -k keyfile     file with private key of client")
     print(" -c certfile    file with the certificate of client")
+    print(" -T cert_types  certificate types that the server is expected to")
+    print("                support. \"rsa_sign ecdsa_sign\" by default")
     print(" --help         this message")
 
 
@@ -75,9 +79,11 @@ def main():
                (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
                (HashAlgorithm.sha224, SignatureAlgorithm.rsa),
                (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
+    cert_types = [ClientCertificateType.rsa_sign,
+                  ClientCertificateType.ecdsa_sign]
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:s:k:c:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:s:k:c:T:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -90,6 +96,8 @@ def main():
             sys.exit(0)
         elif opt == '-s':
             sigalgs = sig_algs_to_ids(arg)
+        elif opt == '-T':
+            cert_types = client_cert_types_to_ids(arg)
         elif opt == '-k':
             text_key = open(arg, 'rb').read()
             if sys.version_info[0] >= 3:
@@ -235,6 +243,47 @@ def main():
     node.next_sibling.add_child(ExpectClose())
 
     conversations["check sigalgs in cert request"] = conversation
+
+    # verify the advertised certificate types
+    conversation = Connect(hostname, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    sigs = [SignatureScheme.rsa_pss_rsae_sha256,
+            SignatureScheme.rsa_pss_rsae_sha384,
+            SignatureScheme.rsa_pss_rsae_sha512,
+            SignatureScheme.rsa_pss_pss_sha256,
+            SignatureScheme.rsa_pss_pss_sha384,
+            SignatureScheme.rsa_pss_pss_sha512,
+            (HashAlgorithm.sha512, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha224, SignatureAlgorithm.rsa),
+            (HashAlgorithm.sha1, SignatureAlgorithm.rsa),
+            (HashAlgorithm.md5, SignatureAlgorithm.rsa)]
+    ext = {ExtensionType.signature_algorithms :
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert :
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello(version=(3, 3)))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateRequest(cert_types=cert_types))
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(CertificateGenerator())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(b"GET / HTTP/1.0\n\n"))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertDescription.close_notify))
+    node = node.add_child(ExpectClose())
+    node.next_sibling = ExpectAlert()
+    node.next_sibling.add_child(ExpectClose())
+
+    conversations["check cert types in cert request"] = conversation
 
     # run the conversation
     good = 0
