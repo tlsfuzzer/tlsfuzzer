@@ -950,6 +950,8 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                                 SignatureAlgorithm.rsa)
         if self.sig_alg is None:
             self.sig_alg = self.msg_alg
+        # TODO: check if the CertificateRequest.certificate_types matches
+        # our certificate
 
         # TODO: generate a random key if none provided
         if self.signature is not None:
