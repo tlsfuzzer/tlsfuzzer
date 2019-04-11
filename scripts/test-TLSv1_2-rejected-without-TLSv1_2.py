@@ -126,17 +126,10 @@ def main():
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
 
-    conversations["sanity"] = conversation
+    conversations["sanity - TLS 1.1 enabled"] = conversation
 
     # check TLSv1.2 ciphers without TLSv1.2 client hello
-    for cipher in [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_256_CBC_SHA256,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_GCM_SHA256,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_256_GCM_SHA384,
-                   CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA256,
-                   CipherSuite.TLS_RSA_WITH_AES_256_CBC_SHA256,
-                   CipherSuite.TLS_RSA_WITH_AES_128_GCM_SHA256,
-                   CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384]:
+    for cipher in CipherSuite.tls12Suites:
         conversation = Connect(host, port)
         node = conversation
         ciphers = [cipher]
