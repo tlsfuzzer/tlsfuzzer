@@ -28,6 +28,10 @@ def help_msg():
     print(" -h hostname    name of the host to run the test against")
     print("                localhost by default")
     print(" -p port        port number to use for connection, 4433 by default")
+    print(" --alert name   the expected alert description when no overlap")
+    print("                between groups - insufficient_security by default")
+    print("                as per RFC 7919, while there is an erratum removing")
+    print("                this restriction")
     print(" probe-name     if present, will run only the probes with given")
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
@@ -42,10 +46,11 @@ def main():
     host = "localhost"
     port = 4433
     num_limit = None
+    fatal_alert = "insufficient_security"
     run_exclude = set()
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help", "alert="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -55,6 +60,8 @@ def main():
             run_exclude.add(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '--alert':
+            fatal_alert = arg
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -329,7 +336,7 @@ def main():
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                      AlertDescription.insufficient_security))
+                                      getattr(AlertDescription, fatal_alert)))
     node.add_child(ExpectClose())
 
     conversations["no overlap between groups"] = conversation
