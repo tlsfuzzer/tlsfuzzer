@@ -37,6 +37,7 @@ from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
 import tlslite.extensions as extensions
+from tlslite.handshakehashes import HandshakeHashes
 from tlslite.keyexchange import KeyExchange
 import tlslite.utils.keyfactory as keyfactory
 from tlslite.utils.cryptomath import bytesToNumber, numberToByteArray, \
@@ -1123,6 +1124,7 @@ class TestClientMasterKeyGenerator(unittest.TestCase):
                 bytearray(0),
                 None)
 
+
 class TestCertificateGenerator(unittest.TestCase):
     def test___init__(self):
         certg = CertificateGenerator()
@@ -1139,6 +1141,26 @@ class TestCertificateGenerator(unittest.TestCase):
         self.assertIsNone(msg.certChain)
         self.assertEqual(msg.certificateType,
                          constants.CertificateType.x509)
+
+    def test_generate_with_context(self):
+        sig_algs = [constants.SignatureScheme.rsa_pss_rsae_sha512]
+        cr = messages.CertificateRequest((3, 4)).create(
+            sig_algs=sig_algs, context=b'zesty')
+        ctx = []
+        certg = CertificateGenerator(context=ctx)
+        state = ConnectionState()
+        state.version = (3, 3)
+
+        state.handshake_messages.append(cr)
+        ctx.append(cr)
+
+        msg = certg.generate(state)
+
+        self.assertIsInstance(msg, messages.Certificate)
+        self.assertIsNone(msg.certChain)
+        self.assertEqual(msg.certificateType,
+                         constants.CertificateType.x509)
+        self.assertEqual(msg.certificate_request_context, b'zesty')
 
 
 class TestCertificateVerifyGenerator(unittest.TestCase):
@@ -1299,6 +1321,50 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
         verif_bytes = KeyExchange.calcVerifyBytes(
                 (3, 4),
                 state.handshake_hashes,
+                constants.SignatureScheme.rsa_pss_rsae_sha256,
+                b'',
+                b'',
+                b'',
+                "sha256")
+
+        self.assertTrue(priv_key.verify(
+            msg.signature, verif_bytes,
+            "pss", "sha256", saltLen=32))
+
+    def test_generate_TLS_1_3_in_PHA_(self):
+        priv_key = self.priv_key
+        ctx = []
+        cert_ver_g = CertificateVerifyGenerator(priv_key, context=ctx)
+        state = ConnectionState()
+        state.version = (3, 4)
+        req = CertificateRequest((3, 4)).create([], [],
+            [(constants.HashAlgorithm.md5, constants.SignatureAlgorithm.rsa),
+             constants.SignatureScheme.rsa_pkcs1_sha1,
+             constants.SignatureScheme.rsa_pkcs1_sha224,
+             constants.SignatureScheme.rsa_pkcs1_sha256,
+             constants.SignatureScheme.rsa_pkcs1_sha384,
+             constants.SignatureScheme.rsa_pkcs1_sha512,
+             constants.SignatureScheme.rsa_pss_rsae_sha256],
+            context=b'unique PHA context, totally random')
+        state.handshake_messages = [req]
+        state.handshake_hashes.update(req.write())
+        state.key['client finished handshake hashes'] = \
+            HandshakeHashes()
+        ctx.append(req)
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertEqual(len(msg.signature), 128)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.rsa_pss_rsae_sha256)
+
+        hh = state.key['client finished handshake hashes'].copy()
+        hh.update(ctx[0].write())
+
+        verif_bytes = KeyExchange.calcVerifyBytes(
+                (3, 4),
+                hh,
                 constants.SignatureScheme.rsa_pss_rsae_sha256,
                 b'',
                 b'',
@@ -2389,6 +2455,38 @@ class TestFinishedGenerator(unittest.TestCase):
         self.assertEqual(state.key['resumption master secret'],
             bytearray(b'\x89\xd8\x00l c$\x01\x0f\xd9j\x16\xa3\xbaV\xfesT\x8b'
                       b'\xc6\xeb\x0f~\r\xbd\xb3R\xeb\xd5\x08\xa7\xbd'))
+
+    def test_generate_in_tls13_with_pha(self):
+        ctx = []
+
+        fg = FinishedGenerator((3, 4), context=ctx)
+
+        cv = messages.CertificateVerify((3, 4)).create(
+            b'abcdef', constants.SignatureScheme.rsa_pss_rsae_sha256)
+        ctx.append(cv)
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        state.cipher = constants.CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+        state.key['client handshake traffic secret'] = bytearray(32)
+        state.key['client application traffic secret'] = bytearray(b'x'*32)
+        state.key['client finished handshake hashes'] = HandshakeHashes()
+
+        ret = fg.generate(state)
+
+        print(repr(ret.verify_data))
+        self.assertEqual(ret.verify_data,
+            bytearray(b'q\xf1l\x05\x94\xb8"\xb2L7\xce\xd5\xb3\x00\xa6\r\x17*'
+                      b'\xcc\xe7\xdc\xa6\xf0c\xd7\x90I\x11}\xbfq:'))
+        state.key['handshake secret'] = bytearray(32)
+        state.key['master secret'] = bytearray(32)
+
+        fg.post_send(state)
+
+        self.assertTrue(not state.msg_sock.changeWriteState.called)
+
+        self.assertNotIn('resumption master secret', state.key)
 
     def test_generate_in_tls13_with_truncation(self):
         fg = FinishedGenerator((3, 4), trunc_start=2, trunc_end=-2)

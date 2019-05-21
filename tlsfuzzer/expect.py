@@ -1171,7 +1171,7 @@ class ExpectCertificateRequest(_ExpectExtensionsMessage):
     """Processing TLS Handshake protocol Certificate Request message."""
 
     def __init__(self, sig_algs=None, cert_types=None,
-                 sanity_check_cert_types=True, extensions=None):
+                 sanity_check_cert_types=True, extensions=None, context=None):
         """
         Set expected parameters for the CertificateRequest message.
 
@@ -1196,6 +1196,7 @@ class ExpectCertificateRequest(_ExpectExtensionsMessage):
                                                        extensions)
         self.sig_algs = sig_algs
         self.cert_types = cert_types
+        self.context = context
         self.sanity_check_cert_types = sanity_check_cert_types
         if sig_algs is not None and extensions is not None:
             raise ValueError("Can't set sig_algs and extensions at the same "
@@ -1301,6 +1302,8 @@ class ExpectCertificateRequest(_ExpectExtensionsMessage):
         if state.version >= (3, 4):
             self._compare_extensions(cert_request)
             self._process_extensions(state, cert_request)
+            if self.context is not None:
+                self.context.append(cert_request)
 
         state.handshake_messages.append(cert_request)
         state.handshake_hashes.update(msg.write())

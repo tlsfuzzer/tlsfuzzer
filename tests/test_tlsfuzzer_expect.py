@@ -3539,6 +3539,22 @@ class TestExpectCertificateRequest(unittest.TestCase):
         with self.assertRaises(ValueError):
             exp.process(state, msg)
 
+    def test_process_with_context_set(self):
+        ext = SignatureAlgorithmsExtension().create(
+            [SignatureScheme.rsa_pss_rsae_sha256])
+
+        state = ConnectionState()
+        state.version = (3, 4)
+        ctx = []
+        exp = ExpectCertificateRequest(context=ctx)
+
+        msg = CertificateRequest((3, 4))
+        msg.create(extensions=[ext])
+
+        exp.process(state, msg)
+
+        self.assertEqual(ctx, [msg])
+
 
 class TestExpectHeartbeat(unittest.TestCase):
     def test___init__(self):

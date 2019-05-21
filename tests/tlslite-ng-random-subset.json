@@ -569,6 +569,21 @@
      ]
     },
     {"server_command": ["python", "-u", "{command}", "server",
+                 "-k", "tests/serverX509Key.pem",
+                 "-c", "tests/serverX509Cert.pem",
+                 "--request-pha",
+                 "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "tests" : [
+         {"name" : "test-tls13-post-handshake-auth.py",
+          "arguments" : ["-k", "tests/clientX509Key.pem",
+                         "-c", "tests/clientX509Cert.pem"]
+         }
+     ]
+    },
+    {"server_command": ["python", "-u", "{command}", "server",
                 "-c", "tests/serverECCert.pem",
                 "-k", "tests/serverECKey.pem",
                 "-c", "tests/serverP384ECCert.pem",
