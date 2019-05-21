@@ -47,6 +47,8 @@ def help_msg():
     print("                (\"sanity\" tests are always executed)")
     print(" -k keyfile     file with private key")
     print(" -c certfile    file with certificate of client")
+    print(" --pha-as-reply expect post-handshake auth request as a reply to")
+    print("                the HTTP GET instead of right after handshake")
     print(" --help         this message")
 
 
@@ -55,9 +57,10 @@ def main():
     port = 4433
     num_limit = None
     run_exclude = set()
+    pha_as_reply = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:k:c:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:k:c:", ["help", "pha-as-reply"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -70,6 +73,8 @@ def main():
         elif opt == '--help':
             help_msg()
             sys.exit(0)
+        elif opt == '--pha-as-reply':
+            pha_as_reply = True
         elif opt == '-k':
             text_key = open(arg, 'rb').read()
             if sys.version_info[0] >= 3:
@@ -165,9 +170,12 @@ def main():
     node = node.add_child(ExpectCertificateVerify())
     node = node.add_child(ExpectFinished())
     node = node.add_child(FinishedGenerator())
+    if pha_as_reply:
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET /secret HTTP/1.0\r\n\r\n")))
 
     # This message is optional and may show up 0 to many times
-    cycle = ExpectNewSessionTicket()
+    cycle = ExpectNewSessionTicket(note="first set")
     node = node.add_child(cycle)
     node.add_child(cycle)
 
@@ -176,12 +184,13 @@ def main():
     node = node.next_sibling.add_child(CertificateGenerator(X509CertChain([cert]), context=context))
     node = node.add_child(CertificateVerifyGenerator(private_key, context=context))
     node = node.add_child(FinishedGenerator(context=context))
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+    if not pha_as_reply:
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET /secret HTTP/1.0\r\n\r\n")))
 
     # just like after the first handshake, after PHA, the NST can be sent
     # multiple times
-    cycle = ExpectNewSessionTicket()
+    cycle = ExpectNewSessionTicket(note="second set")
     node = node.add_child(cycle)
     node.add_child(cycle)
 
@@ -223,6 +232,9 @@ def main():
     node = node.add_child(ExpectCertificateVerify())
     node = node.add_child(ExpectFinished())
     node = node.add_child(FinishedGenerator())
+    if pha_as_reply:
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET /secret HTTP/1.0\r\n\r\n")))
 
     # This message is optional and may show up 0 to many times
     cycle = ExpectNewSessionTicket()
