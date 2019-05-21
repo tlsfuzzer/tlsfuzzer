@@ -339,6 +339,11 @@
          {"name" : "test-tls13-nociphers.py"},
          {"name" : "test-tls13-obsolete-curves.py"},
          {"name" : "test-tls13-pkcs-signature.py"},
+         {"name" : "test-tls13-post-handshake-auth.py",
+          "arguments" : ["-k", "tests/clientX509Key.pem",
+                         "-c", "tests/clientX509Cert.pem",
+                         "--pha-as-reply"]
+          },
          {"name" : "test-tls13-record-layer-limits.py"},
          {"name" : "test-tls13-record-padding.py"},
          {"name" : "test-tls13-rsa-signatures.py"},
