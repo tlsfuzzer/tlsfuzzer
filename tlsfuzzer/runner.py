@@ -23,6 +23,16 @@ class ConnectionState(object):
     @ivar handshake_hashes: all handhsake messages hashed
 
     @ivar handshake_messages: all hadshake messages exchanged between peers
+
+    @ivar key: various computed cryptographic keys, hashes and secrets related
+        to handshake and record layer
+
+        "premaster_secret" - premaster secret from TLS 1.2 and earlier
+
+        "client finished handshake hashes" - HandshakeHash object that has the
+        handshake hashes of last handshake (the only Handshake in TLS 1.3)
+        up to and including the client Finished; used for post-handshake
+        authentication
     """
 
     def __init__(self):
