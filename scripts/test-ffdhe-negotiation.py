@@ -345,6 +345,7 @@ def main():
     good = 0
     bad = 0
     failed = []
+    num_limit = num_limit or len(conversations)
 
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throughout
