@@ -5,7 +5,7 @@ from __future__ import print_function
 import traceback
 import sys
 import getopt
-from itertools import chain, islice
+from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
@@ -202,12 +202,10 @@ def main():
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running through
     sanity_tests = [('sanity', conversations['sanity'])]
-    ordered_tests = chain(sanity_tests,
-                          islice(filter(lambda x: x[0] != 'sanity',
-                                        conversations.items()), num_limit),
-                          sanity_tests)
+    regular_tests = [(k, v) for k, v in conversations.items() if k != 'sanity']
+    sampled_tests = sample(regular_tests, min(num_limit, len(regular_tests)))
 
-    for c_name, c_test in ordered_tests:
+    for c_name, c_test in sanity_tests + sampled_tests + sanity_tests:
         if run_only and c_name not in run_only or c_name in run_exclude:
             continue
         print("{0} ...".format(c_name))
