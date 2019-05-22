@@ -126,7 +126,7 @@ def main():
         num_limit = len(conversations)
 
     # make sure that sanity test is run first and last
-    # to verify that server was running and kept running throught
+    # to verify that server was running and kept running throughout
     sanity_test = ('sanity', conversations['sanity'])
     ordered_tests = chain([sanity_test],
                           islice(filter(lambda x: x[0] != 'sanity',
