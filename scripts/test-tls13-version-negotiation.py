@@ -417,11 +417,11 @@ def main():
 
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throughout
-    sanity_test = ('sanity', conversations['sanity'])
-    ordered_tests = chain([sanity_test],
+    sanity_tests = [('sanity', conversations['sanity'])]
+    ordered_tests = chain(sanity_tests,
                           islice(filter(lambda x: x[0] != 'sanity',
                                         conversations.items()), num_limit),
-                          [sanity_test])
+                          sanity_tests)
 
     for c_name, c_test in ordered_tests:
         if run_only and c_name not in run_only or c_name in run_exclude:
