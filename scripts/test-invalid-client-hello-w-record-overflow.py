@@ -270,7 +270,7 @@ def main():
     sanity_test = ('sanity', conversations['sanity'])
     ordered_tests = chain([sanity_test],
                           islice(filter(lambda x: x[0] != 'sanity',
-                                 conversations.items()), num_limit),
+                                        conversations.items()), num_limit),
                           [sanity_test])
 
     for c_name, c_test in ordered_tests:
