@@ -80,10 +80,8 @@ def main():
     good = 0
     bad = 0
 
-    for conversation_name in conversations:
-        conversation = conversations[conversation_name]
-
-        print(conversation_name + "...")
+    for conversation_name, conversation in conversations.items():
+        print("{0} ...".format(conversation_name))
 
         runner = Runner(conversation)
 
