@@ -4,6 +4,7 @@
 
 from __future__ import print_function
 import traceback
+from random import sample
 import sys
 import getopt
 
@@ -122,7 +123,9 @@ def main():
     bad = 0
     failed = []
 
-    for conversation_name, conversation in conversations.items():
+    shuffled_tests = sample(list(conversations.items()), len(conversations))
+
+    for conversation_name, conversation in shuffled_tests:
         if run_only and conversation_name not in run_only:
             continue
         if conversation_name in run_exclude:
