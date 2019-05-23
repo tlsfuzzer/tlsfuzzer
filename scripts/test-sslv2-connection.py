@@ -4,6 +4,7 @@
 """Test if server supports any of the SSLv2 ciphers"""
 
 from __future__ import print_function
+from random import sample
 import traceback
 import sys
 import getopt
@@ -81,7 +82,9 @@ def main():
     good = 0
     bad = 0
 
-    for conversation_name, conversation in conversations.items():
+    shuffled_tests = sample(list(conversations.items()), len(conversations))
+
+    for conversation_name, conversation in shuffled_tests:
         print("{0} ...".format(conversation_name))
 
         runner = Runner(conversation)

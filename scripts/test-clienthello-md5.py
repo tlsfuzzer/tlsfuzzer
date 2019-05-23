@@ -7,6 +7,7 @@ extension in ClientHello
 
 from __future__ import print_function
 import traceback
+from random import sample
 import sys
 import getopt
 import re
@@ -187,10 +188,9 @@ def main():
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throughout
     sanity_tests = [('sanity', conversations['sanity'])]
-    ordered_tests = chain(sanity_tests,
-                          filter(lambda x: x[0] != 'sanity',
-                                 conversations.items()),
-                          sanity_tests)
+    regular_tests = [(k, v) for k, v in conversations.items() if k != 'sanity']
+    shuffled_tests = sample(regular_tests, len(regular_tests))
+    ordered_tests = chain(sanity_tests, shuffled_tests, sanity_tests)
 
     for c_name, c_test in ordered_tests:
         if run_only and c_name not in run_only or c_name in run_exclude:

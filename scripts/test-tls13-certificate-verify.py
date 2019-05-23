@@ -7,7 +7,8 @@ import traceback
 import sys
 import getopt
 import re
-from itertools import chain, islice
+from itertools import chain
+from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
@@ -561,11 +562,12 @@ def main():
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throughout
     sanity_tests = [('sanity', conversations['sanity'])]
-    ordered_tests = chain(sanity_tests,
-                          filter(lambda x: x[0] != 'sanity',
-                                 conversations.items()),
-                          islice(conversations_long.items(), num_limit),
-                          sanity_tests)
+    short_tests = [(k, v) for k, v in conversations.items() if k != 'sanity']
+    long_tests = list(conversations_long.items())
+    long_sampled_tests = sample(long_tests, min(num_limit, len(long_tests)))
+    regular_tests = sample(long_sampled_tests + short_tests,
+                           len(long_sampled_tests) + len(short_tests))
+    ordered_tests = chain(sanity_tests, regular_tests, sanity_tests)
 
     for c_name, c_test in ordered_tests:
         if run_only and c_name not in run_only or c_name in run_exclude:

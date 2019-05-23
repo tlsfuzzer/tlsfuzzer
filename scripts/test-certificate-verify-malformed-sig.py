@@ -6,7 +6,8 @@ from __future__ import print_function
 import traceback
 import sys
 import getopt
-from itertools import chain, islice
+from itertools import chain
+from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
@@ -224,10 +225,10 @@ def main():
         sanity_test_name = 'sanity - {0}'.format(hash_alg)
         sanity_tests.append((sanity_test_name, conversations[sanity_test_name]))
 
-    ordered_tests = chain(sanity_tests,
-                          islice(filter(lambda x: not 'sanity' in x[0],
-                                        conversations.items()), num_limit),
-                          sanity_tests)
+    regular_tests = [(k, v) for k, v in conversations.items()
+                     if not k.startswith('sanity')]
+    sampled_tests = sample(regular_tests, min(num_limit, len(regular_tests)))
+    ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
 
     for c_name, c_test in ordered_tests:
         if run_only and c_name not in run_only or c_name in run_exclude:
