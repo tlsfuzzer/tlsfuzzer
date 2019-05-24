@@ -7,6 +7,7 @@ import traceback
 import sys
 import getopt
 import re
+from random import sample
 from itertools import chain
 
 from tlsfuzzer.runner import Runner
@@ -174,11 +175,10 @@ def main():
 
     print("Certificate Verify test version 4")
 
-    sanity_test = ('sanity', conversations['sanity'])
-    ordered_tests = chain([sanity_test],
-                          filter(lambda x: x[0] != 'sanity',
-                                 conversations.items()),
-                          [sanity_test])
+    sanity_tests = [('sanity', conversations['sanity'])]
+    regular_tests = [(k, v) for k, v in conversations.items() if k != 'sanity']
+    shuffled_tests = sample(regular_tests, len(regular_tests))
+    ordered_tests = chain(sanity_tests, shuffled_tests, sanity_tests)
 
     for c_name, c_test in ordered_tests:
         if run_only and c_name not in run_only or c_name in run_exclude:

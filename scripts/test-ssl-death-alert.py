@@ -4,6 +4,7 @@
 
 from __future__ import print_function
 import traceback
+from random import sample
 import sys
 import getopt
 
@@ -122,12 +123,16 @@ def main():
     bad = 0
     failed = []
 
-    for c_name, c_test in conversations.items():
-        if run_only and c_name not in run_only or c_name in run_exclude:
-            continue
-        print("{0} ...".format(c_name))
+    shuffled_tests = sample(list(conversations.items()), len(conversations))
 
-        runner = Runner(c_test)
+    for conversation_name, conversation in shuffled_tests:
+        if run_only and conversation_name not in run_only:
+            continue
+        if conversation_name in run_exclude:
+            continue
+        print("{0} ...".format(conversation_name))
+
+        runner = Runner(conversation)
 
         res = True
         try:
@@ -142,7 +147,7 @@ def main():
             print("OK\n")
         else:
             bad += 1
-            failed.append(c_name)
+            failed.append(conversation_name)
 
     print("Test for the OpenSSL Death Alert (CVE-2016-8610) vulnerability")
     print("Checks if the server will accept arbitrary number of warning level")
