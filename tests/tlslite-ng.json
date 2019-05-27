@@ -311,6 +311,7 @@
          {"name" : "test-tls13-dhe-shared-secret-padding.py"},
          {"name" : "test-tls13-ecdhe-curves.py"},
          {"name" : "test-tls13-empty-alert.py"},
+         {"name" : "test-tls13-ffdhe-groups.py"},
          {"name" : "test-tls13-ffdhe-sanity.py"},
          {"name" : "test-tls13-finished.py"},
          {"name" : "test-tls13-finished-plaintext.py"},
