@@ -27,10 +27,10 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
-from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL
+from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL, key_share_ext_gen
 
 
-version = 1
+version = 2
 
 
 def help_msg():
@@ -408,6 +408,54 @@ def main():
     node = node.add_child(ExpectAlert())
     conversations["SSL 2.0 ClientHello with TLS 1.3 version and TLS 1.3 only ciphersuites"] = conversation
 
+    # verify that the server does not support any of the draft implementations
+    for l_ver in range(256):
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                   CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        ext = {}
+        groups = [GroupName.secp256r1]
+        ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+            .create([(127, l_ver), (3, 3)])
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                    SignatureScheme.rsa_pss_pss_sha256]
+        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+            .create(sig_algs)
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+            .create(RSA_SIG_ALL)
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+
+        sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                    SignatureScheme.rsa_pss_pss_sha256]
+        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+            .create(sig_algs)
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+            .create(RSA_SIG_ALL)
+        # verify that there is no supported versions in server hello
+        node = node.add_child(ExpectServerHello(version=(3, 3),
+                              extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        node = node.add_child(ExpectApplicationData())
+        node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                             AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert(AlertLevel.warning,
+                                          AlertDescription.close_notify))
+        node.next_sibling = ExpectClose()
+        conversations["fallback from TLS 1.3-draft{0} to 1.2"
+                      .format(l_ver)] = conversation
 
     # run the conversation
     good = 0
