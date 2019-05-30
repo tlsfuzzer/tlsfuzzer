@@ -167,7 +167,7 @@ def main():
 
         node = node.add_child(ExpectAlert())
         node.next_sibling = ExpectClose()
-        conversations["check connection with {}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations["check connection with {0}".format(CipherSuite.ietfNames[cipher])] = conversation
 
 
         # fuzz the tag (16 last bytes)
@@ -210,7 +210,7 @@ def main():
                 node.next_sibling = ExpectAlert(AlertLevel.fatal, AlertDescription.bad_record_mac)
                 node = node.next_sibling.add_child(ExpectClose())
 
-                conversations["check connection with {} fuzzed".format(CipherSuite.ietfNames[cipher])] = conversation
+                conversations["check connection with {0} fuzzed".format(CipherSuite.ietfNames[cipher])] = conversation
 
     # run the conversation
     good = 0
