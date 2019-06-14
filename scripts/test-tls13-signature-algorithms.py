@@ -333,10 +333,16 @@ def main():
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     sig_algs = []
-    for sig_alg in ['ecdsa', 'dsa']:
+    for sig_alg in ['ecdsa', 'dsa', 'rsa']:
         sig_algs += [(getattr(HashAlgorithm, x), getattr(SignatureAlgorithm, sig_alg))\
                       for x in ['md5', 'sha1', 'sha224', 'sha256', 'sha384', 'sha512']]
-    sig_algs += RSA_SIG_ALL
+    sig_algs += [(8, 7), (8, 8)]
+    sig_algs += [SignatureScheme.rsa_pss_pss_sha256,
+                 SignatureScheme.rsa_pss_pss_sha384,
+                 SignatureScheme.rsa_pss_pss_sha512,
+                 SignatureScheme.rsa_pss_rsae_sha256,
+                 SignatureScheme.rsa_pss_rsae_sha384,
+                 SignatureScheme.rsa_pss_rsae_sha512]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\

@@ -522,6 +522,13 @@ def main():
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     sig_algs = []
+    sig_algs += [SignatureScheme.rsa_pss_rsae_sha256,
+                 SignatureScheme.rsa_pss_rsae_sha384,
+                 SignatureScheme.rsa_pss_rsae_sha512,
+                 SignatureScheme.rsa_pss_pss_sha256,
+                 SignatureScheme.rsa_pss_pss_sha384,
+                 SignatureScheme.rsa_pss_pss_sha512] 
+    sig_algs += [(8, 7), (8, 8)]
     for sig_alg in ['ecdsa', 'dsa', 'rsa']:
         sig_algs += [(getattr(HashAlgorithm, x), getattr(SignatureAlgorithm, sig_alg))\
                       for x in ['md5', 'sha1', 'sha224', 'sha256', 'sha384', 'sha512']]
