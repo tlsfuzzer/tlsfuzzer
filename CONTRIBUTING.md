@@ -3,7 +3,7 @@
 ## Preparation for contributing
 
 * You need a [GitHub account](https://github.com/signup/free)
-* Submit an [issue ticket](https://github.com/tomato42/tlslite-ng/issues) for
+* Submit an [issue ticket](https://github.com/tomato42/tlsfuzzer/issues) for
   your issue if there is none yet
   * Describe the issue and include steps to reproduce if it's a bug, mention
     the earliest version that you know is affected and the version you're using.
