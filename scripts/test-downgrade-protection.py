@@ -16,7 +16,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
         ExpectEncryptedExtensions, ExpectCertificateVerify, \
-        ExpectNewSessionTicket
+        ExpectNewSessionTicket, ExpectServerKeyExchange
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme
@@ -25,7 +25,7 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL, \
-        protocol_name_to_tuple
+        protocol_name_to_tuple, RSA_SIG_ALL
 
 
 version = 1
@@ -84,11 +84,11 @@ def main():
     # normal connection
     conversation = Connect(host, port)
     node = conversation
+    groups = [GroupName.secp256r1]
     if srv_max_prot == None or srv_max_prot == (3, 4):
         ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {}
-        groups = [GroupName.secp256r1]
         key_shares = []
         for group in groups:
             key_shares.append(key_share_gen(group))
@@ -127,11 +127,21 @@ def main():
         node.next_sibling = ExpectClose()
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        node = node.add_child(ClientHelloGenerator(ciphers))
+        ext = {}
+        ext[ExtensionType.supported_groups] = \
+            SupportedGroupsExtension().create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerKeyExchange())
+        ske = node
         node = node.add_child(ExpectServerHelloDone())
+        shd = node
+        ske.next_sibling = shd
         node = node.add_child(ClientKeyExchangeGenerator())
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
@@ -154,12 +164,24 @@ def main():
         conversation = Connect(host, port)
         node = conversation
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        node = node.add_child(ClientHelloGenerator(ciphers, version=prot))
+        ext = {}
+        ext[ExtensionType.supported_groups] = \
+            SupportedGroupsExtension().create(groups)
+        if prot == (3, 3):
+            ext[ExtensionType.signature_algorithms] = \
+                SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        node = node.add_child(ClientHelloGenerator(ciphers, version=prot,
+                                                   extensions=ext))
         node = node.add_child(ExpectServerHello(
             server_max_protocol=srv_max_prot))
         node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerKeyExchange())
+        ske = node
         node = node.add_child(ExpectServerHelloDone())
+        shd = node
+        ske.next_sibling = shd
         node = node.add_child(ClientKeyExchangeGenerator())
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
