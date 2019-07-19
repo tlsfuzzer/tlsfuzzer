@@ -454,7 +454,8 @@
          {"name" : "test-fallback-scsv.py"},
          {"name" : "test-fallback-scsv.py",
           "arguments" : ["-d"]
-         }
+         },
+         {"name" : "test-tls13-non-support.py"}
      ]
     }
 ]
