@@ -426,7 +426,8 @@
          {"name" : "test-downgrade-protection.py",
           "comments": "expects server to support TLSv1.2 by default",
           "arguments" : ["--server-max-protocol=TLSv1.2"]
-         }
+         },
+         {"name" : "test-tls13-non-support.py"}
      ]
     }
 ]
