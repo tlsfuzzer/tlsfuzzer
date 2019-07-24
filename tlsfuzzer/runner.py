@@ -202,7 +202,6 @@ class Runner(object):
                                 isinstance(node, ExpectNoMessage):
                             # for ExpectNoMessage we have nothing to do
                             # but to continue
-                            self.state.msg_sock.sock.settimeout(old_timeout)
                             node = node.child
                             continue
                         close_node = next((n for n in node.get_all_siblings()
@@ -223,6 +222,9 @@ class Runner(object):
                             else:
                                 raise AssertionError(
                                     "Unexpected closure from peer")
+                    finally:
+                        if isinstance(node, ExpectNoMessage):
+                            self.state.msg_sock.sock.settimeout(old_timeout)
                     msg = Message(header.type, parser.bytes)
                     old_node = node
 
