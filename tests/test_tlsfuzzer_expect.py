@@ -30,7 +30,7 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         hrr_ext_handler_cookie, ExpectHelloRetryRequest, \
         gen_srv_ext_handler_psk, srv_ext_handler_supp_groups, \
         srv_ext_handler_heartbeat, gen_srv_ext_handler_record_limit, \
-        srv_ext_handler_status_request, ExpectHeartbeat, \
+        srv_ext_handler_status_request, ExpectHeartbeat, ExpectHelloRequest, \
         clnt_ext_handler_status_request, clnt_ext_handler_sig_algs, \
         ExpectKeyUpdate
 
@@ -45,7 +45,7 @@ from tlslite.messages import Message, ServerHello, CertificateRequest, \
         ClientHello, Certificate, ServerHello2, ServerFinished, \
         ServerKeyExchange, CertificateStatus, CertificateVerify, \
         Finished, EncryptedExtensions, NewSessionTicket, Heartbeat, \
-        KeyUpdate
+        KeyUpdate, HelloRequest
 from tlslite.extensions import SNIExtension, TLSExtension, \
         SupportedGroupsExtension, ALPNExtension, ECPointFormatsExtension, \
         NPNExtension, ServerKeyShareExtension, ClientKeyShareExtension, \
@@ -3676,3 +3676,27 @@ class TestExpectKeyUpdate(unittest.TestCase):
 
         with self.assertRaises(AssertionError):
             exp.process(None, ku)
+
+
+class TestExpectHelloRequest(unittest.TestCase):
+    def setUp(self):
+        self.exp = ExpectHelloRequest()
+
+    def test___init__(self):
+        self.assertIsNotNone(self.exp)
+        self.assertIsInstance(self.exp, ExpectHelloRequest)
+        self.assertTrue(self.exp.is_expect())
+        self.assertFalse(self.exp.is_generator())
+        self.assertFalse(self.exp.is_command())
+
+    def test_test_note_in_init(self):
+        exp = ExpectHelloRequest("first HelloRequest")
+
+        self.assertEqual(exp.note, "first HelloRequest")
+        self.assertEqual(repr(exp),
+                         "ExpectHelloRequest(note='first HelloRequest')")
+
+    def test_process_with_defaults(self):
+        hr = HelloRequest().create()
+
+        self.exp.process(None, hr)
