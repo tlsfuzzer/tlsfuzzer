@@ -17,11 +17,15 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectCertificateRequest, \
-        ExpectApplicationData
+        ExpectApplicationData, ExpectServerKeyExchange
 from tlsfuzzer.fuzzers import structured_random_iter, StructuredRandom
 
-from tlslite.constants import CipherSuite, AlertLevel, AlertDescription
+from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
+        GroupName, ExtensionType
+from tlslite.extensions import SupportedGroupsExtension, \
+        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
+from tlsfuzzer.helpers import RSA_SIG_ALL
 
 
 version = 2
@@ -41,6 +45,7 @@ def help_msg():
     print(" -n num         only run `num` random tests instead of a full set.")
     print("                1024 by default")
     print("                (\"sanity\" tests are always executed)")
+    print(" -d             negotiate (EC)DHE instead of RSA key exchange")
     print(" --help         this message")
 
 
@@ -51,9 +56,10 @@ def main():
     num_limit = 1024
     rand_limit = 4096
     run_exclude = set()
+    dhe = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help", "random="])
+    opts, args = getopt.getopt(argv, "h:p:e:n:d", ["help", "random="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -65,6 +71,8 @@ def main():
             num_limit = int(arg)
         elif opt == '--random':
             rand_limit = int(arg)
+        elif opt == '-d':
+            dhe = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -84,11 +92,28 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers))
+    if dhe:
+        ext = {}
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ext = None
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectCertificateRequest())
     fork = node
     node = node.add_child(ExpectServerHelloDone())
@@ -127,11 +152,28 @@ def main():
     for data in chain(mono, rand):
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        node = node.add_child(ClientHelloGenerator(ciphers))
+        if dhe:
+            ext = {}
+            groups = [GroupName.secp256r1,
+                      GroupName.ffdhe2048]
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                .create(groups)
+            ext[ExtensionType.signature_algorithms] = \
+                SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+            ext[ExtensionType.signature_algorithms_cert] = \
+                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+            ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        else:
+            ext = None
+            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
         node = node.add_child(ExpectCertificateRequest())
         fork = node
         node = node.add_child(ExpectServerHelloDone())
