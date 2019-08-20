@@ -28,7 +28,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import RSA_SIG_ALL
 
 
-version = 2
+version = 3
 
 
 def help_msg():
@@ -46,6 +46,16 @@ def help_msg():
     print("                1024 by default")
     print("                (\"sanity\" tests are always executed)")
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
+    print(" -C cipher      specify cipher for connection. Use integer value")
+    print("                or IETF name. Integer must be prefixed with '0x'")
+    print("                if it is hexadecimal. By default uses")
+    print("                TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA with -d option")
+    print("                RSA_WITH_AES_128_CBC_SHA without -d option.")
+    print("                See tlslite.constants.CipherSuite for specified")
+    print("                ciphers")
+    print(" --1/n-1        Expect the 1/n-1 record splitting for BEAST")
+    print("                mitigation (should not be used with TLS 1.1 or up)")
+    print(" --0/n          Expect the 0/n record splitting for BEAST")
     print(" --help         this message")
 
 
@@ -57,9 +67,12 @@ def main():
     rand_limit = 4096
     run_exclude = set()
     dhe = False
+    cipher = None
+    splitting = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:d", ["help", "random="])
+    opts, args = getopt.getopt(argv, "h:p:e:n:dC:", ["help", "random=",
+                                                    "1/n-1", "0/n"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -73,11 +86,40 @@ def main():
             rand_limit = int(arg)
         elif opt == '-d':
             dhe = True
+        elif opt == '--1/n-1':
+            splitting = 1
+        elif opt == '--0/n':
+            splitting = 0
+        elif opt == '-C':
+            if arg[:2] == '0x':
+                cipher = int(arg, 16)
+            else:
+                try:
+                    cipher = getattr(CipherSuite, arg)
+                except AttributeError:
+                    cipher = int(arg)
         elif opt == '--help':
             help_msg()
             sys.exit(0)
         else:
             raise ValueError("Unknown option: {0}".format(opt))
+
+    if dhe and cipher is not None:
+        raise ValueError("-C and -d are mutually exclusive")
+    if cipher is None:
+        if dhe:
+            cipher = CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA
+        else:
+            cipher = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA
+
+    block_size = 16
+    if cipher in CipherSuite.tripleDESSuites:
+        block_size = 8
+
+    if cipher in CipherSuite.ecdhAllSuites or cipher in CipherSuite.dhAllSuites:
+        dhe = True
+    else:
+        dhe = False
 
     if args:
         run_only = set(args)
@@ -102,12 +144,11 @@ def main():
             SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
         ext[ExtensionType.signature_algorithms_cert] = \
             SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+        ciphers = [cipher,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     else:
         ext = None
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+        ciphers = [cipher,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
@@ -131,6 +172,8 @@ def main():
     node = node.add_child(ExpectFinished())
     node = node.add_child(
         ApplicationDataGenerator(b"GET / HTTP/1.0\r\n\r\n"))
+    if splitting is not None:
+        node = node.add_child(ExpectApplicationData(size=splitting))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -143,11 +186,12 @@ def main():
 
     # test all combinations of lengths and values for plaintexts up to 256
     # bytes long uniform content (where every byte has the same value)
-    mono = (StructuredRandom([(length, value)]) for length in range(16, 257, 16)
+    mono = (StructuredRandom([(length, value)]) for length in
+            range(block_size, 257, block_size)
             for value in range(256))
     rand = structured_random_iter(rand_limit,
-                                  min_length=16, max_length=2**14,
-                                  step=16)
+                                  min_length=block_size, max_length=2**14,
+                                  step=block_size)
     # block size is 16 bytes for AES_128, 2**14 is the TLS protocol max
     for data in chain(mono, rand):
         conversation = Connect(host, port)
@@ -162,12 +206,11 @@ def main():
                 SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
             ext[ExtensionType.signature_algorithms_cert] = \
                 SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-            ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                       CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+            ciphers = [cipher,
                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         else:
             ext = None
-            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+            ciphers = [cipher,
                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
@@ -236,7 +279,12 @@ def main():
 
     print("Tester for de-padding and MAC verification\n")
     print("Generates plaintexts that can be incorrectly handled by de-padding")
-    print("algorithms and verifies that they are handled correctly\n")
+    print("and MAC verification algorithms and verifies that they are handled")
+    print("correctly and consistently.\n")
+    print("Should be executed with multiple ciphers (especially regarding the")
+    print("HMAC used) and TLS versions. Note: test assumes CBC mode ciphers.\n")
+    print("TLS 1.0 servers should require enabling BEAST workaround, see")
+    print("help message.\n")
     print("version: {0}\n".format(version))
 
     print("Test end")
