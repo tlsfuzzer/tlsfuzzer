@@ -70,6 +70,8 @@
           "exp_pass": false
          },
          {"name" : "test-conversation.py"},
+         {"name" : "test-conversation.py",
+          "arguments" : ["-d"]},
          {"name" : "test-cve-2016-2107.py"},
          {"name" : "test-cve-2016-6309.py"},
          {"name" : "test-cve-2016-7054.py",
