@@ -17,11 +17,18 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectCertificateRequest, \
-        ExpectApplicationData
-from tlsfuzzer.fuzzers import structured_random_iter
+        ExpectApplicationData, ExpectServerKeyExchange
+from tlsfuzzer.fuzzers import structured_random_iter, StructuredRandom
 
-from tlslite.constants import CipherSuite, AlertLevel, AlertDescription
+from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
+        GroupName, ExtensionType
+from tlslite.extensions import SupportedGroupsExtension, \
+        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
+from tlsfuzzer.helpers import RSA_SIG_ALL
+
+
+version = 2
 
 
 def help_msg():
@@ -33,8 +40,12 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
-    print(" -n num         only run `num` random tests instead of a full set")
-    print("                (excluding \"sanity\" tests)")
+    print(" --random count generate `count` random tests in addition to the")
+    print("                basic 4096 pre-programmed ones. 4096 by default")
+    print(" -n num         only run `num` random tests instead of a full set.")
+    print("                1024 by default")
+    print("                (\"sanity\" tests are always executed)")
+    print(" -d             negotiate (EC)DHE instead of RSA key exchange")
     print(" --help         this message")
 
 
@@ -42,11 +53,13 @@ def main():
     """check if incorrect padding is rejected by server"""
     host = "localhost"
     port = 4433
-    num_limit = 800
+    num_limit = 1024
+    rand_limit = 4096
     run_exclude = set()
+    dhe = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:d", ["help", "random="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -56,6 +69,10 @@ def main():
             run_exclude.add(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '--random':
+            rand_limit = int(arg)
+        elif opt == '-d':
+            dhe = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -66,16 +83,37 @@ def main():
         run_only = set(args)
     else:
         run_only = None
+    # if we are to execute only some tests, we need to not filter the
+    # static ones
+    if run_only:
+        num_limit = None
 
     conversations = {}
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers))
+    if dhe:
+        ext = {}
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ext = None
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectCertificateRequest())
     fork = node
     node = node.add_child(ExpectServerHelloDone())
@@ -103,17 +141,39 @@ def main():
     conversations["sanity"] = \
             conversation
 
+    # test all combinations of lengths and values for plaintexts up to 256
+    # bytes long uniform content (where every byte has the same value)
+    mono = (StructuredRandom([(length, value)]) for length in range(16, 257, 16)
+            for value in range(256))
+    rand = structured_random_iter(rand_limit,
+                                  min_length=16, max_length=2**14,
+                                  step=16)
     # block size is 16 bytes for AES_128, 2**14 is the TLS protocol max
-    for data in structured_random_iter(num_limit, min_length=16,
-                                       max_length=2**14,
-                                       step=16):
+    for data in chain(mono, rand):
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        node = node.add_child(ClientHelloGenerator(ciphers))
+        if dhe:
+            ext = {}
+            groups = [GroupName.secp256r1,
+                      GroupName.ffdhe2048]
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                .create(groups)
+            ext[ExtensionType.signature_algorithms] = \
+                SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+            ext[ExtensionType.signature_algorithms_cert] = \
+                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+            ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        else:
+            ext = None
+            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
         node = node.add_child(ExpectCertificateRequest())
         fork = node
         node = node.add_child(ExpectServerHelloDone())
@@ -173,6 +233,11 @@ def main():
         else:
             bad += 1
             failed.append(c_name)
+
+    print("Tester for de-padding and MAC verification\n")
+    print("Generates plaintexts that can be incorrectly handled by de-padding")
+    print("algorithms and verifies that they are handled correctly\n")
+    print("version: {0}\n".format(version))
 
     print("Test end")
     print("successful: {0}".format(good))
