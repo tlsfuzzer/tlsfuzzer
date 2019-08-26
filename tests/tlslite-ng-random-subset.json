@@ -263,6 +263,7 @@
           "comment" : "several tls12 extensions must be excluded, tlslite-ng issue #314"},
          {"name" : "test-tls13-legacy-version.py"},
          {"name" : "test-tls13-nociphers.py"},
+         {"name" : "test-tls13-obsolete-curves.py"},
          {"name" : "test-tls13-pkcs-signature.py"},
          {"name" : "test-tls13-record-layer-limits.py",
           "arguments" : ["-n", "50"]},
