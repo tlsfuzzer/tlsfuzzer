@@ -19,7 +19,8 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
         ExpectEncryptedExtensions, ExpectCertificateVerify, \
-        ExpectNewSessionTicket, ExpectHelloRetryRequest
+        ExpectNewSessionTicket, ExpectHelloRetryRequest, \
+        ExpectServerKeyExchange
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme, \
@@ -36,7 +37,7 @@ from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 
 
-version = 1
+version = 2
 
 
 def help_msg():
@@ -53,6 +54,7 @@ def help_msg():
     print(" --num-bytes num Amount of bytes to send in the early data records")
     print("                16384 by default")
     print(" --cookie       expect cookie extension in HRR message")
+    print(" -d             negotiate (EC)DHE instead of RSA key exchange")
     print(" --help         this message")
 
 
@@ -63,9 +65,10 @@ def main():
     run_exclude = set()
     num_bytes = 2**14
     cookie = False
+    dhe = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help", "num-bytes=",
+    opts, args = getopt.getopt(argv, "h:p:e:n:d", ["help", "num-bytes=",
                                                   "cookie"])
     for opt, arg in opts:
         if opt == '-h':
@@ -83,6 +86,8 @@ def main():
             num_bytes = int(arg)
         elif opt == '--cookie':
             cookie = True
+        elif opt == '-d':
+            dhe = True
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -614,11 +619,18 @@ def main():
     # fake 0-RTT resumption with unknown version
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = OrderedDict()
-    groups = [GroupName.secp256r1]
+    groups = [GroupName.secp256r1,
+              GroupName.ffdhe2048]
+    if dhe:
+        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                   CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     key_shares = []
     for group in groups:
         key_shares.append(key_share_gen(group))
@@ -650,6 +662,8 @@ def main():
     node = node.add_child(TCPBufferingFlush())
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     # section D.3 of draft 28 states that client that receives TLS 1.2
     # ServerHello as a reply to 0-RTT Client Hello MUST fail a connection
