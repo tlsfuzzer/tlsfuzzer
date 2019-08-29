@@ -240,6 +240,21 @@ def srv_ext_handler_supp_groups(state, extension):
         raise AssertionError("Server did not send any supported_groups")
 
 
+def srv_ext_handler_status_request(state, extension):
+    """
+    Process the status_request extension from server.
+
+    TLS 1.2 ServerHello specific, in TLS 1.3 the extension resides in
+    Certificate message.
+    """
+    del state
+    if extension.status_type is not None or \
+            extension.responder_id_list != [] or \
+            extension.request_extensions != bytearray():
+        raise AssertionError("Server did send non empty status_request "
+                             "extension")
+
+
 def srv_ext_handler_heartbeat(state, extension):
     """Process the heartbeat extension from server."""
     del state
@@ -342,7 +357,8 @@ _srv_ext_handler = \
          ExtensionType.key_share: srv_ext_handler_key_share,
          ExtensionType.supported_versions: srv_ext_handler_supp_vers,
          ExtensionType.heartbeat: srv_ext_handler_heartbeat,
-         ExtensionType.record_size_limit: _srv_ext_handler_record_limit}
+         ExtensionType.record_size_limit: _srv_ext_handler_record_limit,
+         ExtensionType.status_request: srv_ext_handler_status_request}
 
 
 _HRR_EXT_HANDLER = \
@@ -448,6 +464,9 @@ class ExpectServerHello(ExpectHandshake):
 
     def _process_extensions(self, state, cln_hello, srv_hello):
         """Check if extensions are correct."""
+        # extensions allowed in TLS 1.3 ServerHello and HelloRetryRequest
+        # messages (as some need to be echoed by server in EncryptedExtensions
+        # and some in Certificate)
         sh_supported = [ExtensionType.pre_shared_key,
                         ExtensionType.supported_versions,
                         ExtensionType.key_share]
@@ -465,6 +484,8 @@ class ExpectServerHello(ExpectHandshake):
                                      "extension of type {0}"
                                      .format(ExtensionType
                                              .toStr(ext_id)))
+            # in TLS 1.2 generally the server can reply to any client sent
+            # extension, and all of them end in ClientHello
             cl_ext = cln_hello.getExtension(ext_id)
             if ext_id == ExtensionType.renegotiation_info and \
                     CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV \
