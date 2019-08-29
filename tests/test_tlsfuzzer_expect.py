@@ -29,7 +29,8 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         ExpectNewSessionTicket, hrr_ext_handler_key_share, \
         hrr_ext_handler_cookie, ExpectHelloRetryRequest, \
         gen_srv_ext_handler_psk, srv_ext_handler_supp_groups, \
-        srv_ext_handler_heartbeat, gen_srv_ext_handler_record_limit
+        srv_ext_handler_heartbeat, gen_srv_ext_handler_record_limit, \
+        srv_ext_handler_status_request
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
@@ -47,7 +48,7 @@ from tlslite.extensions import SNIExtension, TLSExtension, \
         SrvSupportedVersionsExtension, SupportedVersionsExtension, \
         HRRKeyShareExtension, CookieExtension, \
         SrvPreSharedKeyExtension, PskIdentity, PreSharedKeyExtension, \
-        HeartbeatExtension
+        HeartbeatExtension, StatusRequestExtension
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509certchain import X509CertChain, X509
 from tlslite.extensions import SNIExtension, SignatureAlgorithmsExtension
@@ -256,6 +257,20 @@ class TestServerExtensionProcessors(unittest.TestCase):
         with self.assertRaises(AssertionError):
             srv_ext_handler_sni(state, ext)
 
+    def test_srv_ext_handler_status_request(self):
+        ext = StatusRequestExtension()
+
+        state = ConnectionState()
+
+        srv_ext_handler_status_request(state, ext)
+
+    def test_srv_ext_handler_status_request_with_malformed_extension(self):
+        ext = StatusRequestExtension().create()
+
+        state = ConnectionState()
+
+        with self.assertRaises(AssertionError):
+            srv_ext_handler_status_request(state, ext)
 
     def test_srv_ext_handler_renego(self):
         ext = RenegotiationInfoExtension().create(bytearray(b'abba'))
