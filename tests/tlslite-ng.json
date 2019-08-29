@@ -217,6 +217,8 @@
          {"name" : "test-sslv2-force-cipher.py"},
          {"name" : "test-sslv2-force-export-cipher.py"},
          {"name" : "test-sslv2hello-protocol.py"},
+         {"name" : "test-sslv2hello-protocol.py",
+          "arguments" : ["-d"]},
          {"name" : "test-tls13-0rtt-garbage.py",
           "arguments" : ["--cookie"]},
          {"name" : "test-tls13-ccs.py",
