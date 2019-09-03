@@ -114,6 +114,8 @@ def main():
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                session_id=bytearray(0),
                                                extensions=extensions))
+    extensions = {ExtensionType.encrypt_then_mac:None,
+                  ExtensionType.renegotiation_info:None}
     node = node.add_child(ExpectServerHello(extensions=extensions))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
