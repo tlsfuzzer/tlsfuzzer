@@ -20,8 +20,9 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectApplicationData
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType, GroupName
-from tlslite.extensions import SupportedGroupsExtension
+from tlslite.extensions import SupportedGroupsExtension, SignatureAlgorithmsExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
+from tlsfuzzer.helpers import sig_algs_to_ids
 
 
 def help_msg():
@@ -49,14 +50,17 @@ def main():
     num_limit = None
     fatal_alert = "insufficient_security"
     run_exclude = set()
+    sig_algs = None  # `sigalgs` w/o underscore is used for client certificates
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help", "alert="])
+    opts, args = getopt.getopt(argv, "h:p:S:e:n:", ["help", "alert="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
         elif opt == '-p':
             port = int(arg)
+        elif opt == '-S':
+            sig_algs = sig_algs_to_ids(arg)
         elif opt == '-e':
             run_exclude.add(arg)
         elif opt == '-n':
@@ -78,10 +82,12 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
+    ext = {ExtensionType.renegotiation_info: None}
     ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions={ExtensionType.
-                                                   renegotiation_info:None}))
+    if sig_algs:
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(sig_algs)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(extensions={ExtensionType.
                                                      renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
@@ -108,12 +114,11 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions={ExtensionType.
-                                                   renegotiation_info:None}))
-    node = node.add_child(ExpectServerHello(cipher=CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                                            extensions={ExtensionType.
-                                                     renegotiation_info:None}))
+    ext = {ExtensionType.renegotiation_info: None}
+    if sig_algs:
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(sig_algs)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
@@ -141,8 +146,10 @@ def main():
         ext = {ExtensionType.renegotiation_info: None}
         ext[ExtensionType.supported_groups] = \
                 SupportedGroupsExtension().create([group])
-        node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions=ext))
+        if sig_algs:
+            ext[ExtensionType.signature_algorithms] = \
+                SignatureAlgorithmsExtension().create(sig_algs)
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello(extensions={ExtensionType.
             renegotiation_info:None}))
         node = node.add_child(ExpectCertificate())
@@ -172,8 +179,10 @@ def main():
         ext = {ExtensionType.renegotiation_info: None}
         ext[ExtensionType.supported_groups] = \
                 SupportedGroupsExtension().create([511, group])
-        node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions=ext))
+        if sig_algs:
+            ext[ExtensionType.signature_algorithms] = \
+                SignatureAlgorithmsExtension().create(sig_algs)
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello(extensions={ExtensionType.
             renegotiation_info:None}))
         node = node.add_child(ExpectCertificate())
@@ -203,8 +212,10 @@ def main():
         ext = {ExtensionType.renegotiation_info: None}
         ext[ExtensionType.supported_groups] = \
                 SupportedGroupsExtension().create([GroupName.secp256r1, group])
-        node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions=ext))
+        if sig_algs:
+            ext[ExtensionType.signature_algorithms] = \
+                SignatureAlgorithmsExtension().create(sig_algs)
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello(extensions={ExtensionType.
             renegotiation_info:None}))
         node = node.add_child(ExpectCertificate())
@@ -238,6 +249,9 @@ def main():
             ext = {ExtensionType.renegotiation_info: None}
             ext[ExtensionType.supported_groups] = \
                     SupportedGroupsExtension().create([511, group, group2])
+            if sig_algs:
+                ext[ExtensionType.signature_algorithms] = \
+                    SignatureAlgorithmsExtension().create(sig_algs)
             node = node.add_child(ClientHelloGenerator(ciphers,
                                                        extensions=ext))
             node = node.add_child(ExpectServerHello(extensions={ExtensionType.
@@ -271,8 +285,10 @@ def main():
     ext = {ExtensionType.renegotiation_info: None}
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create([511])
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=ext))
+    if sig_algs:
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(sig_algs)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(cipher=CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                                             extensions={ExtensionType.
                                                      renegotiation_info:None}))
@@ -302,8 +318,10 @@ def main():
     ext = {ExtensionType.renegotiation_info: None}
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create([GroupName.secp256r1, 511])
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=ext))
+    if sig_algs:
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(sig_algs)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(cipher=CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                                             extensions={ExtensionType.
                                                      renegotiation_info:None}))
@@ -334,8 +352,10 @@ def main():
     ext = {ExtensionType.renegotiation_info: None}
     ext[ExtensionType.supported_groups] = \
             SupportedGroupsExtension().create([511])
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=ext))
+    if sig_algs:
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(sig_algs)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       getattr(AlertDescription, fatal_alert)))
     node.add_child(ExpectClose())
