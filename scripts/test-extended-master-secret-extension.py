@@ -41,6 +41,7 @@ def help_msg():
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
     print(" --no-http      don't send HTTP query")
+    print(" -d             negotiate (EC)DHE instead of RSA key exchange")
     print(" --help         this message")
 
 
@@ -49,9 +50,10 @@ def main():
     port = 4433
     run_exclude = set()
     http = True
+    dhe = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:", ["help", "no-http"])
+    opts, args = getopt.getopt(argv, "h:p:e:d", ["help", "no-http"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -59,6 +61,8 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-d':
+            dhe = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -77,13 +81,25 @@ def main():
     # check if server works at all
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions={ExtensionType.renegotiation_info:None}))
+    ext = {ExtensionType.renegotiation_info: None}
+    if dhe:
+        groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -105,13 +121,21 @@ def main():
     # check if server works with SHA384 PRF ciphersuite
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384]
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions={ExtensionType.renegotiation_info:None}))
+    ext = {ExtensionType.renegotiation_info: None}
+    if dhe:
+        groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_256_GCM_SHA384]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -133,15 +157,28 @@ def main():
     # check if server works at all (TLSv1.1)
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        version=(3, 2),
-        extensions={ExtensionType.renegotiation_info:None}))
+    ext = {ExtensionType.renegotiation_info: None}
+    if dhe:
+        groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+
+    node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 2),
+                                               extensions=ext))
     node = node.add_child(ExpectServerHello(
         version=(3, 2),
         extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -163,16 +200,27 @@ def main():
     # check if server supports extended master secret
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret: AutoEmptyExtension()
-                    }))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.extended_master_secret: AutoEmptyExtension()}
+    if dhe:
+        groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -260,14 +308,23 @@ def main():
     # (extension must be empty)
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    ext = {ExtensionType.renegotiation_info:None}
-    ext[ExtensionType.extended_master_secret] = \
-            TLSExtension(extType=ExtensionType.extended_master_secret).\
-            create(bytearray(b'\x00'))
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions=ext))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.extended_master_secret: \
+                TLSExtension(extType=ExtensionType.extended_master_secret) \
+                .create(bytearray(b'\x00'))}
+    if dhe:
+        groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decode_error))
     node.next_sibling = ExpectClose()
@@ -276,16 +333,28 @@ def main():
     # check if server supports extended master secret with SHA384 PRF
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384]
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret: AutoEmptyExtension()
-                    }))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.extended_master_secret: AutoEmptyExtension()}
+    if dhe:
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_256_GCM_SHA384]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -307,18 +376,29 @@ def main():
     # check if server supports extended master secret
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        version=(3, 2),
-        extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret: AutoEmptyExtension()
-                    }))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.extended_master_secret: AutoEmptyExtension()}
+    if dhe:
+        groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 2),
+                                               extensions=ext))
     node = node.add_child(ExpectServerHello(
         version=(3, 2),
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -340,13 +420,25 @@ def main():
     # check if server doesn't default to extended master secret
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions={ExtensionType.renegotiation_info:None}))
+    ext = {ExtensionType.renegotiation_info: None}
+    if dhe:
+        groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator(
@@ -362,16 +454,27 @@ def main():
     # check if server uses EMS for resumed connections
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret: AutoEmptyExtension()
-                    }))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.extended_master_secret: AutoEmptyExtension()}
+    if dhe:
+        groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -390,11 +493,7 @@ def main():
     close.add_child(node)
     node = node.add_child(ResetHandshakeHashes())
     node = node.add_child(ResetRenegotiationInfo())
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret: AutoEmptyExtension()
-                    }))
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None},
@@ -418,16 +517,28 @@ def main():
     # check if server uses EMS for resumed connections and SHA384 PRF
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384]
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret: AutoEmptyExtension()
-                    }))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.extended_master_secret: AutoEmptyExtension()}
+    if dhe:
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_256_GCM_SHA384]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -446,11 +557,7 @@ def main():
     close.add_child(node)
     node = node.add_child(ResetHandshakeHashes())
     node = node.add_child(ResetRenegotiationInfo())
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret: AutoEmptyExtension()
-                    }))
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None},
@@ -474,16 +581,27 @@ def main():
     # check if server aborts session resume without EMS extension
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret: AutoEmptyExtension()
-                    }))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.extended_master_secret: AutoEmptyExtension()}
+    if dhe:
+        groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -502,9 +620,16 @@ def main():
     close.add_child(node)
     node = node.add_child(ResetHandshakeHashes())
     node = node.add_child(ResetRenegotiationInfo())
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions={ExtensionType.renegotiation_info:None}))
+    ext = {ExtensionType.renegotiation_info: None}
+    if dhe:
+        groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.handshake_failure))
     node = node.add_child(ExpectAlert())
@@ -516,13 +641,25 @@ def main():
     # check if server does full handshake on resumed session without EMS
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions={ExtensionType.renegotiation_info:None}))
+    ext = {ExtensionType.renegotiation_info: None}
+    if dhe:
+        groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -541,16 +678,24 @@ def main():
     close.add_child(node)
     node = node.add_child(ResetHandshakeHashes())
     node = node.add_child(ResetRenegotiationInfo())
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret: AutoEmptyExtension()
-                    }))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.extended_master_secret: AutoEmptyExtension()}
+    if dhe:
+        groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None},
         resume=False))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -574,16 +719,27 @@ def main():
     # EMS with renegotiation
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret: AutoEmptyExtension()
-                    }))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.extended_master_secret: AutoEmptyExtension()}
+    if dhe:
+        groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -595,13 +751,13 @@ def main():
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         session_id=bytearray(0), # do not resume
-        extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret: AutoEmptyExtension()
-                    }))
+        extensions=ext))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -622,13 +778,25 @@ def main():
     # renegotiation in non-EMS session
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions={ExtensionType.renegotiation_info:None}))
+    ext = {ExtensionType.renegotiation_info: None}
+    if dhe:
+        groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -637,16 +805,26 @@ def main():
     node = node.add_child(ExpectFinished())
     # 2nd handshake
     node = node.add_child(ResetHandshakeHashes())
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.extended_master_secret: AutoEmptyExtension()}
+    if dhe:
+        groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         session_id=bytearray(0), # do not resume
-        extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret: AutoEmptyExtension()
-                    }))
+        extensions=ext))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -667,16 +845,27 @@ def main():
     # renegotiation of non-EMS session in EMS session
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret: AutoEmptyExtension()
-                    }))
+    ext = {ExtensionType.renegotiation_info: None,
+           ExtensionType.extended_master_secret: AutoEmptyExtension()}
+    if dhe:
+        groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -688,10 +877,12 @@ def main():
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         session_id=bytearray(0), # do not resume
-        extensions={ExtensionType.renegotiation_info:None}))
+        extensions=ext))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
