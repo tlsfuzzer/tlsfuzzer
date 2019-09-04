@@ -43,6 +43,8 @@
          {"name" : "test-chacha20.py" },
          {"name" : "test-clienthello-md5.py"},
          {"name" : "test-client-hello-max-size.py" },
+         {"name" : "test-client-hello-max-size.py",
+          "arguments" : ["-d"]},
          {"name" : "test-client-compatibility.py",
           "arguments" : ["-e", "18: IE 6 on XP",
                          "-e", "52: YandexBot 3.0 on unknown",
