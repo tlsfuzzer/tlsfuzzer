@@ -132,6 +132,17 @@
           "arguments" : ["extended master secret with renegotiation"],
           "comment" : "tlslite-ng does not support renegotiation",
           "exp_pass" : false},
+         {"name" : "test-extended-master-secret-extension.py",
+          "arguments" : ["-d",
+                         "-e", "extended master secret with renegotiation",
+                         "-e", "renegotiate with EMS in session without EMS",
+                         "-e", "renegotiate without EMS in session with EMS"],
+          "comment" : "Test requires renegotiation support"
+         },
+         {"name" : "test-extended-master-secret-extension.py",
+          "arguments" : ["-d", "extended master secret with renegotiation"],
+          "comment" : "tlslite-ng does not support renegotiation",
+          "exp_pass" : false},
          {"name" : "test-fallback-scsv.py",
           "arguments" : ["--tls-1.3"]
          },
