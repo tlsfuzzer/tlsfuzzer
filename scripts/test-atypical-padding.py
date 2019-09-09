@@ -20,7 +20,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectAlert, ExpectClose, ExpectApplicationData, \
         ExpectServerKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import RSA_SIG_ALL
+from tlsfuzzer.helpers import RSA_SIG_ALL, AutoEmptyExtension
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         GroupName, ExtensionType
@@ -151,6 +151,32 @@ def main():
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
     conversations["sanity - SHA384 HMAC"] = conversation
+
+    # check if Encrypt Then Mac works
+    conversation = Connect(host, port)
+    node = conversation
+    extensions = {ExtensionType.encrypt_then_mac: AutoEmptyExtension()}
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=extensions))
+    extensions = {ExtensionType.encrypt_then_mac:None,
+                  ExtensionType.renegotiation_info:None}
+    node = node.add_child(ExpectServerHello(extensions=extensions))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["sanity - encrypt then MAC"] = conversation
 
     # maximum size of padding
     conversation = Connect(host, port)
@@ -287,6 +313,44 @@ def main():
     node = node.add_child(ExpectClose())
 
     conversations["2^14 bytes of AppData with 253 bytes of padding (SHA1)"] = \
+            conversation
+
+    # longest possible padding with max size Application data (and EtM)
+    conversation = Connect(host, port)
+    node = conversation
+    extensions = {ExtensionType.encrypt_then_mac: AutoEmptyExtension()}
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=extensions))
+    extensions = {ExtensionType.encrypt_then_mac:None,
+                  ExtensionType.renegotiation_info:None}
+    node = node.add_child(ExpectServerHello(extensions=extensions))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    text = b"GET / HTTP/1.0\r\nX-bad: a\r\n"
+    for i in range(3):
+        text += b"X-ba" + compatAscii2Bytes(str(i)) + b": " + \
+                b"a" * (4096 - 9) + b"\r\n"
+    text += b"X-ba3: " + b"a" * (4096 - 37) + b"\r\n"
+    text += b"\r\n"
+    assert len(text) == 2**14, len(text)
+    node = node.add_child(fuzz_padding(ApplicationDataGenerator(text),
+                                       min_length=255))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert(AlertLevel.warning,
+                                      AlertDescription.close_notify))
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+
+    conversations["2^14 bytes of AppData with 256 bytes of padding (SHA1 "
+                  "+ Encrypt then MAC)"] = \
             conversation
 
     # longest possible padding with max size Application data with SHA256
