@@ -19,10 +19,11 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectAlert, ExpectClose, ExpectApplicationData
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription
+from tlslite.utils.compat import compatAscii2Bytes
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 2
+version = 3
 
 
 def help_msg():
@@ -199,6 +200,45 @@ def main():
 
     conversations["excessive padding in SSLv3 (valid in TLS 1.0)"] = \
             conversation
+
+    # max size SSLv3 padding
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 0)))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    text = b"GET / HTTP/1.0\r\nX-bad: a\r\n"
+    # some servers put limits on size of headers, e.g. Apache 2.3 has 8190 Bytes
+    for i in range(3):
+        text += b"X-ba" + compatAscii2Bytes(str(i)) + b": " + \
+                b"a" * (4096 - 9) + b"\r\n"
+    text += b"X-ba3: " + b"a" * (4096 - 37) + b"\r\n"
+    text += b"\r\n"
+    assert len(text) == 2**14, len(text)
+    # as SSLv3 specifies that padding must be minimal length, that means
+    # there is just one valid length of padding, no need to force it
+    node = node.add_child(ApplicationDataGenerator(text))
+    node = node.add_child(ExpectApplicationData())
+    # BEAST 1/n-1 splitting
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert(AlertLevel.warning,
+                                      AlertDescription.close_notify))
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+
+    conversations["max Application Data in SSLv3"] = \
+            conversation
+
 
     # run the conversation
     good = 0
