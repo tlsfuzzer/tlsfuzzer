@@ -14,14 +14,17 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose
+        ExpectAlert, ExpectApplicationData, ExpectClose, ExpectServerKeyExchange
+from tlslite.extensions import SupportedGroupsExtension, \
+        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 
-from tlslite.constants import CipherSuite, AlertLevel, AlertDescription
+from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, GroupName, \
+        ExtensionType
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import protocol_name_to_tuple
+from tlsfuzzer.helpers import protocol_name_to_tuple, RSA_SIG_ALL
 
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -33,6 +36,7 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -d             Use (EC)DHE instead of RSA for key exchange")
     print(" -n num         only run `num` random tests instead of a full set")
     print("                (excluding \"sanity\" tests)")
     print(" --min-ver val  The lowest version support, \"SSLv3\" by default")
@@ -46,9 +50,10 @@ def main():
     num_limit = None
     run_exclude = set()
     min_ver = (3, 0)
+    dhe = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help", "min-ver="])
+    opts, args = getopt.getopt(argv, "h:p:e:n:d", ["help", "min-ver="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -56,6 +61,8 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-d':
+            dhe = True
         elif opt == '-n':
             num_limit = int(arg)
         elif opt == '--help':
@@ -75,11 +82,25 @@ def main():
 
     conversation = Connect(host, port, version=(3, 0))
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers))
+    ext = {}
+    groups = [GroupName.ffdhe2048]
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+    if dhe:
+        ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -94,6 +115,10 @@ def main():
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
     conversations["sanity"] = conversation
+
+    expected_cipher = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA
+    if dhe:
+        expected_cipher = CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA
 
     for c_id, name in [(0x0003, "TLS_RSA_EXPORT_WITH_RC4_40_MD5"),
                        (0x0006, "TLS_RSA_EXPORT_WITH_RC2_CBC_40_MD5"),
@@ -120,10 +145,18 @@ def main():
                                 ((3, 0), "SSLv3")]:
             conversation = Connect(host, port, version=(3, 0))
             node = conversation
+            ext = {}
+            groups = [GroupName.ffdhe2048]
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                .create(groups)
+            ext[ExtensionType.signature_algorithms] = \
+                SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+            ext[ExtensionType.signature_algorithms_cert] = \
+                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
             ciphers = [c_id,
-                       CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                       expected_cipher,
                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-            node = node.add_child(ClientHelloGenerator(ciphers, version=prot))
+            node = node.add_child(ClientHelloGenerator(ciphers, version=prot, extensions=ext))
             if prot < min_ver:
                 node = node.add_child(
                     ExpectAlert(AlertLevel.fatal,
@@ -131,8 +164,10 @@ def main():
                                  AlertDescription.handshake_failure)))
                 node = node.add_child(ExpectClose())
             else:
-                node = node.add_child(ExpectServerHello(cipher=CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA))
+                node = node.add_child(ExpectServerHello(cipher=expected_cipher))
                 node = node.add_child(ExpectCertificate())
+                if dhe:
+                    node = node.add_child(ExpectServerKeyExchange())
                 node = node.add_child(ExpectServerHelloDone())
                 node = node.add_child(ClientKeyExchangeGenerator())
                 node = node.add_child(ChangeCipherSpecGenerator())
