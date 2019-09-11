@@ -27,7 +27,8 @@ from tlslite.extensions import SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlslite.utils.compat import compatAscii2Bytes
 
-version = 2
+
+version = 3
 
 
 def help_msg():
@@ -42,6 +43,9 @@ def help_msg():
     print(" -n num         only run `num` random tests instead of a full set")
     print("                (\"sanity\" tests are always executed)")
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
+    print(" --echo-headers expect the server to echo the headers (so its reply")
+    print("                will be split over two ApplicationData records, not")
+    print("                one for the tests with 2**14 byte payload)")
     print(" --help         this message")
 
 
@@ -64,9 +68,10 @@ def main():
     num_limit = None
     run_exclude = set()
     dhe = False
+    echo = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:d", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:d", ["help", "echo-headers"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -81,6 +86,8 @@ def main():
         elif opt == '--help':
             help_msg()
             sys.exit(0)
+        elif opt == '--echo-headers':
+            echo = True
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -372,6 +379,8 @@ def main():
     assert len(text) == 2**14, len(text)
     node = node.add_child(fuzz_padding(ApplicationDataGenerator(text),
                                        min_length=252))
+    if echo:
+        node = node.add_child(ExpectApplicationData(size=2**14))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -417,6 +426,8 @@ def main():
     assert len(text) == 2**14, len(text)
     node = node.add_child(fuzz_padding(ApplicationDataGenerator(text),
                                        min_length=255))
+    if echo:
+        node = node.add_child(ExpectApplicationData(size=2**14))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -462,6 +473,8 @@ def main():
     assert len(text) == 2**14, len(text)
     node = node.add_child(fuzz_padding(ApplicationDataGenerator(text),
                                        min_length=255))
+    if echo:
+        node = node.add_child(ExpectApplicationData(size=2**14))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -498,6 +511,8 @@ def main():
     assert len(text) == 2**14, len(text)
     node = node.add_child(fuzz_padding(ApplicationDataGenerator(text),
                                        min_length=255))
+    if echo:
+        node = node.add_child(ExpectApplicationData(size=2**14))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
