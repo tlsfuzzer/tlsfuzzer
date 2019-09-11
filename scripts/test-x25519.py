@@ -36,16 +36,22 @@ def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
             for text in re.split(_nsre, s)]
 
 
+version = 2
+
+
 def help_msg():
-    print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
-    print(" -h hostname    name of the host to run the test against")
-    print("                localhost by default")
-    print(" -p port        port number to use for connection, 4433 by default")
-    print(" probe-name     if present, will run only the probes with given")
-    print("                names and not all of them, e.g \"sanity\"")
-    print(" -e probe-name  exclude the probe from the list of the ones run")
-    print("                may be specified multiple times")
-    print(" --help         this message")
+    print("Usage: <script-name> [-h hostname] [-p port] [-g] [[probe-name] ...]")
+    print(" -h hostname         name of the host to run the test against")
+    print("                     localhost by default")
+    print(" -p port             port number to use for connection, 4433 by default")
+    print(" probe-name          if present, will run only the probes with given")
+    print("                     names and not all of them, e.g \"sanity\"")
+    print(" -e probe-name       exclude the probe from the list of the ones run")
+    print("                     may be specified multiple times")
+    print(" --no-default-group  expect that sending no curves means accepting none")
+    print("                     (violates RFC4492#section-4 in a sane and trendy way:")
+    print("                      see https://github.com/openssl/openssl/pull/1597)")
+    print(" --help              this message")
 
 
 def main():
@@ -53,8 +59,10 @@ def main():
     port = 4433
     run_exclude = set()
 
+    no_default_group = False
+
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:", ["help", "no-default-group"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -65,6 +73,8 @@ def main():
         elif opt == '--help':
             help_msg()
             sys.exit(0)
+        elif opt == '--no-default-group':
+            no_default_group = True
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -117,72 +127,142 @@ def main():
     node = node.add_child(ExpectClose())
     conversations["sanity"] = conversation
 
-    # check if server selects compatible group if none is selected
-    conversation = Connect(host, port)
-    node = conversation
-    sigs = [(HashAlgorithm.sha512, SignatureAlgorithm.rsa),
-            (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
-            (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
-            (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
-    ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
-           ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=ext))
-    cipher = CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA
-    node = node.add_child(ExpectServerHello(version=(3, 3),
-                                            cipher=cipher))
-    node = node.add_child(ExpectCertificate())
-    groups = [GroupName.secp256r1]
-    node = node.add_child(ExpectServerKeyExchange(valid_groups=groups))
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\n\n")))
-    node = node.add_child(ExpectApplicationData())
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                         AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
-    node = node.add_child(ExpectClose())
-    conversations["default to P-256 when no groups specified"] = conversation
+    if not no_default_group:
+        # check if server selects compatible group if none is selected
+        conversation = Connect(host, port)
+        node = conversation
+        sigs = [(HashAlgorithm.sha512, SignatureAlgorithm.rsa),
+                (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
+                (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+                (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
+        ext = {ExtensionType.signature_algorithms:
+                SignatureAlgorithmsExtension().create(sigs),
+               ExtensionType.signature_algorithms_cert:
+                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions=ext))
+        cipher = CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA
+        node = node.add_child(ExpectServerHello(version=(3, 3),
+                                                cipher=cipher))
+        node = node.add_child(ExpectCertificate())
+        groups = [GroupName.secp256r1]
+        node = node.add_child(ExpectServerKeyExchange(valid_groups=groups))
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ExpectApplicationData())
+        node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                             AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert())
+        node.next_sibling = ExpectClose()
+        node = node.add_child(ExpectClose())
+        conversations["default to P-256 when no groups specified"] = conversation
 
-    # check if server selects compatible group and hash when none specified
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers))
-    cipher = CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA
-    node = node.add_child(ExpectServerHello(version=(3, 3),
-                                            cipher=cipher))
-    node = node.add_child(ExpectCertificate())
-    groups = [GroupName.secp256r1]
-    node = node.add_child(ExpectServerKeyExchange(valid_groups=groups))
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\n\n")))
-    node = node.add_child(ExpectApplicationData())
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                         AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
-    node = node.add_child(ExpectClose())
-    conversations["default to P-256/sha-1 when no extensions specified"] = conversation
+        # check if server selects compatible group and hash when none specified
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        node = node.add_child(ClientHelloGenerator(ciphers))
+        cipher = CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA
+        node = node.add_child(ExpectServerHello(version=(3, 3),
+                                                cipher=cipher))
+        node = node.add_child(ExpectCertificate())
+        groups = [GroupName.secp256r1]
+        node = node.add_child(ExpectServerKeyExchange(valid_groups=groups))
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ExpectApplicationData())
+        node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                             AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert())
+        node.next_sibling = ExpectClose()
+        node = node.add_child(ExpectClose())
+        conversations["default to P-256/sha-1 when no extensions specified"] = conversation
+
+    else:
+
+        # check if server treats the absence of 'supported_groups' as
+        # 'nothing is supported'; see, for example,
+        # https://github.com/openssl/openssl/pull/1597#issuecomment-248302514
+        conversation = Connect(host, port)
+        node = conversation
+        sigs = [(HashAlgorithm.sha512, SignatureAlgorithm.rsa),
+                (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
+                (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+                (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
+        ext = {ExtensionType.signature_algorithms:
+                SignatureAlgorithmsExtension().create(sigs),
+               ExtensionType.signature_algorithms_cert:
+                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions=ext))
+        cipher = CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA
+        node = node.add_child(ExpectServerHello(version=(3, 3),
+                                                cipher=cipher))
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerKeyExchange())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ExpectApplicationData())
+        node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                             AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert())
+        node.next_sibling = ExpectClose()
+        node = node.add_child(ExpectClose())
+        conversations["fallback to DHE when no groups specified"] = conversation
+
+        # check if server selects compatible group and hash when none specified
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        node = node.add_child(ClientHelloGenerator(ciphers))
+        cipher = CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA
+        node = node.add_child(ExpectServerHello(version=(3, 3),
+                                                cipher=cipher))
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerKeyExchange())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ExpectApplicationData())
+        node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                             AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert())
+        node.next_sibling = ExpectClose()
+        node = node.add_child(ExpectClose())
+        conversations["fallback to DHE when no extensions specified"] = conversation
 
     # check if server will fallback to to other cipher when no groups
     # are acceptable
@@ -949,6 +1029,7 @@ def main():
 
     print("Basic test to verify that server selects sane ECDHE parameters and")
     print("ciphersuites when x25519 curve is an option\n")
+    print("version: {0}".format(version))
 
     print("Test end")
     print("successful: {0}".format(good))
