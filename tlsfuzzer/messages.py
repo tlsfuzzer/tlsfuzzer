@@ -6,10 +6,11 @@
 from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         Finished, Alert, ApplicationData, Message, Certificate, \
         CertificateVerify, CertificateRequest, ClientMasterKey, \
-        ClientFinished, ServerKeyExchange, ServerHello
+        ClientFinished, ServerKeyExchange, ServerHello, Heartbeat
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
         ExtensionType, CertificateType, HashAlgorithm, \
-        SignatureAlgorithm, CipherSuite, SignatureScheme, TLS_1_3_HRR
+        SignatureAlgorithm, CipherSuite, SignatureScheme, TLS_1_3_HRR, \
+        HeartbeatMessageType
 import tlslite.utils.tlshashlib as hashlib
 from tlslite.extensions import TLSExtension, RenegotiationInfoExtension, \
         ClientKeyShareExtension
@@ -1182,6 +1183,50 @@ class ApplicationDataGenerator(MessageGenerator):
         """Send data to server in Application Data messages."""
         app_data = ApplicationData().create(self.payload)
         return app_data
+
+
+class HeartbeatGenerator(MessageGenerator):
+    """
+    Generator for heartbeat messages.
+
+    @ivar message_type: the type of the message to send, see
+        HeartbeatMessageType enum for values
+    @type message_type: int
+    @ivar payload: data to be sent to the other size for it to echo it back
+    @type payload: bytearray
+    @ivar padding: payload to be sent to the other side, it should be at least
+        16 bytes long for the message to be valid
+    @type padding: bytearray
+    """
+
+    def __init__(self, payload,
+                 message_type=HeartbeatMessageType.heartbeat_request,
+                 padding=None, padding_length=None):
+        """
+        padding: literal padding to be used
+        padding_length: the length (in bytes) of the random padding that will
+            be generated; 16 by default (if neither padding nor padding_length
+            is specified)
+        """
+        super(HeartbeatGenerator, self).__init__()
+        self.message_type = message_type
+        self.payload = payload
+        if padding and padding_length:
+            raise ValueError("Specify either padding or padding_length")
+        if padding is None and padding_length is None:
+            padding_length = 16
+        if padding_length is not None:
+            padding = getRandomBytes(padding_length)
+        assert padding is not None
+        self.padding = padding
+
+    def generate(self, state):
+        del state
+        heartbeat = Heartbeat()
+        heartbeat.message_type = self.message_type
+        heartbeat.payload = self.payload
+        heartbeat.padding = self.padding
+        return heartbeat
 
 
 def pad_handshake(generator, size=0, pad_byte=0, pad=None):
