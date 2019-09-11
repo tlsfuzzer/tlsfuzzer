@@ -6,10 +6,11 @@
 from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         Finished, Alert, ApplicationData, Message, Certificate, \
         CertificateVerify, CertificateRequest, ClientMasterKey, \
-        ClientFinished, ServerKeyExchange, ServerHello
+        ClientFinished, ServerKeyExchange, ServerHello, Heartbeat
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
         ExtensionType, CertificateType, HashAlgorithm, \
-        SignatureAlgorithm, CipherSuite, SignatureScheme, TLS_1_3_HRR
+        SignatureAlgorithm, CipherSuite, SignatureScheme, TLS_1_3_HRR, \
+        HeartbeatMessageType
 import tlslite.utils.tlshashlib as hashlib
 from tlslite.extensions import TLSExtension, RenegotiationInfoExtension, \
         ClientKeyShareExtension
@@ -1182,6 +1183,62 @@ class ApplicationDataGenerator(MessageGenerator):
         """Send data to server in Application Data messages."""
         app_data = ApplicationData().create(self.payload)
         return app_data
+
+
+class HeartbeatGenerator(MessageGenerator):
+    """
+    Generator for heartbeat messages.
+
+    @ivar message_type: the type of the message to send, see
+        HeartbeatMessageType enum for values
+    @type message_type: int
+    @ivar payload: data to be sent to the other size for it to echo it back
+    @type payload: bytearray
+    @ivar padding: payload to be sent to the other side, it should be at least
+        16 bytes long for the message to be valid
+    @type padding: bytearray
+    """
+
+    def __init__(self, payload,
+                 message_type=HeartbeatMessageType.heartbeat_request,
+                 padding_length=None):
+        """
+        Initialise and create instance of object.
+
+        @type payload: bytes-like
+        @param payload: payload to send to the other side; either a reply
+            to received heartbeat request or a value that the other side will
+            have to echo
+        @type message_type: int
+        @param message_type: the type of message to send, valid values are
+            defined in L{HeartbeatMessageType} enum
+        @type padding_length: int
+        @param padding_length: the length (in bytes) of the random padding that
+            will be generated; 16 by default (if special contents of padding
+            are necessary, it's possible to set the
+            L{padding<HeartbeatGenerator.padding>} field in the object's
+            instance after the object was initialised)
+        """
+        super(HeartbeatGenerator, self).__init__()
+        self.message_type = message_type
+        self.payload = payload
+        if padding_length is None:
+            padding_length = 16
+        self.padding = getRandomBytes(padding_length)
+
+    def generate(self, state):
+        """
+        Create a Heartbeat message.
+
+        @rtype: L{tlslite.messages.Heartbeat}
+        @return: heartbeat message to be sent to the other side
+        """
+        del state
+        heartbeat = Heartbeat()
+        heartbeat.message_type = self.message_type
+        heartbeat.payload = self.payload
+        heartbeat.padding = self.padding
+        return heartbeat
 
 
 def pad_handshake(generator, size=0, pad_byte=0, pad=None):

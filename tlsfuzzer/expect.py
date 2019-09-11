@@ -15,11 +15,12 @@ from tlslite.constants import ContentType, HandshakeType, CertificateType,\
         HashAlgorithm, SignatureAlgorithm, ExtensionType,\
         SSL2HandshakeType, CipherSuite, GroupName, AlertDescription, \
         SignatureScheme, TLS_1_3_HRR, HeartbeatMode, \
-        TLS_1_1_DOWNGRADE_SENTINEL, TLS_1_2_DOWNGRADE_SENTINEL
+        TLS_1_1_DOWNGRADE_SENTINEL, TLS_1_2_DOWNGRADE_SENTINEL, \
+        HeartbeatMessageType
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
         ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus, \
-        CertificateVerify, EncryptedExtensions, NewSessionTicket
+        CertificateVerify, EncryptedExtensions, NewSessionTicket, Heartbeat
 from tlslite.extensions import TLSExtension, ALPNExtension
 from tlslite.utils.codec import Parser, Writer
 from tlslite.utils.compat import b2a_hex
@@ -1472,6 +1473,63 @@ class ExpectApplicationData(Expect):
         if self.size and len(data) != self.size:
             raise AssertionError("ApplicationData of unexpected size: {0}, "
                                  "expected: {1}".format(len(data), self.size))
+
+
+class ExpectHeartbeat(Expect):
+    """Processing of heartbeat messages."""
+
+    def __init__(self, message_type=HeartbeatMessageType.heartbeat_response,
+                 payload=None, padding_size=None):
+        """
+        Set up waiting for a heartbeat message.
+
+        @type message_type: int
+        @param message_type: Type of heartbeat messages to wait for, see
+            L{tlslite.constants.HeartbeatMessageType} for defined types
+        @type payload: bytes-like
+        @param payload: literal value of padding to expect, if set to C{None},
+            any payload will be accepted
+        @type padding_size: int
+        @param padding_size: exact length of padding that will be expected,
+            if set to C{None}, any padding length will be accepted
+        """
+        super(ExpectHeartbeat, self).\
+            __init__(ContentType.heartbeat)
+        self.message_type = message_type
+        self.payload = payload
+        self.padding_size = padding_size
+
+    def process(self, state, msg):
+        """Check if the C{msg} meets the requirements for the message."""
+        assert msg.contentType == ContentType.heartbeat
+
+        parser = Parser(msg.write())
+        heartbeat = Heartbeat().parse(parser)
+
+        if self.message_type is not None and \
+                self.message_type != heartbeat.message_type:
+            raise AssertionError(
+                "Unexpected heartbeat message type. Expected:"
+                " {0}, received: {1}".format(
+                    HeartbeatMessageType.toStr(self.message_type),
+                    HeartbeatMessageType.toStr(heartbeat.message_type)))
+
+        if self.payload is not None and \
+                self.payload != heartbeat.payload:
+            raise AssertionError("Unexpected payload in Heartbeat message "
+                                 "received. Expected: {0!r}, received: "
+                                 "{1!r}".format(self.payload,
+                                                heartbeat.payload))
+
+        if self.padding_size is None:
+            assert len(heartbeat.padding) >= 16
+        else:
+            if len(heartbeat.padding) != self.padding_size:
+                raise AssertionError(
+                        "Server sent unexpected size of padding "
+                        "in heartbeat message. Expected: {0}, "
+                        "received: {1}".format(self.padding_size,
+                                               len(heartbeat.padding)))
 
 
 class ExpectNoMessage(Expect):

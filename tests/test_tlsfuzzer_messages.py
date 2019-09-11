@@ -29,7 +29,7 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         CollectNonces, AlertGenerator, PlaintextMessageGenerator, \
         SetPaddingCallback, replace_plaintext, ch_cookie_handler, \
         ch_key_share_handler, SetRecordVersion, CopyVariables, \
-        ResetWriteConnectionState
+        ResetWriteConnectionState, HeartbeatGenerator
 from tlsfuzzer.helpers import psk_ext_gen, psk_ext_updater, \
         psk_session_ext_gen, AutoEmptyExtension
 from tlsfuzzer.runner import ConnectionState
@@ -2250,3 +2250,40 @@ class TestReplacePlaintext(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             state.msg_sock.sendMessageBlocking(data_msg)
+
+
+class TestHeartbeatGenerator(unittest.TestCase):
+    def test___init__(self):
+        hbg = HeartbeatGenerator(bytearray(b'payload'))
+
+        self.assertIsNotNone(hbg)
+        self.assertEqual(hbg.payload, bytearray(b'payload'))
+        self.assertEqual(hbg.message_type,
+                constants.HeartbeatMessageType.heartbeat_request)
+        self.assertEqual(len(hbg.padding), 16)
+
+    def test_generate(self):
+        hbg = HeartbeatGenerator(bytearray(b'heartbeat test'))
+
+        hb = hbg.generate(None)
+
+        self.assertIsNotNone(hb)
+        self.assertEqual(hb.payload, bytearray(b'heartbeat test'))
+        self.assertEqual(hb.padding, hbg.padding)
+        self.assertEqual(hb.message_type,
+                constants.HeartbeatMessageType.heartbeat_request)
+
+    def test_generate_with_small_padding(self):
+        hbg = HeartbeatGenerator(bytearray(b''))
+        hbg.padding = bytearray(b'\x00')
+
+        hb = hbg.generate(None)
+
+        self.assertEqual(hb.padding, bytearray(b'\x00'))
+
+    def test_generate_with_no_padding(self):
+        hbg = HeartbeatGenerator(bytearray(b''), padding_length=0)
+
+        hb = hbg.generate(None)
+
+        self.assertEqual(hb.padding, bytearray(b''))
