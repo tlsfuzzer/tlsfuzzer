@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2015
+# Author: Hubert Kario, (c) 2015-2019
 # Released under Gnu GPL v2.0, see LICENSE file for details
 """Example MAC value fuzzer"""
 
@@ -6,7 +6,6 @@ from __future__ import print_function
 import traceback
 import sys
 import getopt
-import re
 from itertools import chain
 from random import sample
 
@@ -17,10 +16,19 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         fuzz_padding, AlertGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectClose, ExpectApplicationData
-
-from tlslite.constants import CipherSuite, AlertLevel, AlertDescription
+        ExpectAlert, ExpectClose, ExpectApplicationData, \
+        ExpectServerKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
+from tlsfuzzer.helpers import RSA_SIG_ALL, AutoEmptyExtension
+
+from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
+        GroupName, ExtensionType
+from tlslite.extensions import SupportedGroupsExtension, \
+        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
+from tlslite.utils.compat import compatAscii2Bytes
+
+
+version = 3
 
 
 def help_msg():
@@ -33,8 +41,24 @@ def help_msg():
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
     print(" -n num         only run `num` random tests instead of a full set")
-    print("                (excluding \"sanity\" tests)")
+    print("                (\"sanity\" tests are always executed)")
+    print(" -d             negotiate (EC)DHE instead of RSA key exchange")
+    print(" --echo-headers expect the server to echo the headers (so its reply")
+    print("                will be split over two ApplicationData records, not")
+    print("                one for the tests with 2**14 byte payload)")
     print(" --help         this message")
+
+
+def add_dhe_extensions(extensions):
+    groups = [GroupName.secp256r1,
+              GroupName.ffdhe2048]
+    extensions[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    extensions[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+    extensions[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+
 
 
 def main():
@@ -43,9 +67,11 @@ def main():
     port = 4433
     num_limit = None
     run_exclude = set()
+    dhe = False
+    echo = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:d", ["help", "echo-headers"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -55,9 +81,13 @@ def main():
             run_exclude.add(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '-d':
+            dhe = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
+        elif opt == '--echo-headers':
+            echo = True
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -70,11 +100,21 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers))
+    if dhe:
+        ext = {}
+        add_dhe_extensions(ext)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ext = None
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -82,7 +122,7 @@ def main():
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
     node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\n\n")))
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -90,20 +130,124 @@ def main():
     node.next_sibling = ExpectClose()
     conversations["sanity"] = conversation
 
+    # check if SHA256 ciphers work
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers))
+    if dhe:
+        ext = {}
+        add_dhe_extensions(ext)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ext = None
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA256,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
-    text = b"GET / HTTP/1.0\nX-bad: aaaa\n\n"
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["sanity - SHA256 HMAC"] = conversation
+
+    # check if SHA384 ciphers work
+    conversation = Connect(host, port)
+    node = conversation
+    ext = {}
+    add_dhe_extensions(ext)
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["sanity - SHA384 HMAC"] = conversation
+
+    # check if Encrypt Then Mac works
+    conversation = Connect(host, port)
+    node = conversation
+    ext = {ExtensionType.encrypt_then_mac: AutoEmptyExtension()}
+    if dhe:
+        add_dhe_extensions(ext)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    extensions = {ExtensionType.encrypt_then_mac:None,
+                  ExtensionType.renegotiation_info:None}
+    node = node.add_child(ExpectServerHello(extensions=extensions))
+    node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["sanity - encrypt then MAC"] = conversation
+
+    # maximum size of padding
+    conversation = Connect(host, port)
+    node = conversation
+    if dhe:
+        ext = {}
+        add_dhe_extensions(ext)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ext = None
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    text = b"GET / HTTP/1.0\r\nX-bad: a\r\n\r\n"
     hmac_tag_length = 20
     block_size = 16
     # make sure that padding has full blocks to work with
@@ -119,6 +263,262 @@ def main():
     node = node.add_child(ExpectClose())
 
     conversations["256 bytes of padding"] = \
+            conversation
+
+    # maximum size of padding with SHA256
+    conversation = Connect(host, port)
+    node = conversation
+    if dhe:
+        ext = {}
+        add_dhe_extensions(ext)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ext = None
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA256,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    text = b"GET / HTTP/1.0\r\nX-bad: aaaaa\r\n\r\n"
+    hmac_tag_length = 32
+    block_size = 16
+    # make sure that padding has full blocks to work with
+    assert (len(text) + hmac_tag_length) % block_size == 0, len(text)
+    node = node.add_child(fuzz_padding(ApplicationDataGenerator(text),
+                                       min_length=255))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert(AlertLevel.warning,
+                                      AlertDescription.close_notify))
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+
+    conversations["256 bytes of padding with SHA256"] = \
+            conversation
+
+    # ... and SHA384
+    conversation = Connect(host, port)
+    node = conversation
+    ext = {}
+    groups = [GroupName.secp256r1,
+              GroupName.ffdhe2048]
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    text = b"GET / HTTP/1.0\r\nX-bad: aaaaa\r\n\r\n"
+    hmac_tag_length = 48
+    block_size = 16
+    # make sure that padding has full blocks to work with
+    assert (len(text) + hmac_tag_length) % block_size == 0, len(text)
+    node = node.add_child(fuzz_padding(ApplicationDataGenerator(text),
+                                       min_length=255))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["256 bytes of padding with SHA384"] = \
+            conversation
+
+    # longest possible padding with max size Application data
+    conversation = Connect(host, port)
+    node = conversation
+    if dhe:
+        ext = {}
+        add_dhe_extensions(ext)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ext = None
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    text = b"GET / HTTP/1.0\r\nX-bad: a\r\n"
+    for i in range(3):
+        text += b"X-ba" + compatAscii2Bytes(str(i)) + b": " + \
+                b"a" * (4096 - 9) + b"\r\n"
+    text += b"X-ba3: " + b"a" * (4096 - 37) + b"\r\n"
+    text += b"\r\n"
+    assert len(text) == 2**14, len(text)
+    node = node.add_child(fuzz_padding(ApplicationDataGenerator(text),
+                                       min_length=252))
+    if echo:
+        node = node.add_child(ExpectApplicationData(size=2**14))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert(AlertLevel.warning,
+                                      AlertDescription.close_notify))
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+
+    conversations["2^14 bytes of AppData with 253 bytes of padding (SHA1)"] = \
+            conversation
+
+    # longest possible padding with max size Application data (and EtM)
+    conversation = Connect(host, port)
+    node = conversation
+    ext = {ExtensionType.encrypt_then_mac: AutoEmptyExtension()}
+    if dhe:
+        add_dhe_extensions(ext)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    extensions = {ExtensionType.encrypt_then_mac:None,
+                  ExtensionType.renegotiation_info:None}
+    node = node.add_child(ExpectServerHello(extensions=extensions))
+    node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    text = b"GET / HTTP/1.0\r\nX-bad: a\r\n"
+    for i in range(3):
+        text += b"X-ba" + compatAscii2Bytes(str(i)) + b": " + \
+                b"a" * (4096 - 9) + b"\r\n"
+    text += b"X-ba3: " + b"a" * (4096 - 37) + b"\r\n"
+    text += b"\r\n"
+    assert len(text) == 2**14, len(text)
+    node = node.add_child(fuzz_padding(ApplicationDataGenerator(text),
+                                       min_length=255))
+    if echo:
+        node = node.add_child(ExpectApplicationData(size=2**14))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert(AlertLevel.warning,
+                                      AlertDescription.close_notify))
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+
+    conversations["2^14 bytes of AppData with 256 bytes of padding (SHA1 "
+                  "+ Encrypt then MAC)"] = \
+            conversation
+
+    # longest possible padding with max size Application data with SHA256
+    conversation = Connect(host, port)
+    node = conversation
+    if dhe:
+        ext = {}
+        add_dhe_extensions(ext)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ext = None
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA256,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    text = b"GET / HTTP/1.0\r\nX-bad: a\r\n"
+    for i in range(3):
+        text += b"X-ba" + compatAscii2Bytes(str(i)) + b": " + \
+                b"a" * (4096 - 9) + b"\r\n"
+    text += b"X-ba3: " + b"a" * (4096 - 37) + b"\r\n"
+    text += b"\r\n"
+    assert len(text) == 2**14, len(text)
+    node = node.add_child(fuzz_padding(ApplicationDataGenerator(text),
+                                       min_length=255))
+    if echo:
+        node = node.add_child(ExpectApplicationData(size=2**14))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert(AlertLevel.warning,
+                                      AlertDescription.close_notify))
+    node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
+
+    conversations["2^14 bytes of AppData with 256 bytes of padding (SHA256)"] = \
+            conversation
+
+    conversation = Connect(host, port)
+    node = conversation
+    ext = {}
+    add_dhe_extensions(ext)
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    text = b"GET / HTTP/1.0\r\nX-bad: a\r\n"
+    for i in range(3):
+        text += b"X-ba" + compatAscii2Bytes(str(i)) + b": " + \
+                b"a" * (4096 - 9) + b"\r\n"
+    text += b"X-ba3: " + b"a" * (4096 - 37) + b"\r\n"
+    text += b"\r\n"
+    assert len(text) == 2**14, len(text)
+    node = node.add_child(fuzz_padding(ApplicationDataGenerator(text),
+                                       min_length=255))
+    if echo:
+        node = node.add_child(ExpectApplicationData(size=2**14))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["2^14 bytes of AppData with 256 bytes of padding (SHA384)"] = \
             conversation
 
     # run the conversation
@@ -145,7 +545,7 @@ def main():
         res = True
         try:
             runner.run()
-        except:
+        except Exception:
             print("Error while processing")
             print(traceback.format_exc())
             res = False
@@ -156,6 +556,11 @@ def main():
         else:
             bad += 1
             failed.append(c_name)
+
+    print("Test if server can handle records with large (but valid) padding")
+    print("Tests both with small records and records that carry maximum amount")
+    print("of user data.\n")
+    print("version: {0}\n".format(version))
 
     print("Test end")
     print("successful: {0}".format(good))
