@@ -109,6 +109,9 @@
           "comment" : "Test requires ECDSA support, missing in tlslite-ng",
           "exp_pass" : false},
          {"name" : "test-empty-extensions.py"},
+         {"name" : "test-encrypt-then-mac.py"},
+         {"name" : "test-encrypt-then-mac.py",
+          "arguments": ["-d"]},
          {"name" : "test-encrypt-then-mac-renegotiation.py",
           "arguments" : ["-e", "Encrypt-then-MAC renegotiation crash"],
           "comment" : "Test requires renegotiation support"
