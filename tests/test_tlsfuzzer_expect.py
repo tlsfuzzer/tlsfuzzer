@@ -30,18 +30,19 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         hrr_ext_handler_cookie, ExpectHelloRetryRequest, \
         gen_srv_ext_handler_psk, srv_ext_handler_supp_groups, \
         srv_ext_handler_heartbeat, gen_srv_ext_handler_record_limit, \
-        srv_ext_handler_status_request
+        srv_ext_handler_status_request, ExpectHeartbeat
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
         SignatureAlgorithm, CipherSuite, CertificateType, SSL2HandshakeType, \
         SSL2ErrorDescription, GroupName, CertificateStatusType, ECPointFormat,\
         SignatureScheme, TLS_1_3_HRR, HeartbeatMode, \
-        TLS_1_1_DOWNGRADE_SENTINEL, TLS_1_2_DOWNGRADE_SENTINEL
+        TLS_1_1_DOWNGRADE_SENTINEL, TLS_1_2_DOWNGRADE_SENTINEL, \
+        HeartbeatMessageType
 from tlslite.messages import Message, ServerHello, CertificateRequest, \
         ClientHello, Certificate, ServerHello2, ServerFinished, \
         ServerKeyExchange, CertificateStatus, CertificateVerify, \
-        Finished, EncryptedExtensions, NewSessionTicket
+        Finished, EncryptedExtensions, NewSessionTicket, Heartbeat
 from tlslite.extensions import SNIExtension, TLSExtension, \
         SupportedGroupsExtension, ALPNExtension, ECPointFormatsExtension, \
         NPNExtension, ServerKeyShareExtension, ClientKeyShareExtension, \
@@ -3217,3 +3218,96 @@ class TestExpectCertificateRequest(unittest.TestCase):
 
         with self.assertRaises(AssertionError):
             exp.process(state, msg)
+
+
+class TestExpectHeartbeat(unittest.TestCase):
+    def test___init__(self):
+        exp = ExpectHeartbeat()
+
+        self.assertIsNotNone(exp)
+        self.assertEqual(exp.message_type,
+            HeartbeatMessageType.heartbeat_response)
+        self.assertIsNone(exp.payload)
+        self.assertIsNone(exp.padding_size)
+
+    def test_process_with_defaults(self):
+        hb = Heartbeat().create(
+                HeartbeatMessageType.heartbeat_response,
+                bytearray(b'test heartbeat'),
+                16)
+
+        exp = ExpectHeartbeat()
+
+        exp.process(None, hb)
+
+    def test_process_with_unexpected_type(self):
+        hb = Heartbeat().create(
+                HeartbeatMessageType.heartbeat_request,
+                bytearray(b'test heartbeat'),
+                16)
+
+        exp = ExpectHeartbeat()
+
+        with self.assertRaises(AssertionError) as e:
+            exp.process(None, hb)
+
+        self.assertIn("received: heartbeat_request", str(e.exception))
+
+    def test_process_with_specified_payload(self):
+        hb = Heartbeat().create(
+                HeartbeatMessageType.heartbeat_response,
+                bytearray(b'test heartbeat'),
+                16)
+
+        exp = ExpectHeartbeat(payload=bytearray(b'test heartbeat'))
+
+        exp.process(None, hb)
+
+    def test_process_with_unexpected_payload(self):
+        hb = Heartbeat().create(
+                HeartbeatMessageType.heartbeat_response,
+                bytearray(b'unexpected'),
+                16)
+
+        exp = ExpectHeartbeat(payload=bytearray(b'test heartbeat'))
+
+        with self.assertRaises(AssertionError) as e:
+            exp.process(None, hb)
+
+        self.assertIn("Unexpected payload", str(e.exception))
+        self.assertIn("unexpected", str(e.exception))
+
+    def test_process_with_too_small_padding(self):
+        hb = Heartbeat().create(
+                HeartbeatMessageType.heartbeat_response,
+                bytearray(b'test heartbeat'),
+                15)
+
+        exp = ExpectHeartbeat()
+
+        with self.assertRaises(AssertionError):
+            exp.process(None, hb)
+
+    def test_process_with_custom_size_of_padding(self):
+        hb = Heartbeat().create(
+                HeartbeatMessageType.heartbeat_response,
+                bytearray(b'test heartbeat'),
+                20)
+
+        exp = ExpectHeartbeat(padding_size=20)
+
+        exp.process(None, hb)
+
+    def test_process_with_unexpected_size_of_padding(self):
+        hb = Heartbeat().create(
+                HeartbeatMessageType.heartbeat_response,
+                bytearray(b'test heartbeat'),
+                16)
+
+        exp = ExpectHeartbeat(padding_size=20)
+
+        with self.assertRaises(AssertionError) as e:
+            exp.process(None, hb)
+
+        self.assertIn("unexpected size of padding", str(e.exception))
+        self.assertIn("received: 16", str(e.exception))
