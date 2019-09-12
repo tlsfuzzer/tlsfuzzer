@@ -16,15 +16,20 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         fuzz_message, ResetHandshakeHashes, Close, ResetRenegotiationInfo
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose
+        ExpectAlert, ExpectApplicationData, ExpectClose, \
+        ExpectServerKeyExchange
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType
-from tlslite.extensions import ALPNExtension, TLSExtension
+        ExtensionType, SignatureScheme, GroupName
+from tlslite.extensions import ALPNExtension, TLSExtension, \
+        SupportedGroupsExtension, SignatureAlgorithmsExtension, \
+        SignatureAlgorithmsCertExtension
+from tlsfuzzer.utils.lists import natural_sort_keys
+from tlsfuzzer.helpers import RSA_SIG_ALL
 
-def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
-    return [int(text) if text.isdigit() else text.lower()
-            for text in re.split(_nsre, s)]
+
+version = 2
+
 
 def help_msg():
     print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
@@ -35,15 +40,26 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -d             negotiate (EC)DHE instead of RSA key exchange")
     print(" --help         this message")
 
 def main():
     host = "localhost"
     port = 4433
     run_exclude = set()
+    dhe = False
+    sigalgs = [SignatureScheme.rsa_pkcs1_sha256,
+               SignatureScheme.rsa_pkcs1_sha384,
+               SignatureScheme.rsa_pkcs1_sha512,
+               SignatureScheme.rsa_pss_rsae_sha256,
+               SignatureScheme.rsa_pss_rsae_sha384,
+               SignatureScheme.rsa_pss_rsae_sha512,
+               SignatureScheme.rsa_pss_pss_sha256,
+               SignatureScheme.rsa_pss_pss_sha384,
+               SignatureScheme.rsa_pss_pss_sha512]
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:d", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -51,6 +67,8 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-d':
+            dhe = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -66,11 +84,28 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers))
+    if dhe:
+        ext = {}
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(sigalgs)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(sigalgs)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ext = None
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -78,7 +113,7 @@ def main():
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
     node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\n\n")))
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -95,7 +130,10 @@ def main():
     for p in range(1, 255):
         lista.append(proto)
     # max size with
-    lista.append(bytearray(b'B' * 239))
+    if dhe:
+        lista.append(bytearray(b'B' * 181))
+    else:
+        lista.append(bytearray(b'B' * 239))
     lista.append(bytearray(b'http/1.1'))
     # cipher suites array length 2^16-2, ciphers are two bytes
     # max number of ciphers can be 32767
@@ -115,22 +153,42 @@ def main():
         ciphers.append(c)
     # 0x56,0x01-0xC0,0x00       Unassigned (22017-49152)
     # adding 10921 ciphers, from unassigned range above
-    for c in range(22017, 32939):
-        ciphers.append(c)
-    # adding TLS_RSA_WITH_AES_128_CBC_SHA
-    ciphers.append(CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA)
+    if dhe:
+        # with DHE we send two valid ciphers, not one
+        for c in range(22017, 32939 - 1):
+            ciphers.append(c)
+    else:
+        for c in range(22017, 32939):
+            ciphers.append(c)
+    # adding ciphers we actually want to use
+    if dhe:
+        ciphers.append(CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA)
+        ciphers.append(CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA)
+    else:
+        ciphers.append(CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA)
     ciphers.append(CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV)
     # cipher suites array filled with 32767 2bytes values
     ext = {ExtensionType.alpn: ALPNExtension().create(lista)}
-    # adding session_id, compression methonds 
-    node = node.add_child(ClientHelloGenerator(ciphers, 
-                                               session_id=bytearray(32), 
-                                               extensions=ext, 
+    if dhe:
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(sigalgs)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(sigalgs)
+    # adding session_id, compression methonds
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               session_id=bytearray(32),
+                                               extensions=ext,
                                                compression=range(0, 255)))
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -165,7 +223,7 @@ def main():
         res = True
         try:
             runner.run()
-        except:
+        except Exception:
             print("Error while processing")
             print(traceback.format_exc())
             res = False
@@ -176,6 +234,10 @@ def main():
         else:
             bad += 1
             failed.append(c_name)
+
+    print("Check if server will accept Client Hello message of maximum valid")
+    print("size\n")
+    print("version: {0}\n".format(version))
 
     print("Test end")
     print("successful: {0}".format(good))
