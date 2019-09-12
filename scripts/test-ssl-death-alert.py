@@ -1,3 +1,5 @@
+# Author: Milan Lysonek, (c) 2016
+# Released under Gnu GPL v2.0, see LICENSE file for details
 # CVE-2016-8610
 # SSL Death Alert
 # OpenSSL SSL/TLS SSL3_AL_WARNING undefined alert flood remote DoS
@@ -14,13 +16,17 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         FinishedGenerator, AlertGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectClose
-from tlslite.constants import CipherSuite, AlertLevel, AlertDescription
+        ExpectAlert, ExpectClose, ExpectServerKeyExchange
+from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
+        GroupName, ExtensionType
+from tlslite.extensions import SupportedGroupsExtension, \
+        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.helpers import flexible_getattr
 from tlsfuzzer.utils.lists import natural_sort_keys
+from tlsfuzzer.helpers import RSA_SIG_ALL
 
 
-version = 2
+version = 3
 
 
 def help_msg():
@@ -36,6 +42,7 @@ def help_msg():
     print("                      may be specified multiple times")
     print(" -n number_of_alerts  how many alerts client sends to server,")
     print("                      4 by default")
+    print(" -d                   negotiate (EC)DHE instead of RSA key exchange")
     print(" --alert-level        expected Alert.level of the abort")
     print("                      alert from server, fatal by default")
     print(" --alert-description  expected Alert.description of the")
@@ -50,9 +57,10 @@ def main():
     run_exclude = set()
     alert_level = AlertLevel.fatal
     alert_description = None
+    dhe = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:",
+    opts, args = getopt.getopt(argv, "h:p:e:n:d",
                                ["help", "alert-level=",
                                 "alert-description="])
     for opt, arg in opts:
@@ -64,6 +72,8 @@ def main():
             run_exclude.add(arg)
         elif opt == '-n':
             number_of_alerts = int(arg)
+        elif opt == '-d':
+            dhe = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -83,13 +93,29 @@ def main():
 
     conversation = Connect(hostname, port, version=(3, 3))
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    node = node.add_child(ClientHelloGenerator(ciphers))
+    if dhe:
+        ext = {}
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    else:
+        ext = None
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     for _ in range(number_of_alerts):  # sending alerts during handshake
         node = node.add_child(AlertGenerator(  # alert description: 46, 41, 43
             AlertLevel.warning, AlertDescription.unsupported_certificate))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -105,13 +131,29 @@ def main():
 
     conversation = Connect(hostname, port, version=(3, 3))
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    node = node.add_child(ClientHelloGenerator(ciphers))
+    if dhe:
+        ext = {}
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    else:
+        ext = None
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     for _ in range(number_of_alerts+1):
         node = node.add_child(AlertGenerator(
             AlertLevel.warning, AlertDescription.unsupported_certificate))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ExpectAlert(alert_level, alert_description))
     node = node.add_child(ExpectClose())
