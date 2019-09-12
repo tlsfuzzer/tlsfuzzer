@@ -43,6 +43,7 @@ def help_msg():
     print(" --min-zeros m  minimal number of zeros that have to be cut from")
     print("                shared secret for test case to be valid,")
     print("                1 by default")
+    print(" -z             don't expect 1/n-1 record split in TLS1.0")
     print(" --help         this message")
 
 
@@ -53,9 +54,10 @@ def main():
     num_limit = None
     run_exclude = set()
     min_zeros = 1
+    record_split = True
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help", "min-zeros="])
+    opts, args = getopt.getopt(argv, "h:p:e:n:z", ["help", "min-zeros="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -65,6 +67,8 @@ def main():
             run_exclude.add(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '-z':
+            record_split = False
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -143,7 +147,7 @@ def main():
             node = node.add_child(ApplicationDataGenerator(
                 bytearray(b"GET / HTTP/1.0\n\n")))
             node = node.add_child(ExpectApplicationData())
-            if prot < (3, 2):
+            if prot < (3, 2) and record_split:
                 # 1/n-1 record splitting
                 node = node.add_child(ExpectApplicationData())
             node = node.add_child(AlertGenerator(AlertLevel.warning,

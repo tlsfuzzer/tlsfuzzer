@@ -44,6 +44,7 @@ def help_msg():
     print("                (excluding \"sanity\" tests)")
     print(" --repeat num   repeat every test num times to collect the values")
     print("                32 by default")
+    print(" -z             don't expect 1/n-1 record split in TLS1.0")
     print(" --help         this message")
 
 
@@ -54,9 +55,10 @@ def main():
     num_limit = None
     run_exclude = set()
     repeats = 32
+    record_split = True
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help", "repeat="])
+    opts, args = getopt.getopt(argv, "h:p:e:n:z", ["help", "repeat="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -69,6 +71,8 @@ def main():
         elif opt == '--help':
             help_msg()
             sys.exit(0)
+        elif opt == '-z':
+            record_split = False
         elif opt == '--repeat':
             repeats = int(arg)
         else:
@@ -170,7 +174,7 @@ def main():
                 node = node.add_child(ApplicationDataGenerator(
                     bytearray(b"GET / HTTP/1.0\n\n")))
                 node = node.add_child(ExpectApplicationData())
-                if prot < (3, 2):
+                if prot < (3, 2) and record_split:
                     # 1/n-1 record splitting
                     node = node.add_child(ExpectApplicationData())
                 node = node.add_child(AlertGenerator(AlertLevel.warning,
