@@ -161,6 +161,8 @@
          {"name" : "test-fuzzed-finished.py"},
          {"name" : "test-fuzzed-MAC.py"},
          {"name" : "test-fuzzed-padding.py"},
+         {"name" : "test-fuzzed-padding.py",
+          "arguments" : ["-d"]},
          {"name" : "test-fuzzed-plaintext.py"},
          {"name" : "test-fuzzed-plaintext.py",
           "arguments" : ["-d"]},

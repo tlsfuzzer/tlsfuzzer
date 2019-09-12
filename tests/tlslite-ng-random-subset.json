@@ -167,6 +167,8 @@
          {"name" : "test-fuzzed-finished.py"},
          {"name" : "test-fuzzed-MAC.py"},
          {"name" : "test-fuzzed-padding.py"},
+         {"name" : "test-fuzzed-padding.py",
+          "arguments" : ["-d"]},
          {"name" : "test-fuzzed-plaintext.py",
           "arguments" : ["-n", "80", "--random", "200"],
           "comment" : "--random to speed up initial test case creation"},
