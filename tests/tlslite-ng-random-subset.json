@@ -194,6 +194,8 @@
           "comment" : "over 3k tests in full script",
           "arguments" : ["-n", "50"]},
          {"name" : "test-large-number-of-extensions.py"},
+         {"name" : "test-large-number-of-extensions.py",
+          "arguments" : ["-d"]},
          {"name" : "test-legacy-renegotiation.py",
           "comment" : "tlslite-ng does not support renegotiation",
           "exp_pass" : false},
