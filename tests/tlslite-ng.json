@@ -75,6 +75,10 @@
           "comment": "SSLv3 is not supported by tlslite-ng by default",
           "exp_pass": false
          },
+         {"name" : "test-client-compatibility.py",
+          "arguments" : ["-d", "sanity"],
+          "comment" : "non-sanity probes use specific ciphers, we cannot alter them with -d option"
+         },
          {"name" : "test-conversation.py"},
          {"name" : "test-conversation.py",
           "arguments" : ["-d"]},
