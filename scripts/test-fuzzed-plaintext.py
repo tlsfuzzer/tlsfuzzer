@@ -60,6 +60,17 @@ def help_msg():
     print(" --help         this message")
 
 
+def add_dhe_extensions(extensions):
+    groups = [GroupName.secp256r1,
+              GroupName.ffdhe2048]
+    extensions[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    extensions[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+    extensions[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+
+
 def main():
     """Check if incorrect padding and MAC is rejected by server."""
     host = "localhost"
@@ -137,20 +148,11 @@ def main():
     node = conversation
     if dhe:
         ext = {}
-        groups = [GroupName.secp256r1,
-                  GroupName.ffdhe2048]
-        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-            .create(groups)
-        ext[ExtensionType.signature_algorithms] = \
-            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
-        ext[ExtensionType.signature_algorithms_cert] = \
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-        ciphers = [cipher,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        add_dhe_extensions(ext)
     else:
         ext = None
-        ciphers = [cipher,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ciphers = [cipher,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
@@ -199,20 +201,11 @@ def main():
         node = conversation
         if dhe:
             ext = {}
-            groups = [GroupName.secp256r1,
-                      GroupName.ffdhe2048]
-            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-                .create(groups)
-            ext[ExtensionType.signature_algorithms] = \
-                SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
-            ext[ExtensionType.signature_algorithms_cert] = \
-                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-            ciphers = [cipher,
-                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+            add_dhe_extensions(ext)
         else:
             ext = None
-            ciphers = [cipher,
-                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        ciphers = [cipher,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
@@ -262,20 +255,11 @@ def main():
         node = conversation
         if dhe:
             ext = {}
-            groups = [GroupName.secp256r1,
-                      GroupName.ffdhe2048]
-            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-                .create(groups)
-            ext[ExtensionType.signature_algorithms] = \
-                SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
-            ext[ExtensionType.signature_algorithms_cert] = \
-                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-            ciphers = [cipher,
-                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+            add_dhe_extensions(ext)
         else:
             ext = None
-            ciphers = [cipher,
-                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        ciphers = [cipher,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
