@@ -8,6 +8,7 @@ import sys
 import getopt
 from itertools import chain
 from random import sample
+from math import ceil
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
@@ -42,8 +43,16 @@ def help_msg():
     print("                may be specified multiple times")
     print(" --random count generate `count` random tests in addition to the")
     print("                basic 8192 pre-programmed ones. 8192 by default")
+    print("                for ciphers with 128 bit block size and 16384 for")
+    print("                ciphers with 64 bit block size.")
+    # the above counts are twice as large as default rand_limit as we're
+    # generating two sets of tests, one for handshake and one for
+    # application_data
+    print("                Vaues smaller than the default will make the")
+    print("                pre-programmed tests more likely while larger")
+    print("                values will make them less likely to be executed.")
     print(" -n num         only run `num` random tests instead of a full set.")
-    print("                1024 by default")
+    print("                1024 by default. 0 to execute all tests")
     print("                (\"sanity\" tests are always executed)")
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
     print(" -C cipher      specify cipher for connection. Use integer value")
@@ -76,7 +85,7 @@ def main():
     host = "localhost"
     port = 4433
     num_limit = 1024
-    rand_limit = 4096
+    rand_limit = None
     run_exclude = set()
     dhe = False
     cipher = None
@@ -95,7 +104,7 @@ def main():
         elif opt == '-n':
             num_limit = int(arg)
         elif opt == '--random':
-            rand_limit = int(arg)
+            rand_limit = int(arg)//2
         elif opt == '-d':
             dhe = True
         elif opt == '--1/n-1':
@@ -127,6 +136,13 @@ def main():
     block_size = 16
     if cipher in CipherSuite.tripleDESSuites:
         block_size = 8
+
+    if rand_limit is None:
+        if block_size == 16:
+            rand_limit = 4096
+        else:
+            assert block_size == 8
+            rand_limit = 8192
 
     if cipher in CipherSuite.ecdhAllSuites or cipher in CipherSuite.dhAllSuites:
         dhe = True
@@ -188,13 +204,35 @@ def main():
             conversation
 
     # test all combinations of lengths and values for plaintexts up to 256
-    # bytes long uniform content (where every byte has the same value)
-    mono = (StructuredRandom([(length, value)]) for length in
-            range(block_size, 257, block_size)
-            for value in range(256))
-    rand = structured_random_iter(rand_limit,
+    # bytes long with uniform content (where every byte has the same value)
+    lengths_to_test = range(block_size, 257, block_size)
+    values_to_test = range(256)
+    mono_tests = [(length, value) for length in
+                  range(block_size, 257, block_size)
+                  for value in range(256)]
+    if not num_limit:
+        mono_iter = mono_tests
+        rand_len_to_generate = rand_limit
+    else:
+        # we want to speed up generation, so generate only as many conversations
+        # as necessary to meet num_limit, but do that uniformely between
+        # random payloads, mono payloads, application_data tests and handshake
+        # tests
+        ratio = rand_limit * 1.0 / len(mono_tests)
+
+        # `num_limit / 2` because of handshake and application_data tests
+        mono_len_to_generate = min(len(mono_tests),
+                                   int(ceil((num_limit / 2) * (1 - ratio))))
+        rand_len_to_generate = int(ceil((num_limit) / 2 * ratio))
+        mono_iter = sample(mono_tests, mono_len_to_generate)
+
+    mono = (StructuredRandom([(length, value)]) for length, value in
+            mono_iter)
+
+    rand = structured_random_iter(rand_len_to_generate,
                                   min_length=block_size, max_length=2**14,
                                   step=block_size)
+
     # block size is 16 bytes for AES_128, 2**14 is the TLS protocol max
     for data in chain(mono, rand):
         conversation = Connect(host, port)
@@ -242,13 +280,35 @@ def main():
     # deduce if the message needs special handling, if any)
 
     # test all combinations of lengths and values for plaintexts up to 256
-    # bytes long uniform content (where every byte has the same value)
-    mono = (StructuredRandom([(length, value)]) for length in
-            range(block_size, 257, block_size)
-            for value in range(256))
-    rand = structured_random_iter(rand_limit,
+    # bytes long with uniform content (where every byte has the same value)
+    lengths_to_test = range(block_size, 257, block_size)
+    values_to_test = range(256)
+    mono_tests = [(length, value) for length in
+                  range(block_size, 257, block_size)
+                  for value in range(256)]
+    if not num_limit:
+        mono_iter = mono_tests
+        rand_len_to_generate = rand_limit
+    else:
+        # we want to speed up generation, so generate only as many conversations
+        # as necessary to meet num_limit, but do that uniformely between
+        # random payloads, mono payloads, application_data tests and handshake
+        # tests
+        ratio = rand_limit * 1.0 / len(mono_tests)
+
+        # `num_limit / 2` because of handshake and application_data tests
+        mono_len_to_generate = min(len(mono_tests),
+                                   int(ceil((num_limit / 2) * (1 - ratio))))
+        rand_len_to_generate = int(ceil((num_limit) / 2 * ratio))
+        mono_iter = sample(mono_tests, mono_len_to_generate)
+
+    mono = (StructuredRandom([(length, value)]) for length, value in
+            mono_iter)
+
+    rand = structured_random_iter(rand_len_to_generate,
                                   min_length=block_size, max_length=2**14,
                                   step=block_size)
+
     # block size is 16 bytes for AES_128, 2**14 is the TLS protocol max
     for data in chain(mono, rand):
         conversation = Connect(host, port)
