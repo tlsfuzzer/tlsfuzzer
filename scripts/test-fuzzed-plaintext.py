@@ -1,6 +1,6 @@
-# Author: Hubert Kario, (c) 2018
+# Author: Hubert Kario, (c) 2018, 2019
 # Released under Gnu GPL v2.0, see LICENSE file for details
-"""Example MAC value fuzzer"""
+"""MAC value fuzzer"""
 
 from __future__ import print_function
 import traceback
@@ -28,7 +28,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import RSA_SIG_ALL
 
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -41,7 +41,7 @@ def help_msg():
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
     print(" --random count generate `count` random tests in addition to the")
-    print("                basic 4096 pre-programmed ones. 4096 by default")
+    print("                basic 8192 pre-programmed ones. 8192 by default")
     print(" -n num         only run `num` random tests instead of a full set.")
     print("                1024 by default")
     print("                (\"sanity\" tests are always executed)")
@@ -51,16 +51,17 @@ def help_msg():
     print("                if it is hexadecimal. By default uses")
     print("                TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA with -d option")
     print("                RSA_WITH_AES_128_CBC_SHA without -d option.")
-    print("                See tlslite.constants.CipherSuite for specified")
-    print("                ciphers")
+    print("                See tlslite.constants.CipherSuite for ciphersuite")
+    print("                definitions")
     print(" --1/n-1        Expect the 1/n-1 record splitting for BEAST")
     print("                mitigation (should not be used with TLS 1.1 or up)")
     print(" --0/n          Expect the 0/n record splitting for BEAST")
+    print("                mitigation (should not be used with TLS 1.1 or up)")
     print(" --help         this message")
 
 
 def main():
-    """check if incorrect padding is rejected by server"""
+    """Check if incorrect padding and MAC is rejected by server."""
     host = "localhost"
     port = 4433
     num_limit = 1024
@@ -238,7 +239,67 @@ def main():
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                           AlertDescription.bad_record_mac))
         node = node.add_child(ExpectClose())
-        conversations["encrypted plaintext of {0}".format(data)] = \
+        conversations["encrypted Application Data plaintext of {0}"
+                      .format(data)] = \
+                conversation
+
+    # do th same thing but for handshake record
+    # (note, while the type is included in the MAC, we are never
+    # sending a valid MAC, so the server has only the record layer header to
+    # deduce if the message needs special handling, if any)
+
+    # test all combinations of lengths and values for plaintexts up to 256
+    # bytes long uniform content (where every byte has the same value)
+    mono = (StructuredRandom([(length, value)]) for length in
+            range(block_size, 257, block_size)
+            for value in range(256))
+    rand = structured_random_iter(rand_limit,
+                                  min_length=block_size, max_length=2**14,
+                                  step=block_size)
+    # block size is 16 bytes for AES_128, 2**14 is the TLS protocol max
+    for data in chain(mono, rand):
+        conversation = Connect(host, port)
+        node = conversation
+        if dhe:
+            ext = {}
+            groups = [GroupName.secp256r1,
+                      GroupName.ffdhe2048]
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                .create(groups)
+            ext[ExtensionType.signature_algorithms] = \
+                SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+            ext[ExtensionType.signature_algorithms_cert] = \
+                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+            ciphers = [cipher,
+                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        else:
+            ext = None
+            ciphers = [cipher,
+                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+        node = node.add_child(ExpectServerHello())
+        node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
+        node = node.add_child(ExpectCertificateRequest())
+        fork = node
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(CertificateGenerator())
+
+        # handle servers which ask for client certificates
+        fork.next_sibling = ExpectServerHelloDone()
+        join = ClientKeyExchangeGenerator()
+        fork.next_sibling.add_child(join)
+
+        node = node.add_child(join)
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(replace_plaintext(
+            FinishedGenerator(),
+            data.data))
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node = node.add_child(ExpectClose())
+        conversations["encrypted Handshake plaintext of {0}".format(data)] = \
                 conversation
 
     # run the conversation
@@ -282,7 +343,8 @@ def main():
     print("and MAC verification algorithms and verifies that they are handled")
     print("correctly and consistently.\n")
     print("Should be executed with multiple ciphers (especially regarding the")
-    print("HMAC used) and TLS versions. Note: test assumes CBC mode ciphers.\n")
+    print("HMAC used) and TLS versions. Note: test requires CBC mode")
+    print("ciphers.\n")
     print("TLS 1.0 servers should require enabling BEAST workaround, see")
     print("help message.\n")
     print("version: {0}\n".format(version))
