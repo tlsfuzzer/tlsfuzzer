@@ -258,8 +258,7 @@ def main():
     node.next_sibling = ExpectClose()
     conversations["insecure (legacy) renegotiation with incomplete GET"] = conversation
 
-
-    # sending both SCSV and renegotiation_info
+    # sending both SCSV and renegotiation_info: cold, then renegotiated
     conversation = Connect(host, port)
     node = conversation
 
@@ -290,6 +289,34 @@ def main():
     node = node.add_child(ExpectClose())
     conversations["sending both SCSV and renegotiation_info in renegotiated handshake"] = conversation
 
+    # sending both SCSV and renegotiation_info: cold, then renegotiated+resumed
+    conversation = Connect(host, port)
+    node = conversation
+
+    # Sending both is NOT RECOMMENDED, though valid, for the first handshake...
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {ExtensionType.renegotiation_info: None}
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    ext = {ExtensionType.renegotiation_info: None}
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    # ... but not for the second handshake
+    node = node.add_child(ResetHandshakeHashes())
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {ExtensionType.renegotiation_info: None}
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.handshake_failure))
+    node = node.add_child(ExpectClose())
+    conversations["sending both SCSV and renegotiation_info in renegotiation+resumption"] = conversation
 
     # run the conversation
     good = 0
