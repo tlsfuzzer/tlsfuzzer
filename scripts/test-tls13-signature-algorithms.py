@@ -332,11 +332,19 @@ def main():
         .create([TLS_1_3_DRAFT, (3, 3)])
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
+    # Add all supported sig_algs, put rsa at the end
     sig_algs = []
-    for sig_alg in ['ecdsa', 'dsa']:
+    for sig_alg in ['ecdsa', 'dsa','rsa']:
         sig_algs += [(getattr(HashAlgorithm, x), getattr(SignatureAlgorithm, sig_alg))\
                       for x in ['md5', 'sha1', 'sha224', 'sha256', 'sha384', 'sha512']]
-    sig_algs += RSA_SIG_ALL
+    # ed25519(0x0807), ed448(0x0808)
+    sig_algs += [(8, 7), (8, 8)]
+    sig_algs += [SignatureScheme.rsa_pss_pss_sha256,
+                 SignatureScheme.rsa_pss_pss_sha384,
+                 SignatureScheme.rsa_pss_pss_sha512,
+                 SignatureScheme.rsa_pss_rsae_sha256,
+                 SignatureScheme.rsa_pss_rsae_sha384,
+                 SignatureScheme.rsa_pss_rsae_sha512]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
@@ -703,6 +711,8 @@ def main():
     print("Signature Algorithms in TLS 1.3")
     print("Check if valid signature algorithm extensions are accepted and")
     print("invalid properly rejected by the TLS 1.3 server.\n")
+    print("Server must be configured to support only rsa_pss_rsae_sha512")
+    print("signature algorithm.")
     print("version: {0}\n".format(version))
 
     print("Test end")
