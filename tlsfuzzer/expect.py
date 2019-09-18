@@ -86,7 +86,36 @@ class Expect(TreeNode):
         raise NotImplementedError("Subclasses need to implement this!")
 
 
-class ExpectHandshake(Expect):
+class ExpectMessage(Expect):
+    """Common methods for handling TLS messages."""
+
+    @staticmethod
+    def _cmp_eq(our, recv, field_type=None, f_str=None):
+        """
+        Check if expected value matched received, if defined.
+
+        If our is not None, compare with recv. If they don't match, try
+        translating them with field_type.toStr() method and rise
+        AssertionError with message formatted with f_str. First parameter
+        to .format() will be expected value and the second one will be the
+        received one
+        """
+        if our is None or our == recv:
+            return
+
+        if field_type:
+            expected = field_type.toStr(our)
+            received = field_type.toStr(recv)
+        else:
+            expected = our
+            received = recv
+
+        if not f_str:
+            f_str = "Expected: {0}, recieved: {1}"
+        raise AssertionError(f_str.format(expected, received))
+
+
+class ExpectHandshake(ExpectMessage):
     """Common methods for handling TLS Handshake protocol messages"""
 
     def __init__(self, content_type, handshake_type):
@@ -571,11 +600,13 @@ class ExpectServerHello(ExpectHandshake):
             assert state.version == self._extract_version(srv_hello)
         state.session_id = srv_hello.session_id
 
-        if self.version is not None:
-            assert self.version == srv_hello.server_version
+        self._cmp_eq(self.version, srv_hello.server_version,
+                     f_str="Server selected unexpected protocol version. "
+                           "Expected: {0}, received: {1}.")
 
-        if self.cipher is not None:
-            assert self.cipher == srv_hello.cipher_suite
+        self._cmp_eq(self.cipher, srv_hello.cipher_suite,
+                     f_str="Server selected unexpected ciphersuite. "
+                           "Expected: {0}, received: {1}.")
 
         # check if server sent cipher matches what we advertised in CH
         cln_hello = state.get_last_message_of_type(ClientHello)
@@ -789,8 +820,9 @@ class ExpectServerHello2(ExpectHandshake):
         state.handshake_messages.append(server_hello)
         state.handshake_hashes.update(msg.write())
 
-        if self.version is not None:
-            assert self.version == server_hello.server_version
+        self._cmp_eq(self.version, server_hello.server_version,
+                     f_str="Server picked unexpected protocol version."
+                           "Expected: {0}, received: {1}.")
 
         if server_hello.session_id_hit:
             state.resuming = True
@@ -1034,13 +1066,10 @@ class ExpectCertificateRequest(ExpectHandshake):
 
         cert_request = CertificateRequest(state.version)
         cert_request.parse(parser)
-        if self.sig_algs is not None and \
-                cert_request.supported_signature_algs != self.sig_algs:
-            raise AssertionError("Unexpected sig algs. Got: {0}, "
-                                 "expected: {1}"
-                                 .format(cert_request.supported_signature_algs,
-                                         self.sig_algs)
-                                )
+
+        self._cmp_eq(self.sig_algs, cert_request.supported_signature_algs,
+                     f_str="Unexpected signature algorithms. Got: {1}, "
+                           "expected: {0}")
 
         state.handshake_messages.append(cert_request)
         state.handshake_hashes.update(msg.write())
@@ -1475,7 +1504,7 @@ class ExpectApplicationData(Expect):
                                  "expected: {1}".format(len(data), self.size))
 
 
-class ExpectHeartbeat(Expect):
+class ExpectHeartbeat(ExpectMessage):
     """Processing of heartbeat messages."""
 
     def __init__(self, message_type=HeartbeatMessageType.heartbeat_response,
@@ -1506,20 +1535,14 @@ class ExpectHeartbeat(Expect):
         parser = Parser(msg.write())
         heartbeat = Heartbeat().parse(parser)
 
-        if self.message_type is not None and \
-                self.message_type != heartbeat.message_type:
-            raise AssertionError(
-                "Unexpected heartbeat message type. Expected:"
-                " {0}, received: {1}".format(
-                    HeartbeatMessageType.toStr(self.message_type),
-                    HeartbeatMessageType.toStr(heartbeat.message_type)))
+        self._cmp_eq(self.message_type, heartbeat.message_type,
+                     HeartbeatMessageType,
+                     "Unexpected heartbeat message type. Expected: {0}, "
+                     "received: {1}.")
 
-        if self.payload is not None and \
-                self.payload != heartbeat.payload:
-            raise AssertionError("Unexpected payload in Heartbeat message "
-                                 "received. Expected: {0!r}, received: "
-                                 "{1!r}".format(self.payload,
-                                                heartbeat.payload))
+        self._cmp_eq(self.payload, heartbeat.payload,
+                     f_str="Unexpected payload in Heartbeat message "
+                           "received. Expected: {0!r}, received: {1!r}")
 
         if self.padding_size is None:
             assert len(heartbeat.padding) >= 16
