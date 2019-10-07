@@ -1,34 +1,36 @@
-# Author: Hubert Kario, (c) 2018
+# Author: Hubert Kario, (c) 2018, 2019
 # Released under Gnu GPL v2.0, see LICENSE file for details
-"""Example MAC value fuzzer"""
+"""MAC value fuzzer"""
 
 from __future__ import print_function
 import traceback
 import sys
 import getopt
+import re
 from itertools import chain
 from random import sample
+from math import ceil
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, \
-        fuzz_padding, CertificateGenerator, replace_plaintext, AlertGenerator
+        CertificateGenerator, replace_plaintext, AlertGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectCertificateRequest, \
         ExpectApplicationData, ExpectServerKeyExchange
 from tlsfuzzer.fuzzers import structured_random_iter, StructuredRandom
+from tlsfuzzer.utils.lists import natural_sort_keys
+from tlsfuzzer.helpers import RSA_SIG_ALL
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         GroupName, ExtensionType
 from tlslite.extensions import SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
-from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import RSA_SIG_ALL
 
 
-version = 2
+version = 5
 
 
 def help_msg():
@@ -41,25 +43,156 @@ def help_msg():
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
     print(" --random count generate `count` random tests in addition to the")
-    print("                basic 4096 pre-programmed ones. 4096 by default")
+    print("                basic 8192 pre-programmed ones. 8192 by default")
+    print("                for ciphers with 128 bit block size and 16384 for")
+    print("                ciphers with 64 bit block size.")
+    # the above counts are twice as large as default rand_limit as we're
+    # generating two sets of tests, one for handshake and one for
+    # application_data
+    print("                Vaues smaller than the default will make the")
+    print("                pre-programmed tests more likely while larger")
+    print("                values will make them less likely to be executed.")
     print(" -n num         only run `num` random tests instead of a full set.")
-    print("                1024 by default")
+    print("                1024 by default. 0 to execute all tests")
     print("                (\"sanity\" tests are always executed)")
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
+    print(" -C cipher      specify cipher for connection. Use integer value")
+    print("                or IETF name. Integer must be prefixed with '0x'")
+    print("                if it is hexadecimal. By default uses")
+    print("                TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA with -d option")
+    print("                RSA_WITH_AES_128_CBC_SHA without -d option.")
+    print("                See tlslite.constants.CipherSuite for ciphersuite")
+    print("                definitions")
+    print(" --1/n-1        Expect the 1/n-1 record splitting for BEAST")
+    print("                mitigation (should not be used with TLS 1.1 or up)")
+    print(" --0/n          Expect the 0/n record splitting for BEAST")
+    print("                mitigation (should not be used with TLS 1.1 or up)")
     print(" --help         this message")
 
 
+def add_dhe_extensions(extensions):
+    groups = [GroupName.secp256r1,
+              GroupName.ffdhe2048]
+    extensions[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    extensions[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+    extensions[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+
+
+def add_app_data_conversation(conversations, host, port, cipher, dhe, data):
+    conversation = Connect(host, port)
+    node = conversation
+    if dhe:
+        ext = {}
+        add_dhe_extensions(ext)
+    else:
+        ext = None
+    ciphers = [cipher,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectCertificateRequest())
+    fork = node
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(CertificateGenerator())
+
+    # handle servers which ask for client certificates
+    fork.next_sibling = ExpectServerHelloDone()
+    join = ClientKeyExchangeGenerator()
+    fork.next_sibling.add_child(join)
+
+    node = node.add_child(join)
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(replace_plaintext(
+        ApplicationDataGenerator(b"I'm ignored, only type is important"),
+        data.data))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.bad_record_mac))
+    node = node.add_child(ExpectClose())
+    conversations["encrypted Application Data plaintext of {0}"
+                  .format(data)] = \
+            conversation
+
+
+def add_handshake_conversation(conversations, host, port, cipher, dhe, data):
+    conversation = Connect(host, port)
+    node = conversation
+    if dhe:
+        ext = {}
+        add_dhe_extensions(ext)
+    else:
+        ext = None
+    ciphers = [cipher,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectCertificateRequest())
+    fork = node
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(CertificateGenerator())
+
+    # handle servers which ask for client certificates
+    fork.next_sibling = ExpectServerHelloDone()
+    join = ClientKeyExchangeGenerator()
+    fork.next_sibling.add_child(join)
+
+    node = node.add_child(join)
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(replace_plaintext(
+        FinishedGenerator(),
+        data.data))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.bad_record_mac))
+    node = node.add_child(ExpectClose())
+    conversations["encrypted Handshake plaintext of {0}".format(data)] = \
+            conversation
+
+
+def str_to_int_or_none(text):
+    if "None" in text:
+        return None
+    return int(text)
+
+
+def parse_structured_random_params(text):
+    regex = re.compile(r'.* of StructuredRandom\(vals=\[(.*)\]\)')
+    match = regex.match(text)
+    if not match:
+        raise ValueError("Invalid name of conversation: \"{0}\"".format(text))
+    values = []
+    for i in re.finditer(r'\((.*?)\)', match.group(1)):
+        values.extend(
+            [(str_to_int_or_none(x),
+              str_to_int_or_none(y))
+             for x, y in [i.group(1).split(',')]])
+    return values
+
+
 def main():
-    """check if incorrect padding is rejected by server"""
+    """Check if incorrect padding and MAC is rejected by server."""
     host = "localhost"
     port = 4433
     num_limit = 1024
-    rand_limit = 4096
+    rand_limit = None
     run_exclude = set()
     dhe = False
+    cipher = None
+    splitting = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:d", ["help", "random="])
+    opts, args = getopt.getopt(argv, "h:p:e:n:dC:", ["help", "random=",
+                                                     "1/n-1", "0/n"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -70,14 +203,48 @@ def main():
         elif opt == '-n':
             num_limit = int(arg)
         elif opt == '--random':
-            rand_limit = int(arg)
+            rand_limit = int(arg)//2
         elif opt == '-d':
             dhe = True
+        elif opt == '--1/n-1':
+            splitting = 1
+        elif opt == '--0/n':
+            splitting = 0
+        elif opt == '-C':
+            if arg[:2] == '0x':
+                cipher = int(arg, 16)
+            else:
+                try:
+                    cipher = getattr(CipherSuite, arg)
+                except AttributeError:
+                    cipher = int(arg)
         elif opt == '--help':
             help_msg()
             sys.exit(0)
         else:
             raise ValueError("Unknown option: {0}".format(opt))
+
+    if dhe and cipher is not None:
+        raise ValueError("-C and -d are mutually exclusive")
+    if cipher is None:
+        if dhe:
+            cipher = CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA
+        else:
+            cipher = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA
+
+    block_size = 16
+    if cipher in CipherSuite.tripleDESSuites:
+        block_size = 8
+
+    if rand_limit is None:
+        if block_size == 16:
+            rand_limit = 4096
+        else:
+            assert block_size == 8
+            rand_limit = 8192
+
+    dhe = cipher in CipherSuite.ecdhAllSuites or \
+            cipher in CipherSuite.dhAllSuites
 
     if args:
         run_only = set(args)
@@ -94,21 +261,11 @@ def main():
     node = conversation
     if dhe:
         ext = {}
-        groups = [GroupName.secp256r1,
-                  GroupName.ffdhe2048]
-        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-            .create(groups)
-        ext[ExtensionType.signature_algorithms] = \
-            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
-        ext[ExtensionType.signature_algorithms_cert] = \
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        add_dhe_extensions(ext)
     else:
         ext = None
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ciphers = [cipher,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
@@ -131,6 +288,8 @@ def main():
     node = node.add_child(ExpectFinished())
     node = node.add_child(
         ApplicationDataGenerator(b"GET / HTTP/1.0\r\n\r\n"))
+    if splitting is not None:
+        node = node.add_child(ExpectApplicationData(size=splitting))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -142,61 +301,91 @@ def main():
             conversation
 
     # test all combinations of lengths and values for plaintexts up to 256
-    # bytes long uniform content (where every byte has the same value)
-    mono = (StructuredRandom([(length, value)]) for length in range(16, 257, 16)
-            for value in range(256))
-    rand = structured_random_iter(rand_limit,
-                                  min_length=16, max_length=2**14,
-                                  step=16)
-    # block size is 16 bytes for AES_128, 2**14 is the TLS protocol max
-    for data in chain(mono, rand):
-        conversation = Connect(host, port)
-        node = conversation
-        if dhe:
-            ext = {}
-            groups = [GroupName.secp256r1,
-                      GroupName.ffdhe2048]
-            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-                .create(groups)
-            ext[ExtensionType.signature_algorithms] = \
-                SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
-            ext[ExtensionType.signature_algorithms_cert] = \
-                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-            ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                       CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        else:
-            ext = None
-            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-        node = node.add_child(ExpectServerHello())
-        node = node.add_child(ExpectCertificate())
-        if dhe:
-            node = node.add_child(ExpectServerKeyExchange())
-        node = node.add_child(ExpectCertificateRequest())
-        fork = node
-        node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(CertificateGenerator())
+    # bytes long with uniform content (where every byte has the same value)
+    mono_tests = [(length, value) for length in
+                  range(block_size, 257, block_size)
+                  for value in range(256)]
+    if not num_limit:
+        mono_iter = mono_tests
+        rand_len_to_generate = rand_limit
+    else:
+        # we want to speed up generation, so generate only as many conversations
+        # as necessary to meet num_limit, but do that uniformely between
+        # random payloads, mono payloads, application_data tests and handshake
+        # tests
+        ratio = rand_limit * 1.0 / len(mono_tests)
 
-        # handle servers which ask for client certificates
-        fork.next_sibling = ExpectServerHelloDone()
-        join = ClientKeyExchangeGenerator()
-        fork.next_sibling.add_child(join)
+        # `num_limit / 2` because of handshake and application_data tests
+        mono_len_to_generate = min(len(mono_tests),
+                                   int(ceil((num_limit / 2) * (1 - ratio))))
+        rand_len_to_generate = int(ceil((num_limit) / 2 * ratio))
+        mono_iter = sample(mono_tests, mono_len_to_generate)
 
-        node = node.add_child(join)
-        node = node.add_child(ChangeCipherSpecGenerator())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectFinished())
-        node = node.add_child(replace_plaintext(
-            ApplicationDataGenerator(b"I'm ignored, only type is important"),
-            data.data))
-        node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
-        node = node.add_child(ExpectClose())
-        conversations["encrypted plaintext of {0}".format(data)] = \
-                conversation
+    mono = (StructuredRandom([(length, value)]) for length, value in
+            mono_iter)
+
+    # 2**14 is the TLS protocol max
+    rand = structured_random_iter(rand_len_to_generate,
+                                  min_length=block_size, max_length=2**14,
+                                  step=block_size)
+
+    if not run_only:
+        for data in chain(mono, rand):
+            add_app_data_conversation(conversations, host, port, cipher, dhe, data)
+    else:
+        for conv in run_only:
+            if "Application Data" in conv:
+                params = parse_structured_random_params(conv)
+                data = StructuredRandom(params)
+                add_app_data_conversation(conversations, host, port, cipher,
+                                          dhe, data)
+
+    # do th same thing but for handshake record
+    # (note, while the type is included in the MAC, we are never
+    # sending a valid MAC, so the server has only the record layer header to
+    # deduce if the message needs special handling, if any)
+
+    # test all combinations of lengths and values for plaintexts up to 256
+    # bytes long with uniform content (where every byte has the same value)
+    mono_tests = [(length, value) for length in
+                  range(block_size, 257, block_size)
+                  for value in range(256)]
+    if not num_limit:
+        mono_iter = mono_tests
+        rand_len_to_generate = rand_limit
+    else:
+        # we want to speed up generation, so generate only as many conversations
+        # as necessary to meet num_limit, but do that uniformely between
+        # random payloads, mono payloads, application_data tests and handshake
+        # tests
+        ratio = rand_limit * 1.0 / len(mono_tests)
+
+        # `num_limit / 2` because of handshake and application_data tests
+        mono_len_to_generate = min(len(mono_tests),
+                                   int(ceil((num_limit / 2) * (1 - ratio))))
+        rand_len_to_generate = int(ceil((num_limit) / 2 * ratio))
+        mono_iter = sample(mono_tests, mono_len_to_generate)
+
+    mono = (StructuredRandom([(length, value)]) for length, value in
+            mono_iter)
+
+    # 2**14 is the TLS protocol max
+    rand = structured_random_iter(rand_len_to_generate,
+                                  min_length=block_size, max_length=2**14,
+                                  step=block_size)
+
+    if not run_only:
+        for data in chain(mono, rand):
+            add_handshake_conversation(conversations, host, port, cipher, dhe,
+                                       data)
+    else:
+        for conv in run_only:
+            if "Handshake" in conv:
+                params = parse_structured_random_params(conv)
+                data = StructuredRandom(params)
+                add_handshake_conversation(conversations, host,
+                                           port, cipher,
+                                           dhe, data)
 
     # run the conversation
     good = 0
@@ -236,7 +425,13 @@ def main():
 
     print("Tester for de-padding and MAC verification\n")
     print("Generates plaintexts that can be incorrectly handled by de-padding")
-    print("algorithms and verifies that they are handled correctly\n")
+    print("and MAC verification algorithms and verifies that they are handled")
+    print("correctly and consistently.\n")
+    print("Should be executed with multiple ciphers (especially regarding the")
+    print("HMAC used) and TLS versions. Note: test requires CBC mode")
+    print("ciphers.\n")
+    print("TLS 1.0 servers should require enabling BEAST workaround, see")
+    print("help message.\n")
     print("version: {0}\n".format(version))
 
     print("Test end")
