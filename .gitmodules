@@ -1,4 +1,0 @@
-[submodule "tlslite-ng"]
-	path = tlslite-ng
-	url = https://github.com/tomato42/tlslite-ng.git
-	branch = recordlayer-helpers
