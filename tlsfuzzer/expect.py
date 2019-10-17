@@ -1073,6 +1073,7 @@ class ExpectCertificateRequest(ExpectHandshake):
         super(ExpectCertificateRequest, self).__init__(ContentType.handshake,
                                                        msg_type)
         self.sig_algs = sig_algs
+        # TODO: ability to verify certificate_types field
 
     def process(self, state, msg):
         """
