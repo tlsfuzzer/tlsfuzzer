@@ -62,15 +62,21 @@ made with rsaEncryption (PKCS#1) key."""
 ECDSA_SIG_TLS1_3_ALL = [SignatureScheme.ecdsa_secp521r1_sha512,
                         SignatureScheme.ecdsa_secp384r1_sha384,
                         SignatureScheme.ecdsa_secp256r1_sha256]
-"""List of all ECDSA signature algorithms that can be used in TLS 1.3."""
+"""
+List of all ECDSA signature algorithms that can be used in TLS 1.3.
+
+Subset of :ref:`ECDSA_SIG_ALL`.
+"""
 
 
-SIG_ALL = RSA_SIG_ALL + ECDSA_SIG_ALL
+SIG_ALL = RSA_PSS_PSS_ALL + RSA_PSS_RSAE_ALL + RSA_PKCS1_ALL + ECDSA_SIG_ALL
 """List of all signature algorithms supported by tlsfuzzer,
 as used in C{signature_algorithms} or C{signature_algorithms_cert} extension.
 
 For now includes only RSA and ECDSA algorithms, will include EdDSA and DSA
 algorithms later on.
+
+Sorted in order of strongest to weakest hash.
 """
 
 
