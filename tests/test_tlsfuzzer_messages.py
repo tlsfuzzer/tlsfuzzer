@@ -36,8 +36,10 @@ from tlsfuzzer.runner import ConnectionState
 import tlslite.messages as messages
 import tlslite.messagesocket as messagesocket
 import tlslite.extensions as extensions
+from tlslite.keyexchange import KeyExchange
 import tlslite.utils.keyfactory as keyfactory
-from tlslite.utils.cryptomath import bytesToNumber, numberToByteArray
+from tlslite.utils.cryptomath import bytesToNumber, numberToByteArray, \
+        secureHash
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 import tlslite.constants as constants
 import tlslite.defragmenter as defragmenter
@@ -1074,6 +1076,9 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
 
         self.assertIsNotNone(msg)
         self.assertEqual(len(msg.signature), 128)
+        self.assertTrue(priv_key.verify(
+            msg.signature,
+            secureHash(b'', 'md5') + secureHash(b'', 'sha1')))
 
     def test_generate_TLS_1_2(self):
         priv_key = generateRSAKey(1024)
@@ -1088,6 +1093,10 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
         self.assertEqual(msg.signatureAlgorithm,
                          (constants.HashAlgorithm.sha1,
                           constants.SignatureAlgorithm.rsa))
+        self.assertTrue(priv_key.verify(
+            msg.signature,
+            secureHash(b'', 'sha1'),
+            hashAlg="sha1"))
 
     def test_generate_TLS_1_2_with_cert_request(self):
         priv_key = generateRSAKey(1024)
@@ -1100,6 +1109,7 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
              (constants.HashAlgorithm.sha1,
               constants.SignatureAlgorithm.rsa)])
         state.handshake_messages = [req]
+        state.handshake_hashes.update(req.write())
 
         msg = cert_ver_g.generate(state)
 
@@ -1108,6 +1118,10 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
         self.assertEqual(msg.signatureAlgorithm,
                          (constants.HashAlgorithm.sha256,
                           constants.SignatureAlgorithm.rsa))
+        self.assertTrue(priv_key.verify(
+            msg.signature,
+            secureHash(req.write(), 'sha256'),
+            hashAlg="sha256"))
 
     def test_generate_TLS_1_3_with_cert_request(self):
         priv_key = generateRSAKey(1024)
@@ -1123,6 +1137,7 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
              constants.SignatureScheme.rsa_pkcs1_sha512,
              constants.SignatureScheme.rsa_pss_rsae_sha256])
         state.handshake_messages = [req]
+        state.handshake_hashes.update(req.write())
 
         msg = cert_ver_g.generate(state)
 
@@ -1130,6 +1145,19 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
         self.assertEqual(len(msg.signature), 128)
         self.assertEqual(msg.signatureAlgorithm,
                          constants.SignatureScheme.rsa_pss_rsae_sha256)
+
+        verif_bytes = KeyExchange.calcVerifyBytes(
+                (3, 4),
+                state.handshake_hashes,
+                constants.SignatureScheme.rsa_pss_rsae_sha256,
+                b'',
+                b'',
+                b'',
+                "sha256")
+
+        self.assertTrue(priv_key.verify(
+            msg.signature, verif_bytes,
+            "pss", "sha256", saltLen=32))
 
     def test_generate_with_mismatched_alg(self):
         priv_key = generateRSAKey(1024)
@@ -1145,6 +1173,7 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
              (constants.HashAlgorithm.sha1,
               constants.SignatureAlgorithm.rsa)])
         state.handshake_messages = [req]
+        state.handshake_hashes.update(req.write())
 
         msg = cert_ver_g.generate(state)
 
@@ -1153,6 +1182,13 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
         self.assertEqual(msg.signatureAlgorithm,
                          (constants.HashAlgorithm.sha256,
                           constants.SignatureAlgorithm.rsa))
+
+        self.assertFalse(priv_key.hashAndVerify(
+            msg.signature, req.write(),
+            "pkcs1", "sha256"))
+        self.assertTrue(priv_key.hashAndVerify(
+            msg.signature, req.write(),
+            "pkcs1", "md5"))
 
     def test_generate_with_rsa_pss_rsae_alg(self):
         priv_key = generateRSAKey(1024)
@@ -1164,6 +1200,7 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
              (constants.HashAlgorithm.sha1,
               constants.SignatureAlgorithm.rsa)])
         state.handshake_messages = [req]
+        state.handshake_hashes.update(req.write())
 
         msg = cert_ver_g.generate(state)
 
@@ -1171,6 +1208,10 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
         self.assertEqual(len(msg.signature), 128)
         self.assertEqual(msg.signatureAlgorithm,
                          constants.SignatureScheme.rsa_pss_sha256)
+
+        self.assertTrue(priv_key.hashAndVerify(
+            msg.signature, req.write(),
+            "pss", "sha256", 32))
 
     def test_generate_with_no_key(self):
         cert_ver_g = CertificateVerifyGenerator(signature=bytearray(b'xxxx'))
@@ -1182,6 +1223,7 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
              (constants.HashAlgorithm.sha1,
               constants.SignatureAlgorithm.rsa)])
         state.handshake_messages = [req]
+        state.handshake_hashes.update(req.write())
 
         msg = cert_ver_g.generate(state)
 
@@ -1201,6 +1243,7 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
              (constants.HashAlgorithm.sha1,
               constants.SignatureAlgorithm.rsa)])
         state.handshake_messages = [req]
+        state.handshake_hashes.update(req.write())
 
         msg = cert_ver_g.generate(state)
 
@@ -1209,8 +1252,98 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
         self.assertEqual(msg.signatureAlgorithm,
                          constants.SignatureScheme.rsa_pss_pss_sha256)
 
+        self.assertTrue(priv_key.hashAndVerify(
+            msg.signature, req.write(),
+            "pss", "sha256", 32))
 
-    def test_generate_with_subs(self):
+    def test_generate_with_rsa_with_subs(self):
+        priv_key = generateRSAKey(1024)
+        cert_ver_g = CertificateVerifyGenerator(priv_key,
+                                                padding_subs={4: 0x00})
+        state = ConnectionState()
+        state.version = (3, 3)
+        req = CertificateRequest((3, 3)).create([], [],
+            [(constants.HashAlgorithm.sha1,
+              constants.SignatureAlgorithm.rsa)])
+        state.handshake_messages = [req]
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertEqual(len(msg.signature), 128)
+        dec_sig = numberToByteArray(priv_key._rawPublicKeyOp(
+                                                bytesToNumber(msg.signature)),
+                                    128)
+        self.assertEqual(dec_sig[4], 0x00)
+        # since we're siging the same set of messages always, the hash in
+        # signature is also the same
+        self.assertEqual(dec_sig[-1], 0x09)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.rsa_pkcs1_sha1)
+
+        self.assertFalse(priv_key.hashAndVerify(
+            msg.signature, b'',
+            "pkcs1", "sha1"))
+
+    def test_generate_with_rsa_with_large_xors(self):
+        # the xor can make the encrypted value too large (larger than the
+        # modulus) verify that it doesn't break encryption (but the signature
+        # will be completely invalid)
+        priv_key = generateRSAKey(1020)
+        cert_ver_g = CertificateVerifyGenerator(priv_key,
+                                                padding_xors={0: 0x80})
+        state = ConnectionState()
+        state.version = (3, 3)
+        req = CertificateRequest((3, 3)).create([], [],
+            [(constants.HashAlgorithm.sha1,
+              constants.SignatureAlgorithm.rsa)])
+        state.handshake_messages = [req]
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertEqual(len(msg.signature), 128)
+        dec_sig = numberToByteArray(priv_key._rawPublicKeyOp(
+                                                bytesToNumber(msg.signature)),
+                                    128)
+        self.assertEqual(dec_sig[0] & 0x80, 0x00)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.rsa_pkcs1_sha1)
+
+        self.assertFalse(priv_key.hashAndVerify(
+            msg.signature, b'',
+            "pkcs1", "sha1"))
+
+    def test_generate_with_rsa_with_xors(self):
+        priv_key = generateRSAKey(1024)
+        cert_ver_g = CertificateVerifyGenerator(priv_key,
+                                                padding_xors={4: 0xff})
+        state = ConnectionState()
+        state.version = (3, 3)
+        req = CertificateRequest((3, 3)).create([], [],
+            [(constants.HashAlgorithm.sha1,
+              constants.SignatureAlgorithm.rsa)])
+        state.handshake_messages = [req]
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertEqual(len(msg.signature), 128)
+        dec_sig = numberToByteArray(priv_key._rawPublicKeyOp(
+                                                bytesToNumber(msg.signature)),
+                                    128)
+        self.assertEqual(dec_sig[4], 0x00)
+        # since we're siging the same set of messages always, the hash in
+        # signature is also the same
+        self.assertEqual(dec_sig[-1], 0x09)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.rsa_pkcs1_sha1)
+
+        self.assertFalse(priv_key.hashAndVerify(
+            msg.signature, b'',
+            "pkcs1", "sha1"))
+
+    def test_generate_with_rsa_pss_with_subs(self):
         priv_key = generateRSAKey(1024)
         cert_ver_g = CertificateVerifyGenerator(priv_key,
                                                 padding_subs={1: 0xff})
@@ -1235,7 +1368,59 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
         self.assertEqual(msg.signatureAlgorithm,
                          constants.SignatureScheme.rsa_pss_sha256)
 
-    def test_generate_with_mismatched_version(self):
+        self.assertFalse(priv_key.hashAndVerify(
+            msg.signature, b'',
+            "pss", "sha256", 32))
+
+    def test_generate_with_rsa_pss_with_xors(self):
+        priv_key = generateRSAKey(1024)
+        cert_ver_g = CertificateVerifyGenerator(priv_key,
+                                                padding_xors={-1: 0xff})
+        state = ConnectionState()
+        state.version = (3, 3)
+        req = CertificateRequest((3, 3)).create([], [],
+            [constants.SignatureScheme.rsa_pss_sha256,
+             (constants.HashAlgorithm.sha1,
+              constants.SignatureAlgorithm.rsa)])
+        state.handshake_messages = [req]
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertEqual(len(msg.signature), 128)
+        dec_sig = numberToByteArray(priv_key._rawPublicKeyOp(
+                                                bytesToNumber(msg.signature)),
+                                    128)
+        self.assertEqual(dec_sig[-1], 0xbc ^ 0xff)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.rsa_pss_sha256)
+
+        self.assertFalse(priv_key.hashAndVerify(
+            msg.signature, b'',
+            "pss", "sha256", 32))
+
+    def test_generate_with_tls1_0_version(self):
+        priv_key = generateRSAKey(1024)
+        cert_ver_g = CertificateVerifyGenerator(priv_key, sig_version=(3, 1))
+        state = ConnectionState()
+        state.version = (3, 3)
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertEqual(len(msg.signature), 128)
+        self.assertEqual(msg.signatureAlgorithm,
+                         (constants.HashAlgorithm.sha1,
+                          constants.SignatureAlgorithm.rsa))
+
+        self.assertFalse(priv_key.hashAndVerify(
+            msg.signature, b'',
+            "pkcs1", "sha1"))
+        self.assertTrue(priv_key.verify(
+            msg.signature,
+            secureHash(b"", "md5") + secureHash(b"", "sha1")))
+
+    def test_generate_with_ssl3_0_version(self):
         priv_key = generateRSAKey(1024)
         cert_ver_g = CertificateVerifyGenerator(priv_key, sig_version=(3, 0))
         state = ConnectionState()
@@ -1248,6 +1433,20 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
         self.assertEqual(msg.signatureAlgorithm,
                          (constants.HashAlgorithm.sha1,
                           constants.SignatureAlgorithm.rsa))
+
+        self.assertFalse(priv_key.hashAndVerify(
+            msg.signature, b'',
+            "pkcs1", "sha1"))
+        verify_bytes = KeyExchange.calcVerifyBytes(
+                (3, 0),
+                state.handshake_hashes,
+                None,
+                b'',
+                b'',
+                b'')
+        self.assertTrue(priv_key.verify(
+            msg.signature,
+            verify_bytes))
 
     def test_generate_with_empty_signature(self):
         cert_ver_g = CertificateVerifyGenerator(signature=bytearray())
@@ -1275,6 +1474,60 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
         self.assertEqual(len(msg.signature), 128)
         self.assertEqual(msg.signatureAlgorithm,
                          constants.SignatureScheme.rsa_pss_rsae_sha256)
+
+        verify_bytes = KeyExchange.calcVerifyBytes(
+                (3, 4),
+                state.handshake_hashes,
+                constants.SignatureScheme.rsa_pss_rsae_sha256,
+                b'',
+                b'',
+                b'',
+                "sha256")
+
+        self.assertTrue(priv_key.verify(
+            msg.signature,
+            verify_bytes,
+            "pss", "sha512", 32))
+
+        self.assertFalse(priv_key.hashAndVerify(
+            msg.signature, verify_bytes,
+            "pss", "sha256", 32))
+
+    def test_generate_with_mismatched_mgf1_and_salt_len(self):
+        priv_key = generateRSAKey(1024)
+        cert_ver_g = CertificateVerifyGenerator(priv_key, sig_version=(3, 4),
+                                                mgf1_hash="sha384",
+                                                rsa_pss_salt_len=48)
+        state = ConnectionState()
+        state.version = (3, 4)
+        req = CertificateRequest((3, 4)).create([], [],
+            [constants.SignatureScheme.rsa_pss_rsae_sha256])
+        state.handshake_messages = [req]
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertEqual(len(msg.signature), 128)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.rsa_pss_rsae_sha256)
+
+        verify_bytes = KeyExchange.calcVerifyBytes(
+                (3, 4),
+                state.handshake_hashes,
+                constants.SignatureScheme.rsa_pss_rsae_sha256,
+                b'',
+                b'',
+                b'',
+                "sha256")
+
+        self.assertTrue(priv_key.verify(
+            msg.signature,
+            verify_bytes,
+            "pss", "sha384", 48))
+
+        self.assertFalse(priv_key.hashAndVerify(
+            msg.signature, verify_bytes,
+            "pss", "sha256", 32))
 
 
 class TestAlertGenerator(unittest.TestCase):
