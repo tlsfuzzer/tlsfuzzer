@@ -1053,7 +1053,12 @@ class TestCertificateGenerator(unittest.TestCase):
         self.assertEqual(msg.certificateType,
                          constants.CertificateType.x509)
 
+
 class TestCertificateVerifyGenerator(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.priv_key = generateRSAKey(1024)
+
     def test___init__(self):
         cert_ver_g = CertificateVerifyGenerator()
 
@@ -1067,7 +1072,7 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
             cert_ver_g.generate(state)
 
     def test_generate_TLS_1_1(self):
-        priv_key = generateRSAKey(1024)
+        priv_key = self.priv_key
         cert_ver_g = CertificateVerifyGenerator(priv_key)
         state = ConnectionState()
         state.version = (3, 2)
@@ -1081,7 +1086,7 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
             secureHash(b'', 'md5') + secureHash(b'', 'sha1')))
 
     def test_generate_TLS_1_2(self):
-        priv_key = generateRSAKey(1024)
+        priv_key = self.priv_key
         cert_ver_g = CertificateVerifyGenerator(priv_key)
         state = ConnectionState()
         state.version = (3, 3)
@@ -1099,7 +1104,7 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
             hashAlg="sha1"))
 
     def test_generate_TLS_1_2_with_cert_request(self):
-        priv_key = generateRSAKey(1024)
+        priv_key = self.priv_key
         cert_ver_g = CertificateVerifyGenerator(priv_key)
         state = ConnectionState()
         state.version = (3, 3)
@@ -1124,7 +1129,7 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
             hashAlg="sha256"))
 
     def test_generate_TLS_1_3_with_cert_request(self):
-        priv_key = generateRSAKey(1024)
+        priv_key = self.priv_key
         cert_ver_g = CertificateVerifyGenerator(priv_key)
         state = ConnectionState()
         state.version = (3, 4)
@@ -1160,7 +1165,7 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
             "pss", "sha256", saltLen=32))
 
     def test_generate_with_mismatched_alg(self):
-        priv_key = generateRSAKey(1024)
+        priv_key = self.priv_key
         cert_ver_g = CertificateVerifyGenerator(priv_key,
                                                 sig_alg=(
                                                     constants.HashAlgorithm.md5,
@@ -1191,7 +1196,7 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
             "pkcs1", "md5"))
 
     def test_generate_with_rsa_pss_rsae_alg(self):
-        priv_key = generateRSAKey(1024)
+        priv_key = self.priv_key
         cert_ver_g = CertificateVerifyGenerator(priv_key)
         state = ConnectionState()
         state.version = (3, 3)
@@ -1257,7 +1262,7 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
             "pss", "sha256", 32))
 
     def test_generate_with_rsa_with_subs(self):
-        priv_key = generateRSAKey(1024)
+        priv_key = self.priv_key
         cert_ver_g = CertificateVerifyGenerator(priv_key,
                                                 padding_subs={4: 0x00})
         state = ConnectionState()
@@ -1315,7 +1320,7 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
             "pkcs1", "sha1"))
 
     def test_generate_with_rsa_with_xors(self):
-        priv_key = generateRSAKey(1024)
+        priv_key = self.priv_key
         cert_ver_g = CertificateVerifyGenerator(priv_key,
                                                 padding_xors={4: 0xff})
         state = ConnectionState()
@@ -1344,7 +1349,7 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
             "pkcs1", "sha1"))
 
     def test_generate_with_rsa_pss_with_subs(self):
-        priv_key = generateRSAKey(1024)
+        priv_key = self.priv_key
         cert_ver_g = CertificateVerifyGenerator(priv_key,
                                                 padding_subs={1: 0xff})
         state = ConnectionState()
@@ -1373,7 +1378,7 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
             "pss", "sha256", 32))
 
     def test_generate_with_rsa_pss_with_xors(self):
-        priv_key = generateRSAKey(1024)
+        priv_key = self.priv_key
         cert_ver_g = CertificateVerifyGenerator(priv_key,
                                                 padding_xors={-1: 0xff})
         state = ConnectionState()
@@ -1400,7 +1405,7 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
             "pss", "sha256", 32))
 
     def test_generate_with_tls1_0_version(self):
-        priv_key = generateRSAKey(1024)
+        priv_key = self.priv_key
         cert_ver_g = CertificateVerifyGenerator(priv_key, sig_version=(3, 1))
         state = ConnectionState()
         state.version = (3, 3)
@@ -1421,7 +1426,7 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
             secureHash(b"", "md5") + secureHash(b"", "sha1")))
 
     def test_generate_with_ssl3_0_version(self):
-        priv_key = generateRSAKey(1024)
+        priv_key = self.priv_key
         cert_ver_g = CertificateVerifyGenerator(priv_key, sig_version=(3, 0))
         state = ConnectionState()
         state.version = (3, 3)
@@ -1459,7 +1464,7 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
         self.assertEqual(msg.signature, bytearray())
 
     def test_generate_with_mismatched_mgf1(self):
-        priv_key = generateRSAKey(1024)
+        priv_key = self.priv_key
         cert_ver_g = CertificateVerifyGenerator(priv_key, sig_version=(3, 4),
                                                 mgf1_hash="sha512")
         state = ConnectionState()
@@ -1494,7 +1499,7 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
             "pss", "sha256", 32))
 
     def test_generate_with_mismatched_mgf1_and_salt_len(self):
-        priv_key = generateRSAKey(1024)
+        priv_key = self.priv_key
         cert_ver_g = CertificateVerifyGenerator(priv_key, sig_version=(3, 4),
                                                 mgf1_hash="sha384",
                                                 rsa_pss_salt_len=48)
