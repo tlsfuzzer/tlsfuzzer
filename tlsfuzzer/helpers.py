@@ -65,7 +65,7 @@ ECDSA_SIG_TLS1_3_ALL = [SignatureScheme.ecdsa_secp521r1_sha512,
 """List of all ECDSA signature algorithms that can be used in TLS 1.3."""
 
 
-SIG_ALL = RSA_SIG_ALL + ECDSA_SIG_ALL
+SIG_ALL = RSA_PSS_PSS_ALL + RSA_PKCS1_ALL + ECDSA_SIG_ALL
 """List of all signature algorithms supported by tlsfuzzer,
 as used in C{signature_algorithms} or C{signature_algorithms_cert} extension.
 
