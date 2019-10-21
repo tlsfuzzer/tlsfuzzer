@@ -15,6 +15,8 @@ from .handshake_helpers import kex_for_group
 __all__ = ['sig_algs_to_ids', 'key_share_gen', 'psk_ext_gen',
            'psk_ext_updater', 'psk_session_ext_gen', 'flexible_getattr',
            'key_share_ext_gen', 'uniqueness_check', 'RSA_SIG_ALL',
+           'ECDSA_SIG_ALL', 'RSA_PKCS1_ALL', 'RSA_PSS_PSS_ALL',
+           'RSA_PSS_RSAE_ALL', 'ECDSA_SIG_TLS1_3_ALL', 'SIG_ALL',
            'AutoEmptyExtension']
 
 
@@ -28,6 +30,47 @@ RSA_SIG_ALL = [(getattr(HashAlgorithm, x), SignatureAlgorithm.rsa) for x in
                    SignatureScheme.rsa_pss_pss_sha512]
 """List of all RSA signature algorithms supported by tlsfuzzer,
 as used in C{signature_algorithms} or C{signature_algorithms_cert} extensions.
+"""
+
+
+ECDSA_SIG_ALL = [(getattr(HashAlgorithm, x), SignatureAlgorithm.ecdsa) for x in
+                 ["sha512", "sha384", "sha256", "sha224", "sha1"]]
+"""List of all ECDSA signature algorithms supported by tlsfuzzer,
+as used in C{signature_algorithms} or C{signature_algorithms_cert} extensions.
+"""
+
+
+RSA_PKCS1_ALL = [(getattr(HashAlgorithm, x), SignatureAlgorithm.rsa) for x in
+                 ('sha512', 'sha384', 'sha256', 'sha224', 'sha1', 'md5')]
+"""List of all signature algorithms that use PKCS#1 v1.5 padding."""
+
+
+RSA_PSS_PSS_ALL = [SignatureScheme.rsa_pss_pss_sha512,
+                   SignatureScheme.rsa_pss_pss_sha384,
+                   SignatureScheme.rsa_pss_pss_sha256]
+"""List of all signature algorithms that use RSA-PSS padding and have been
+made with RSA-PSS key."""
+
+
+RSA_PSS_RSAE_ALL = [SignatureScheme.rsa_pss_rsae_sha512,
+                    SignatureScheme.rsa_pss_rsae_sha384,
+                    SignatureScheme.rsa_pss_rsae_sha256]
+"""List of all signature algorithms that use RSA-PSS padding and have been
+made with rsaEncryption (PKCS#1) key."""
+
+
+ECDSA_SIG_TLS1_3_ALL = [SignatureScheme.ecdsa_secp521r1_sha512,
+                        SignatureScheme.ecdsa_secp384r1_sha384,
+                        SignatureScheme.ecdsa_secp256r1_sha256]
+"""List of all ECDSA signature algorithms that can be used in TLS 1.3."""
+
+
+SIG_ALL = RSA_SIG_ALL + ECDSA_SIG_ALL
+"""List of all signature algorithms supported by tlsfuzzer,
+as used in C{signature_algorithms} or C{signature_algorithms_cert} extension.
+
+For now includes only RSA and ECDSA algorithms, will include EdDSA and DSA
+algorithms later on.
 """
 
 
