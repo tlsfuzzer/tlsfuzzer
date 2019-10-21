@@ -23,10 +23,10 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
 from tlslite.extensions import SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import RSA_SIG_ALL
+from tlsfuzzer.helpers import SIG_ALL
 
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -86,10 +86,11 @@ def main():
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
         ext[ExtensionType.signature_algorithms] = \
-            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+            SignatureAlgorithmsExtension().create(SIG_ALL)
         ext[ExtensionType.signature_algorithms_cert] = \
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+            SignatureAlgorithmsCertExtension().create(SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     else:
