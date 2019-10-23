@@ -1351,7 +1351,8 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
     def test_generate_with_rsa_pss_with_subs(self):
         priv_key = self.priv_key
         cert_ver_g = CertificateVerifyGenerator(priv_key,
-                                                padding_subs={1: 0xff})
+                                                padding_subs={2: 0xff,
+                                                              -1: 0xff})
         state = ConnectionState()
         state.version = (3, 3)
         req = CertificateRequest((3, 3)).create([], [],
@@ -1367,9 +1368,8 @@ class TestCertificateVerifyGenerator(unittest.TestCase):
         dec_sig = numberToByteArray(priv_key._rawPublicKeyOp(
                                                 bytesToNumber(msg.signature)),
                                     128)
-        self.assertEqual(dec_sig[1],
-                         0xff)
-        self.assertEqual(dec_sig[-1], 0xbc)
+        self.assertEqual(dec_sig[2], 0xff)
+        self.assertEqual(dec_sig[-1], 0xff)
         self.assertEqual(msg.signatureAlgorithm,
                          constants.SignatureScheme.rsa_pss_sha256)
 
