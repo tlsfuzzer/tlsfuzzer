@@ -8,7 +8,8 @@ import getopt
 from itertools import chain, islice
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme
+        TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme, \
+        HashAlgorithm, SignatureAlgorithm
 from tlslite.extensions import ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
@@ -25,7 +26,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL
 
 
-version = 1
+version = 2
 
 
 def help_msg():
@@ -88,7 +89,8 @@ def main():
         .create(groups)
     sig_algs = [SignatureScheme.ecdsa_secp521r1_sha512,
                 SignatureScheme.ecdsa_secp384r1_sha384,
-                SignatureScheme.ecdsa_secp256r1_sha256]
+                SignatureScheme.ecdsa_secp256r1_sha256,
+                (HashAlgorithm.sha1, SignatureAlgorithm.ecdsa)]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
@@ -137,27 +139,33 @@ def main():
         ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
             .create(sig_algs + RSA_SIG_ALL)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-        node = node.add_child(ExpectServerHello())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectEncryptedExtensions())
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectCertificateVerify())
-        node = node.add_child(ExpectFinished())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        if sigalg == (HashAlgorithm.sha1, SignatureAlgorithm.ecdsa):
+            node = node.add_child(ExpectAlert(
+                AlertLevel.fatal,
+                AlertDescription.handshake_failure))
+            node.add_child(ExpectClose())
+        else:
+            node = node.add_child(ExpectServerHello())
+            node = node.add_child(ExpectChangeCipherSpec())
+            node = node.add_child(ExpectEncryptedExtensions())
+            node = node.add_child(ExpectCertificate())
+            node = node.add_child(ExpectCertificateVerify())
+            node = node.add_child(ExpectFinished())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(ApplicationDataGenerator(
+                bytearray(b"GET / HTTP/1.0\r\n\r\n")))
 
-        # This message is optional and may show up 0 to many times
-        cycle = ExpectNewSessionTicket()
-        node = node.add_child(cycle)
-        node.add_child(cycle)
+            # This message is optional and may show up 0 to many times
+            cycle = ExpectNewSessionTicket()
+            node = node.add_child(cycle)
+            node.add_child(cycle)
 
-        node.next_sibling = ExpectApplicationData()
-        node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                           AlertDescription.close_notify))
+            node.next_sibling = ExpectApplicationData()
+            node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                               AlertDescription.close_notify))
 
-        node = node.add_child(ExpectAlert())
-        node.next_sibling = ExpectClose()
+            node = node.add_child(ExpectAlert())
+            node.next_sibling = ExpectClose()
         conversations["Test with {0}".format(SignatureScheme.toStr(sigalg))] = conversation
 
     # run the conversation
@@ -200,6 +208,9 @@ def main():
     print("Basic ECDSA cert test with TLS 1.3 server")
     print("Check if communication with typical group and cipher works with")
     print("the TLS 1.3 server that has ECDSA certificate.\n")
+    print("Test expects the server to have installed three certificates:")
+    print("with P-256, P-384 and P-521 curve. Also SHA1+ECDSA is verified")
+    print("to not work.\n")
     print("version: {0}\n".format(version))
 
     print("Test end")
