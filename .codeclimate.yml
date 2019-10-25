@@ -1,4 +1,30 @@
-engines:
+version: "2"
+checks:
+  argument-count:
+    enabled: false
+  complex-logic:
+    config:
+      threshold: 4
+  file-lines:
+    config:
+      threshold: 500
+  method-complexity:
+    config:
+      threshold: 10
+  method-count:
+    config:
+      threshold: 20
+  method-lines:
+    config:
+      threshold: 25
+  nested-control-flow:
+    config:
+      threshold: 4
+  return-statements:
+    config:
+      threshold: 4
+
+plugins:
   radon:
     enabled: true
     config:
@@ -19,10 +45,7 @@ engines:
         enabled: true
   markdownlint:
     enabled: true
-ratings:
-  paths:
-  - "tlsfuzzer/**"
-  - "**.py"
-exclude_paths:
+
+exclude_patterns:
  - "tests/*"
  - "scripts/*"
