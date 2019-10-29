@@ -31,7 +31,7 @@ from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL, AutoEmptyExtension
 from tlsfuzzer.fuzzers import structured_random_iter
 
 
-version = 1
+version = 2
 
 
 def help_msg():
@@ -50,6 +50,8 @@ def help_msg():
     print("                may be specified multiple times")
     print(" --supgroup     if present, test expect supported_groups extension")
     print("                in EncryptedExtension message")
+    print(" --separate ext-id test one extension in isolation, may be")
+    print("                specified multiple times")
     print(" --help         this message")
 
 
@@ -60,9 +62,11 @@ def main():
     run_exclude = set()
     ext_exclude = set()
     exp_sup_groups = False
+    individual_ext = []
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help", "exc=", "supgroup"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:",
+                               ["help", "exc=", "supgroup", "separate="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -76,6 +80,8 @@ def main():
             ext_exclude.add(int(arg))
         elif opt == '--supgroup':
             exp_sup_groups = True
+        elif opt == "--separate":
+            individual_ext.append(int(arg))
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -260,6 +266,112 @@ def main():
         node.next_sibling = ExpectClose()
         conversations["unassigned extensions with random payload, ids in range from {0} to {1}".format(
             ext_chunk[0], ext_chunk[-1])] = conversation
+
+    # test the special one user asked for
+    for ext_id in individual_ext:
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        ext = OrderedDict()
+        if ExtensionType.renegotiation_info in ext:
+            ext[ExtensionType.renegotiation_info] = None
+
+        groups = [GroupName.secp256r1]
+        key_shares = []
+        for group in groups:
+            key_shares.append(key_share_gen(group))
+        ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+            .create([TLS_1_3_DRAFT])
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                    SignatureScheme.rsa_pss_pss_sha256]
+        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+            .create(sig_algs)
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+            .create(RSA_SIG_ALL)
+        ext[ext_id] = AutoEmptyExtension()
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+        node = node.add_child(ExpectServerHello(extensions=expect_exts_sh))
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectEncryptedExtensions(
+            extensions=expect_exts_ee))
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectCertificateVerify())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+        # This message is optional and may show up 0 to many times
+        cycle = ExpectNewSessionTicket()
+        node = node.add_child(cycle)
+        node.add_child(cycle)
+
+        node.next_sibling = ExpectApplicationData()
+        node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                        AlertDescription.close_notify))
+
+        node = node.add_child(ExpectAlert())
+        node.next_sibling = ExpectClose()
+        conversations["empty unassigned extension id {0}".format(
+            ext_id)] = conversation
+
+        # and now with random payload
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        ext = OrderedDict()
+        if ExtensionType.renegotiation_info in ext:
+            ext[ExtensionType.renegotiation_info] = None
+
+        groups = [GroupName.secp256r1]
+        key_shares = []
+        for group in groups:
+            key_shares.append(key_share_gen(group))
+        ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+            .create([TLS_1_3_DRAFT])
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                    SignatureScheme.rsa_pss_pss_sha256]
+        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+            .create(sig_algs)
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+            .create(RSA_SIG_ALL)
+        random_payload = structured_random_iter(max_length=2**6,
+                                                count=1)
+        ext[ext_id] = TLSExtension(extType=ext_id)\
+            .create(next(random_payload).data)
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+        node = node.add_child(ExpectServerHello(extensions=expect_exts_sh))
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectEncryptedExtensions(
+            extensions=expect_exts_ee))
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectCertificateVerify())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+        # This message is optional and may show up 0 to many times
+        cycle = ExpectNewSessionTicket()
+        node = node.add_child(cycle)
+        node.add_child(cycle)
+
+        node.next_sibling = ExpectApplicationData()
+        node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                        AlertDescription.close_notify))
+
+        node = node.add_child(ExpectAlert())
+        node.next_sibling = ExpectClose()
+        conversations["unassigned extension with random payload, id {0}"
+            .format(ext_id)] = conversation
 
     # run the conversation
     good = 0
