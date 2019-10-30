@@ -107,9 +107,6 @@
           "arguments" : ["-e", "Protocol (3, 0)",
                          "-e", "Protocol (3, 0) in SSLv2 compatible ClientHello"],
           "comment": "SSLv3 is not supported by tlslite-ng by default"},
-         {"name" : "test-ecdsa-sig-flexibility.py",
-          "comment" : "Test requires ECDSA support, missing in tlslite-ng",
-          "exp_pass" : false},
          {"name" : "test-empty-extensions.py"},
          {"name" : "test-encrypt-then-mac.py"},
          {"name" : "test-encrypt-then-mac.py",
@@ -508,6 +505,7 @@
           "comments": "script by default uses kRSA, use (EC)DHE instead",
           "arguments": ["-d"]
          },
+         {"name": "test-ecdsa-sig-flexibility.py"},
          {"name": "test-tls13-conversation.py"},
          {"name": "test-tls13-ecdsa-support.py",
           "comments": "tlslite can't load multiple ECDSA keys at the same time",

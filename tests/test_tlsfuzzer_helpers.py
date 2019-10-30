@@ -15,7 +15,8 @@ except ImportError:
 
 from tlsfuzzer.helpers import sig_algs_to_ids, key_share_gen, psk_ext_gen, \
         flexible_getattr, psk_session_ext_gen, key_share_ext_gen, \
-        uniqueness_check, AutoEmptyExtension, protocol_name_to_tuple
+        uniqueness_check, AutoEmptyExtension, protocol_name_to_tuple, \
+        client_cert_types_to_ids
 from tlsfuzzer.runner import ConnectionState
 from tlslite.extensions import KeyShareEntry, PreSharedKeyExtension, \
         PskIdentity, ClientKeyShareExtension
@@ -51,6 +52,36 @@ class TestSigAlgsToIds(unittest.TestCase):
     def test_multiple_values(self):
         ret = sig_algs_to_ids("rsa_pss_pss_sha256 sha512+0")
         self.assertEqual(ret, [(8, 9), (6, 0)])
+
+
+class TestClientCertTypesToIds(unittest.TestCase):
+    def test_with_empty(self):
+        ret = client_cert_types_to_ids("")
+
+        self.assertEqual(ret, [])
+
+    def test_with_one(self):
+        ret = client_cert_types_to_ids("rsa_sign")
+
+        self.assertEqual(ret, [1])
+
+    def test_with_two(self):
+        ret = client_cert_types_to_ids("rsa_sign ecdsa_sign")
+
+        self.assertEqual(ret, [1, 64])
+
+    def test_with_mixed(self):
+        ret = client_cert_types_to_ids("1 ecdsa_sign")
+
+        self.assertEqual(ret, [1, 64])
+
+    def test_with_malformed_integer(self):
+        with self.assertRaises(AttributeError):
+            client_cert_types_to_ids("1/23 ecdsa_sign")
+
+    def test_with_unknown_name(self):
+        with self.assertRaises(AttributeError):
+            client_cert_types_to_ids("ed448_sign")
 
 
 class TestKeyShareGen(unittest.TestCase):

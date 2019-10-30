@@ -228,6 +228,18 @@ class TestExpectHandshake(unittest.TestCase):
 
         self.assertFalse(ret)
 
+    def test__cmp_eq_list_no_type(self):
+        ret = ExpectHandshake._cmp_eq_list((1, 2), (1, 2))
+
+        self.assertIsNone(ret)
+
+    def test__cmp_eq_list_no_type_mismatched_lists(self):
+        with self.assertRaises(AssertionError) as e:
+            ExpectHandshake._cmp_eq_list((1, 2), (2, 1))
+
+        self.assertEqual("Expected: (1, 2), received: (2, 1)",
+                         str(e.exception))
+
 
 class TestServerExtensionProcessors(unittest.TestCase):
     def test_srv_ext_handler_ems(self):
@@ -3305,7 +3317,7 @@ class TestExpectCertificateRequest(unittest.TestCase):
         sig_algs = [(HashAlgorithm.sha1, SignatureAlgorithm.rsa),
                     (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
                     (HashAlgorithm.sha384, SignatureAlgorithm.rsa)]
-        exp = ExpectCertificateRequest(sig_algs=sig_algs[0:0])
+        exp = ExpectCertificateRequest(sig_algs=sig_algs[0:1])
 
         state = ConnectionState()
         msg = CertificateRequest((3, 3))
@@ -3315,8 +3327,72 @@ class TestExpectCertificateRequest(unittest.TestCase):
                    sig_algs)
         msg = Message(ContentType.handshake, msg.write())
 
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(AssertionError) as e:
             exp.process(state, msg)
+
+        self.assertIn("Got: (rsa_pkcs1_sha1, rsa_pkcs1_sha256, "
+                      "rsa_pkcs1_sha384)", str(e.exception))
+
+    def test_process_with_matching_cert_types(self):
+        sig_algs = [(HashAlgorithm.sha1, SignatureAlgorithm.rsa),
+                    (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+                    (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
+                    (HashAlgorithm.sha256, SignatureAlgorithm.ecdsa),
+                    (HashAlgorithm.sha1, SignatureAlgorithm.dsa),
+                    SignatureScheme.rsa_pss_pss_sha256,
+                    SignatureScheme.ed25519]
+        cert_types= [ClientCertificateType.rsa_sign,
+                     ClientCertificateType.ecdsa_sign,
+                     ClientCertificateType.dss_sign]
+        exp = ExpectCertificateRequest(cert_types=list(cert_types))
+
+        state = ConnectionState()
+        msg = CertificateRequest((3, 3))
+        msg.create(list(cert_types),
+                   [],
+                   sig_algs)
+        msg = Message(ContentType.handshake, msg.write())
+
+        exp.process(state, msg)
+
+        self.assertTrue(state.handshake_messages)
+
+    def test_process_with_mismatched_cert_types(self):
+        sig_algs = [(HashAlgorithm.sha1, SignatureAlgorithm.rsa),
+                    (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
+                    (HashAlgorithm.sha384, SignatureAlgorithm.rsa),
+                    (HashAlgorithm.sha256, SignatureAlgorithm.ecdsa)]
+        cert_types= [ClientCertificateType.rsa_sign,
+                     ClientCertificateType.ecdsa_sign]
+        exp = ExpectCertificateRequest(cert_types=cert_types[:1])
+
+        state = ConnectionState()
+        msg = CertificateRequest((3, 3))
+        msg.create(list(cert_types),
+                   [],
+                   sig_algs)
+        msg = Message(ContentType.handshake, msg.write())
+
+        with self.assertRaises(AssertionError) as e:
+            exp.process(state, msg)
+
+        self.assertIn("Got: (rsa_sign, ecdsa_sign)", str(e.exception))
+
+    def test_process_with_rsa_sigs_with_missing_rsa_sign_cert(self):
+        sig_algs = [(HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
+        exp = ExpectCertificateRequest(sig_algs=sig_algs)
+
+        state = ConnectionState()
+        msg = CertificateRequest((3, 3))
+        msg.create([ClientCertificateType.ecdsa_sign], [], sig_algs)
+
+        msg = Message(ContentType.handshake, msg.write())
+
+        with self.assertRaises(AssertionError) as e:
+            exp.process(state, msg)
+
+        self.assertIn("RSA signature", str(e.exception))
+        self.assertIn("rsa_sign", str(e.exception))
 
 
 class TestExpectHeartbeat(unittest.TestCase):

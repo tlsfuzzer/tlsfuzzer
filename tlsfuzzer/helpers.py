@@ -5,19 +5,20 @@
 import time
 from functools import partial
 from tlslite.constants import HashAlgorithm, SignatureAlgorithm, \
-        SignatureScheme
+        SignatureScheme, ClientCertificateType
 
 from tlslite.extensions import KeyShareEntry, PreSharedKeyExtension, \
         PskIdentity, ClientKeyShareExtension
 from tlslite.handshakehelpers import HandshakeHelpers
 from .handshake_helpers import kex_for_group
 
+
 __all__ = ['sig_algs_to_ids', 'key_share_gen', 'psk_ext_gen',
            'psk_ext_updater', 'psk_session_ext_gen', 'flexible_getattr',
            'key_share_ext_gen', 'uniqueness_check', 'RSA_SIG_ALL',
            'ECDSA_SIG_ALL', 'RSA_PKCS1_ALL', 'RSA_PSS_PSS_ALL',
            'RSA_PSS_RSAE_ALL', 'ECDSA_SIG_TLS1_3_ALL', 'SIG_ALL',
-           'AutoEmptyExtension']
+           'AutoEmptyExtension', 'client_cert_types_to_ids']
 
 
 RSA_SIG_ALL = [(getattr(HashAlgorithm, x), SignatureAlgorithm.rsa) for x in
@@ -129,6 +130,29 @@ def sig_algs_to_ids(names):
             ids.append((hash_id, sign_id))
         else:
             ids.append(getattr(SignatureScheme, name))
+
+    return ids
+
+
+def client_cert_types_to_ids(names):
+    """
+    Convert a string with client certificate method names to list of IDs.
+
+    @type names: str
+    @param names: whitespace separated list of names of client certificate
+        types (used in CertificateRequest message in TLS 1.2 and earlier).
+        Identifiers can be names (e.g. C{rsa_sign}), or integers (e.g. C{1}
+        instead of C{rsa_sign}).
+    @raises AttributeError: when the specified identifier is not defined in
+        ClientCertificateType
+    @return: list of integers
+    """
+    ids = []
+    for name in names.split():
+        try:
+            ids.append(int(name))
+        except ValueError:
+            ids.append(getattr(ClientCertificateType, name))
 
     return ids
 
