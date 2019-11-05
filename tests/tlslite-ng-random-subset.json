@@ -529,8 +529,12 @@
      ]
     },
     {"server_command": ["python", "-u", "{command}", "server",
-                "-k", "tests/serverECKey.pem",
                 "-c", "tests/serverECCert.pem",
+                "-k", "tests/serverECKey.pem",
+                "-c", "tests/serverP384ECCert.pem",
+                "-k", "tests/serverP384ECKey.pem",
+                "-c", "tests/serverP521ECCert.pem",
+                "-k", "tests/serverP521ECKey.pem",
                 "localhost:4433"],
      "server_hostname": "localhost",
      "server_port": 4433,
@@ -542,11 +546,7 @@
          },
          {"name": "test-ecdsa-sig-flexibility.py"},
          {"name": "test-tls13-conversation.py"},
-         {"name": "test-tls13-ecdsa-support.py",
-          "comments": "tlslite can't load multiple ECDSA keys at the same time",
-          "arguments": ["-e", "Test with ecdsa_secp384r1_sha384",
-                        "-e", "Test with ecdsa_secp521r1_sha512"]
-         }
+         {"name": "test-tls13-ecdsa-support.py"}
      ]
     }
 ]
