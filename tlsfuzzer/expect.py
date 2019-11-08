@@ -16,7 +16,7 @@ from tlslite.constants import ContentType, HandshakeType, CertificateType,\
         SSL2HandshakeType, CipherSuite, GroupName, AlertDescription, \
         SignatureScheme, TLS_1_3_HRR, HeartbeatMode, \
         TLS_1_1_DOWNGRADE_SENTINEL, TLS_1_2_DOWNGRADE_SENTINEL, \
-        HeartbeatMessageType, ClientCertificateType
+        HeartbeatMessageType, ClientCertificateType, CertificateStatusType
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
         ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus, \
@@ -405,6 +405,36 @@ def gen_srv_ext_handler_record_limit(size=None):
     return partial(_srv_ext_handler_record_limit, size=size)
 
 
+def clnt_ext_handler_status_request(state, extension):
+    """
+    Check status_request extension from initiating side.
+
+    To be used in ClientHello and CertificateRequest
+    """
+    del state  # kept for compatibility
+    if extension.status_type != CertificateStatusType.ocsp:
+        raise AssertionError(
+            "Unexpected status_type in status_request extension: {0}"
+            .format(CertificateStatusType.toStr(extension.status_type)))
+    if extension.responder_id_list is None \
+            or extension.request_extensions is None:
+        raise AssertionError(
+            "Malformed status_request extension")
+
+
+def clnt_ext_handler_sig_algs(state, extension):
+    """
+    Check signature_algorithms or signature_algorithms_cert extension.
+
+    To be used in ClientHello and CertificateRequest.
+    """
+    del state  # kept for API compatibility
+    if not extension.sigalgs:
+        raise AssertionError(
+            "Empty or malformed {0} extension"
+            .format(ExtensionType.toStr(extension.extType)))
+
+
 _srv_ext_handler = \
         {ExtensionType.extended_master_secret: srv_ext_handler_ems,
          ExtensionType.encrypt_then_mac: srv_ext_handler_etm,
@@ -431,6 +461,12 @@ _EE_EXT_HANDLER = \
          ExtensionType.supported_groups: srv_ext_handler_supp_groups,
          ExtensionType.heartbeat: srv_ext_handler_heartbeat,
          ExtensionType.record_size_limit: _srv_ext_handler_record_limit}
+
+
+_CR_EXT_HANDLER = \
+        {ExtensionType.status_request: clnt_ext_handler_status_request,
+         ExtensionType.signature_algorithms: clnt_ext_handler_sig_algs,
+         ExtensionType.signature_algorithms_cert: clnt_ext_handler_sig_algs}
 
 
 class _ExpectExtensionsMessage(ExpectHandshake):
@@ -1104,17 +1140,39 @@ class ExpectServerKeyExchange(ExpectHandshake):
         state.handshake_hashes.update(msg.write())
 
 
-class ExpectCertificateRequest(ExpectHandshake):
-    """Processing TLS Handshake protocol Certificate Request message"""
+class ExpectCertificateRequest(_ExpectExtensionsMessage):
+    """Processing TLS Handshake protocol Certificate Request message."""
 
     def __init__(self, sig_algs=None, cert_types=None,
-                 sanity_check_cert_types=True):
+                 sanity_check_cert_types=True, extensions=None):
+        """
+        Set expected parameters for the CertificateRequest message.
+
+        @param sig_algs: a list of signature algorithms that we are expecting
+            from server. Needs to be in-order and complete. `None` to accept
+            any list from server. Applicable to TLS 1.2 and later only.
+            Do not use together with non-default `extensions`.
+        @param cert_types: a list of client certificate types that we are
+            expecting from server. Needs to be in-order and complete.
+            `None` to accept any list from server. Applicable to TLS 1.2 and
+            earlier only.
+        @param sanity_check_cert_types: set to False to disable verification
+            checking if every signature algorithm has a corresponding client
+            certificate type.
+        @param extensions: dictionary with extensions that need to be included
+            in the message. Set to None to accept any, set to empty dict to
+            expect no extensions. Usable in TLS 1.3 only.
+        """
         msg_type = HandshakeType.certificate_request
         super(ExpectCertificateRequest, self).__init__(ContentType.handshake,
-                                                       msg_type)
+                                                       msg_type,
+                                                       extensions)
         self.sig_algs = sig_algs
         self.cert_types = cert_types
         self.sanity_check_cert_types = sanity_check_cert_types
+        if sig_algs is not None and extensions is not None:
+            raise ValueError("Can't set sig_algs and extensions at the same "
+                             "time")
 
     @staticmethod
     def _sanity_check_cert_types(cert_request):
@@ -1145,6 +1203,40 @@ class ExpectCertificateRequest(ExpectHandshake):
                     "({0}) but does not include {2} client "
                     "certificate type".format(sig_alg, key_type, cert_type))
 
+    @staticmethod
+    def _get_autohandler(ext_id):
+        try:
+            return _CR_EXT_HANDLER[ext_id]
+        except KeyError:
+            # handle future/GREASE extensions
+            return None
+
+    def _process_extensions(self, state, msg):
+        for ext in msg.extensions:
+            ext_id = ext.extType
+            handler = None
+            if self.extensions:
+                handler = self.extensions[ext_id]
+            if handler is None:
+                handler = self._get_autohandler(ext_id)
+
+            if callable(handler):
+                handler(state, ext)
+            elif isinstance(handler, TLSExtension):
+                if not handler == ext:
+                    raise AssertionError(
+                        "Expected exctension not matched for type {0}, "
+                        "received: {1}".format(ExtensionType.toStr(ext_id),
+                                               ext))
+            elif handler is None:
+                # since server can send arbitrary extensions, we need to
+                # be able to process them, so if the self.extensions is unset
+                # we can just do nothing
+                pass
+            else:
+                raise ValueError("Bad extension handler for id {0}".format(
+                    ExtensionType.toStr(ext_id)))
+
     def process(self, state, msg):
         """
         Check received Certificate Request
@@ -1173,6 +1265,10 @@ class ExpectCertificateRequest(ExpectHandshake):
         if state.version == (3, 3) and self.sanity_check_cert_types:
             # only in TLS 1.2 do the sig algs coexist with cert types
             self._sanity_check_cert_types(cert_request)
+
+        if state.version >= (3, 4):
+            self._compare_extensions(cert_request)
+            self._process_extensions(state, cert_request)
 
         state.handshake_messages.append(cert_request)
         state.handshake_hashes.update(msg.write())

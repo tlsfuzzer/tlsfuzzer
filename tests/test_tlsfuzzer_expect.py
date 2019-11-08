@@ -30,7 +30,8 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         hrr_ext_handler_cookie, ExpectHelloRetryRequest, \
         gen_srv_ext_handler_psk, srv_ext_handler_supp_groups, \
         srv_ext_handler_heartbeat, gen_srv_ext_handler_record_limit, \
-        srv_ext_handler_status_request, ExpectHeartbeat
+        srv_ext_handler_status_request, ExpectHeartbeat, \
+        clnt_ext_handler_status_request, clnt_ext_handler_sig_algs
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
@@ -310,6 +311,25 @@ class TestServerExtensionProcessors(unittest.TestCase):
         with self.assertRaises(AssertionError):
             srv_ext_handler_status_request(state, ext)
 
+    def test_clnt_ext_handler_status_request(self):
+        ext = StatusRequestExtension().create()
+
+        clnt_ext_handler_status_request(None, ext)
+
+    def test_clnt_ext_handler_status_request_with_empty_extension(self):
+        ext = StatusRequestExtension().create()
+        ext.responder_id_list = None
+
+        with self.assertRaises(AssertionError):
+            clnt_ext_handler_status_request(None, ext)
+
+    def test_clnt_ext_handler_status_request_with_wrong_type(self):
+        ext = StatusRequestExtension().create()
+        ext.status_type = 0
+
+        with self.assertRaises(AssertionError):
+            clnt_ext_handler_status_request(None, ext)
+
     def test_srv_ext_handler_renego(self):
         ext = RenegotiationInfoExtension().create(bytearray(b'abba'))
 
@@ -361,7 +381,6 @@ class TestServerExtensionProcessors(unittest.TestCase):
 
         with self.assertRaises(AssertionError):
             srv_ext_handler_alpn(state, ext)
-
 
     def test_srv_ext_handler_ec_point(self):
         ext = ECPointFormatsExtension().create([ECPointFormat.uncompressed])
@@ -721,6 +740,24 @@ class TestServerExtensionProcessors(unittest.TestCase):
 
         with self.assertRaises(AssertionError):
             handler(state, ext)
+
+    def test_clnt_ext_handler_sig_algs(self):
+        ext = SignatureAlgorithmsExtension().create(
+            [SignatureScheme.rsa_pss_rsae_sha256])
+
+        clnt_ext_handler_sig_algs(None, ext)
+
+    def test_clnt_ext_handler_sig_algs_with_empty_list(self):
+        ext = SignatureAlgorithmsExtension().create([])
+
+        with self.assertRaises(AssertionError):
+            clnt_ext_handler_sig_algs(None, ext)
+
+    def test_clnt_ext_handler_sig_algs_with_no_payload(self):
+        ext = SignatureAlgorithmsExtension().create(None)
+
+        with self.assertRaises(AssertionError):
+            clnt_ext_handler_sig_algs(None, ext)
 
 
 class TestHRRExtensionProcessors(unittest.TestCase):
@@ -3263,6 +3300,10 @@ class TestExpectCertificateRequest(unittest.TestCase):
         self.assertFalse(exp.is_command())
         self.assertFalse(exp.is_generator())
 
+    def test___init___with_both_extensions_and_sigalgs(self):
+        with self.assertRaises(ValueError):
+            ExpectCertificateRequest([], extensions=[])
+
     def test_is_match(self):
         exp = ExpectCertificateRequest()
 
@@ -3393,6 +3434,93 @@ class TestExpectCertificateRequest(unittest.TestCase):
 
         self.assertIn("RSA signature", str(e.exception))
         self.assertIn("rsa_sign", str(e.exception))
+
+    def test_process_with_explicit_extension(self):
+        ext = SignatureAlgorithmsExtension().create(
+            [SignatureScheme.rsa_pss_rsae_sha256])
+
+        state = ConnectionState()
+        state.version = (3, 4)
+        exp = ExpectCertificateRequest(
+            extensions={ExtensionType.signature_algorithms: ext})
+
+        msg = CertificateRequest((3, 4))
+        msg.create(extensions=[ext])
+
+        exp.process(state, msg)
+
+    def test_with_mismatched_ext_values(self):
+        ext = SignatureAlgorithmsExtension().create(
+            [SignatureScheme.rsa_pss_rsae_sha256])
+
+        exp = ExpectCertificateRequest(
+            extensions={ExtensionType.signature_algorithms: ext})
+
+        state = ConnectionState()
+        state.version = (3, 4)
+        msg = CertificateRequest((3, 4))
+        ext = SignatureAlgorithmsExtension().create(
+            [SignatureScheme.ecdsa_secp256r1_sha256])
+        msg.create(extensions=[ext])
+
+        with self.assertRaises(AssertionError) as exc:
+            exp.process(state, msg)
+
+        self.assertIn('Expected exctension not matched', str(exc.exception))
+
+    def test_process_with_implicit_handler(self):
+        ext = SignatureAlgorithmsExtension().create(
+            [SignatureScheme.rsa_pss_rsae_sha256])
+
+        state = ConnectionState()
+        state.version = (3, 4)
+        exp = ExpectCertificateRequest()
+
+        msg = CertificateRequest((3, 4))
+        msg.create(extensions=[ext])
+
+        exp.process(state, msg)
+
+    def test_process_with_implicit_handler_and_malformed_ext(self):
+        ext = SignatureAlgorithmsExtension().create([])
+
+        state = ConnectionState()
+        state.version = (3, 4)
+        exp = ExpectCertificateRequest()
+
+        msg = CertificateRequest((3, 4))
+        msg.create(extensions=[ext])
+
+        with self.assertRaises(AssertionError) as exc:
+            exp.process(state, msg)
+
+        self.assertIn("Empty or malformed signature_algorithms extension",
+                      str(exc.exception))
+
+    def test_process_grease_with_implicit_handler(self):
+        ext = TLSExtension(extType=31354).create(b'')
+
+        state = ConnectionState()
+        state.version = (3, 4)
+        exp = ExpectCertificateRequest()
+
+        msg = CertificateRequest((3, 4))
+        msg.create(extensions=[ext])
+
+        exp.process(state, msg)
+
+    def test_process_ext_with_incorrect_handler(self):
+        ext = TLSExtension(extType=31354).create(b'')
+
+        state = ConnectionState()
+        state.version = (3, 4)
+        exp = ExpectCertificateRequest(extensions={31354: object()})
+
+        msg = CertificateRequest((3, 4))
+        msg.create(extensions=[ext])
+
+        with self.assertRaises(ValueError):
+            exp.process(state, msg)
 
 
 class TestExpectHeartbeat(unittest.TestCase):
