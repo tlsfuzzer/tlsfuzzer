@@ -34,7 +34,7 @@ from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 
 
-version = 2
+version = 3
 
 
 def help_msg():
@@ -255,6 +255,55 @@ def main():
     node.next_sibling = ExpectClose()
 
     conversations["check sigalgs in cert request"] = conversation
+
+    # verify the sent extensions
+    conversation = Connect(hostname, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = \
+        ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = \
+        SupportedVersionsExtension().create([(3, 4), (3, 3)])
+    ext[ExtensionType.supported_groups] = \
+        SupportedGroupsExtension().create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    ext = {}
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(sigalgs)
+    node = node.add_child(ExpectCertificateRequest(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(CertificateGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+    bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+    node.next_sibling = ExpectApplicationData()
+    node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                       AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+
+    conversations["verify extensions in CertificateRequest"] = conversation
 
     # run the conversation
     good = 0
