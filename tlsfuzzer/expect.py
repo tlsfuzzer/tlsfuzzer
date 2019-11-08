@@ -433,7 +433,47 @@ _EE_EXT_HANDLER = \
          ExtensionType.record_size_limit: _srv_ext_handler_record_limit}
 
 
-class ExpectServerHello(ExpectHandshake):
+class _ExpectExtensionsMessage(ExpectHandshake):
+    """
+    Common methods of messages that have a list of extensions.
+
+    Used in ServerHello, EncryptedExtensions and CertificateRequest (in
+    TLS 1.3)
+    """
+    def __init__(self, content_type, msg_type, extensions):
+        super(_ExpectExtensionsMessage, self).__init__(
+            content_type, msg_type)
+        self.extensions = extensions
+
+    def _compare_extensions(self, message):
+        """
+        Verify that server provided extensions match exactly expected list.
+        """
+        # if the list of extensions is present, make sure it matches exactly
+        # with what the server sent
+        if self.extensions and not message.extensions:
+            raise AssertionError("Server did not send any extensions")
+        if self.extensions is not None and message.extensions:
+            expected = set(self.extensions.keys())
+            got = set(i.extType for i in message.extensions)
+            if got != expected:
+                diff = expected.difference(got)
+                if diff:
+                    raise AssertionError("Server did not send extension(s): "
+                                         "{0}".format(
+                                             ", ".join((ExtensionType.toStr(i)
+                                                        for i in diff))))
+                diff = got.difference(expected)
+                # we already checked if got != expected so diff here
+                # must be non-empty if the one checked above is
+                assert diff
+                raise AssertionError("Server sent unexpected extension(s):"
+                                     " {0}".format(
+                                         ", ".join(ExtensionType.toStr(i)
+                                                   for i in diff)))
+
+
+class ExpectServerHello(_ExpectExtensionsMessage):
     """
     Parsing TLS Handshake protocol Server Hello messages.
 
@@ -477,39 +517,12 @@ class ExpectServerHello(ExpectHandshake):
         by providing handler for pre_shared_key extension.
         """
         super(ExpectServerHello, self).__init__(ContentType.handshake,
-                                                HandshakeType.server_hello)
+                                                HandshakeType.server_hello,
+                                                extensions)
         self.cipher = cipher
-        self.extensions = extensions
         self.version = version
         self.resume = resume
         self.srv_max_prot = server_max_protocol
-
-    def _compare_extensions(self, srv_hello):
-        """
-        Verify that server provided extensions match exactly expected list.
-        """
-        # if the list of extensions is present, make sure it matches exactly
-        # with what the server sent
-        if self.extensions and not srv_hello.extensions:
-            raise AssertionError("Server did not send any extensions")
-        elif self.extensions is not None and srv_hello.extensions:
-            expected = set(self.extensions.keys())
-            got = set(i.extType for i in srv_hello.extensions)
-            if got != expected:
-                diff = expected.difference(got)
-                if diff:
-                    raise AssertionError("Server did not send extension(s): "
-                                         "{0}".format(
-                                             ", ".join((ExtensionType.toStr(i)
-                                                        for i in diff))))
-                diff = got.difference(expected)
-                # we already checked if got != expected so diff here
-                # must be non-empty if the one checked above is
-                assert diff
-                raise AssertionError("Server sent unexpected extension(s):"
-                                     " {0}".format(
-                                         ", ".join(ExtensionType.toStr(i)
-                                                   for i in diff)))
 
     @staticmethod
     def _get_autohandler(ext_id):
@@ -1354,39 +1367,22 @@ class ExpectFinished(ExpectHandshake):
             state.msg_sock.changeReadState()
 
 
-class ExpectEncryptedExtensions(ExpectHandshake):
+class ExpectEncryptedExtensions(_ExpectExtensionsMessage):
     """Processing of the TLS handshake protocol Encrypted Extensions message"""
 
     def __init__(self, extensions=None):
         super(ExpectEncryptedExtensions, self).__init__(
             ContentType.handshake,
-            HandshakeType.encrypted_extensions)
-        self.extensions = extensions
+            HandshakeType.encrypted_extensions,
+            extensions)
 
-    def _compare_extensions(self, srv_exts, cln_hello):
+    def _compare_extensions_in_ee(self, srv_exts, cln_hello):
         """
         Verify that server provided extensions match exactly expected list.
         """
         # check if received extensions match the set extensions
-        if self.extensions and not srv_exts.extensions:
-            raise AssertionError("Server did not send any extensions")
-        elif self.extensions is not None and srv_exts.extensions:
-            expected = set(self.extensions.keys())
-            got = set(i.extType for i in srv_exts.extensions)
-            if got != expected:
-                diff = expected.difference(got)
-                if diff:
-                    raise AssertionError("Server did not send extension(s): "
-                                         "{0}".format(
-                                             ", ".join(ExtensionType.toStr(i)
-                                                       for i in diff)))
-                diff = got.difference(expected)
-                if diff:
-                    raise AssertionError("Server sent unexpected extension(s):"
-                                         " {0}".format(
-                                             ", ".join(ExtensionType.toStr(i)
-                                                       for i in diff)))
-        elif self.extensions is None and srv_exts.extensions:
+        self._compare_extensions(srv_exts)
+        if self.extensions is None and srv_exts.extensions:
             cln_exts = set(i.extType for i in cln_hello.extensions)
             got = set(i.extType for i in srv_exts.extensions)
             diff = got.difference(cln_exts)
@@ -1462,7 +1458,7 @@ class ExpectEncryptedExtensions(ExpectHandshake):
         # get client_hello message with CH extensions
         cln_hello = state.get_last_message_of_type(ClientHello)
 
-        self._compare_extensions(srv_exts, cln_hello)
+        self._compare_extensions_in_ee(srv_exts, cln_hello)
 
         if srv_exts.extensions:
             self._process_extensions(state, srv_exts)
