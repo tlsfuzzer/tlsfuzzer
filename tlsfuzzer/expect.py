@@ -1140,6 +1140,29 @@ class ExpectServerKeyExchange(ExpectHandshake):
         state.handshake_hashes.update(msg.write())
 
 
+# RFC8446 Section 4.2 says that implementation MUST reject extensions
+# it recognises but which are not allowed in CertificateRequest
+# check it against all defined in RFC8446
+TLS_1_3_CR_FORBIDDEN = set((
+    ExtensionType.server_name,
+    1,  # ExtensionType.max_fragment_length
+    ExtensionType.supported_groups,
+    14,  # ExtensionType.use_srtp
+    ExtensionType.heartbeat,
+    ExtensionType.alpn,
+    19,  # ExtensionType.client_certificate_type
+    20,  # ExtensionType.server_certificate_type
+    21,  # ExtensionType.padding,
+    ExtensionType.key_share,
+    ExtensionType.pre_shared_key,
+    ExtensionType.psk_key_exchange_modes,
+    ExtensionType.early_data,
+    ExtensionType.cookie,
+    ExtensionType.supported_versions,
+    49  # ExtensionType.post_handshake_auth
+    ))
+
+
 class ExpectCertificateRequest(_ExpectExtensionsMessage):
     """Processing TLS Handshake protocol Certificate Request message."""
 
@@ -1215,6 +1238,11 @@ class ExpectCertificateRequest(_ExpectExtensionsMessage):
         for ext in msg.extensions:
             ext_id = ext.extType
             handler = None
+            if ext_id in TLS_1_3_CR_FORBIDDEN:
+                raise AssertionError(
+                    "Server sent extension that is explicitly forbidden in "
+                    "CertificateRequest messages: {0}".format(
+                        ExtensionType.toStr(ext_id)))
             if self.extensions:
                 handler = self.extensions[ext_id]
             if handler is None:

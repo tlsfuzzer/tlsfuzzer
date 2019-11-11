@@ -3509,6 +3509,21 @@ class TestExpectCertificateRequest(unittest.TestCase):
 
         exp.process(state, msg)
 
+    def test_process_implicit_with_CR_forbidden_extension(self):
+        ext = HeartbeatExtension().create(HeartbeatMode.PEER_ALLOWED_TO_SEND)
+
+        state = ConnectionState()
+        state.version = (3, 4)
+        exp = ExpectCertificateRequest()
+
+        msg = CertificateRequest((3, 4))
+        msg.create(extensions=[ext])
+
+        with self.assertRaises(AssertionError) as exc:
+            exp.process(state, msg)
+
+        self.assertIn("heartbeat", str(exc.exception))
+
     def test_process_ext_with_incorrect_handler(self):
         ext = TLSExtension(extType=31354).create(b'')
 
