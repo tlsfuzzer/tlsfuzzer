@@ -23,7 +23,7 @@ and general standards conformity
 
 You'll need:
 
- * Python 2.6 or later or Python 3.2 or later
+ * Python 2.6 or later or Python 3.3 or later
  * [tlslite-ng](https://github.com/tomato42/tlslite-ng)
    0.8.0-alpha27 or later (note that `tlslite` will *not* work and
    they conflict with each other)
