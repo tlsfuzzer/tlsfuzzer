@@ -22,7 +22,8 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectApplicationData, ExpectEncryptedExtensions, \
         ExpectCertificateVerify, ExpectNewSessionTicket
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import key_share_gen, sig_algs_to_ids, RSA_SIG_ALL
+from tlsfuzzer.helpers import key_share_gen, sig_algs_to_ids, RSA_SIG_ALL, \
+        ext_names_to_ids
 from tlslite.extensions import SignatureAlgorithmsExtension, \
         SignatureAlgorithmsCertExtension, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension
@@ -50,6 +51,9 @@ def help_msg():
     print("                is expected to support.")
     print(" -k keyfile     file with private key of client")
     print(" -c certfile    file with the certificate of client")
+    print(" --cr-ext list  Extensions that can be present in "
+                           "CertificateRequest")
+    print("                message, \"signature_algorithms\" by default")
     print(" --help         this message")
 
 
@@ -77,9 +81,10 @@ def main():
                SignatureScheme.rsa_pkcs1_sha256,
                SignatureScheme.rsa_pkcs1_sha224,
                SignatureScheme.rsa_pkcs1_sha1]
+    expected_exts = [ExtensionType.signature_algorithms]
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:s:k:c:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:s:k:c:", ["help", "cr-ext="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -92,6 +97,8 @@ def main():
             sys.exit(0)
         elif opt == '-s':
             sigalgs = sig_algs_to_ids(arg)
+        elif opt == '--cr-ext':
+            expected_exts = ext_names_to_ids(arg)
         elif opt == '-k':
             text_key = open(arg, 'rb').read()
             if sys.version_info[0] >= 3:
@@ -283,8 +290,12 @@ def main():
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectEncryptedExtensions())
     ext = {}
-    ext[ExtensionType.signature_algorithms] = \
-        SignatureAlgorithmsExtension().create(sigalgs)
+    for ext_id in expected_exts:
+        if ext_id == ExtensionType.signature_algorithms:
+            val = SignatureAlgorithmsExtension().create(sigalgs)
+        else:
+            val = None
+        ext[ext_id] = val
     node = node.add_child(ExpectCertificateRequest(extensions=ext))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectCertificateVerify())
