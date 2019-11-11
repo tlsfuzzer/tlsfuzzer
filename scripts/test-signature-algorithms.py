@@ -20,13 +20,14 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerKeyExchange
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        HashAlgorithm, SignatureAlgorithm, ExtensionType, SignatureScheme
+        HashAlgorithm, SignatureAlgorithm, ExtensionType, SignatureScheme, \
+        GroupName
 from tlslite.extensions import SignatureAlgorithmsExtension, \
-        SignatureAlgorithmsCertExtension
-from tlsfuzzer.helpers import RSA_SIG_ALL
+        SignatureAlgorithmsCertExtension, SupportedGroupsExtension
+from tlsfuzzer.helpers import RSA_SIG_ALL, SIG_ALL
 
 
-version = 2
+version = 3
 
 
 def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
@@ -80,6 +81,40 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
+    groups = [GroupName.secp256r1,
+              GroupName.ffdhe2048]
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(SIG_ALL)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(SIG_ALL)
+    ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["sanity"] = conversation
+
+    conversation = Connect(host, port)
+    node = conversation
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -101,7 +136,7 @@ def main():
                                          AlertDescription.close_notify))
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
-    conversations["sanity"] = conversation
+    conversations["implicit SHA-1 check"] = conversation
 
     conversation = Connect(host, port)
     node = conversation
