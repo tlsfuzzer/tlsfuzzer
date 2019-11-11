@@ -5,7 +5,7 @@
 import time
 from functools import partial
 from tlslite.constants import HashAlgorithm, SignatureAlgorithm, \
-        SignatureScheme, ClientCertificateType
+        SignatureScheme, ClientCertificateType, ExtensionType
 
 from tlslite.extensions import KeyShareEntry, PreSharedKeyExtension, \
         PskIdentity, ClientKeyShareExtension
@@ -130,6 +130,31 @@ def sig_algs_to_ids(names):
             ids.append((hash_id, sign_id))
         else:
             ids.append(getattr(SignatureScheme, name))
+
+    return ids
+
+
+def ext_names_to_ids(names):
+    """
+    Convert a string with names of extensions to list of IDs.
+
+    @type names: str
+    @param names: whitespace separated list of names of extension types.
+        Names can be specified either as full names (C{server_name}) or
+        as numerical IDs (C{0}).
+
+    @raises AttributeError: when the specified identifier is not defined
+        in ExtensionType
+    @return: list of int
+    """
+    ids = []
+    for name in names.split():
+        try:
+            num_id = int(name)
+        except ValueError:
+            num_id = getattr(ExtensionType, name)
+
+        ids.append(num_id)
 
     return ids
 
