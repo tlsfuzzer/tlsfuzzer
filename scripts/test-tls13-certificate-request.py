@@ -22,7 +22,8 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectApplicationData, ExpectEncryptedExtensions, \
         ExpectCertificateVerify, ExpectNewSessionTicket
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import key_share_gen, sig_algs_to_ids, RSA_SIG_ALL
+from tlsfuzzer.helpers import key_share_gen, sig_algs_to_ids, RSA_SIG_ALL, \
+        ext_names_to_ids
 from tlslite.extensions import SignatureAlgorithmsExtension, \
         SignatureAlgorithmsCertExtension, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension
@@ -34,7 +35,7 @@ from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 
 
-version = 2
+version = 3
 
 
 def help_msg():
@@ -50,6 +51,9 @@ def help_msg():
     print("                is expected to support.")
     print(" -k keyfile     file with private key of client")
     print(" -c certfile    file with the certificate of client")
+    print(" --cr-ext list  Extensions that can be present in "
+                           "CertificateRequest")
+    print("                message, \"signature_algorithms\" by default")
     print(" --help         this message")
 
 
@@ -77,9 +81,10 @@ def main():
                SignatureScheme.rsa_pkcs1_sha256,
                SignatureScheme.rsa_pkcs1_sha224,
                SignatureScheme.rsa_pkcs1_sha1]
+    expected_exts = [ExtensionType.signature_algorithms]
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:s:k:c:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:s:k:c:", ["help", "cr-ext="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -92,6 +97,8 @@ def main():
             sys.exit(0)
         elif opt == '-s':
             sigalgs = sig_algs_to_ids(arg)
+        elif opt == '--cr-ext':
+            expected_exts = ext_names_to_ids(arg)
         elif opt == '-k':
             text_key = open(arg, 'rb').read()
             if sys.version_info[0] >= 3:
@@ -255,6 +262,59 @@ def main():
     node.next_sibling = ExpectClose()
 
     conversations["check sigalgs in cert request"] = conversation
+
+    # verify the sent extensions
+    conversation = Connect(hostname, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = \
+        ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = \
+        SupportedVersionsExtension().create([(3, 4), (3, 3)])
+    ext[ExtensionType.supported_groups] = \
+        SupportedGroupsExtension().create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    ext = {}
+    for ext_id in expected_exts:
+        if ext_id == ExtensionType.signature_algorithms:
+            val = SignatureAlgorithmsExtension().create(sigalgs)
+        else:
+            val = None
+        ext[ext_id] = val
+    node = node.add_child(ExpectCertificateRequest(extensions=ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(CertificateGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+    bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+    node.next_sibling = ExpectApplicationData()
+    node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                       AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+
+    conversations["verify extensions in CertificateRequest"] = conversation
 
     # run the conversation
     good = 0

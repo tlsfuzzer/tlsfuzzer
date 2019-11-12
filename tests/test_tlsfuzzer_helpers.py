@@ -16,7 +16,7 @@ except ImportError:
 from tlsfuzzer.helpers import sig_algs_to_ids, key_share_gen, psk_ext_gen, \
         flexible_getattr, psk_session_ext_gen, key_share_ext_gen, \
         uniqueness_check, AutoEmptyExtension, protocol_name_to_tuple, \
-        client_cert_types_to_ids
+        client_cert_types_to_ids, ext_names_to_ids
 from tlsfuzzer.runner import ConnectionState
 from tlslite.extensions import KeyShareEntry, PreSharedKeyExtension, \
         PskIdentity, ClientKeyShareExtension
@@ -52,6 +52,37 @@ class TestSigAlgsToIds(unittest.TestCase):
     def test_multiple_values(self):
         ret = sig_algs_to_ids("rsa_pss_pss_sha256 sha512+0")
         self.assertEqual(ret, [(8, 9), (6, 0)])
+
+
+class TestExtNamesToIds(unittest.TestCase):
+    def test_with_empty(self):
+        ret = ext_names_to_ids("")
+
+        self.assertEqual(ret, [])
+
+    def test_with_name(self):
+        ret = ext_names_to_ids("server_name")
+
+        self.assertEqual(ret, [0])
+
+    def test_with_id(self):
+        ret = ext_names_to_ids("0")
+
+        self.assertEqual(ret, [0])
+
+    def test_with_two_ids(self):
+        ret = ext_names_to_ids("0 1")
+
+        self.assertEqual(ret, [0, 1])
+
+    def test_with_id_and_name(self):
+        ret = ext_names_to_ids("0 heartbeat")
+
+        self.assertEqual(ret, [0, 15])
+
+    def test_with_unrecognised_name(self):
+        with self.assertRaises(AttributeError):
+            ext_names_to_ids("foobar")
 
 
 class TestClientCertTypesToIds(unittest.TestCase):
