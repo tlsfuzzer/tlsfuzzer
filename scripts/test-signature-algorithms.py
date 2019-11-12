@@ -20,13 +20,14 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerKeyExchange
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        HashAlgorithm, SignatureAlgorithm, ExtensionType, SignatureScheme
+        HashAlgorithm, SignatureAlgorithm, ExtensionType, SignatureScheme, \
+        GroupName
 from tlslite.extensions import SignatureAlgorithmsExtension, \
-        SignatureAlgorithmsCertExtension
-from tlsfuzzer.helpers import RSA_SIG_ALL
+        SignatureAlgorithmsCertExtension, SupportedGroupsExtension
+from tlsfuzzer.helpers import RSA_SIG_ALL, SIG_ALL
 
 
-version = 2
+version = 3
 
 
 def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
@@ -45,6 +46,8 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" --no-sha1      expect conversations with explicit/implicit sha1")
+    print("                to fail")
     print(" --help         this message")
 
 
@@ -53,9 +56,10 @@ def main():
     port = 4433
     fatal_alert = "decode_error"
     run_exclude = set()
+    no_sha1 = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:", ["help", "alert="])
+    opts, args = getopt.getopt(argv, "h:p:e:", ["help", "alert=", "no-sha1"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -65,6 +69,8 @@ def main():
             run_exclude.add(arg)
         elif opt == '--alert':
             fatal_alert = arg
+        elif opt == '--no-sha1':
+            no_sha1 = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -80,13 +86,22 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+    ext = {}
+    groups = [GroupName.secp256r1,
+              GroupName.ffdhe2048]
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(SIG_ALL)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(SIG_ALL)
+    ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3)))
-    node = node.add_child(ExpectServerHello(version=(3, 3)))
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
-    # implicit SHA-1 check from TLS RFC (if no sig_algs => SHA-1 is implied)
     node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
@@ -95,7 +110,7 @@ def main():
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
     node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\n\n")))
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -105,7 +120,39 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+    ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3)))
+    if no_sha1:
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.handshake_failure))
+        node = node.add_child(ExpectClose())
+    else:
+        node = node.add_child(ExpectServerHello(version=(3, 3)))
+        node = node.add_child(ExpectCertificate())
+        # implicit SHA-1 check from Client Hello ext
+        node = node.add_child(ExpectServerKeyExchange())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ExpectApplicationData())
+        node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                             AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert())
+        node.next_sibling = ExpectClose()
+    conversations["implicit SHA-1 check"] = conversation
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     sigs = [(HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
@@ -115,28 +162,34 @@ def main():
            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                extensions=ext))
-    node = node.add_child(ExpectServerHello(version=(3, 3)))
-    node = node.add_child(ExpectCertificate())
-    # implicit SHA-1 check from Client Hello ext
-    node = node.add_child(ExpectServerKeyExchange())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\n\n")))
-    node = node.add_child(ExpectApplicationData())
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                         AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
+    if no_sha1:
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.handshake_failure))
+        node = node.add_child(ExpectClose())
+    else:
+        node = node.add_child(ExpectServerHello(version=(3, 3)))
+        node = node.add_child(ExpectCertificate())
+        # implicit SHA-1 check from Client Hello ext
+        node = node.add_child(ExpectServerKeyExchange())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ExpectApplicationData())
+        node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                             AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert())
+        node.next_sibling = ExpectClose()
     conversations["explicit SHA-1+RSA"] = conversation
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+    ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     sigs = [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)]
@@ -167,7 +220,8 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+    ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     sigs = [(0, SignatureAlgorithm.rsa),
@@ -199,7 +253,8 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+    ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     sigs = [(10, SignatureAlgorithm.rsa),
@@ -231,7 +286,8 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+    ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     sigs = list(chain(
@@ -264,7 +320,8 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+    ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     sigs = list(chain(
@@ -296,7 +353,8 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+    ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     sigs = list(chain(
@@ -326,7 +384,8 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+    ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     sig_alg = SignatureAlgorithmsExtension()
@@ -354,7 +413,8 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+    ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     sig_alg = SignatureAlgorithmsExtension()
@@ -385,7 +445,8 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+    ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     # generate maximum number of methods for 2 extensions
@@ -419,7 +480,8 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+    ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     # generate maximum number of methods for 2 extensions
@@ -456,7 +518,8 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+    ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     sigs = []
@@ -479,7 +542,8 @@ def main():
     for n in [215, 2355, 8132, 23754, 32761]:
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         n = n - 1  # this is the mandatory method in the end
@@ -518,7 +582,8 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+    ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     # Add all supported sig_algs, put rsa at the end
@@ -570,7 +635,8 @@ def main():
     for i in range(1, 0x100):
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         sig_alg = SignatureAlgorithmsExtension()

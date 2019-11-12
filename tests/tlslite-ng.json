@@ -511,7 +511,8 @@
           "comments": "tlslite can't load multiple ECDSA keys at the same time",
           "arguments": ["-e", "Test with ecdsa_secp384r1_sha384",
                         "-e", "Test with ecdsa_secp521r1_sha512"]
-         }
+         },
+         {"name" : "test-signature-algorithms.py"}
      ]
     }
 ]
