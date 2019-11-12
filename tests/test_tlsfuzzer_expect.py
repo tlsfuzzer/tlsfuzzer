@@ -3466,7 +3466,7 @@ class TestExpectCertificateRequest(unittest.TestCase):
         with self.assertRaises(AssertionError) as exc:
             exp.process(state, msg)
 
-        self.assertIn('Expected exctension not matched', str(exc.exception))
+        self.assertIn('Expected extension not matched', str(exc.exception))
 
     def test_process_with_implicit_handler(self):
         ext = SignatureAlgorithmsExtension().create(

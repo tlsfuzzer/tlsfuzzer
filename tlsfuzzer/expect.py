@@ -1253,7 +1253,7 @@ class ExpectCertificateRequest(_ExpectExtensionsMessage):
             elif isinstance(handler, TLSExtension):
                 if not handler == ext:
                     raise AssertionError(
-                        "Expected exctension not matched for type {0}, "
+                        "Expected extension not matched for type {0}, "
                         "received: {1}".format(ExtensionType.toStr(ext_id),
                                                ext))
             elif handler is None:
