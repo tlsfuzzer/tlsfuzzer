@@ -134,6 +134,21 @@ def sig_algs_to_ids(names):
     return ids
 
 
+def _ext_name_to_id(name):
+    """
+    Convert a string with a name of extension to numerical ID.
+
+    Handles both numerical IDs and names.
+
+    @raises AttributeError: when the specified identifier is not defined
+        in ExtensionType
+    """
+    try:
+        return int(name)
+    except ValueError:
+        return getattr(ExtensionType, name)
+
+
 def ext_names_to_ids(names):
     """
     Convert a string with names of extensions to list of IDs.
@@ -149,12 +164,7 @@ def ext_names_to_ids(names):
     """
     ids = []
     for name in names.split():
-        try:
-            num_id = int(name)
-        except ValueError:
-            num_id = getattr(ExtensionType, name)
-
-        ids.append(num_id)
+        ids.append(_ext_name_to_id(name))
 
     return ids
 
@@ -430,3 +440,60 @@ def protocol_name_to_tuple(name):
     if val:
         return val
     raise ValueError("Unrecognised protocol name: {0}".format(name))
+
+
+def expected_ext_parser(names):
+    """
+    Convert a string with names of extensions and messages to a dict.
+
+    extension are separated by whitespace, the messages are separated by
+    colons ":". Extension can be specified by name ("status_request") or by
+    number ("5"). If the name is invalid, the function will raise
+    AttributeError. The supported message names are: CH, SH, EE, CT, CR, NST
+    and HRR.
+    """
+    ret = {'CH': [],
+           'SH': [],
+           'EE': [],
+           'CT': [],
+           'CR': [],
+           'NST': [],
+           'HRR': []}
+
+    for ext_spec in names.split():
+        params = ext_spec.split(':')
+        if len(params) < 2:
+            raise ValueError("Invalid message specification for extension: "
+                             "{0}".format(ext_spec))
+        ext_id = _ext_name_to_id(params[0])
+        for msg_id in params[1:]:
+            if msg_id not in ret:
+                raise ValueError("Error while parsing data for extension {0}: "
+                                 "the '{1}' message name is unknown.".format(
+                                     params[0], msg_id))
+            ret[msg_id].append(ext_id)
+
+    return ret
+
+
+def dict_update_non_present(d, keys, value=None):
+    """
+    Update the dict d using keys, setting them to value, if the key is missing.
+
+    Will update the dictionary only if the given key is not already present
+    in dictionary, will raise ValueError when it is.
+
+    if keys are None, returns unmodified d.
+    If d is None, allocates and returns a new dictionary otherwise returns the
+    modified dictionary d.
+    """
+    if keys is None:
+        return d
+    if d is None:
+        d = {}
+    for k in keys:
+        if k in d:
+            raise ValueError("Key '{0}' already present in dictionary"
+                             .format(k))
+        d[k] = value
+    return d

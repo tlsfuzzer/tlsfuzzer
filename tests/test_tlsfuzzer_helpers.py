@@ -16,7 +16,8 @@ except ImportError:
 from tlsfuzzer.helpers import sig_algs_to_ids, key_share_gen, psk_ext_gen, \
         flexible_getattr, psk_session_ext_gen, key_share_ext_gen, \
         uniqueness_check, AutoEmptyExtension, protocol_name_to_tuple, \
-        client_cert_types_to_ids, ext_names_to_ids
+        client_cert_types_to_ids, ext_names_to_ids, expected_ext_parser, \
+        dict_update_non_present
 from tlsfuzzer.runner import ConnectionState
 from tlslite.extensions import KeyShareEntry, PreSharedKeyExtension, \
         PskIdentity, ClientKeyShareExtension
@@ -346,3 +347,103 @@ class TestProtocolNameToTuple(unittest.TestCase):
     def test_unknown(self):
         with self.assertRaises(ValueError):
             protocol_name_to_tuple("SSL3.1")
+
+
+class TestExpectedExtParser(unittest.TestCase):
+    def setUp(self):
+        self.exp = {'CH': [],
+                    'SH': [],
+                    'EE': [],
+                    'CT': [],
+                    'CR': [],
+                    'NST': [],
+                    'HRR': []}
+
+    def test_empty(self):
+        ret = expected_ext_parser("")
+
+        self.assertEqual(ret, self.exp)
+
+    def test_server_name_in_CH(self):
+        ret = expected_ext_parser("server_name:CH")
+
+        self.exp['CH'] = [0]
+
+        self.assertEqual(ret, self.exp)
+
+    def test_numeric_id_in_CH_and_SH(self):
+        ret = expected_ext_parser("22:CH:SH")
+
+        self.exp['CH'] = [22]
+        self.exp['SH'] = [22]
+
+        self.assertEqual(ret, self.exp)
+
+    def test_two_extensions_in_CH(self):
+        ret = expected_ext_parser("server_name:CH 22:CH")
+
+        self.exp['CH'] = [0, 22]
+
+        self.assertEqual(ret, self.exp)
+
+    def test_missing_colon(self):
+        with self.assertRaises(ValueError):
+            expected_ext_parser("server_name")
+
+    def test_missing_msg_name(self):
+        with self.assertRaises(ValueError):
+            expected_ext_parser("server_name:CH:")
+
+    def test_with_invalid_name(self):
+        with self.assertRaises(AttributeError):
+            expected_ext_parser("blahblablah:CH")
+
+    def test_with_invalid_message_id(self):
+        with self.assertRaises(ValueError):
+            expected_ext_parser("server_name:ClientHello")
+
+
+class TestDictUpdateNotPresent(unittest.TestCase):
+    def test_none_dict_none_keys(self):
+        ret = dict_update_non_present(None, None)
+        self.assertIsNone(ret)
+
+    def test_dict_with_none_keys(self):
+        ref = object()
+        ret = dict_update_non_present(ref, None)
+
+        self.assertIs(ref, ret)
+
+    def test_none_dict_def_keys(self):
+        ret = dict_update_non_present(None, ["some", "keys"])
+
+        self.assertEqual(ret, {"some": None, "keys": None})
+
+    def test_update_with_defined_value(self):
+        ref = dict()
+        val = object()
+        ret = dict_update_non_present(ref, ["some", "keys"], val)
+
+        self.assertIs(ret, ref)
+        self.assertEqual(set(ret.keys()), set(["some", "keys"]))
+        self.assertIs(ret["some"], val)
+        self.assertIs(ret["keys"], val)
+
+    def test_update_with_non_empy_dict(self):
+        ref = {"some": None}
+        ret = dict_update_non_present(ref, ["keys"])
+
+        self.assertEqual(ret, {"some": None, "keys": None})
+
+    def test_duplicated_keys(self):
+        with self.assertRaises(ValueError) as e:
+            dict_update_non_present(None, ["duplicated_key", "duplicated_key"])
+
+        self.assertIn("duplicated_key", str(e.exception))
+
+    def test_value_redefinition(self):
+        ref = {"duplicated_key": object()}
+        with self.assertRaises(ValueError) as e:
+            dict_update_non_present(ref, ["duplicated_key"])
+
+        self.assertIn("duplicated_key", str(e.exception))
