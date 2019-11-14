@@ -23,10 +23,11 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectCertificateVerify, ExpectNewSessionTicket
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import key_share_gen, sig_algs_to_ids, RSA_SIG_ALL, \
-        ext_names_to_ids
+        expected_ext_parser, dict_update_non_present
 from tlslite.extensions import SignatureAlgorithmsExtension, \
         SignatureAlgorithmsCertExtension, ClientKeyShareExtension, \
-        SupportedVersionsExtension, SupportedGroupsExtension
+        SupportedVersionsExtension, SupportedGroupsExtension, \
+        StatusRequestExtension
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         HashAlgorithm, SignatureAlgorithm, ExtensionType, SignatureScheme, \
         GroupName
@@ -35,7 +36,7 @@ from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -51,9 +52,23 @@ def help_msg():
     print("                is expected to support.")
     print(" -k keyfile     file with private key of client")
     print(" -c certfile    file with the certificate of client")
-    print(" --cr-ext list  Extensions that can be present in "
-                           "CertificateRequest")
-    print("                message, \"signature_algorithms\" by default")
+    print(" -E ext_spec    List of extensions that should be advertised by")
+    print("                the client (in addition to the basic ones required")
+    print("                to establish the connection). The ids can be")
+    print("                specified by name (\"status_request\") or by number")
+    print("                (\"5\"). After the ID specification there must be")
+    print("                included short names of the messages in which the")
+    print("                reply to extension needs to be included (\"CH\",")
+    print("                \"SH\", \"EE\", \"CT\", \"CR\", \"NST\", \"HRR\").")
+    print("                Extensions are separated by spaces, messages are")
+    print("                specified by colons, e.g.:")
+    print("                \"status_request:CH:CT:CR\".")
+    print("                Note: tlsfuzzer will try to create a sensible ")
+    print("                extension for extensions it know about, but will")
+    print("                create extension with empty payload for others.")
+    print("                Note: in this script, extensions marked CR will be")
+    print("                verified only in the \"verify extensions in ")
+    print("                CertificateRequest\" script. ")
     print(" --help         this message")
 
 
@@ -64,6 +79,8 @@ def main():
     run_exclude = set()
     cert = None
     private_key = None
+    ext_spec = {'CH': None, 'SH': None, 'EE': None, 'CT': None, 'CR': None,
+                'NST': None, 'HRR': None}
 
     sigalgs = [SignatureScheme.ecdsa_secp521r1_sha512,
                SignatureScheme.ecdsa_secp384r1_sha384,
@@ -81,10 +98,9 @@ def main():
                SignatureScheme.rsa_pkcs1_sha256,
                SignatureScheme.rsa_pkcs1_sha224,
                SignatureScheme.rsa_pkcs1_sha1]
-    expected_exts = [ExtensionType.signature_algorithms]
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:s:k:c:", ["help", "cr-ext="])
+    opts, args = getopt.getopt(argv, "h:p:e:s:k:c:E:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -97,8 +113,8 @@ def main():
             sys.exit(0)
         elif opt == '-s':
             sigalgs = sig_algs_to_ids(arg)
-        elif opt == '--cr-ext':
-            expected_exts = ext_names_to_ids(arg)
+        elif opt == '-E':
+            ext_spec = expected_ext_parser(arg)
         elif opt == '-k':
             text_key = open(arg, 'rb').read()
             if sys.version_info[0] >= 3:
@@ -142,10 +158,13 @@ def main():
         SignatureAlgorithmsExtension().create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+    ext = dict_update_non_present(ext, ext_spec['CH'])
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
+    ext = dict_update_non_present(None, ext_spec['SH'])
+    node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
+    ext = dict_update_non_present(None, ext_spec['EE'])
+    node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
     node = node.add_child(ExpectCertificateRequest())
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectCertificateVerify())
@@ -191,10 +210,13 @@ def main():
             SignatureAlgorithmsExtension().create(sig_algs)
         ext[ExtensionType.signature_algorithms_cert] = \
             SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ext = dict_update_non_present(ext, ext_spec['CH'])
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-        node = node.add_child(ExpectServerHello())
+        ext = dict_update_non_present(None, ext_spec['SH'])
+        node = node.add_child(ExpectServerHello(extensions=ext))
         node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectEncryptedExtensions())
+        ext = dict_update_non_present(None, ext_spec['EE'])
+        node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
         node = node.add_child(ExpectCertificateRequest())
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectCertificateVerify())
@@ -239,11 +261,15 @@ def main():
         SignatureAlgorithmsExtension().create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+    ext = dict_update_non_present(ext, ext_spec['CH'])
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
+    ext = dict_update_non_present(None, ext_spec['SH'])
+    node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
+    ext = dict_update_non_present(None, ext_spec['EE'])
+    node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
     node = node.add_child(ExpectCertificateRequest(sigalgs))
+    # extensions are not yet supported in Certificate messages
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectCertificateVerify())
     node = node.add_child(ExpectFinished())
@@ -285,17 +311,15 @@ def main():
         SignatureAlgorithmsExtension().create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+    ext = dict_update_non_present(ext, ext_spec['CH'])
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
+    ext = dict_update_non_present(None, ext_spec['SH'])
+    node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectEncryptedExtensions())
-    ext = {}
-    for ext_id in expected_exts:
-        if ext_id == ExtensionType.signature_algorithms:
-            val = SignatureAlgorithmsExtension().create(sigalgs)
-        else:
-            val = None
-        ext[ext_id] = val
+    ext = {ExtensionType.signature_algorithms:
+           SignatureAlgorithmsExtension().create(sigalgs)}
+    ext = dict_update_non_present(ext, ext_spec['CR'])
     node = node.add_child(ExpectCertificateRequest(extensions=ext))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectCertificateVerify())
@@ -338,7 +362,7 @@ def main():
         res = True
         try:
             runner.run()
-        except:
+        except Exception:
             print("Error while processing")
             print(traceback.format_exc())
             res = False
@@ -351,8 +375,8 @@ def main():
             failed.append(c_name)
 
     print("Test to verify if server accepts empty certificate messages and")
-    print("advertises only expected signature algotithms in Certificate")
-    print("Request message\n")
+    print("advertises only expected signature algotithms and extensions in ")
+    print("Certificate Request message\n")
     print("version: {0}\n".format(version))
 
     print("Test end")

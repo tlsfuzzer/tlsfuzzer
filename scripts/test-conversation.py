@@ -42,6 +42,27 @@ def help_msg():
     print("                (\"sanity\" tests are always executed)")
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
     print(" --help         this message")
+    # already used single-letter options:
+    # -m test-large-hello.py - min extension number for fuzz testing
+    # -s signature algorithms sent by server
+    # -k client key
+    # -c client certificate
+    # -z don't expect 1/n-1 record split in TLS1.0
+    # -a override for expected alert description
+    # -l override the expected alert level
+    # -C explicit cipher for connection
+    # -T expected certificates types in CertificateRequest
+    # -b server is expected to have multiple (both) certificate types available
+    #    at the same time
+    # -t timeout to wait for messages (also count of NSTs in
+    #    test-tls13-count-tickets.py)
+    # -r perform renegotation multiple times
+    # -S signature algorithms sent by client
+    # -E additional extensions to be sent by client
+    #
+    # reserved:
+    # -x expected fail for probe (alternative to -e)
+    # -X expected failure message for probe (to be used together with -x)
 
 
 def main():

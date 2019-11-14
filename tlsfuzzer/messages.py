@@ -13,7 +13,7 @@ from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
         HeartbeatMessageType
 import tlslite.utils.tlshashlib as hashlib
 from tlslite.extensions import TLSExtension, RenegotiationInfoExtension, \
-        ClientKeyShareExtension
+        ClientKeyShareExtension, StatusRequestExtension
 from tlslite.messagesocket import MessageSocket
 from tlslite.defragmenter import Defragmenter
 from tlslite.mathtls import calcMasterSecret, calcFinished, \
@@ -566,10 +566,19 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
             if ext_id == ExtensionType.renegotiation_info:
                 ext = RenegotiationInfoExtension()\
                     .create(state.key['client_verify_data'])
-                extensions.append(ext)
+            elif ext_id == ExtensionType.status_request:
+                ext = StatusRequestExtension().create()
+            elif ext_id in (ExtensionType.client_hello_padding,
+                            ExtensionType.encrypt_then_mac,
+                            ExtensionType.extended_master_secret,
+                            35,  # session_ticket
+                            49,  # post_handshake_auth
+                            52):  # transparency_info
+                ext = TLSExtension().create(ext_id, bytearray())
             else:
                 raise ValueError("No autohandler for extension {0}"
                                  .format(ExtensionType.toStr(ext_id)))
+            extensions.append(ext)
 
         return extensions
 

@@ -607,6 +607,42 @@ class TestClientHelloGenerator(unittest.TestCase):
                                             [],
                                             extensions=[ext_gen()])
 
+    def test_generate_extensions_with_automatic_status_request(self):
+        state = ConnectionState()
+        chg = ClientHelloGenerator(extensions=
+            {constants.ExtensionType.status_request: None})
+
+        return_val = mock.MagicMock()
+        return_val.write = mock.MagicMock(return_value=bytearray(10))
+        with mock.patch.object(messages.ClientHello, 'create',
+                return_value=return_val) as mock_method:
+            ch = chg.generate(state)
+
+        self.assertEqual(ch, return_val)
+
+        mock_method.assert_called_once_with(
+            (3, 3), bytearray(32), bytearray(0),
+            [],
+            extensions=[extensions.StatusRequestExtension().create()])
+
+    def test_generate_extensions_with_automatic_encrypt_then_mac(self):
+        state = ConnectionState()
+        chg = ClientHelloGenerator(extensions=
+            {constants.ExtensionType.encrypt_then_mac: None})
+
+        return_val = mock.MagicMock()
+        return_val.write = mock.MagicMock(return_value=bytearray(10))
+        with mock.patch.object(messages.ClientHello, 'create',
+                return_value=return_val) as mock_method:
+            ch = chg.generate(state)
+
+        self.assertEqual(ch, return_val)
+
+        mock_method.assert_called_once_with(
+            (3, 3), bytearray(32), bytearray(0),
+            [],
+            extensions=[extensions.TLSExtension(extType=22).create(b'')])
+
     def test_generate_extensions_with_renego_info_default_generator(self):
         state = ConnectionState()
         state.key['client_verify_data'] = bytearray(b'\xab\xcd')
