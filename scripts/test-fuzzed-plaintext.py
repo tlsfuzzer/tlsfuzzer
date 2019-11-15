@@ -22,7 +22,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectApplicationData, ExpectServerKeyExchange
 from tlsfuzzer.fuzzers import structured_random_iter, StructuredRandom
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import RSA_SIG_ALL
+from tlsfuzzer.helpers import SIG_ALL
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         GroupName, ExtensionType
@@ -30,7 +30,7 @@ from tlslite.extensions import SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -76,9 +76,9 @@ def add_dhe_extensions(extensions):
     extensions[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     extensions[ExtensionType.signature_algorithms] = \
-        SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        SignatureAlgorithmsExtension().create(SIG_ALL)
     extensions[ExtensionType.signature_algorithms_cert] = \
-        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        SignatureAlgorithmsCertExtension().create(SIG_ALL)
 
 
 def add_app_data_conversation(conversations, host, port, cipher, dhe, data):
