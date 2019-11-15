@@ -222,14 +222,14 @@ AssertionError: Unexpected message from peer: Alert(fatal, handshake_failure)``
 
 `handshake_failure` alert received in place of Server Hello usually means that
 the server did not accept any cipher or any extension settings we sent to it.
-This may happen when the server has only an ECDSA certificate (they are
-[not supported](https://github.com/tomato42/tlslite-ng/issues/52) in tlsfuzzer)
+This may happen when the server has only an ECDSA certificate (support for them
+is not advertised in many scripts in in tlsfuzzer)
 or did not enable ciphers which are necessary for the test being run.
 
 Most tests require TLS_RSA_WITH_AES_128_CBC_SHA cipher to be enabled. In cases
 where the test checks handling of messages not applicable in RSA key exchange,
 the ciphers used are other variants of the AES ciphersuites. Inspect specific
-script to know more.
+script to know more or read its help message.
 
 #### Unexpected message - Certificate Request
 Pattern:
@@ -310,13 +310,14 @@ Error encountered while processing node <tlsfuzzer.expect.ExpectCertificate ...
 SyntaxError: Unrecognized AlgorithmIdentifier
 ```
 
-This is an indication that the server has sent a certificate with an ECDSA
-key. They are currently unsupported in `tlsfuzzer` or `tlslite-ng`. Reconfigure
-the server to use only RSA certificates.
+This is an indication that the server has sent a certificate with an DSA or
+EdDSA key. They are currently unsupported in `tlsfuzzer` or `tlslite-ng`.
+Reconfigure the server to use RSA or ECDSA certificates.
 
-If a server already is configured with ECDSA and RSA certificates, it indicates
+If a server already is configured with ECDSA or RSA certificates, it indicates
 that the system for selecting correct certificate (or certificate chain) when
-the client does not adverise support for ECDSA is not working correctly.
+the client does not adverise support for given key type is not working
+correctly.
 
 #### Connection refused or timeout in Connect
 Pattern:
