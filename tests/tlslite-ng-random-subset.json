@@ -547,6 +547,9 @@
           "arguments": ["-d"]
          },
          {"name": "test-ecdsa-sig-flexibility.py"},
+         {"name": "test-fuzzed-plaintext.py",
+          "arguments" : ["-n", "50", "--random", "200",
+              "-C", "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384"]},
          {"name": "test-tls13-conversation.py"},
          {"name": "test-tls13-ecdsa-support.py",
           "comments": "tlslite can't load multiple ECDSA keys at the same time",
