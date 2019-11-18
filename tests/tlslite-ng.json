@@ -518,6 +518,9 @@
          {"name": "test-ecdsa-sig-flexibility.py"},
          {"name": "test-fuzzed-plaintext.py",
           "arguments" : ["-C", "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384"]},
+         {"name": "test-signature-algorithms.py",
+          "comments": "use ECDSA signatures instead of RSA",
+          "arguments": ["--ecdsa"]},
          {"name": "test-tls13-conversation.py"},
          {"name": "test-tls13-ecdsa-support.py"}
      ]
