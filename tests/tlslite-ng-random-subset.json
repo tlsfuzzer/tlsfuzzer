@@ -321,6 +321,7 @@
                          "-e", "2/3 fragmented keyupdate msg, appdata between",
                          "-e", "3/2 fragmented keyupdate msg, appdata between",
                          "-e", "4/1 fragmented keyupdate msg, appdata between"]},
+         {"name" : "test-tls13-keyupdate-from-server.py"},
          {"name" : "test-tls13-large-number-of-extensions.py",
           "arguments" : ["-n", "20",
                          "--exc", "9",
