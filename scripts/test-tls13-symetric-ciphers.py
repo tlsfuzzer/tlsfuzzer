@@ -123,7 +123,8 @@ def main():
     conversations["sanity"] = conversation
 
     for cipher in [CipherSuite.TLS_AES_128_GCM_SHA256, CipherSuite.TLS_AES_256_GCM_SHA384,
-            CipherSuite.TLS_CHACHA20_POLY1305_SHA256]:
+           CipherSuite.TLS_CHACHA20_POLY1305_SHA256, CipherSuite.TLS_AES_128_CCM_SHA256,
+           CipherSuite.TLS_AES_128_CCM_8_SHA256]:
 
         conversation = Connect(host, port)
         node = conversation
@@ -169,10 +170,12 @@ def main():
         node.next_sibling = ExpectClose()
         conversations["check connection with {0}".format(CipherSuite.ietfNames[cipher])] = conversation
 
-
-        # fuzz the tag (16 last bytes)
+        n = 17
+        if cipher == CipherSuite.TLS_AES_128_CCM_8_SHA256:
+            n = 9
+        # fuzz the tag (last 16 bytes or last 8 bytes for the _8 CCM cipher)
         for val in [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80]:
-            for pos in range(-1, -17, -1):
+            for pos in range(-1, -n, -1):
 
                 # Fuzz application data
                 conversation = Connect(host, port)
