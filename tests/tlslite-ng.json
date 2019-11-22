@@ -7,6 +7,9 @@
      "server_port": 4433,
      "environment": {"PYTHONPATH": "."},
      "tests" : [
+         {"name" : "test-aesccm.py"},
+         {"name" : "test-aesccm.py",
+          "arguments" : ["-d"]},
          {"name" : "test-aes-gcm-nonces.py" },
          {"name" : "test-alpn-negotiation.py",
           "arguments" : ["-e", "renegotiation 2nd handshake alpn",
