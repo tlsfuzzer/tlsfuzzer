@@ -127,6 +127,7 @@ def main():
     conversation = Connect(host, port)
     node = conversation
     groups = [GroupName.secp256r1]
+    ext = {}
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
@@ -135,9 +136,13 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3), extensions=ext))
     if no_sha1:
-        node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                      AlertDescription.handshake_failure))
-        node = node.add_child(ExpectClose())
+        node = node.add_child(ExpectServerHello(version=(3, 3)))
+        node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.handshake_failure)
+        node.next_sibling.add_child(ExpectClose())
+        alt = node.next_sibling
+        node = node.add_child(ExpectCertificate())
+        node.add_child(alt)
     else:
         node = node.add_child(ExpectServerHello(version=(3, 3)))
         node = node.add_child(ExpectCertificate())
