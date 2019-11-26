@@ -1084,6 +1084,9 @@ class ExpectServerKeyExchange(ExpectHandshake):
             if valid_sig_algs is None:
                 # no advertised means support for sha1 only
                 valid_sig_algs = [(HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
+                if self.cipher_suite in CipherSuite.ecdheEcdsaSuites:
+                    valid_sig_algs = [(HashAlgorithm.sha1,
+                                       SignatureAlgorithm.ecdsa)]
 
         try:
             KeyExchange.verifyServerKeyExchange(server_key_exchange,
