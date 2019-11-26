@@ -1,1 +1,1 @@
-tlslite-ng>=0.8.0-alpha30
+tlslite-ng>=0.8.0-alpha31
