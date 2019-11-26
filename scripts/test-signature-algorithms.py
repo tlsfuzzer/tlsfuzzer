@@ -127,6 +127,7 @@ def main():
     conversation = Connect(host, port)
     node = conversation
     groups = [GroupName.secp256r1]
+    ext = {}
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
