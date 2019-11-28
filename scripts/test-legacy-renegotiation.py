@@ -22,14 +22,13 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType, GroupName
 from tlslite.extensions import ALPNExtension, TLSExtension, \
         SupportedGroupsExtension, SignatureAlgorithmsExtension, \
-        SignatureAlgorithmsCertExtension
+        SignatureAlgorithmsCertExtension, RenegotiationInfoExtension
 from tlsfuzzer.helpers import RSA_SIG_ALL
 
 
 from tlsfuzzer.utils.lists import natural_sort_keys
 
-
-version = 3
+version = 4
 
 
 def help_msg():
@@ -490,6 +489,56 @@ def main():
                                       AlertDescription.handshake_failure))
     node = node.add_child(ExpectClose())
     conversations["sending both SCSV and renegotiation_info in renegotiation+resumption"] = conversation
+
+    # non-empty initial renegotiation_info extension (with SCSV)
+    conversation = Connect(host, port)
+    node = conversation
+
+    ext = {ExtensionType.renegotiation_info :
+           RenegotiationInfoExtension().create(bytearray(b'abc'))}
+    if dhe:
+        groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.handshake_failure))
+    node = node.add_child(ExpectClose())
+    conversations["non-empty initial renegotiation_info extension (with SCSV)"] = conversation
+
+    # non-empty initial renegotiation_info extension (without SCSV)
+    conversation = Connect(host, port)
+    node = conversation
+
+    ext = {ExtensionType.renegotiation_info :
+           RenegotiationInfoExtension().create(bytearray(b'abc'))}
+    if dhe:
+        groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.handshake_failure))
+    node = node.add_child(ExpectClose())
+    conversations["non-empty initial renegotiation_info extension (without SCSV)"] = conversation
 
     # run the conversation
     good = 0
