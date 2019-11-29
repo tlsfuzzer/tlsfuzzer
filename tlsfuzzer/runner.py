@@ -265,6 +265,7 @@ class Runner(object):
             if node is None:
                 node = old_node
             print("Error encountered while processing node " + str(node) +
-                  " (child: " + str(node.child) + ") with last message " +
+                  " (child: " + str(node.child) + ", sibling: " +
+                  str(node.next_sibling) + " with last message " +
                   "being: " + repr(msg))
             raise
