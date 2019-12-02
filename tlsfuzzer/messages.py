@@ -6,7 +6,8 @@
 from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         Finished, Alert, ApplicationData, Message, Certificate, \
         CertificateVerify, CertificateRequest, ClientMasterKey, \
-        ClientFinished, ServerKeyExchange, ServerHello, Heartbeat
+        ClientFinished, ServerKeyExchange, ServerHello, Heartbeat, \
+        KeyUpdate
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
         ExtensionType, CertificateType, HashAlgorithm, \
         SignatureAlgorithm, CipherSuite, SignatureScheme, TLS_1_3_HRR, \
@@ -1366,6 +1367,31 @@ class ApplicationDataGenerator(MessageGenerator):
         return app_data
 
 
+class KeyUpdateGenerator(MessageGenerator):
+    """Generator for TLS 1.3 KeyUpdate message."""
+
+    def __init__(self, message_type=0):
+        """Save the type of the KeyUpdate message."""
+        super(KeyUpdateGenerator, self).__init__()
+        self.message_type = message_type
+
+    def generate(self, state):
+        """Generate a KeyUpdate message."""
+        del state  # needed only for API compatibility
+        key_update = KeyUpdate().create(self.message_type)
+        return key_update
+
+    def post_send(self, state):
+        """Perform post-transmit changes needed by generation of KeyUpdate."""
+        super(KeyUpdateGenerator, self).post_send(state)
+        cl_app_secret, _ = state.msg_sock.\
+            calcTLS1_3KeyUpdate_reciever(
+                state.cipher,
+                state.key['client application traffic secret'],
+                state.key['server application traffic secret'])
+        state.key['client application traffic secret'] = cl_app_secret
+
+
 class HeartbeatGenerator(MessageGenerator):
     """
     Generator for heartbeat messages.
@@ -1753,10 +1779,17 @@ def split_message(generator, fragment_list, size):
         data = msg.write()
         # since empty messages can be created much more easily with
         # RawMessageGenerator, we don't handle 0 length messages here
+        if not data:
+            raise IndexError("Empty message payload")
         while len(data) > 0:
             # move the data to fragment_list (outside the method)
             fragment_list.append(Message(content_type, data[:size]))
             data = data[size:]
+
+        fragment_list.append(generator.post_send)
+        # make sure that the effect of the message is visible only once
+        # all parts of the message have been sent
+        generator.post_send = lambda x: None
 
         return fragment_list.pop(0)
 
@@ -1777,21 +1810,22 @@ class PopMessageFromList(MessageGenerator):
         msg = self.fragment_list.pop(0)
         return msg
 
+    def post_send(self, state):
+        super(PopMessageFromList, self).post_send(state)
+        if self.fragment_list and callable(self.fragment_list[0]):
+            func = self.fragment_list.pop(0)
+            func(state)
 
-class FlushMessageList(MessageGenerator):
+
+class FlushMessageList(PopMessageFromList):
     """Takes a reference to list, empties it to generate a message."""
-
-    def __init__(self, fragment_list):
-        """Link a list to pull the messages from to the object."""
-        super(FlushMessageList, self).__init__()
-        self.fragment_list = fragment_list
 
     def generate(self, state):
         """Creata a single message to empty the list."""
         msg = self.fragment_list.pop(0)
         content_type = msg.contentType
         data = msg.write()
-        while len(self.fragment_list) > 0:
+        while self.fragment_list and not callable(self.fragment_list[0]):
             msg_frag = self.fragment_list.pop(0)
             assert msg_frag.contentType == content_type
             data += msg_frag.write()

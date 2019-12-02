@@ -29,7 +29,8 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         CollectNonces, AlertGenerator, PlaintextMessageGenerator, \
         SetPaddingCallback, replace_plaintext, ch_cookie_handler, \
         ch_key_share_handler, SetRecordVersion, CopyVariables, \
-        ResetWriteConnectionState, HeartbeatGenerator, Certificate
+        ResetWriteConnectionState, HeartbeatGenerator, Certificate, \
+        KeyUpdateGenerator
 from tlsfuzzer.helpers import psk_ext_gen, psk_ext_updater, \
         psk_session_ext_gen, AutoEmptyExtension
 from tlsfuzzer.runner import ConnectionState
@@ -2420,6 +2421,49 @@ class TestFinishedGenerator(unittest.TestCase):
             b'\xb3V\x8f\xc7[\xcdD\xc8\xa4\x86\xcf\xd3\xc9\x0c\x00'))
 
 
+class TestKeyUpdateGenerator(unittest.TestCase):
+
+    def test_default_settings(self):
+        ku = KeyUpdateGenerator()
+
+        self.assertIsNotNone(ku)
+
+        state = ConnectionState()
+
+        ret = ku.generate(state)
+        self.assertEqual(ret.message_type,
+                         constants.KeyUpdateMessageType.update_not_requested)
+
+    def test___init___with_parameters(self):
+        ku = KeyUpdateGenerator(
+            constants.KeyUpdateMessageType.update_requested)
+
+        self.assertIsNotNone(ku)
+
+        state = ConnectionState()
+
+        ret = ku.generate(state)
+        self.assertEqual(ret.message_type,
+                         constants.KeyUpdateMessageType.update_requested)
+
+    def test_post_send(self):
+        ku = KeyUpdateGenerator()
+
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        state.cipher = constants.CipherSuite.TLS_AES_128_GCM_SHA256
+        client_app_secret = mock.Mock()
+        server_app_secret = mock.Mock()
+        state.key['client application traffic secret'] = client_app_secret
+        state.key['server application traffic secret'] = server_app_secret
+        state.msg_sock.calcTLS1_3KeyUpdate_reciever.return_value = (
+            bytearray(32), bytearray(32))
+
+        ku.post_send(state)
+        state.msg_sock.calcTLS1_3KeyUpdate_reciever.assert_called_once_with(
+                state.cipher, client_app_secret, server_app_secret)
+
+
 class TestResetHandshakeHashes(unittest.TestCase):
     def test___init__(self):
         node = ResetHandshakeHashes()
@@ -3098,19 +3142,25 @@ class TestFuzzPlaintext(unittest.TestCase):
         self.assertEqual(self.socket.sent[0][:5], unchanged[:5])
         self.assertEqual(self.socket.sent[0][5:], expected)
 
+
 class TestSplitMessage(unittest.TestCase):
     def test_split_to_two(self):
         state = ConnectionState()
         vanilla_hello = ClientHelloGenerator().generate(state).write()
         fragments = []
-        hello_gen = split_message(ClientHelloGenerator(), fragments, 30)
+
+        msg = ClientHelloGenerator()
+        post_send = msg.post_send
+        hello_gen = split_message(msg, fragments, 30)
 
         self.assertEqual(fragments, [])
 
         first_part = hello_gen.generate(state).write()
 
         self.assertEqual(len(first_part), 30)
-        self.assertEqual(len(fragments), 1)
+        self.assertEqual(len(fragments), 2)
+        self.assertEqual(len(fragments[0].write()), 13)
+        self.assertEqual(fragments[1], post_send)
 
     def test_split_of_zero_length(self):
         # 0 length messages are intentionally unhandled
@@ -3121,6 +3171,7 @@ class TestSplitMessage(unittest.TestCase):
         state = ConnectionState()
         with self.assertRaises(IndexError):
             msg_gen.generate(state)
+
 
 class TestPopMessageFromList(unittest.TestCase):
     def test_with_message_list(self):
@@ -3137,6 +3188,30 @@ class TestPopMessageFromList(unittest.TestCase):
         self.assertEqual(msg.write(), bytearray(b'\x20\x30'))
 
         self.assertEqual(len(msg_list), 1)
+
+    def test_with_post_send_call(self):
+        msg_list = []
+
+        msg_gen = PopMessageFromList(msg_list)
+
+        msg_list.append(messages.Message(20, bytearray(b'\x20\x20')))
+        post_send = mock.MagicMock()
+        msg_list.append(post_send)
+
+        msg = msg_gen.generate(None)
+
+        self.assertEqual(msg.contentType, 20)
+        self.assertEqual(msg.write(), bytearray(b'\x20\x20'))
+
+        self.assertEqual(len(msg_list), 1)
+
+        state = mock.Mock()
+        msg_gen.post_send(state)
+
+        post_send.assert_called_once_with(state)
+
+        self.assertEqual(msg_list, [])
+
 
 class TestFlushMessageList(unittest.TestCase):
     def test_with_message_list(self):
@@ -3164,6 +3239,31 @@ class TestFlushMessageList(unittest.TestCase):
 
         with self.assertRaises(AssertionError):
             msg_gen.generate(None)
+
+    def test_with_post_send_call(self):
+        msg_list = []
+
+        msg_gen = FlushMessageList(msg_list)
+
+        msg_list.append(messages.Message(20, bytearray(b'\x20\x20')))
+        msg_list.append(messages.Message(20, bytearray(b'\x30\x03')))
+        post_send = mock.MagicMock()
+        msg_list.append(post_send)
+
+        msg = msg_gen.generate(None)
+
+        self.assertEqual(msg.contentType, 20)
+        self.assertEqual(msg.write(), bytearray(b'\x20\x20\x30\x03'))
+
+        self.assertEqual(len(msg_list), 1)
+
+        state = mock.Mock()
+        msg_gen.post_send(state)
+
+        post_send.assert_called_once_with(state)
+
+        self.assertEqual(msg_list, [])
+
 
 class TestFuzzPKCS1Padding(unittest.TestCase):
     @classmethod

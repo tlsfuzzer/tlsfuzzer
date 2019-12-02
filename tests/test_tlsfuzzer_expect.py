@@ -31,7 +31,8 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         gen_srv_ext_handler_psk, srv_ext_handler_supp_groups, \
         srv_ext_handler_heartbeat, gen_srv_ext_handler_record_limit, \
         srv_ext_handler_status_request, ExpectHeartbeat, \
-        clnt_ext_handler_status_request, clnt_ext_handler_sig_algs
+        clnt_ext_handler_status_request, clnt_ext_handler_sig_algs, \
+        ExpectKeyUpdate
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
@@ -39,11 +40,12 @@ from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         SSL2ErrorDescription, GroupName, CertificateStatusType, ECPointFormat,\
         SignatureScheme, TLS_1_3_HRR, HeartbeatMode, \
         TLS_1_1_DOWNGRADE_SENTINEL, TLS_1_2_DOWNGRADE_SENTINEL, \
-        HeartbeatMessageType
+        HeartbeatMessageType, KeyUpdateMessageType
 from tlslite.messages import Message, ServerHello, CertificateRequest, \
         ClientHello, Certificate, ServerHello2, ServerFinished, \
         ServerKeyExchange, CertificateStatus, CertificateVerify, \
-        Finished, EncryptedExtensions, NewSessionTicket, Heartbeat
+        Finished, EncryptedExtensions, NewSessionTicket, Heartbeat, \
+        KeyUpdate
 from tlslite.extensions import SNIExtension, TLSExtension, \
         SupportedGroupsExtension, ALPNExtension, ECPointFormatsExtension, \
         NPNExtension, ServerKeyShareExtension, ClientKeyShareExtension, \
@@ -3629,3 +3631,48 @@ class TestExpectHeartbeat(unittest.TestCase):
 
         self.assertIn("unexpected size of padding", str(e.exception))
         self.assertIn("received: 16", str(e.exception))
+
+
+class TestExpectKeyUpdate(unittest.TestCase):
+    def test__init__(self):
+        exp = ExpectKeyUpdate()
+
+        self.assertIsNotNone(exp)
+        self.assertEqual(exp.message_type, None)
+
+    def test_process_with_matching_type(self):
+        ku = KeyUpdate().create(KeyUpdateMessageType.update_requested)
+
+        exp = ExpectKeyUpdate(KeyUpdateMessageType.update_requested)
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+        ret = mock.Mock()
+        state.msg_sock.calcTLS1_3KeyUpdate_sender.return_value = (None, ret)
+        cipher = mock.Mock()
+        state.cipher = cipher
+        cats = mock.Mock()
+        state.key['client application traffic secret'] = cats
+        sats = mock.Mock()
+        state.key['server application traffic secret'] = sats
+
+        exp.process(state, ku)
+
+        state.msg_sock.calcTLS1_3PendingState.called_once_with(
+            cipher, cats, sats)
+        self.assertIs(state.key['server application traffic secret'], ret)
+
+    def test_process_with_non_matching_type(self):
+        ku = KeyUpdate().create(KeyUpdateMessageType.update_requested)
+
+        exp = ExpectKeyUpdate(KeyUpdateMessageType.update_not_requested)
+
+        with self.assertRaises(AssertionError):
+            exp.process(None, ku)
+
+    def test_process_with_undefined_value(self):
+        ku = KeyUpdate().create(12)
+
+        exp = ExpectKeyUpdate(KeyUpdateMessageType.update_not_requested)
+
+        with self.assertRaises(AssertionError):
+            exp.process(None, ku)
