@@ -49,6 +49,8 @@ def help_msg():
     print(" -c certfile    file with certificate of client")
     print(" --pha-as-reply expect post-handshake auth request as a reply to")
     print("                the HTTP GET instead of right after handshake")
+    print(" --cert-required expect the server to require a client certificate")
+    print("                and reply with certificate_required")
     print(" --help         this message")
 
 
@@ -58,9 +60,12 @@ def main():
     num_limit = None
     run_exclude = set()
     pha_as_reply = False
+    cert_required = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:k:c:", ["help", "pha-as-reply"])
+    opts, args = getopt.getopt(
+        argv, "h:p:e:n:k:c:",
+        ["help", "pha-as-reply", "cert-required"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -75,6 +80,8 @@ def main():
             sys.exit(0)
         elif opt == '--pha-as-reply':
             pha_as_reply = True
+        elif opt == '--cert-required':
+            cert_required = True
         elif opt == '-k':
             text_key = open(arg, 'rb').read()
             if sys.version_info[0] >= 3:
@@ -201,6 +208,73 @@ def main():
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
     conversations["post-handshake authentication"] = conversation
+
+    # test post-handshake with client not providing a certificate
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+    ext[ExtensionType.post_handshake_auth] = AutoEmptyExtension()
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    if pha_as_reply:
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET /secret HTTP/1.0\r\n\r\n")))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket(note="first set")
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    context = []
+    node.next_sibling = ExpectCertificateRequest(context=context)
+    node = node.next_sibling.add_child(CertificateGenerator(X509CertChain([]), context=context))
+    node = node.add_child(FinishedGenerator(context=context))
+    if not pha_as_reply:
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET /secret HTTP/1.0\r\n\r\n")))
+
+    if cert_required:
+        node = node.add_child(ExpectAlert(
+            AlertLevel.fatal,
+            AlertDescription.certificate_required))
+        node.add_child(ExpectClose())
+    else:
+        # just like after the first handshake, after PHA, the NST can be sent
+        # multiple times
+        cycle = ExpectNewSessionTicket(note="second set")
+        node = node.add_child(cycle)
+        node.add_child(cycle)
+
+        node.next_sibling = ExpectApplicationData()
+        node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                           AlertDescription.close_notify))
+
+        node = node.add_child(ExpectAlert())
+        node.next_sibling = ExpectClose()
+    conversations["post-handshake authentication with no client cert"] = conversation
 
     # malformed signatures in post-handshake authentication
     conversation = Connect(host, port)
