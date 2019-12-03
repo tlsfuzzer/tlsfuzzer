@@ -600,7 +600,8 @@
          {"name" : "test-tls13-post-handshake-auth.py",
           "arguments" : ["-k", "tests/clientX509Key.pem",
                          "-c", "tests/clientX509Cert.pem",
-                         "--pha-as-reply", "--cert-required"]
+                         "--pha-as-reply", "--cert-required",
+                         "--min-tickets=2"]
          }
      ]
     },

@@ -51,6 +51,8 @@ def help_msg():
     print("                the HTTP GET instead of right after handshake")
     print(" --cert-required expect the server to require a client certificate")
     print("                and reply with certificate_required")
+    print(" --min-tickets n Require the server to provide at least 'n' tickets")
+    print("                before performing PHA. Defaults to 0.")
     print(" --help         this message")
 
 
@@ -61,11 +63,12 @@ def main():
     run_exclude = set()
     pha_as_reply = False
     cert_required = False
+    min_tickets = 0
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(
         argv, "h:p:e:n:k:c:",
-        ["help", "pha-as-reply", "cert-required"])
+        ["help", "pha-as-reply", "cert-required", "min-tickets="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -82,6 +85,8 @@ def main():
             pha_as_reply = True
         elif opt == '--cert-required':
             cert_required = True
+        elif opt == '--min-tickets':
+            min_tickets = int(arg)
         elif opt == '-k':
             text_key = open(arg, 'rb').read()
             if sys.version_info[0] >= 3:
@@ -134,6 +139,9 @@ def main():
     node = node.add_child(ApplicationDataGenerator(
         bytearray(b"GET / HTTP/1.0\r\n\r\n")))
 
+    for _ in range(min_tickets):
+        node = node.add_child(ExpectNewSessionTicket(note="counted"))
+
     # This message is optional and may show up 0 to many times
     cycle = ExpectNewSessionTicket()
     node = node.add_child(cycle)
@@ -180,6 +188,9 @@ def main():
     if pha_as_reply:
         node = node.add_child(ApplicationDataGenerator(
             bytearray(b"GET /secret HTTP/1.0\r\n\r\n")))
+
+    for _ in range(min_tickets):
+        node = node.add_child(ExpectNewSessionTicket(note="counted"))
 
     # This message is optional and may show up 0 to many times
     cycle = ExpectNewSessionTicket(note="first set")
@@ -242,6 +253,9 @@ def main():
     if pha_as_reply:
         node = node.add_child(ApplicationDataGenerator(
             bytearray(b"GET /secret HTTP/1.0\r\n\r\n")))
+
+    for _ in range(min_tickets):
+        node = node.add_child(ExpectNewSessionTicket(note="counted"))
 
     # This message is optional and may show up 0 to many times
     cycle = ExpectNewSessionTicket(note="first set")
@@ -310,6 +324,9 @@ def main():
         node = node.add_child(ApplicationDataGenerator(
             bytearray(b"GET /secret HTTP/1.0\r\n\r\n")))
 
+    for _ in range(min_tickets):
+        node = node.add_child(ExpectNewSessionTicket(note="counted"))
+
     # This message is optional and may show up 0 to many times
     cycle = ExpectNewSessionTicket()
     node = node.add_child(cycle)
@@ -365,7 +382,7 @@ def main():
 
     print("Basic post-handshake authentication test case")
     print("Check if server will accept PHA, check if server rejects invalid")
-    print("signatures on PHA CertificateVerify")
+    print("signatures on PHA CertificateVerify, etc.")
     print("version: {0}\n".format(version))
 
     print("Test end")
