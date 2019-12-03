@@ -192,7 +192,7 @@ require use of package like
   pull request
 * Wait for automatic checks to pass. Travis-ci check is mandatory, pull
   requests which
-  fail it will not be merged. Landscape and coveralls failures are not blocking
+  fail it will not be merged. Coveralls and LGTM failures are not blocking
   but may require explanation. Going to codeclimate
   (see README.md for links) and checking the branch and pull request is also
   a good idea.
