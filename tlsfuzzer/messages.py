@@ -1199,6 +1199,22 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         return cert_verify
 
 
+class ClearContext(Command):
+    """
+    Object used to zero-out the context used in PHA.
+
+    This is necessary if the conversation is executed more than once.
+    """
+    def __init__(self, context):
+        super(ClearContext, self).__init__()
+        self.context = context
+
+    def process(self, state):
+        """Zero out the associated context"""
+        del state  # unused
+        self.context[:] = []
+
+
 class ChangeCipherSpecGenerator(MessageGenerator):
     """
     Generator for TLS Change Cipher Spec messages.

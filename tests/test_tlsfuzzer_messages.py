@@ -30,7 +30,7 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         SetPaddingCallback, replace_plaintext, ch_cookie_handler, \
         ch_key_share_handler, SetRecordVersion, CopyVariables, \
         ResetWriteConnectionState, HeartbeatGenerator, Certificate, \
-        KeyUpdateGenerator
+        KeyUpdateGenerator, ClearContext
 from tlsfuzzer.helpers import psk_ext_gen, psk_ext_updater, \
         psk_session_ext_gen, AutoEmptyExtension
 from tlsfuzzer.runner import ConnectionState
@@ -2354,6 +2354,26 @@ class TestCertificateVerifyGeneratorECDSA(unittest.TestCase):
         self.assertTrue(priv_key.verify(
             sig, secureHash(b"", "sha1"),
             "", "sha1"))
+
+
+class TestClearContext(unittest.TestCase):
+    def test___init__(self):
+        ctx = []
+        cc = ClearContext(ctx)
+
+        self.assertIs(cc.context, ctx)
+        self.assertTrue(cc.is_command())
+        self.assertFalse(cc.is_expect())
+        self.assertFalse(cc.is_generator())
+
+    def test_process(self):
+        ctx = ["abc", 123]
+        cc = ClearContext(ctx)
+        self.assertEqual(ctx, ["abc", 123])
+
+        cc.process(None)
+
+        self.assertEqual(ctx, [])
 
 
 class TestAlertGenerator(unittest.TestCase):
