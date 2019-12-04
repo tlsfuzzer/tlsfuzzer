@@ -11,7 +11,8 @@ from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        CertificateVerifyGenerator, CertificateGenerator, KeyUpdateGenerator
+        CertificateVerifyGenerator, CertificateGenerator, KeyUpdateGenerator, \
+        ClearContext
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
@@ -57,6 +58,10 @@ def help_msg():
     print(" --query txt    Message to send to server to cause it to request")
     print("                post-handshake authentication.")
     print("                \"GET /secret HTTP/1.0\\r\\n\\r\\n\" by default")
+    print(" --pha-in-sanity Set when server requires the connections to always")
+    print("                advertise support for PHA. This will cause")
+    print("                \"sanity\" to be equal to \"post-handshake")
+    print("                authentication\" test case.")
     print(" --help         this message")
 
 
@@ -67,13 +72,15 @@ def main():
     run_exclude = set()
     pha_as_reply = False
     cert_required = False
+    pha_in_sanity = False
     min_tickets = 0
     pha_query = b'GET /secret HTTP/1.0\r\n\r\n'
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(
         argv, "h:p:e:n:k:c:",
-        ["help", "pha-as-reply", "cert-required", "min-tickets=", "query="])
+        ["help", "pha-as-reply", "cert-required", "min-tickets=", "query=",
+         "pha-in-sanity"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -88,6 +95,8 @@ def main():
             sys.exit(0)
         elif opt == '--pha-as-reply':
             pha_as_reply = True
+        elif opt == '--pha-in-sanity':
+            pha_in_sanity = True
         elif opt == '--cert-required':
             cert_required = True
         elif opt == '--query':
@@ -209,6 +218,7 @@ def main():
     node = node.next_sibling.add_child(CertificateGenerator(X509CertChain([cert]), context=context))
     node = node.add_child(CertificateVerifyGenerator(private_key, context=context))
     node = node.add_child(FinishedGenerator(context=context))
+    node = node.add_child(ClearContext(context))
     if not pha_as_reply:
         node = node.add_child(ApplicationDataGenerator(
             bytearray(pha_query)))
@@ -226,6 +236,8 @@ def main():
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
     conversations["post-handshake authentication"] = conversation
+    if pha_in_sanity:
+        conversations["sanity"] = conversation
 
     # test post-handshake authentication with KeyUpdate
     conversation = Connect(host, port)
