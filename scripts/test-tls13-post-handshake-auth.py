@@ -54,6 +54,9 @@ def help_msg():
     print("                and reply with certificate_required")
     print(" --min-tickets n Require the server to provide at least 'n' tickets")
     print("                before performing PHA. Defaults to 0.")
+    print(" --query txt    Message to send to server to cause it to request")
+    print("                post-handshake authentication.")
+    print("                \"GET /secret HTTP/1.0\\r\\n\\r\\n\" by default")
     print(" --help         this message")
 
 
@@ -65,11 +68,12 @@ def main():
     pha_as_reply = False
     cert_required = False
     min_tickets = 0
+    pha_query = b'GET /secret HTTP/1.0\r\n\r\n'
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(
         argv, "h:p:e:n:k:c:",
-        ["help", "pha-as-reply", "cert-required", "min-tickets="])
+        ["help", "pha-as-reply", "cert-required", "min-tickets=", "query="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -86,6 +90,8 @@ def main():
             pha_as_reply = True
         elif opt == '--cert-required':
             cert_required = True
+        elif opt == '--query':
+            pha_query = arg
         elif opt == '--min-tickets':
             min_tickets = int(arg)
         elif opt == '-k':
@@ -188,7 +194,7 @@ def main():
     node = node.add_child(FinishedGenerator())
     if pha_as_reply:
         node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET /secret HTTP/1.0\r\n\r\n")))
+            bytearray(pha_query)))
 
     for _ in range(min_tickets):
         node = node.add_child(ExpectNewSessionTicket(note="counted"))
@@ -205,7 +211,7 @@ def main():
     node = node.add_child(FinishedGenerator(context=context))
     if not pha_as_reply:
         node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET /secret HTTP/1.0\r\n\r\n")))
+            bytearray(pha_query)))
 
     # just like after the first handshake, after PHA, the NST can be sent
     # multiple times
@@ -253,7 +259,7 @@ def main():
     node = node.add_child(FinishedGenerator())
     if pha_as_reply:
         node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET /secret HTTP/1.0\r\n\r\n")))
+            bytearray(pha_query)))
 
     for _ in range(min_tickets):
         node = node.add_child(ExpectNewSessionTicket(note="counted"))
@@ -272,7 +278,7 @@ def main():
     node = node.add_child(FinishedGenerator(context=context))
     if not pha_as_reply:
         node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET /secret HTTP/1.0\r\n\r\n")))
+            bytearray(pha_query)))
 
     # just like after the first handshake, after PHA, the NST can be sent
     # multiple times
@@ -322,7 +328,7 @@ def main():
     node = node.add_child(FinishedGenerator())
     if pha_as_reply:
         node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET /secret HTTP/1.0\r\n\r\n")))
+            bytearray(pha_query)))
 
     for _ in range(min_tickets):
         node = node.add_child(ExpectNewSessionTicket(note="counted"))
@@ -338,7 +344,7 @@ def main():
     node = node.add_child(FinishedGenerator(context=context))
     if not pha_as_reply:
         node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET /secret HTTP/1.0\r\n\r\n")))
+            bytearray(pha_query)))
 
     if cert_required:
         node = node.add_child(ExpectAlert(
@@ -392,7 +398,7 @@ def main():
     node = node.add_child(FinishedGenerator())
     if pha_as_reply:
         node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET /secret HTTP/1.0\r\n\r\n")))
+            bytearray(pha_query)))
 
     for _ in range(min_tickets):
         node = node.add_child(ExpectNewSessionTicket(note="counted"))
