@@ -16,11 +16,15 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ApplicationDataGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectClose, ExpectApplicationData
+        ExpectAlert, ExpectClose, ExpectApplicationData, \
+        ExpectServerKeyExchange
+from tlslite.extensions import SignatureAlgorithmsExtension, \
+        SignatureAlgorithmsCertExtension, SupportedGroupsExtension
 from tlsfuzzer.helpers import AutoEmptyExtension
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType
+        ExtensionType, GroupName
+from tlsfuzzer.helpers import RSA_SIG_ALL
 
 
 def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
@@ -34,6 +38,7 @@ def help_msg():
     print("                      localhost by default")
     print(" -p port              port number to use for connection,")
     print("                      4433 by default")
+    print(" -d             negotiate (EC)DHE instead of RSA key exchange")
     print(" probe-name     if present, will run only the probes with given")
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
@@ -45,12 +50,15 @@ def main():
     hostname = "localhost"
     port = 4433
     run_exclude = set()
+    dhe = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:d", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             hostname = arg
+        elif opt == '-d':
+            dhe = True
         elif opt == '-p':
             port = int(arg)
         elif opt == '-e':
@@ -70,14 +78,28 @@ def main():
 
     conversation = Connect(hostname, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    extensions = {ExtensionType.encrypt_then_mac: AutoEmptyExtension()}
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=extensions))
+    ext = {ExtensionType.encrypt_then_mac: AutoEmptyExtension()}
+    if dhe:
+        groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     extensions = {ExtensionType.encrypt_then_mac:None,
                   ExtensionType.renegotiation_info:None}
     node = node.add_child(ExpectServerHello(extensions=extensions))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -95,12 +117,26 @@ def main():
 
     conversation = Connect(hostname, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     # 1st handshake without encrypt-then-mac extension
-    extensions = {ExtensionType.renegotiation_info:None}
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=extensions))
+    ext = {ExtensionType.renegotiation_info: None}
+    if dhe:
+        groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    extensions = {ExtensionType.renegotiation_info: None}
     node = node.add_child(ExpectServerHello(extensions=extensions))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -109,15 +145,25 @@ def main():
     node = node.add_child(ExpectFinished())
     # 2nd handshake with encrypt-then-mac extension
     node = node.add_child(ResetHandshakeHashes())
-    extensions = {ExtensionType.encrypt_then_mac: AutoEmptyExtension(),
-                  ExtensionType.renegotiation_info:None}
+    ext = {ExtensionType.encrypt_then_mac: AutoEmptyExtension(),
+           ExtensionType.renegotiation_info: None}
+    if dhe:
+        groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                session_id=bytearray(0),
-                                               extensions=extensions))
+                                               extensions=ext))
     extensions = {ExtensionType.encrypt_then_mac:None,
                   ExtensionType.renegotiation_info:None}
     node = node.add_child(ExpectServerHello(extensions=extensions))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())

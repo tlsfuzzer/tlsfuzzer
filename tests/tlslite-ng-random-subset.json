@@ -143,6 +143,15 @@
           "comment" : "Test requires renegotiation support",
           "exp_pass" : false
          },
+         {"name" : "test-encrypt-then-mac-renegotiation.py",
+          "arguments" : ["-d", "-e", "Encrypt-then-MAC renegotiation crash"],
+          "comment" : "Test requires renegotiation support"
+         },
+         {"name" : "test-encrypt-then-mac-renegotiation.py",
+          "arguments" : ["-d", "Encrypt-then-MAC renegotiation crash"],
+          "comment" : "Test requires renegotiation support",
+          "exp_pass" : false
+         },
          {"name" : "test-export-ciphers-rejected.py",
           "comment": "tlslite-ng doesn't support SSLv3 by default",
           "arguments": ["--min-ver", "TLSv1.0"]},
