@@ -41,6 +41,10 @@ def help_msg():
     print(" -n num         only run `num` random tests instead of a full set")
     print("                (\"sanity\" tests are always executed)")
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
+    print(" --1/n-1        Expect the 1/n-1 record splitting for BEAST")
+    print("                mitigation (should not be used with TLS 1.1 or up)")
+    print(" --0/n          Expect the 0/n record splitting for BEAST")
+    print("                mitigation (should not be used with TLS 1.1 or up)")
     print(" --help         this message")
 
 
@@ -50,9 +54,11 @@ def main():
     num_limit = None
     run_exclude = set()
     dhe = False
+    splitting = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:d", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:d",
+                               ["help", "1/n-1", "0/n"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -64,6 +70,10 @@ def main():
             num_limit = int(arg)
         elif opt == '-d':
             dhe = True
+        elif opt == '--1/n-1':
+            splitting = 1
+        elif opt == '--0/n':
+            splitting = 0
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -110,6 +120,8 @@ def main():
     node = node.add_child(ExpectFinished())
     node = node.add_child(ApplicationDataGenerator(
         bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+    if splitting is not None:
+        node = node.add_child(ExpectApplicationData(size=splitting))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
