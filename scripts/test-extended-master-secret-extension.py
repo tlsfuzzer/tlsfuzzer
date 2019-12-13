@@ -5,7 +5,6 @@ from __future__ import print_function
 import traceback
 import sys
 import getopt
-import re
 from itertools import chain
 from random import sample
 
@@ -27,11 +26,10 @@ from tlslite.extensions import SignatureAlgorithmsExtension, \
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType, GroupName
 from tlsfuzzer.helpers import RSA_SIG_ALL
+from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
-    return [int(text) if text.isdigit() else text.lower()
-            for text in re.split(_nsre, s)]
+version = 2
 
 
 def help_msg():
@@ -43,6 +41,8 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -n num         only run `num` random tests instead of a full set")
+    print("                (\"sanity\" tests are always executed)")
     print(" --no-http      don't send HTTP query")
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
     print(" --help         this message")
@@ -51,12 +51,13 @@ def help_msg():
 def main():
     host = "localhost"
     port = 4433
+    num_limit = None
     run_exclude = set()
     http = True
     dhe = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:d", ["help", "no-http"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:d", ["help", "no-http"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -64,6 +65,8 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-n':
+            num_limit = int(arg)
         elif opt == '-d':
             dhe = True
         elif opt == '--help':
@@ -255,7 +258,11 @@ def main():
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret: AutoEmptyExtension(),
                     ExtensionType.supported_groups:SupportedGroupsExtension().
-                    create([GroupName.secp256r1])}))
+                    create([GroupName.secp256r1]),
+                    ExtensionType.signature_algorithms:
+                    SignatureAlgorithmsExtension().create(RSA_SIG_ALL),
+                    ExtensionType.signature_algorithms_cert:
+                    SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
@@ -286,8 +293,11 @@ def main():
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         extensions={ExtensionType.renegotiation_info:None,
-                    ExtensionType.extended_master_secret: AutoEmptyExtension()
-                    }))
+                    ExtensionType.extended_master_secret: AutoEmptyExtension(),
+                    ExtensionType.signature_algorithms:
+                    SignatureAlgorithmsExtension().create(RSA_SIG_ALL),
+                    ExtensionType.signature_algorithms_cert:
+                    SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None,
                     ExtensionType.extended_master_secret:None}))
@@ -921,13 +931,15 @@ def main():
     good = 0
     bad = 0
     failed = []
+    if not num_limit:
+        num_limit = len(conversations)
 
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throughout
     sanity_tests = [('sanity', conversations['sanity'])]
     regular_tests = [(k, v) for k, v in conversations.items() if k != 'sanity']
-    shuffled_tests = sample(regular_tests, len(regular_tests))
-    ordered_tests = chain(sanity_tests, shuffled_tests, sanity_tests)
+    sampled_tests = sample(regular_tests, min(num_limit, len(regular_tests)))
+    ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
 
     for c_name, c_test in ordered_tests:
         if run_only and c_name not in run_only or c_name in run_exclude:
@@ -939,7 +951,7 @@ def main():
         res = True
         try:
             runner.run()
-        except:
+        except Exception:
             print("Error while processing")
             print(traceback.format_exc())
             res = False
@@ -950,6 +962,9 @@ def main():
         else:
             bad += 1
             failed.append(c_name)
+
+    print("Test to verify Extended Master Secret extension.")
+    print("version: {0}\n".format(version))
 
     print("Test end")
     print("successful: {0}".format(good))
