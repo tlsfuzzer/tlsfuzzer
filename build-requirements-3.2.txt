@@ -1,7 +1,0 @@
-PyYAML<3.13
-requests<2.11
-coverage<4
-coveralls<1
-pylint<2.0
-diff_cover
-isort<4.3.5
