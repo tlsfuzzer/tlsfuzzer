@@ -8,8 +8,9 @@ python:
   - 3.5
   - 3.6
   - 3.7
+  - 3.8
 
-# workaround for 3.7 not available in default configuration
+# workaround for 3.7 and 3.8 not available in default configuration
 # travis-ci/travis-ci#9815
 dist: trusty
 sudo: false
@@ -17,10 +18,14 @@ sudo: false
 matrix:
  exclude:
    - python: 3.7
+   - python: 3.8
  include:
-# workaround for 3.7 not available in default configuration
+# workaround for 3.7 and 3.8 not available in default configuration
 # travis-ci/travis-ci#9815
    - python: 3.7
+     dist: xenial
+     sudo: true
+   - python: 3.8
      dist: xenial
      sudo: true
 
