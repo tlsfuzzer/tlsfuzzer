@@ -1,0 +1,44 @@
+#!/usr/bin/expect
+# execute like this:
+# openssl-server-pha.expect openssl s_server -key /tmp/server/key.pem -cert /tmp/server/cert.pem -CAfile /tmp/ca/cert.pem
+set timeout 30
+set exp_internal 1
+eval spawn $argv
+trap { exec kill -SIGTERM [exp_pid] } SIGTERM
+expect {
+    "CIPHER is" {
+        expect {
+            "GET / HTTP/1.0" { send "HTTP/1.0 200 ok\r"; }
+            "GET /secret HTTP/1.0" {
+                send "c\r";
+                send_user "== expect: waiting for client cert\n";
+                set timeout 1;
+                expect {
+                    "verify return:1" {
+                        expect {
+                            "Read BLOCK" { send "HTTP/1.0 200 ok\r"; }
+                            "error" { }
+                            "ERROR" { }
+                            eof { exit 15 }
+                            timeout { exit 16 }
+                        }
+                    } timeout {
+                        send_user "== expect: no certificate received\n";
+                        send "HTTP/1.0 401 authentication required\r";
+                    }
+                    "ERROR" { }
+                    eof { exit 13 }
+                }
+                send_user "== expect: client cert handled\n";
+                set timeout 10;
+            }
+            eof { exit 11 }
+            timeout { exit 12 }
+        }
+        exp_continue;
+    }
+    eof { exit 7 }
+    timeout { close; exit 8 }
+}
+set info [wait]
+exit [lindex $info 3]
