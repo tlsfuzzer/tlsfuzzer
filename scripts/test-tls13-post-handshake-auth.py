@@ -300,9 +300,18 @@ def main():
 
     node.next_sibling = ExpectKeyUpdate(
         KeyUpdateMessageType.update_not_requested)
-    node = node.next_sibling.add_child(ExpectApplicationData())
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                         AlertDescription.close_notify))
+
+    # but KeyUpdate can be sent asynchonously, then NST will be received
+    # after KeyUpdate
+
+    cycle = ExpectNewSessionTicket(note="third set")
+    node = node.next_sibling.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData()
+    node = node.next_sibling.add_child(
+        AlertGenerator(AlertLevel.warning,
+                       AlertDescription.close_notify))
 
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
