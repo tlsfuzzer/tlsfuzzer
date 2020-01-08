@@ -339,6 +339,11 @@
          {"name" : "test-tls13-nociphers.py"},
          {"name" : "test-tls13-obsolete-curves.py"},
          {"name" : "test-tls13-pkcs-signature.py"},
+         {"name" : "test-tls13-post-handshake-auth.py",
+          "arguments" : ["-k", "tests/clientX509Key.pem",
+                         "-c", "tests/clientX509Cert.pem",
+                         "--pha-as-reply"]
+          },
          {"name" : "test-tls13-record-layer-limits.py"},
          {"name" : "test-tls13-record-padding.py"},
          {"name" : "test-tls13-rsa-signatures.py"},
@@ -534,6 +539,38 @@
           "arguments" : ["-d"]
          },
          {"name" : "test-tls13-non-support.py"}
+     ]
+    },
+    {"server_command": ["python", "-u", "{command}", "server",
+                 "-k", "tests/serverX509Key.pem",
+                 "-c", "tests/serverX509Cert.pem",
+                 "--request-pha",
+                 "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "tests" : [
+         {"name" : "test-tls13-post-handshake-auth.py",
+          "arguments" : ["-k", "tests/clientX509Key.pem",
+                         "-c", "tests/clientX509Cert.pem"]
+         }
+     ]
+    },
+    {"server_command": ["python", "-u", "{command}", "server",
+                 "-k", "tests/serverX509Key.pem",
+                 "-c", "tests/serverX509Cert.pem",
+                 "--require-pha",
+                 "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "tests" : [
+         {"name" : "test-tls13-post-handshake-auth.py",
+          "arguments" : ["-k", "tests/clientX509Key.pem",
+                         "-c", "tests/clientX509Cert.pem",
+                         "--pha-as-reply", "--cert-required",
+                         "--min-tickets=2"]
+         }
      ]
     },
     {"server_command": ["python", "-u", "{command}", "server",
