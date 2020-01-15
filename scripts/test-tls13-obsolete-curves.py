@@ -153,10 +153,10 @@ def main():
             .create(RSA_SIG_ALL)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.handshake_failure))
+                                          AlertDescription.illegal_parameter))
 
         node = node.add_child(ExpectClose())
-        conversation_name = "{0} should be handshake_failed in TLS 1.3".format(obsolete_group_name)
+        conversation_name = "{0} in TLS 1.3".format(obsolete_group_name)
         conversations[conversation_name] = conversation
 
     # run the conversation
