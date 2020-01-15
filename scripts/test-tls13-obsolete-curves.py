@@ -28,7 +28,7 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
 from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL
 
 
-version = 1
+version = 2
 
 
 def help_msg():
@@ -42,6 +42,9 @@ def help_msg():
     print("                may be specified multiple times")
     print(" -n num         only run `num` random tests instead of a full set")
     print("                (\"sanity\" tests are always executed)")
+    print(" -a alert_desc  Alert description expected for cases with invalid")
+    print("                curves advertised, integer or name.")
+    print("                \"illegal_parameter\" by default.")
     print(" --help         this message")
 
 
@@ -50,9 +53,10 @@ def main():
     port = 4433
     num_limit = None
     run_exclude = set()
+    alert_desc = AlertDescription.illegal_parameter
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:a:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -62,6 +66,11 @@ def main():
             run_exclude.add(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == "-a":
+            try:
+                alert_desc = int(arg)
+            except ValueError:
+                alert_desc = getattr(AlertDescription, arg)
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -153,7 +162,7 @@ def main():
             .create(RSA_SIG_ALL)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.illegal_parameter))
+                                          alert_desc))
 
         node = node.add_child(ExpectClose())
         conversation_name = "{0} in TLS 1.3".format(obsolete_group_name)
