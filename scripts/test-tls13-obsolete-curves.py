@@ -11,17 +11,19 @@ from random import sample
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator
+        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+        ch_cookie_handler
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
         ExpectEncryptedExtensions, ExpectCertificateVerify, \
-        ExpectNewSessionTicket
+        ExpectNewSessionTicket, ExpectHelloRetryRequest
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme
 from tlslite.keyexchange import ECDHKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
+from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
@@ -45,6 +47,8 @@ def help_msg():
     print(" -a alert_desc  Alert description expected for cases with invalid")
     print("                curves advertised, integer or name.")
     print("                \"illegal_parameter\" by default.")
+    print(" --cookie       expect the server to send \"cookie\" extension in")
+    print("                Hello Retry Request message")
     print(" --help         this message")
 
 
@@ -54,9 +58,10 @@ def main():
     num_limit = None
     run_exclude = set()
     alert_desc = AlertDescription.illegal_parameter
+    cookie = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:a:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:a:", ["help", "cookie"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -71,6 +76,8 @@ def main():
                 alert_desc = int(arg)
             except ValueError:
                 alert_desc = getattr(AlertDescription, arg)
+        elif opt == "--cookie":
+            cookie = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -128,6 +135,78 @@ def main():
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
     conversations["sanity"] = conversation
+
+    # verify that server supports HRR
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = OrderedDict()
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.ecdsa_secp256r1_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+
+    ext = OrderedDict()
+    if cookie:
+        ext[ExtensionType.cookie] = None
+    ext[ExtensionType.key_share] = None
+    ext[ExtensionType.supported_versions] = None
+    node = node.add_child(ExpectHelloRetryRequest(extensions=ext))
+    ext = OrderedDict()
+    if cookie:
+        ext[ExtensionType.cookie] = ch_cookie_handler
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.ecdsa_secp256r1_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(SIG_ALL)
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData()
+    node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                       AlertDescription.close_notify))
+
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["sanity - HRR support"] = conversation
 
     # https://tools.ietf.org/html/rfc8446#appendix-B.3.1.4
     obsolete_groups = chain(range(0x0001, 0x0016 + 1),
@@ -325,7 +404,7 @@ def main():
             .create(SIG_ALL)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          alert_desc))
+                                          AlertDescription.illegal_parameter))
 
         node = node.add_child(ExpectClose())
         conversation_name = \
