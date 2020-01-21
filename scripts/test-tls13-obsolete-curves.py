@@ -52,6 +52,29 @@ def help_msg():
     print(" --help         this message")
 
 
+def negative_test(host, port, additional_extensions, expected_alert):
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.ecdsa_secp256r1_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(SIG_ALL)
+    ext.update(additional_extensions)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      expected_alert))
+    node = node.add_child(ExpectClose())
+    return conversation
+
+
 def main():
     host = "localhost"
     port = 4433
@@ -217,10 +240,6 @@ def main():
         obsolete_group_name = (GroupName.toRepr(obsolete_group)
                                or "unknown ({0})".format(obsolete_group))
 
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {}
         groups = [obsolete_group]
         try:
@@ -231,86 +250,37 @@ def main():
             # bogus value to move on, if it makes problems, these won't result in handshake_failure
             key_shares = [KeyShareEntry().create(obsolete_group, bytearray(b'\xab'*32))]
         ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-            .create([TLS_1_3_DRAFT, (3, 3)])
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
-        sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                    SignatureScheme.rsa_pss_pss_sha256,
-                    SignatureScheme.ecdsa_secp256r1_sha256]
-        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-            .create(sig_algs)
-        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-            .create(SIG_ALL)
-        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-        node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          alert_desc))
-
-        node = node.add_child(ExpectClose())
-        conversation_name = "{0} in supported_groups and key_share".format(obsolete_group_name)
+        conversation = negative_test(host, port, ext, alert_desc)
+        conversation_name = "{0} in supported_groups and key_share"\
+            .format(obsolete_group_name)
         conversations[conversation_name] = conversation
 
         # check if it's rejected when it's just the one advertised, but not shared
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {}
         groups = [obsolete_group]
         key_shares = []
         ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-            .create([TLS_1_3_DRAFT, (3, 3)])
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
-        sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                    SignatureScheme.rsa_pss_pss_sha256,
-                    SignatureScheme.ecdsa_secp256r1_sha256]
-        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-            .create(sig_algs)
-        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-            .create(SIG_ALL)
-        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-        node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          alert_desc))
-
-        node = node.add_child(ExpectClose())
-        conversation_name = "{0} in supported_groups and empty key_share".format(obsolete_group_name)
+        conversation = negative_test(host, port, ext, alert_desc)
+        conversation_name = "{0} in supported_groups and empty key_share"\
+            .format(obsolete_group_name)
         conversations[conversation_name] = conversation
 
         # check invalid group advertised together with valid in key share
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {}
         groups = [obsolete_group, GroupName.secp256r1]
         ext[ExtensionType.key_share] = key_share_ext_gen([GroupName.secp256r1])
-        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-            .create([TLS_1_3_DRAFT, (3, 3)])
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
-        sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                    SignatureScheme.rsa_pss_pss_sha256,
-                    SignatureScheme.ecdsa_secp256r1_sha256]
-        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-            .create(sig_algs)
-        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-            .create(SIG_ALL)
-        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-        node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          alert_desc))
-
-        node = node.add_child(ExpectClose())
+        conversation = negative_test(host, port, ext, alert_desc)
         conversation_name = "{0} and secp256r1 in supported_groups and "\
                             "secp256r1 in key_share".format(obsolete_group_name)
         conversations[conversation_name] = conversation
 
         # check with both valid and invalid in key share and supported groups
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {}
         groups = [obsolete_group, GroupName.secp256r1]
         key_shares = []
@@ -322,30 +292,13 @@ def main():
                 key_shares.append(KeyShareEntry()
                     .create(obsolete_group, bytearray(b'\xab'*32)))
         ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-            .create([TLS_1_3_DRAFT, (3, 3)])
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
-        sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                    SignatureScheme.rsa_pss_pss_sha256,
-                    SignatureScheme.ecdsa_secp256r1_sha256]
-        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-            .create(sig_algs)
-        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-            .create(SIG_ALL)
-        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-        node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          alert_desc))
-
-        node = node.add_child(ExpectClose())
+        conversation = negative_test(host, port, ext, alert_desc)
         conversation_name = "{0} and secp256r1 in supported_groups and key_share".format(obsolete_group_name)
         conversations[conversation_name] = conversation
 
         # also check with inverted order
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {}
         groups = [GroupName.secp256r1, obsolete_group]
         key_shares = []
@@ -357,30 +310,13 @@ def main():
                 key_shares.append(KeyShareEntry()
                     .create(obsolete_group, bytearray(b'\xab'*32)))
         ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-            .create([TLS_1_3_DRAFT, (3, 3)])
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
-        sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                    SignatureScheme.rsa_pss_pss_sha256,
-                    SignatureScheme.ecdsa_secp256r1_sha256]
-        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-            .create(sig_algs)
-        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-            .create(SIG_ALL)
-        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-        node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          alert_desc))
-
-        node = node.add_child(ExpectClose())
+        conversation = negative_test(host, port, ext, alert_desc)
         conversation_name = "secp256r1 and {0} in supported_groups and key_share".format(obsolete_group_name)
         conversations[conversation_name] = conversation
 
         # check inconsistent key_share with supported_groups
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {}
         groups = [GroupName.secp256r1]
         key_shares = []
@@ -391,22 +327,9 @@ def main():
             key_shares.append(KeyShareEntry()
                 .create(obsolete_group, bytearray(b'\xab'*32)))
         ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-            .create([TLS_1_3_DRAFT, (3, 3)])
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
-        sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                    SignatureScheme.rsa_pss_pss_sha256,
-                    SignatureScheme.ecdsa_secp256r1_sha256]
-        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-            .create(sig_algs)
-        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-            .create(SIG_ALL)
-        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-        node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.illegal_parameter))
-
-        node = node.add_child(ExpectClose())
+        conversation = negative_test(host, port, ext, AlertDescription.illegal_parameter)
         conversation_name = \
             "{0} in key_share and secp256r1 in "\
             "supported_groups (inconsistent extensions)"\
