@@ -41,18 +41,18 @@
 
 1. [Fork it](https://github.com/tomato42/tlsfuzzer/fork)
 1. Clone it
-   * `git clone git@github.com:<your-github-nick>/tlsfuzzer.git`
-   * `cd tlsfuzzer`
+  * `git clone git@github.com:<your-github-nick>/tlsfuzzer.git`
+  * `cd tlsfuzzer`
 1. Install dependencies (as root)
-   * `pip2 install coverage ecdsa epydoc unittest2 mock`
-   * `pip3 install coverage ecdsa`
-   * `pip2 install -r build-requirements.txt`
-   * `pip3 install -r build-requirements.txt`
+  * `pip2 install coverage ecdsa Sphinx sphinx-rtd-theme unittest2 mock`
+  * `pip3 install coverage ecdsa`
+  * `pip2 install -r build-requirements.txt`
+  * `pip3 install -r build-requirements.txt`
 1. Download tlslite-ng
-   * `git clone https://github.com/tomato42/tlslite-ng.git .tlslite-ng`
-   * `ln -s .tlslite-ng/tlslite tlslite`
+  * `git clone https://github.com/tomato42/tlslite-ng.git .tlslite-ng`
+  * `ln -s .tlslite-ng/tlslite tlslite`
 1. Verify installation
-   * `make test`
+  * `make test`
 1. Create your feature branch (`git checkout -b my-new-feature`)
 1. Write changes, follow Python standard guidelines, include test cases
 1. Run tests (`make test`)
@@ -101,7 +101,7 @@ On Fedora they can be installed using:
 dnf install python2-ecdsa python3-ecdsa pylint python3-pylint \
     python2-diff-cover python3-diff-cover python2-coverage python3-coverage \
     python2-hypothesis python3-hypothesis python3-libs python2-unittest2 \
-    python2-mock epydoc
+    python2-mock
 ```
 
 On RHEL 7 you will need to enable [EPEL](https://fedoraproject.org/wiki/EPEL),
@@ -111,7 +111,7 @@ after which you can install the dependencies using:
 ```
 yum install python-ecdsa python34-ecdsa pylint \
     python-coverage python34-coverage python2-hypothesis \
-    python34-libs python-unittest2 python-mock python-pip epydoc
+    python34-libs python-unittest2 python-mock python-pip
 pip2 install diff-cover
 pip3 install hypothesis diff-cover pylint
 ```

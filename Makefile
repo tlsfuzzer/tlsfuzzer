@@ -10,16 +10,17 @@ clean:
 	rm -rf coverage.xml
 	rm -rf dist/ build/
 	rm -rf htmlcov/
+	$(MAKE) -C docs clean
 
 .PHONY : install
 install:
 	./setup.py install
 
-epydoc:
-	epydoc --html -v -o epydoc --graph all tlsfuzzer
+.PHONY : docs
+docs:
+	$(MAKE) -C docs html
 
-test:
-	epydoc --check --fail-on-error -v tlsfuzzer
+test: docs
 	coverage2 run --branch --source tlsfuzzer -m unittest discover -v
 	coverage3 run --append --branch --source tlsfuzzer -m unittest discover -v
 	coverage3 report -m
