@@ -17,20 +17,21 @@ class ConnectionState(object):
     """
     Keeps the TLS connection state for sending of messages
 
-    @type msg_sock: L{tlslite.messagesocket.MessageSocket}
-    @ivar msg_sock: message level abstraction for TLS Record Socket
+    :ivar ~tlslite.messagesocket.MessageSocket msg_sock: message level
+        abstraction for TLS Record Socket
 
-    @ivar handshake_hashes: all handhsake messages hashed
+    :ivar handshake_hashes: all handshake messages hashed
 
-    @ivar handshake_messages: all hadshake messages exchanged between peers
+    :ivar handshake_messages: all hadshake messages exchanged between peers
 
-    @ivar key: various computed cryptographic keys, hashes and secrets related
+    :ivar key: various computed cryptographic keys, hashes and secrets related
         to handshake and record layer
 
-        "premaster_secret" - premaster secret from TLS 1.2 and earlier
+        ``premaster_secret`` - premaster secret from TLS 1.2 and earlier
 
-        "client finished handshake hashes" - HandshakeHash object that has the
-        handshake hashes of last handshake (the only Handshake in TLS 1.3)
+        ``client finished handshake hashes`` -
+        :py:class:`~tlslite.handshakehashes.HandshakeHashes` object that has
+        the handshake hashes of last handshake (the only Handshake in TLS 1.3)
         up to and including the client Finished; used for post-handshake
         authentication
     """
@@ -136,6 +137,7 @@ class ConnectionState(object):
                 return msg
         return None
 
+
 def guess_response(content_type, data, ssl2=False):
     """Guess which kind of message is in the record layer payload"""
     if content_type == ContentType.change_cipher_spec:
@@ -163,8 +165,8 @@ def guess_response(content_type, data, ssl2=False):
                                    data[0],
                                    len(data))
 
-class Runner(object):
 
+class Runner(object):
     """Test if sending a set of commands returns expected values"""
 
     def __init__(self, conversation):

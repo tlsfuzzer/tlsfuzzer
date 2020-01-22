@@ -68,8 +68,8 @@ class Expect(TreeNode):
         Note that the msg is a raw, unparsed message of indicated type that
         requires calling write() to get a raw bytearray() representation of it
 
-        @type msg: L{tlslite.messages.Message}
-        @param msg: raw message to check
+        :type msg: tlslite.messages.Message
+        :param msg: raw message to check
         """
         if msg.contentType == self.content_type:
             return True
@@ -80,11 +80,11 @@ class Expect(TreeNode):
         """
         Process the message and update the state accordingly.
 
-        @type state: L{tlsfuzzer.runner.ConnectionState}
-        @param state: current connection state, needs to be updated after
-        parsing the message by inheriting classes
-        @type msg: L{tlslite.messages.Message}
-        @param msg: raw message to parse
+        :type state: tlsfuzzer.runner.ConnectionState
+        :param state: current connection state, needs to be updated after
+            parsing the message by inheriting classes
+        :type msg: tlslite.messages.Message
+        :param msg: raw message to parse
         """
         raise NotImplementedError("Subclasses need to implement this!")
 
@@ -151,8 +151,9 @@ class ExpectHandshake(ExpectMessage):
     def __init__(self, content_type, handshake_type):
         """
         Set the type of message
-        @type content_type: int
-        @type handshake_type: int
+
+        :type content_type: int
+        :type handshake_type: int
         """
         super(ExpectHandshake, self).__init__(content_type)
         self.handshake_type = handshake_type
@@ -398,7 +399,7 @@ def gen_srv_ext_handler_record_limit(size=None):
     Create a handler for record_size_limit_extension from the server.
 
     Note that if the extension is actually negotiated, it will override
-    any SetMaxRecordSize() before EncryptedExtensions in TLS 1.3 and
+    any `~SetMaxRecordSize()` before EncryptedExtensions in TLS 1.3 and
     before ChangeCipherSpec in TLS 1.2 and earlier.
 
     :param int size: expected value from server, None for any valid
@@ -514,11 +515,13 @@ class ExpectServerHello(_ExpectExtensionsMessage):
     """
     Parsing TLS Handshake protocol Server Hello messages.
 
-    @note: Receiving of the ServerHello in TLS 1.3 influences record layer
-    encryption. After the message is received, the
-    C{client_handshake_traffic_secret} and C{server_handshake_traffic_secret}
-    is derived and record layer is configured to expect encrypted records
-    on the I{receiving} side.
+    .. note::
+      Receiving of the ServerHello in TLS 1.3 influences record layer
+      encryption. After the message is received, the
+      ``client_handshake_traffic_secret`` and
+      ``server_handshake_traffic_secret``
+      is derived and record layer is configured to expect encrypted records
+      on the *receiving* side.
     """
 
     def __init__(self, extensions=None, version=None, resume=False,
@@ -526,7 +529,7 @@ class ExpectServerHello(_ExpectExtensionsMessage):
         """
         Initialize the object
 
-        @param dict extensions: extension objects to match the server sent
+        :param dict extensions: extension objects to match the server sent
         extensions or callbacks to process and verify them. None means use
         automatic handlers that will verify the response against the extensions
         sent in ClientHello. Empty dict means that the server is expected to
@@ -535,23 +538,23 @@ class ExpectServerHello(_ExpectExtensionsMessage):
         as the value of the relevant extension type can be used to select
         autohandler for a given extension type.
 
-        @param tuple version: the literal version in the Server Hello message
+        :param tuple version: the literal version in the Server Hello message
         (needs to be (3, 3) for TLS 1.3, use extensions to expect TLS 1.3
         negotiation)
 
-        @param tuple server_max_protocol: the higher protocol version supported
+        :param tuple server_max_protocol: the higher protocol version supported
         by server. Used for testing downgrade signaling of servers.
 
-        @param int cipher: the id of the cipher that is expected to be
+        :param int cipher: the id of the cipher that is expected to be
         negotiated by server. None (the default) means any valid cipher
         (i.e. not SCSV or GREASE) sent in ClientHello can be selected by
         server.
 
-        @type resume: boolean
-        @param resume: whether the session id should match the one from
+        :type resume: boolean
+        :param resume: whether the session id should match the one from
         current state - IOW, if the server hello should belong to a resumed
         session. TLS 1.2 and earlier only. In TLS 1.3 resumption is handled
-        by providing handler for pre_shared_key extension.
+        by providing handler for ``pre_shared_key`` extension.
         """
         super(ExpectServerHello, self).__init__(ContentType.handshake,
                                                 HandshakeType.server_hello,
@@ -649,11 +652,11 @@ class ExpectServerHello(_ExpectExtensionsMessage):
         """
         Process the message and update state accordingly
 
-        @type state: ConnectionState
-        @param state: overall state of TLS connection
+        :type state: ConnectionState
+        :param state: overall state of TLS connection
 
-        @type msg: Message
-        @param msg: TLS Message read from socket
+        :type msg: Message
+        :param msg: TLS Message read from socket
         """
         assert msg.contentType == ContentType.handshake
 
@@ -881,11 +884,11 @@ class ExpectServerHello2(ExpectHandshake):
         """
         Process the message and update state accordingly
 
-        @type state: ConnectionState
-        @param state: overall state of TLS connection
+        :type state: `~ConnectionState`
+        :param state: overall state of TLS connection
 
-        @type msg: Message
-        @param msg: TLS Message read from socket
+        :type msg: Message
+        :param msg: TLS Message read from socket
         """
         # the value is faked for SSLv2 protocol, but let's just check sanity
         assert msg.contentType == ContentType.handshake
@@ -930,7 +933,7 @@ class ExpectCertificate(ExpectHandshake):
 
     def process(self, state, msg):
         """
-        @type state: ConnectionState
+        :type state: `~ConnectionState`
         """
         assert msg.contentType == ContentType.handshake
 
@@ -956,7 +959,7 @@ class ExpectCertificateVerify(ExpectHandshake):
 
     def process(self, state, msg):
         """
-        @type state: ConnectionState
+        :type state: `~ConnectionState`
         """
         assert msg.contentType == ContentType.handshake
         parser = Parser(msg.write())
@@ -1175,19 +1178,19 @@ class ExpectCertificateRequest(_ExpectExtensionsMessage):
         """
         Set expected parameters for the CertificateRequest message.
 
-        @param sig_algs: a list of signature algorithms that we are expecting
-            from server. Needs to be in-order and complete. `None` to accept
+        :param sig_algs: a list of signature algorithms that we are expecting
+            from server. Needs to be in-order and complete. ``None`` to accept
             any list from server. Applicable to TLS 1.2 and later only.
-            Do not use together with non-default `extensions`.
-        @param cert_types: a list of client certificate types that we are
+            Do not use together with non-default ``extensions``.
+        :param cert_types: a list of client certificate types that we are
             expecting from server. Needs to be in-order and complete.
-            `None` to accept any list from server. Applicable to TLS 1.2 and
+            ``None`` to accept any list from server. Applicable to TLS 1.2 and
             earlier only.
-        @param sanity_check_cert_types: set to False to disable verification
-            checking if every signature algorithm has a corresponding client
-            certificate type.
-        @param extensions: dictionary with extensions that need to be included
-            in the message. Set to None to accept any, set to empty dict to
+        :param sanity_check_cert_types: set to ``False`` to disable
+            verification checking if every signature algorithm has a
+            corresponding client certificate type.
+        :param extensions: dictionary with extensions that need to be included
+            in the message. Set to ``None`` to accept any, set to empty dict to
             expect no extensions. Usable in TLS 1.3 only.
         """
         msg_type = HandshakeType.certificate_request
@@ -1274,7 +1277,7 @@ class ExpectCertificateRequest(_ExpectExtensionsMessage):
         """
         Check received Certificate Request
 
-        @type state: ConnectionState
+        :type state: ConnectionState
         """
         assert msg.contentType == ContentType.handshake
 
@@ -1319,8 +1322,8 @@ class ExpectServerHelloDone(ExpectHandshake):
 
     def process(self, state, msg):
         """
-        @type state: ConnectionState
-        @type msg: Message
+        :type state: ConnectionState
+        :type msg: Message
         """
         assert msg.contentType == ContentType.handshake
 
@@ -1339,12 +1342,12 @@ class ExpectChangeCipherSpec(Expect):
     """
     Processing TLS Change Cipher Spec messages.
 
-    @note:
-    In SSLv3 up to TLS 1.2, the message modifies the state of record layer
-    to expect encrypted records I{after} receiving this message.
-    In case of renegotiation, record layer will expect records encrypted
-    with the newly negotiated keys. In TLS 1.3 it has no effect record layer
-    encryption.
+    .. note::
+      In SSLv3 up to TLS 1.2, the message modifies the state of record layer
+      to expect encrypted records *after* receiving this message.
+      In case of renegotiation, record layer will expect records encrypted
+      with the newly negotiated keys. In TLS 1.3 it has no effect on record
+      layer encryption.
     """
 
     def __init__(self):
@@ -1353,8 +1356,8 @@ class ExpectChangeCipherSpec(Expect):
 
     def process(self, state, msg):
         """
-        @type state: ConnectionState
-        @type msg: Message
+        :type state: ConnectionState
+        :type msg: Message
         """
         assert msg.contentType == ContentType.change_cipher_spec
         parser = Parser(msg.write())
@@ -1394,10 +1397,12 @@ class ExpectFinished(ExpectHandshake):
     """
     Processing TLS handshake protocol Finished message.
 
-    @note: In TLS 1.3 the message will modify record layer to start I{sending}
-    records with encryption using the C{client_handshake_traffic_secret} keys.
-    It will also modify the record layer to start expecting the records
-    to be encrypted with C{server_application_traffic_secret} keys.
+    .. note::
+      In TLS 1.3 the message will modify record layer to start *sending*
+      records with encryption using the ``client_handshake_traffic_secret``
+      keys.
+      It will also modify the record layer to start expecting the records
+      to be encrypted with ``server_application_traffic_secret`` keys.
     """
 
     def __init__(self, version=None):
@@ -1412,8 +1417,8 @@ class ExpectFinished(ExpectHandshake):
 
     def process(self, state, msg):
         """
-        @type state: ConnectionState
-        @type msg: Message
+        :type state: ConnectionState
+        :type msg: Message
         """
         assert msg.contentType == ContentType.handshake
         parser = Parser(msg.write())
@@ -1605,14 +1610,15 @@ class ExpectNewSessionTicket(ExpectHandshake):
         """
         Initialise object.
 
-        @note: the C{note} parameter MUST be specified as a keyword argument,
-        i.e. read the definition as C{(self, *, note=None)} (see PEP 3102).
+        .. note::
+        the ``note`` parameter MUST be specified as a keyword argument,
+        i.e. read the definition as ``(self, *, note=None)`` (see PEP 3102).
         Otherwise the behaviour of this node is not guaranteed if new
-        arguments are added to it (as they will be added I{before} the C{note}
+        arguments are added to it (as they will be added *before* the ``note``
         argument).
 
-        @type note: str
-        @param note: name or comment attached to the node, will be printed
+        :type note: str
+        :param note: name or comment attached to the node, will be printed
            when str() or repr() is called on the node
         """
         super(ExpectNewSessionTicket, self).__init__(
@@ -1701,7 +1707,6 @@ class ExpectSSL2Alert(ExpectHandshake):
 
 
 class ExpectApplicationData(Expect):
-
     """Processing Application Data message"""
 
     def __init__(self, data=None, size=None):
@@ -1729,15 +1734,15 @@ class ExpectHeartbeat(ExpectMessage):
         """
         Set up waiting for a heartbeat message.
 
-        @type message_type: int
-        @param message_type: Type of heartbeat messages to wait for, see
-            L{tlslite.constants.HeartbeatMessageType} for defined types
-        @type payload: bytes-like
-        @param payload: literal value of padding to expect, if set to C{None},
+        :type message_type: int
+        :param message_type: Type of heartbeat messages to wait for, see
+            `~tlslite.constants.HeartbeatMessageType` for defined types
+        :type payload: bytes-like
+        :param payload: literal value of padding to expect, if set to ``None``,
             any payload will be accepted
-        @type padding_size: int
-        @param padding_size: exact length of padding that will be expected,
-            if set to C{None}, any padding length will be accepted
+        :type padding_size: int
+        :param padding_size: exact length of padding that will be expected,
+            if set to ``None``, any padding length will be accepted
         """
         super(ExpectHeartbeat, self).\
             __init__(ContentType.heartbeat)
@@ -1746,7 +1751,7 @@ class ExpectHeartbeat(ExpectMessage):
         self.padding_size = padding_size
 
     def process(self, state, msg):
-        """Check if the C{msg} meets the requirements for the message."""
+        """Check if the ``msg`` meets the requirements for the message."""
         assert msg.contentType == ContentType.heartbeat
 
         parser = Parser(msg.write())
@@ -1777,7 +1782,8 @@ class ExpectNoMessage(Expect):
     Virtual message signifying timeout on message listen.
 
     :ivar timeout: how long to wait for message before giving up, in seconds,
-    can be float
+        can be float
+    :vartype timeout: int or float
     """
 
     def __init__(self, timeout=0.1):
@@ -1790,7 +1796,6 @@ class ExpectNoMessage(Expect):
 
 
 class ExpectClose(Expect):
-
     """Virtual message signifying closing of TCP connection"""
 
     def __init__(self):
@@ -1829,8 +1834,8 @@ class ExpectKeyUpdate(ExpectHandshake):
         """
         Initialize object.
 
-        @type message_type: int
-        @param message_type: type of KeyUpdate msg, either
+        :type message_type: int
+        :param message_type: type of KeyUpdate msg, either
             update_not_requested or update_requested
         """
         super(ExpectKeyUpdate, self).__init__(
@@ -1842,8 +1847,8 @@ class ExpectKeyUpdate(ExpectHandshake):
         """
         Parse, verify and process the message.
 
-        @type state: ConnectionState
-        @type msg: Message
+        :type state: ConnectionState
+        :type msg: Message
         """
         assert msg.contentType == self.content_type
         parser = Parser(msg.write())
