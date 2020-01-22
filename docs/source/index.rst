@@ -15,12 +15,24 @@ connections.
 Ready-to-use scripts are already provided for testing significant parts of
 the TLS protocols.
 
+This framework is commonly used to test OpenSSL, GnuTLS,
+`NSS <https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS>`_ and many
+other implementations.
+
+While not all features standardised for TLS are supported (it's a work
+in progress), the most common features are fully supported:
+TLS 1.2, TLS 1.3, RSA certificates, ECDSA certificates, ECDHE key exchange,
+client certificates, AES-GCM, Chacha20-Poly1305 ciphers, etc. See the
+`issue tracker <https://github.com/tomato42/tlsfuzzer/issues>`_ on GitHub
+to see wanted, but not yet implemented features.
+
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
    :hidden:
 
+   installation
    modules
 
 
