@@ -2,11 +2,9 @@
 # Released under Gnu GPL v2.0, see LICENSE file for details
 """Handling of event tree nodes"""
 
-class TreeNode(object):
 
-    """
-    Base class for decision tree objects
-    """
+class TreeNode(object):
+    """Base class for decision tree objects."""
 
     def __init__(self):
         """Prepare internode dependencies"""
@@ -17,7 +15,7 @@ class TreeNode(object):
         """
         Sets the parameter as the child of the node
 
-        @return: the child node
+        :return: the child node
         """
         self.child = child
         return self.child
@@ -26,7 +24,7 @@ class TreeNode(object):
         """
         Return iterator with all siblings of node
 
-        @rtype: iterator
+        :rtype: iterator
         """
         yield self
         node = self
@@ -38,7 +36,7 @@ class TreeNode(object):
         """
         Checks if the object is a standalone state modifier
 
-        @rtype: bool
+        :rtype: bool
         """
         raise NotImplementedError("Subclasses need to implement this!")
 
@@ -46,7 +44,7 @@ class TreeNode(object):
         """
         Checks if the object is a node which processes messages
 
-        @rtype: bool
+        :rtype: bool
         """
         raise NotImplementedError("Subclasses need to implement this!")
 
@@ -54,7 +52,7 @@ class TreeNode(object):
         """
         Checks if the object is a generator for messages to send
 
-        @rtype: bool
+        :rtype: bool
         """
         raise NotImplementedError("Subclasses need to implement this!")
 

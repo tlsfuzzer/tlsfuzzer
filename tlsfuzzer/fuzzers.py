@@ -17,8 +17,8 @@ class StructuredRandom(object):
     length of the run and the second specifies the values of the bytes
     in the run. If the value is None, it means the bytes should be random.
 
-    thus a `vals = [(16, 0)]` will create a bytestring of length 16, with
-    all bytes equal to zero and `vals = [(4, None), (5, 6)]` will create
+    thus a ``vals = [(16, 0)]`` will create a bytestring of length 16, with
+    all bytes equal to zero and ``vals = [(4, None), (5, 6)]`` will create
     a bytestring that has 4 random bytes followed by 5 bytes of value 0x06.
     """
     def __init__(self, vals, rng=None):
