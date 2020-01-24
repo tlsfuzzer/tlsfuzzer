@@ -32,6 +32,7 @@ to see wanted, but not yet implemented features.
    :caption: Contents:
    :hidden:
 
+   quickstart
    installation
    modules
 
