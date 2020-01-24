@@ -1,5 +1,5 @@
-tlsfuzzer
-=========
+tlsfuzzer API
+=============
 
 .. toctree::
    :maxdepth: 4
