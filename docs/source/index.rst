@@ -33,6 +33,7 @@ to see wanted, but not yet implemented features.
    :hidden:
 
    installation
+   quickstart
    modules
 
 
