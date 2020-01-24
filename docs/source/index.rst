@@ -34,6 +34,7 @@ to see wanted, but not yet implemented features.
 
    installation
    quickstart
+   theory
    modules
 
 
