@@ -32,6 +32,7 @@ from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL, AutoEmptyExtension
 from tlslite.x509certchain import X509CertChain
 from tlslite.x509 import X509
 from tlslite.utils.keyfactory import parsePEMKey
+from tlslite.utils.compat import compatAscii2Bytes
 
 
 version = 3
@@ -116,7 +117,7 @@ def main():
         elif opt == '--cert-required':
             cert_required = True
         elif opt == '--query':
-            pha_query = arg
+            pha_query = compatAscii2Bytes(arg)
         elif opt == '--min-tickets':
             min_tickets = int(arg)
         elif opt == '-k':
