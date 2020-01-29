@@ -1,9 +1,13 @@
 alog
 cavp
 ecdsa
+fuzzer
+fuzzers
+GnuTLS
 http
 kario
 khaitovich
+OpenSSL
 plaintext
 py
 pycrypto
@@ -11,6 +15,9 @@ rsa
 sosedkin
 ssl
 tls
+tlsfuzzer
+tlslite
+tlslite-ng
 tripledes
 utf
 varga
