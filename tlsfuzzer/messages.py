@@ -320,13 +320,13 @@ class CopyVariables(Command):
     """
     Copy current random values of connection to provided arrays.
 
-    Available keys are either 'ClientHello.random', 'ServerHello.random',
-    'ServerHello.session_id' or
-    one of the values in ConnectionState.key (like 'premaster_secret',
-    'master_secret', 'ServerHello.extensions.key_share.key_exchange',
-    'server handshake traffic secret', 'exported master secret',
-    'ServerKeyExchange.key_share', 'ServerKeyExchange.dh_p',
-    'DH shared secret', etc.)
+    Available keys are either ``ClientHello.random``, ``ServerHello.random``,
+    ``ServerHello.session_id`` or
+    one of the values in ConnectionState.key (like ``premaster_secret``,
+    ``master_secret``, ``ServerHello.extensions.key_share.key_exchange``,
+    ``server handshake traffic secret``, ``exported master secret``,
+    ``ServerKeyExchange.key_share``, ``ServerKeyExchange.dh_p``,
+    ``DH shared secret``, etc.)
 
     The log should be a dict (where keys have the above specified names)
     and values should be arrays (the values will be appended there).
@@ -334,7 +334,10 @@ class CopyVariables(Command):
     This node needs to be put right after a node that calculate or use the
     specific values to guarantee correct collection (i.e. if the conversation
     performs a renegotiation, it needs to be placed after both
-    ExpectServerHello() nodes to collect both 'ServerHello.random' values).
+    :py:class:`ExpectServerHello` nodes to collect both
+    ``ServerHello.random`` values).
+
+    :param dict(str,list) log: dictionary with names of values to collect
     """
 
     def __init__(self, log):
@@ -634,29 +637,31 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
     """
     Generator for TLS handshake protocol Client Key Exchange messages.
 
-    @type dh_Yc: int
-    @ivar dh_Yc: Override the sent dh_Yc value to the specified one
-    @type padding_subs: dict
-    @ivar padding_subs: Substitutions for the encrypted premaster secret
+    :vartype dh_Yc: int
+    :ivar dh_Yc: Override the sent dh_Yc value to the specified one
+    :vartype padding_subs: dict(int,int)
+    :ivar padding_subs: Substitutions for the encrypted premaster secret
        padding bytes (applicable only for the RSA key exchange)
-    @type padding_xors: dict
-    @ivar padding_xors: XORs for the encrypted premaster secret padding bytes
+    :vartype padding_xors: dict(int,int)
+    :ivar padding_xors: XORs for the encrypted premaster secret padding bytes
        (applicable only for the RSA key exchange)
-    @type ecdh_Yc: bytearray
-    @ivar ecdh_Yc: encoded ECC point being the client key share for the
+    :vartype ecdh_Yc: bytearray
+    :ivar ecdh_Yc: encoded ECC point being the client key share for the
        key exchange
-    @type encrypted_premaster: bytearray
-    @ivar encrypted_premaster: the premaster secret after it was encrypted,
+    :vartype encrypted_premaster: bytearray
+    :ivar encrypted_premaster: the premaster secret after it was encrypted,
        as it will be sent on the wire
-    @type modulus_as_encrypted_premaster: boolean
-    @ivar modulus_as_encrypted_premaster: if True, set the encrypted
+    :vartype modulus_as_encrypted_premaster: bool
+    :ivar modulus_as_encrypted_premaster: if True, set the encrypted
        premaster (the value seen on the wire) to the server's certificate
        modulus (the server's public key)
-    @type p_as_share: boolean
-    @ivar p_as_share: set the key share to the value p provided by server
+    :vartype p_as_share: bool
+    :ivar p_as_share: set the key share to the value :math:`p` provided by
+       server
        in Server Key Exchange (applicable only to FFDHE key exchange)
-    @type p_1_as_share: boolean
-    @ivar p_1_as_share: set the key share to the value p-1, as provided by
+    :vartype p_1_as_share: bool
+    :ivar p_1_as_share: set the key share to the value :math:`p - 1`, as
+       provided by
        server in Server Key Exchange (applicable only to FFDHE key exchange
        with safe primes)
     """
@@ -854,8 +859,8 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
     """
     Generator for TLS handshake protocol Certificate Verify message.
 
-    @type msg_alg: tuple of two integers
-    @ivar msg_alg: signature and hash algorithm to be set on in the
+    :vartype msg_alg: tuple(int,int)
+    :ivar msg_alg: signature and hash algorithm to be set on in the
       digitally-signed structure of TLSv1.2 Certificate Verify message.
       By default the first matching algorithm from CertificateRequest that
       matches our key or sent certificate. If no CertificateRequest received
@@ -867,44 +872,45 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
       HashAlgorithm) and the second value specifies the signature algorithm
       (from SignatureAlgorithm). Or the value from SignatureScheme.
 
-    @type msg_version: tuple of two integers
-    @ivar msg_version: protocol version that the message is to use,
+    :vartype msg_version: tuple(int,int)
+    :ivar msg_version: protocol version that the message is to use,
       default is taken from current connection state
 
-    @type sig_version: tuple of two integers
-    @ivar sig_version: protocol version to use for calculating the verify bytes
+    :vartype sig_version: tuple(int,int)
+    :ivar sig_version: protocol version to use for calculating the verify bytes
       for the signature (overrides msg_version, but just for the signature).
       Equal to msg_version by default.
 
-    @type sig_alg: tuple of two integers
-    @ivar sig_alg: hash and signature algorithm to be used for creating the
+    :vartype sig_alg: tuple(int,int)
+    :ivar sig_alg: hash and signature algorithm to be used for creating the
       signature in the message. Equal to msg_alg by default. Requires the
-      C{sig_version} to be set to at least TLSv1.2 to be effective.
+      ``sig_version`` to be set to at least TLSv1.2 to be effective.
 
-    @type signature: bytearray
-    @ivar signature: bytes to sent as the signature of the message
+    :vartype signature: bytearray
+    :ivar signature: bytes to sent as the signature of the message
 
-    @type padding_xors: dictionary
-    @ivar padding_xors: which bytes of the pre-encryption RSA padding or
+    :vartype padding_xors: dict(int,int)
+    :ivar padding_xors: which bytes of the pre-encryption RSA padding or
         post-signature ECDSA signature should be xored and with what values
 
-    @type padding_subs: dictionary
-    @ivar padding_subs: same as padding_xors but substitues specified bytes
+    :vartype padding_subs: dict(int,int)
+    :ivar padding_subs: same as padding_xors but substitues specified bytes
         instead
 
-    @type mgf1_hash: str
-    @ivar mgf1_hash: name of the hash to be used for calculating MGF1,
+    :vartype mgf1_hash: str
+    :ivar mgf1_hash: name of the hash to be used for calculating MGF1,
         effective only if sig_alg is set to a RSA_PSS algorithm and sig_version
         is TLS 1.2 or greater. By default the hash taken from sig_alg.
 
-    @type rsa_pss_salt_len: int
-    @ivar rsa_pss_salt_len: length of the salt (in bytes) used in signature.
+    :vartype rsa_pss_salt_len: int
+    :ivar rsa_pss_salt_len: length of the salt (in bytes) used in signature.
         Effective only if sig_alg is set to a RSA_PSS algorithm and sig_version
         is TLS 1.2 or greater. By default it's equal to the length of the
         hash taken from sig_alg.
 
-    @type private_key: RSAKey or ECDSAKey
-    @ivar private_key: key that will be used for signing the message
+    :vartype private_key: :py:class:`~tlslite.utils.rsakey.RSAKey` or
+        :py:class:`~tlslite.utils.ecdsakey.ECDSAKey`
+    :ivar private_key: key that will be used for signing the message
     """
 
     def __init__(self, private_key=None, msg_version=None, msg_alg=None,
@@ -1219,10 +1225,12 @@ class ChangeCipherSpecGenerator(MessageGenerator):
     """
     Generator for TLS Change Cipher Spec messages.
 
-    @note: After sending the ChangeCipherSpec message, in TLS 1.2 and earlier,
-    the record layer will switch to encrypted communication (or newly
-    negotiated keys). In TLS 1.3 the message has no effect on encryption
-    or record layer state.
+    ..  note::
+
+      After sending the ChangeCipherSpec message, in TLS 1.2 and earlier,
+      the record layer will switch to encrypted communication (or newly
+      negotiated keys). In TLS 1.3 the message has no effect on encryption
+      or record layer state.
     """
 
     def __init__(self, extended_master_secret=None, fake=False):
@@ -1285,14 +1293,15 @@ class FinishedGenerator(HandshakeProtocolMessageGenerator):
     """
     Generator for TLS handshake protocol Finished messages.
 
-    @note:
-    The FinishedGenerator may influence the record layer encryption.
-    In SSLv2, the record layer will be configured to expect encrypted
-    records and send encrypted records I{before} the message is sent.
-    In SSLv3 up to TLS 1.2 the message has no impact on state of
-    encryption. In TLS 1.3, I{after} the message is sent, the record layer
-    will be switched to use C{client_application_traffic_secret} keys for
-    I{sending}.
+    .. note::
+
+      The FinishedGenerator may influence the record layer encryption.
+      In SSLv2, the record layer will be configured to expect encrypted
+      records and send encrypted records *before* the message is sent.
+      In SSLv3 up to TLS 1.2 the message has no impact on state of
+      encryption. In TLS 1.3, *after* the message is sent, the record layer
+      will be switched to use ``client_application_traffic_secret`` keys for
+      *sending*.
     """
 
     def __init__(self, protocol=None,
@@ -1456,14 +1465,14 @@ class HeartbeatGenerator(MessageGenerator):
     """
     Generator for heartbeat messages.
 
-    @ivar message_type: the type of the message to send, see
-        HeartbeatMessageType enum for values
-    @type message_type: int
-    @ivar payload: data to be sent to the other size for it to echo it back
-    @type payload: bytearray
-    @ivar padding: payload to be sent to the other side, it should be at least
+    :ivar message_type: the type of the message to send, see
+        :py:class:`HeartbeatMessageType` enum for values
+    :vartype message_type: int
+    :ivar payload: data to be sent to the other size for it to echo it back
+    :vartype payload: bytearray
+    :ivar padding: payload to be sent to the other side, it should be at least
         16 bytes long for the message to be valid
-    @type padding: bytearray
+    :vartype padding: bytearray
     """
 
     def __init__(self, payload,
@@ -1472,18 +1481,18 @@ class HeartbeatGenerator(MessageGenerator):
         """
         Initialise and create instance of object.
 
-        @type payload: bytes-like
-        @param payload: payload to send to the other side; either a reply
+        :type payload: bytes-like
+        :param payload: payload to send to the other side; either a reply
             to received heartbeat request or a value that the other side will
             have to echo
-        @type message_type: int
-        @param message_type: the type of message to send, valid values are
-            defined in L{HeartbeatMessageType} enum
-        @type padding_length: int
-        @param padding_length: the length (in bytes) of the random padding that
+        :type message_type: int
+        :param message_type: the type of message to send, valid values are
+            defined in :py:class:`HeartbeatMessageType` enum
+        :type padding_length: int
+        :param padding_length: the length (in bytes) of the random padding that
             will be generated; 16 by default (if special contents of padding
             are necessary, it's possible to set the
-            L{padding<HeartbeatGenerator.padding>} field in the object's
+            :py:attr:`~HeartbeatGenerator.padding` field in the object's
             instance after the object was initialised)
         """
         super(HeartbeatGenerator, self).__init__()
@@ -1497,8 +1506,8 @@ class HeartbeatGenerator(MessageGenerator):
         """
         Create a Heartbeat message.
 
-        @rtype: L{tlslite.messages.Heartbeat}
-        @return: heartbeat message to be sent to the other side
+        :rtype: `~tlslite.messages.Heartbeat`
+        :return: heartbeat message to be sent to the other side
         """
         del state
         heartbeat = Heartbeat()

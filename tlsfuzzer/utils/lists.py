@@ -8,16 +8,17 @@ import re
 
 def natural_sort_keys(key, _nsre=re.compile('([0-9]+)')):
     """
-    Split the key into a sortable list for the `sorted()` builtin.
+    Split the key into a sortable list for the :py:func:`sorted` builtin.
 
     Natural sort sorts words using dictionary order and numbers using
-    numerical order, so "ab20" will be placed before "ab100".
+    numerical order, so ``ab20`` will be placed before ``ab100``.
 
-    Used with `sorted()` like this:
-    ```
-    a = dict()
-    b = sorted(a, key=natural_sort_keys)
-    ```
+    Used with :py:func:`sorted` like this:
+
+    .. code-block:: python
+
+      a = dict()
+      b = sorted(a, key=natural_sort_keys)
 
     :param key: key used for sorting
 
