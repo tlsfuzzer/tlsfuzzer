@@ -107,9 +107,9 @@ performed the expected error checking.
 .. note::
    Fuzzers generally don't operate in this way.
    Typical fuzzers
-   feed the system under test (SUT) with lots of random or semi-random inputs
-   and check if the SUT doesn't crash, use uninitialised memory or invokes
-   some other undefined behaviour. While tlsfuzzer can generate this
+   feed the system under test (:term:`SUT`) with lots of random or semi-random
+   inputs and check if the :term:`SUT` doesn't crash, use uninitialised memory
+   or invokes some other undefined behaviour. While tlsfuzzer can generate this
    kind of tests, included scripts don't do it—they
    focus on checking if the server behaves as expected, even when they use
    random data for it.
