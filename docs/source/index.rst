@@ -12,17 +12,18 @@ It allows for testing standards-compliance of a given implementation, testing
 for presence of known vulnerabilities as well as fuzzing of the :term:`SSL`
 and :term:`TLS` connections.
 
-Ready-to-use scripts are already provided for testing significant parts of
-the TLS protocols.
+You can find ready to use scripts that test significant parts of :term:`TLS`
+protocols in the source repository.
 
-This framework is commonly used to test OpenSSL, GnuTLS,
-`NSS <https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS>`_ and many
-other implementations.
+The testing of OpenSSL, GnuTLS,
+`NSS <https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS>`_, and
+other implementations commonly includes running tlsfuzzer test cases.
 
-While not all features standardised for :term:`TLS` are supported (it's a work
-in progress), the most common features are fully supported:
-:term:`TLS` 1.2, :term:`TLS` 1.3, RSA certificates, ECDSA certificates, ECDHE
-key exchange, client certificates, AES-GCM, Chacha20-Poly1305 ciphers, etc.
+While tlsfuzzer doesn't support some features of :term:`TLS`,
+it includes the most commonly used ones:
+:term:`TLS` 1.2, :term:`TLS` 1.3, :term:`RSA` certificates, :term:`ECDSA`
+certificates, :term:`ECDHE` key exchange, client certificates, :term:`AES-GCM`,
+Chacha20-Poly1305 ciphers, etc.
 See the
 `issue tracker <https://github.com/tomato42/tlsfuzzer/issues>`_ on GitHub
 to see wanted, but not yet implemented features.
