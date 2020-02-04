@@ -24,3 +24,30 @@ Glossary
      the tests are verifying. Excludes tlsfuzzer itself or systems necessary
      to execute it or tlsfuzzer.
 
+   RSA
+     Rivest Shamir Adleman is an asymmetric cryptosystem commonly used for
+     signing messages or encrypting keys.
+
+   ECDSA
+     Elliptic Curve Digital Signature Algorithm uses the Digital Signature
+     Algorithm with elliptic curves instead of finite field groups.
+     It's an asymmetric cryptosystem, similar to RSA.
+
+   ECDHE
+     Implementation of Diffie-Hellman key exchange algorithm over elliptic
+     curves.
+
+   AES-GCM
+     Advanced Encryption Standard in Galois Counter Mode is an :term:`AEAD`
+     cipher, it encrypts and authenticates data with one operation.
+
+   AEAD
+     Authenticated Encryption with Associated Data, a mode of operation
+     for symmetric ciphers that processes messages and optional additional
+     data as atomic objects: the decryption provides data only if
+     integrity of data is verified, encryption provides ciphertext only
+     when all the data was provided to the encryption function.
+
+   PKIX
+     Public Key Infrastructure for the Internet, described use of X.509
+     certificates in Internet protocols
