@@ -37,6 +37,7 @@ to see wanted, but not yet implemented features.
    quickstart
    installation
    theory
+   writing-tests
    glossary
    modules
 

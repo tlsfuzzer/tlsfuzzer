@@ -49,3 +49,4 @@ plugins:
 exclude_patterns:
  - "tests/*"
  - "scripts/*"
+ - "docs/source/hello-world.py"
