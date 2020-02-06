@@ -4,6 +4,7 @@ ecdsa
 fuzzer
 fuzzers
 GnuTLS
+hostname
 http
 kario
 khaitovich
