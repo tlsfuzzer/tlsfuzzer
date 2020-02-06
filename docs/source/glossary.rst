@@ -12,7 +12,11 @@ Glossary
 
    RFC
      Request For Comments are standards published by Internet Engineering Task
-     Force (IETF), an open standards organisation.
+     Force, an open standards organisation.
+
+   IETF
+     Internet Engineering Task Force is an organisation responsible for
+     providing specifications of protocols used over the Internet.
 
    SSL
      Secure Sockets Layer is an old cryptographic network protocol. It has
@@ -37,6 +41,9 @@ Glossary
      Implementation of Diffie-Hellman key exchange algorithm over elliptic
      curves.
 
+   AES
+     Advanced Encryption Standard is a symmetric block cipher.
+
    AES-GCM
      Advanced Encryption Standard in Galois Counter Mode is an :term:`AEAD`
      cipher, it encrypts and authenticates data with one operation.
@@ -50,4 +57,8 @@ Glossary
 
    PKIX
      Public Key Infrastructure for the Internet, described use of X.509
-     certificates in Internet protocols
+     certificates in Internet protocols.
+
+   TCP
+     Transport Control Protocol is a stream protocol that provides reliable
+     delivery over the Internet Protocol.
