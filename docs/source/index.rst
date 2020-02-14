@@ -38,6 +38,7 @@ to see wanted, but not yet implemented features.
    installation
    theory
    writing-tests
+   advanced-decision-graph
    glossary
    modules
 

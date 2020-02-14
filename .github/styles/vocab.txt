@@ -6,6 +6,7 @@ fuzzers
 GnuTLS
 hostname
 http
+interoperate
 kario
 khaitovich
 OpenSSL

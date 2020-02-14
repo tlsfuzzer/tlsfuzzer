@@ -5,15 +5,15 @@ Test creation
 Network servers use connection timeouts to drop stalled or unused connections.
 For some that happens in a minute or two, for others in seconds.
 Thus, robust test cases require automation.
-tlsfuzzer achieves it through a runner that executes decision trees.
+tlsfuzzer achieves it through a runner that executes decision graphs.
 
-The test scripts included in ``scripts/`` directory build the decision trees
-necessary for testing different scenarios. After building a tree, the runner
+The test scripts included in ``scripts/`` directory build the decision graph
+necessary for testing different scenarios. After building a graph, the runner
 executes it and provides a test result (by raising an exception in case of
 errors).
-The example below builds a single tree and executes it.
+The example below builds a single graph and executes it.
 
-Building decision trees
+Building decision graph
 =======================
 
 To exchange :term:`TLS` messages the script needs to establish a :term:`TCP`
@@ -136,7 +136,7 @@ To advertise it, send an empty ``renegotiation_info`` extension, like so:
     extensions[ExtensionType.renegotiation_info] = renego_ext
 
 After preparing all extensions, create the ClientHello object and attach it to
-the decision tree:
+the decision graph:
 
 .. code:: python
 
@@ -218,8 +218,8 @@ To perform a single ``GET`` with HTTP 1.0, use the following:
     node = node.add_child(ApplicationDataGenerator(request))
     node = node.add_child(ExpectApplicationData())
 
-Closing the connection (alternatives in decision trees)
--------------------------------------------------------
+Closing the connection (alternatives in decision graphs)
+--------------------------------------------------------
 
 To handle slight differences between different ways that servers behave,
 the framework allows specifying alternatives for the
@@ -256,19 +256,21 @@ an Alert before connection close, use the following code:
     node.next_sibling = ExpectClose()
     node.add_child(ExpectClose())
 
-With no more nodes in the tree, the runner closes the connection
+With no more nodes in the graph, the runner closes the connection
 and ignores any data in buffers.
 :py:class:`~.tlsfuzzer.expect.ExpectClose` instead verifies that server didn't
 send any messages before closing the socket.
 
-Executing decision trees
-========================
+You can read more about alternatives in the :ref:`Decision graph` chapter.
+
+Executing decision graphs
+=========================
 
 If you tried to execute this example script now, nothing would happen.
 To actually connect to a server and exchange messages, the runner needs to
-execute the decision tree.
+execute the decision graph.
 
-As an argument the runner takes the root of the decision tree.
+As an argument the runner takes the root of the decision graph.
 In case of unmet expectations (:term:`TCP` connection failure, misbehaviour
 by the server, etc.) the runner raises an exception.
 
@@ -279,7 +281,7 @@ To prepare it execute:
     from tlsfuzzer.runner import Runner
     runner = Runner(root_node)
 
-To execute the decision tree:
+To execute the decision graph:
 
 .. code:: python
 
