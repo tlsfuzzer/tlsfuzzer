@@ -96,17 +96,21 @@ def add_app_data_conversation(conversations, host, port, cipher, dhe, data):
     node = node.add_child(ExpectCertificate())
     if dhe:
         node = node.add_child(ExpectServerKeyExchange())
+
+    # handle servers that ask for client certificates
     node = node.add_child(ExpectCertificateRequest())
     fork = node
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(CertificateGenerator())
 
-    # handle servers which ask for client certificates
+    # handle servers that don't ask for client certificates
     fork.next_sibling = ExpectServerHelloDone()
+
+    # join both paths
     join = ClientKeyExchangeGenerator()
     fork.next_sibling.add_child(join)
-
     node = node.add_child(join)
+
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -137,17 +141,21 @@ def add_handshake_conversation(conversations, host, port, cipher, dhe, data):
     node = node.add_child(ExpectCertificate())
     if dhe:
         node = node.add_child(ExpectServerKeyExchange())
+
+    # handle servers that ask for client certificates
     node = node.add_child(ExpectCertificateRequest())
     fork = node
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(CertificateGenerator())
 
-    # handle servers which ask for client certificates
+    # handle servers that don't ask for client certificates
     fork.next_sibling = ExpectServerHelloDone()
+
+    # join both paths
     join = ClientKeyExchangeGenerator()
     fork.next_sibling.add_child(join)
-
     node = node.add_child(join)
+
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(replace_plaintext(
         FinishedGenerator(),
@@ -271,17 +279,21 @@ def main():
     node = node.add_child(ExpectCertificate())
     if dhe:
         node = node.add_child(ExpectServerKeyExchange())
+
+    # handle servers that ask for client certificates
     node = node.add_child(ExpectCertificateRequest())
     fork = node
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(CertificateGenerator())
 
-    # handle servers which ask for client certificates
+    # handle servers that don't ask for client certificates
     fork.next_sibling = ExpectServerHelloDone()
+
+    # join both paths
     join = ClientKeyExchangeGenerator()
     fork.next_sibling.add_child(join)
-
     node = node.add_child(join)
+
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ExpectChangeCipherSpec())
