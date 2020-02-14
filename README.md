@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/tomato42/tlsfuzzer.svg?branch=master)](https://travis-ci.org/tomato42/tlsfuzzer)
+[![Read the Docs](https://img.shields.io/readthedocs/tlsfuzzer)](https://tlsfuzzer.readthedocs.io/en/latest/)
 [![Coverage Status](https://coveralls.io/repos/tomato42/tlsfuzzer/badge.svg?branch=master)](https://coveralls.io/r/tomato42/tlsfuzzer?branch=master)
 [![Code Climate](https://codeclimate.com/github/tomato42/tlsfuzzer/badges/gpa.svg)](https://codeclimate.com/github/tomato42/tlsfuzzer)
 [![Code Quality: Python](https://img.shields.io/lgtm/grade/python/g/tomato42/tlsfuzzer.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/tomato42/tlsfuzzer/context:python)
