@@ -44,7 +44,7 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
-    print(" -n num         only run `num` random tests instead of a full set")
+    print(" -n num         run 'num' or all(if 0) tests instead of default(10)")
     print("                (excluding \"sanity\" tests)")
     print(" -k file.pem    file with private key for client")
     print(" -c file.pem    file with certificate for client")
@@ -55,7 +55,7 @@ def main():
     """check if obsolete signature algorithm is rejected by server"""
     host = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 10
     run_exclude = set()
     private_key = None
     cert = None
