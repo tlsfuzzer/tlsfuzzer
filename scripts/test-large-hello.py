@@ -43,7 +43,7 @@ def help_msg():
 def main():
     host = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 50
     min_ext = 52
     run_exclude = set()
 

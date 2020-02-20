@@ -55,7 +55,7 @@ def main():
     """Check if server is not vulnerable to Bleichenbacher attack"""
     host = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 50
     run_exclude = set()
     timeout = 1.0
     alert = AlertDescription.bad_record_mac

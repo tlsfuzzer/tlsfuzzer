@@ -53,7 +53,7 @@ def help_msg():
 def main():
     hostname = "localhost"
     port = 4433
-    number_of_alerts = 4
+    number_of_alerts = 0
     run_exclude = set()
     alert_level = AlertLevel.fatal
     alert_description = None

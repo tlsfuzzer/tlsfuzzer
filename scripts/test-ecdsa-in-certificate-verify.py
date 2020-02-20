@@ -55,7 +55,7 @@ def main():
     """check if obsolete signature algorithm is rejected by server"""
     host = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 10
     run_exclude = set()
     private_key = None
     cert = None
