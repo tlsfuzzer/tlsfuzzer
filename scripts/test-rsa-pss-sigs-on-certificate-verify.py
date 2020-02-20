@@ -44,9 +44,8 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
-    print(" -n num         only run `num` long random fuzzing tests")
-    print("                instead of a full set")
-    print("                (excluding \"sanity\" and other short tests)")
+    print(" -n num         run 'num' or all(if 0) tests instead of default(15)")
+    print("                (excluding \"sanity\" tests)")
     print(" -s sigalgs     signature algorithms expected in")
     print("                CertificateRequest. Format is either the new")
     print("                signature scheme (rsa_pss_rsae_sha256) or old one")
@@ -65,7 +64,7 @@ def help_msg():
 def main():
     host = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 15
     run_exclude = set()
     private_key = None
     cert = None

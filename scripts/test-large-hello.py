@@ -33,7 +33,7 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
-    print(" -n num         only run `num` random tests instead of a full set")
+    print(" -n num         run 'num' or all(if 0) tests instead of default(50)")
     print("                (excluding \"sanity\" tests)")
     print(" -m min-ext-no  the minimum extension number to use (default=52)")
     print("                (the test uses random extensions past this number)")
@@ -43,7 +43,7 @@ def help_msg():
 def main():
     host = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 50
     min_ext = 52
     run_exclude = set()
 
