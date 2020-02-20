@@ -16,6 +16,7 @@
      "server_hostname": "localhost",
      "server_port": 4433,
      "environment": {"PYTHONPATH": "."},
+     "common_arguments" : ["-n", "0"],
      "tests" : [
          {"name" : "test-aesccm.py"},
          {"name" : "test-aesccm.py",
@@ -41,7 +42,7 @@
          {"name" : "test-bleichenbacher-workaround.py",
           "arguments" : ["-t", "0.01"],
           "comment" : "test over loopback so 10ms RTT is entirely reasonable"},
-         {"name" : "test-chacha20.py" },
+         {"name" : "test-chacha20.py"},
          {"name" : "test-clienthello-md5.py"},
          {"name" : "test-client-hello-max-size.py" },
          {"name" : "test-client-hello-max-size.py",
@@ -133,11 +134,13 @@
          {"name" : "test-fuzzed-padding.py"},
          {"name" : "test-fuzzed-padding.py",
           "arguments" : ["-d"]},
-         {"name" : "test-fuzzed-plaintext.py"},
          {"name" : "test-fuzzed-plaintext.py",
-          "arguments" : ["-d"]},
+          "arguments" : ["--random", "4096"]},
          {"name" : "test-fuzzed-plaintext.py",
-          "arguments" : ["-C", "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384"]},
+          "arguments" : ["-d", "--random", "4096"]},
+         {"name" : "test-fuzzed-plaintext.py",
+          "arguments" : ["-C", "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
+                         "--random", "4096"]},
          {"name" : "test-heartbeat.py"},
          {"name" : "test-heartbeat.py",
           "arguments" : ["-d"]},
@@ -225,12 +228,12 @@
                          "-x", "rsa_pss_pss_sha512 only"]},
          {"name" : "test-signature-algorithms.py"},
          {"name" : "test-ssl-death-alert.py",
-          "arguments" : ["-n", "0",
+          "arguments" : ["--alerts", "0",
                          "--alert-level", "warning",
                          "--alert-description", "close_notify"],
           "comment" : "tlslite-ng does not allow client to send warning alerts, thus the number of allowed alerts (-n) is 0"},
          {"name" : "test-ssl-death-alert.py",
-          "arguments" : ["-d", "-n", "0",
+          "arguments" : ["-d", "--alerts", "0",
                          "--alert-level", "warning",
                          "--alert-description", "close_notify"],
           "comment" : "tlslite-ng does not allow client to send warning alerts, thus the number of allowed alerts (-n) is 0"},
@@ -267,7 +270,8 @@
           "arguments" : ["-e", "1/4 fragmented keyupdate msg, appdata between",
                          "-e", "2/3 fragmented keyupdate msg, appdata between",
                          "-e", "3/2 fragmented keyupdate msg, appdata between",
-                         "-e", "4/1 fragmented keyupdate msg, appdata between"]},
+                         "-e", "4/1 fragmented keyupdate msg, appdata between"]
+         },
          {"name" : "test-tls13-keyupdate-from-server.py"},
          {"name" : "test-tls13-large-number-of-extensions.py",
           "arguments" : ["--exc", "9",
@@ -356,12 +360,10 @@
           "arguments" : ["-k", "tests/clientRSAPSSKey.pem",
                          "-c", "tests/clientRSAPSSCert.pem"]
           },
-         {"name" : "test-tls13-certificate-verify.py"
-          },
+         {"name" : "test-tls13-certificate-verify.py"},
          {"name" : "test-tls13-ecdsa-in-certificate-verify.py",
           "arguments" : ["-k", "tests/serverECKey.pem",
-                         "-c", "tests/serverECCert.pem"
-                         ]
+                         "-c", "tests/serverECCert.pem"]
           }
      ]
     },
@@ -495,6 +497,7 @@
      "server_hostname": "localhost",
      "server_port": 4433,
      "environment": {"PYTHONPATH": "."},
+     "common_arguments": ["-n", "0"],
      "tests" : [
          {"name": "test-aesccm.py",
           "comments": "script by default uses kRSA, use (EC)DHE instead",
@@ -505,9 +508,8 @@
          },
          {"name": "test-ecdsa-sig-flexibility.py"},
          {"name": "test-fuzzed-plaintext.py",
-          "arguments" : ["-C", "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384"]},
-         {"name" : "test-message-skipping.py",
-          "arguments" : ["-d"]},
+          "arguments" : ["-C", "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384",
+                         "--random", "4096"]},
          {"name" : "test-renegotiation-disabled-client-cert.py",
           "comment" : "tlslite-ng does not implement renegotiation. tlslite-ng#66. The test requires client certs, but since we exclude the runs with them, we don't really use them, so can run it against any server",
           "arguments" : ["-e", "try insecure (legacy) renegotiation",
