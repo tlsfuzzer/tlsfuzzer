@@ -40,7 +40,7 @@ def help_msg():
     print("                      names and not all of them, e.g \"sanity\"")
     print(" -e probe-name        exclude the probe from the list of the ones run")
     print("                      may be specified multiple times")
-    print(" -n number_of_alerts  how many alerts client sends to server,")
+    print(" -n number_of_alerts  how many alerts client sends to server")
     print("                      4 by default")
     print(" -d                   negotiate (EC)DHE instead of RSA key exchange")
     print(" --alert-level        expected Alert.level of the abort")
@@ -53,7 +53,7 @@ def help_msg():
 def main():
     hostname = "localhost"
     port = 4433
-    number_of_alerts = 4
+    number_of_alerts = 0 
     run_exclude = set()
     alert_level = AlertLevel.fatal
     alert_description = None

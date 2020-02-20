@@ -52,9 +52,8 @@ def help_msg():
     print("                Vaues smaller than the default will make the")
     print("                pre-programmed tests more likely while larger")
     print("                values will make them less likely to be executed.")
-    print(" -n num         only run `num` random tests instead of a full set.")
-    print("                1024 by default. 0 to execute all tests")
-    print("                (\"sanity\" tests are always executed)")
+    print(" -n num         run 'num' or all(if 0) tests instead of default(50)")
+    print("                (excluding \"sanity\" tests)")
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
     print(" -C cipher      specify cipher for connection. Use integer value")
     print("                or IETF name. Integer must be prefixed with '0x'")
@@ -191,8 +190,8 @@ def main():
     """Check if incorrect padding and MAC is rejected by server."""
     host = "localhost"
     port = 4433
-    num_limit = 1024
-    rand_limit = None
+    num_limit = 50
+    rand_limit = 200
     run_exclude = set()
     dhe = False
     cipher = None

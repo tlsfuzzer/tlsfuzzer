@@ -43,7 +43,7 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
-    print(" -n num         only run `num` random tests instead of a full set")
+    print(" -n num         run 'num' or all(if 0) tests instead of default(20)")
     print("                (excluding \"sanity\" tests)")
     print(" --exc ext-id   exclude specific extenion id from a list")
     print("                of unassigned extenions,")
@@ -58,7 +58,7 @@ def help_msg():
 def main():
     host = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 20
     run_exclude = set()
     ext_exclude = set()
     exp_sup_groups = False
