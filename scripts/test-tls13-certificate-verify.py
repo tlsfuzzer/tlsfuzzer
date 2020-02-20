@@ -48,9 +48,8 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
-    print(" -n num         only run `num` long random fuzzing tests")
-    print("                instead of a full set")
-    print("                (excluding \"sanity\" and other short tests)")
+    print(" -n num         run 'num' or all(if 0) tests instead of default(10)")
+    print("                (excluding \"sanity\" tests)")
     print(" -s sigalgs     hash and signature algorithm pairs that the server")
     print("                is expected to support. Either pairs of algorithms")
     print("                (\"sha1+ecdsa\"), pairs of identifiers (\"1+1\")")
@@ -113,7 +112,7 @@ def main():
     """Check that server propoerly rejects pkcs1 signatures in TLS 1.3"""
     hostname = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 10
     run_exclude = set()
     cert = None
     private_key = None
