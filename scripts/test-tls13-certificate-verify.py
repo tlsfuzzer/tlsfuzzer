@@ -113,7 +113,7 @@ def main():
     """Check that server propoerly rejects pkcs1 signatures in TLS 1.3"""
     hostname = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 10
     run_exclude = set()
     cert = None
     private_key = None
