@@ -48,7 +48,7 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
-    print(" -n num         only run `num` random tests instead of a full set")
+    print(" -n num         run 'num' or all(if 0) tests instead of default(50)")
     print("                (excluding \"sanity\" tests)")
     print(" --help         this message")
 
@@ -56,7 +56,7 @@ def help_msg():
 def main():
     host = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 50
     run_exclude = set()
 
     argv = sys.argv[1:]
@@ -598,11 +598,17 @@ def main():
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throughout
     sanity_tests = [('sanity', conversations['sanity'])]
-    short_tests = [(k, v) for k, v in conversations.items() if k != 'sanity']
-    long_tests = list(conversations_long.items())
-    long_sampled_tests = sample(long_tests, min(num_limit, len(long_tests)))
-    regular_tests = sample(long_sampled_tests + short_tests,
-                           len(long_sampled_tests) + len(short_tests))
+    if run_only:
+        run_only_short_tests = [(k, v) for k, v in conversations.items() if (k in run_only)]
+        run_only_long_tests = [(k, v) for k, v in conversations_long.items() if (k in run_only)]
+        run_only_long_sampled = sample(run_only_long_sampled, min(num_limit), len(run_only_long_tests))
+        regular_tests = sample(run_only_short_tests + run_only_long_sampled)
+    else:
+        short_tests = [(k, v) for k, v in conversations.items() if    \
+                         (k != 'sanity') and (k not in run_exclude)]
+        long_tests = list(conversations_long.items())
+        long_sampled_tests = sample(long_tests, min(num_limit, len(long_tests)))
+        regular_tests = long_sampled_tests + short_tests
     ordered_tests = chain(sanity_tests, regular_tests, sanity_tests)
 
     for c_name, c_test in ordered_tests:

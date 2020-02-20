@@ -7,7 +7,7 @@ import traceback
 import sys
 import getopt
 from itertools import chain, islice
-
+from random import sample
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
@@ -44,7 +44,7 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
-    print(" -n num         only run `num` random tests instead of a full set")
+    print(" -n num         run 'num' or all(if 0) tests instead of default(10)")
     print("                (excluding \"sanity\" tests)")
     print(" -k file.pem    file with private key for client")
     print(" -c file.pem    file with certificate for client")
@@ -55,7 +55,7 @@ def main():
     """check if obsolete signature algorithm is rejected by server"""
     host = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 10
     run_exclude = set()
     private_key = None
     cert = None
@@ -256,15 +256,19 @@ def main():
 
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throught
-    sanity_test = ('sanity', conversations['sanity'])
-    ordered_tests = chain([sanity_test],
-                          islice(filter(lambda x: x[0] != 'sanity',
-                                        conversations.items()), num_limit),
-                          [sanity_test])
+    sanity_tests = [('sanity', conversations['sanity'])]
+    if run_only:
+        if num_limit > len(run_only):
+            num_limit = len(run_only)
+        run_only_tests = [(k, v) for k, v in conversations.items() if (k in run_only)]
+        sampled_tests = sample(run_only_tests, min(num_limit, len(run_only)))
+    else:
+        regular_tests = [(k, v) for k, v in conversations.items() if    \
+                         (k != 'sanity') and (k not in run_exclude)]
+        sampled_tests = sample(regular_tests, min(num_limit, len(regular_tests)))
+    ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
 
     for c_name, c_test in ordered_tests:
-        if run_only and c_name not in run_only or c_name in run_exclude:
-            continue
         print("{0} ...".format(c_name))
 
         runner = Runner(c_test)
