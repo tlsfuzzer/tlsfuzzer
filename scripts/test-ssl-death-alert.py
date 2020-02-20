@@ -40,13 +40,8 @@ def help_msg():
     print("                      names and not all of them, e.g \"sanity\"")
     print(" -e probe-name        exclude the probe from the list of the ones run")
     print("                      may be specified multiple times")
-<<<<<<< Updated upstream
-    print(" -n number_of_alerts  how many alerts client sends to server")
-    print("                      4 by default")
-=======
     print(" -x probe-name  expect the probe to fail and return good instead of bad")
     print("                may be specified multiple times")
->>>>>>> Stashed changes
     print(" -d                   negotiate (EC)DHE instead of RSA key exchange")
     print(" --alerts num         runs 'num' of alerts. by default(4)")
     print(" --alert-level        expected Alert.level of the abort")
@@ -66,13 +61,8 @@ def main():
     dhe = False
 
     argv = sys.argv[1:]
-<<<<<<< Updated upstream
-    opts, args = getopt.getopt(argv, "h:p:e:n:d",
-                               ["help", "alert-level=",
-=======
-    opts, args = getopt.getopt(argv, "h:p:e:x:n:d",
+    opts, args = getopt.getopt(argv, "h:p:e:x:d",
                                ["help", "alerts", "alert-level=",
->>>>>>> Stashed changes
                                 "alert-description="])
     for opt, arg in opts:
         if opt == '-h':
@@ -81,13 +71,8 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
-<<<<<<< Updated upstream
-        elif opt == '-n':
-            number_of_alerts = int(arg)
-=======
         elif opt == '-x':
             exp_to_fail.add(arg)
->>>>>>> Stashed changes
         elif opt == '-d':
             dhe = True
         elif opt == '--help':

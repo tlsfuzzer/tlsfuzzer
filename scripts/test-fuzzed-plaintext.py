@@ -42,17 +42,10 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
-<<<<<<< Updated upstream
-    print(" --random count generate `count` random tests in addition to the")
-    print("                basic 8192 pre-programmed ones. 8192 by default")
-    print("                for ciphers with 128 bit block size and 16384 for")
-    print("                ciphers with 64 bit block size.")
-=======
     print(" -x probe-name  expect the probe to fail and return good instead of bad")
     print("                may be specified multiple times")
     print(" --random count generate `count` random tests instead of default(200)")
     print("                in addition to the basic 8192 pre-programmed ones.")
->>>>>>> Stashed changes
     # the above counts are twice as large as default rand_limit as we're
     # generating two sets of tests, one for handshake and one for
     # application_data
@@ -198,7 +191,11 @@ def main():
     host = "localhost"
     port = 4433
     num_limit = 50
+<<<<<<< HEAD
     rand_limit = 100
+=======
+    rand_limit = 200
+>>>>>>> Set default test counts directly in test scripts
     run_exclude = set()
     dhe = False
     cipher = None
