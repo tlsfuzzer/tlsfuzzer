@@ -191,8 +191,8 @@ def main():
     """Check if incorrect padding and MAC is rejected by server."""
     host = "localhost"
     port = 4433
-    num_limit = 1024
-    rand_limit = None
+    num_limit = 80
+    rand_limit = 200
     run_exclude = set()
     dhe = False
     cipher = None

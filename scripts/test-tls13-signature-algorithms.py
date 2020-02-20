@@ -51,7 +51,7 @@ def help_msg():
 def main():
     host = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 100
     fatal_alert = "decode_error"
     run_exclude = set()
 
