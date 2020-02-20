@@ -62,7 +62,7 @@ def help_msg():
 def main():
     host = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 50
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
@@ -616,11 +616,15 @@ def main():
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throughout
     sanity_tests = [('sanity', conversations['sanity'])]
-    short_tests = [(k, v) for k, v in conversations.items() if k != 'sanity']
-    long_tests = list(conversations_long.items())
+    if run_only:
+        short_tests = [(k, v) for k, v in conversations.items() if (k in run_only)]
+        long_tests = [(k, v) for k, v in conversations_long.items() if (k in run_only)]
+    else:
+        short_tests = [(k, v) for k, v in conversations.items() if
+                         (k != 'sanity') and (k not in run_exclude)]
+        long_tests = list(conversations_long.items())
     long_sampled_tests = sample(long_tests, min(num_limit, len(long_tests)))
-    regular_tests = sample(long_sampled_tests + short_tests,
-                           len(long_sampled_tests) + len(short_tests))
+    regular_tests = long_sampled_tests + short_tests
     ordered_tests = chain(sanity_tests, regular_tests, sanity_tests)
 
     for c_name, c_test in ordered_tests:

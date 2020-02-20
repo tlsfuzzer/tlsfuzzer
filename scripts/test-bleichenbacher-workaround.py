@@ -41,7 +41,7 @@ def help_msg():
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" -t timeout     how long to wait before assuming the server won't")
     print("                send a message at incorrect time, 1.0s by default")
-    print(" -n num         only run `num` random tests instead of a full set")
+    print(" -n num         run 'num' or all(if 0) tests instead of default(50)")
     print("                (excluding \"sanity\" tests)")
     print(" -a desc        the expected alert description for invalid Finished")
     print("                messages - 20 (bad_record_mac) by default")
@@ -61,7 +61,7 @@ def main():
     """Check if server is not vulnerable to Bleichenbacher attack"""
     host = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 50
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None

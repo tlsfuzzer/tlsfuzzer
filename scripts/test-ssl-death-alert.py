@@ -30,7 +30,7 @@ version = 4
 
 
 def help_msg():
-    print("Usage: <script-name> [-h hostname] [-p port] [-n number_of_alerts]")
+    print("Usage: <script-name> [-h hostname] [-p port] [--alerts number_of_alerts]")
     print("       [[probe-name] ...]")
     print(" -h hostname          name of the host to run the test against")
     print("                      localhost by default")
@@ -40,15 +40,14 @@ def help_msg():
     print("                      names and not all of them, e.g \"sanity\"")
     print(" -e probe-name        exclude the probe from the list of the ones run")
     print("                      may be specified multiple times")
-    print(" -x probe-name  expect the probe to fail. When such probe passes despite being marked like this")
-    print("                it will be reported in the test summary and the whole script will fail.")
-    print("                May be specified multiple times.")
-    print(" -X message     expect the `message` substring in exception raised during")
-    print("                execution of preceding expected failure probe")
-    print("                usage: [-x probe-name] [-X exception], order is compulsory!")
-    print(" -n number_of_alerts  how many alerts client sends to server,")
-    print("                      4 by default")
+    print(" -x probe-name        expect the probe to fail. When such probe passes despite being marked like this")
+    print("                      it will be reported in the test summary and the whole script will fail.")
+    print("                      May be specified multiple times.")
+    print(" -X message           expect the `message` substring in exception raised during")
+    print("                      execution of preceding expected failure probe")
+    print("                      usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" -d                   negotiate (EC)DHE instead of RSA key exchange")
+    print(" --alerts num         sends 'num' of alerts. by default(4)")
     print(" --alert-level        expected Alert.level of the abort")
     print("                      alert from server, fatal by default")
     print(" --alert-description  expected Alert.description of the")
@@ -68,8 +67,8 @@ def main():
     dhe = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:d",
-                               ["help", "alert-level=",
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:d",
+                               ["help", "alerts=", "alert-level=",
                                 "alert-description="])
     for opt, arg in opts:
         if opt == '-h':
@@ -85,13 +84,13 @@ def main():
             if not last_exp_tmp:
                 raise ValueError("-x has to be specified before -X")
             expected_failures[last_exp_tmp] = str(arg)
-        elif opt == '-n':
-            number_of_alerts = int(arg)
         elif opt == '-d':
             dhe = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
+        elif opt == '--alerts':
+            number_of_alerts = flexible_getattr(arg, number_of_alerts)
         elif opt == '--alert-level':
             alert_level = flexible_getattr(arg, AlertLevel)
         elif opt == '--alert-description':
