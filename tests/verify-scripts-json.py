@@ -9,31 +9,36 @@ from sys import argv
 parent_dir = dirname(dirname(abspath(__file__)))
 scriptlist = [f for f in listdir(os.path.join(parent_dir,'scripts')) if isfile(join(os.path.join(parent_dir,'scripts'), f))]
 status = 0
+jsonfile = []
 for arg in argv[1:]:
     missing = []
     try:
-        jsonfile = json.load(open(arg))
+        jsonfile.append(json.load(open(arg)))
     except IOError:
-        print("Please check the input file name, it doesn't appear to exist")
+        print("Please check the '{0}'  file name, it doesn't appear to exist".format(arg))
         status =1
+        exit(status)
         continue
     except ValueError:
-        print("Wrong file type: The input must be a json file")
+        print("Wrong file type:'.{0}' -  The input must be a json file".format(arg.split('.')[1]))
         status =1
+        exit(status)
         continue
     except IndexError:
         print("No input file was provided")
         status =1
+        exit(status)
         continue
-    for f in scriptlist:
-        if f not in str(jsonfile):
-            missing.append(f)
-    if not missing:
-        print(" All scripts are in the json file")
-    else:
-        print("There are {0} scripts that are missing from {1}:".format(len(missing), arg))
-        print("\n".join(missing))
-        status = 1
+
+for f in scriptlist:
+    if f not in str(jsonfile):
+        missing.append(f)
+if not missing:
+    print(" All scripts are in the json file")
+else:
+    print("There are {0} scripts that are missing from {1}:".format(len(missing), arg))
+    print("\n".join(missing))
+    status = 1
 
 missing = []
 for test_script in scriptlist:
