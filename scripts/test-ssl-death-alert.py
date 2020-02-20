@@ -40,9 +40,15 @@ def help_msg():
     print("                      names and not all of them, e.g \"sanity\"")
     print(" -e probe-name        exclude the probe from the list of the ones run")
     print("                      may be specified multiple times")
-    print(" -n number_of_alerts  how many alerts client sends to server,")
+<<<<<<< Updated upstream
+    print(" -n number_of_alerts  how many alerts client sends to server")
     print("                      4 by default")
+=======
+    print(" -x probe-name  expect the probe to fail and return good instead of bad")
+    print("                may be specified multiple times")
+>>>>>>> Stashed changes
     print(" -d                   negotiate (EC)DHE instead of RSA key exchange")
+    print(" --alerts num         runs 'num' of alerts. by default(4)")
     print(" --alert-level        expected Alert.level of the abort")
     print("                      alert from server, fatal by default")
     print(" --alert-description  expected Alert.description of the")
@@ -53,15 +59,20 @@ def help_msg():
 def main():
     hostname = "localhost"
     port = 4433
-    number_of_alerts = 4
+    number_of_alerts = 4 
     run_exclude = set()
     alert_level = AlertLevel.fatal
     alert_description = None
     dhe = False
 
     argv = sys.argv[1:]
+<<<<<<< Updated upstream
     opts, args = getopt.getopt(argv, "h:p:e:n:d",
                                ["help", "alert-level=",
+=======
+    opts, args = getopt.getopt(argv, "h:p:e:x:n:d",
+                               ["help", "alerts", "alert-level=",
+>>>>>>> Stashed changes
                                 "alert-description="])
     for opt, arg in opts:
         if opt == '-h':
@@ -70,13 +81,20 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+<<<<<<< Updated upstream
         elif opt == '-n':
             number_of_alerts = int(arg)
+=======
+        elif opt == '-x':
+            exp_to_fail.add(arg)
+>>>>>>> Stashed changes
         elif opt == '-d':
             dhe = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
+        elif opt == '--alerts':
+            number_of_alerts = int(arg)
         elif opt == '--alert-level':
             alert_level = flexible_getattr(arg, AlertLevel)
         elif opt == '--alert-description':

@@ -42,19 +42,25 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+<<<<<<< Updated upstream
     print(" --random count generate `count` random tests in addition to the")
     print("                basic 8192 pre-programmed ones. 8192 by default")
     print("                for ciphers with 128 bit block size and 16384 for")
     print("                ciphers with 64 bit block size.")
+=======
+    print(" -x probe-name  expect the probe to fail and return good instead of bad")
+    print("                may be specified multiple times")
+    print(" --random count generate `count` random tests instead of default(200)")
+    print("                in addition to the basic 8192 pre-programmed ones.")
+>>>>>>> Stashed changes
     # the above counts are twice as large as default rand_limit as we're
     # generating two sets of tests, one for handshake and one for
     # application_data
     print("                Vaues smaller than the default will make the")
     print("                pre-programmed tests more likely while larger")
     print("                values will make them less likely to be executed.")
-    print(" -n num         only run `num` random tests instead of a full set.")
-    print("                1024 by default. 0 to execute all tests")
-    print("                (\"sanity\" tests are always executed)")
+    print(" -n num         run 'num' or all(if 0) tests instead of default(50)")
+    print("                (excluding \"sanity\" tests)")
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
     print(" -C cipher      specify cipher for connection. Use integer value")
     print("                or IETF name. Integer must be prefixed with '0x'")
@@ -191,8 +197,8 @@ def main():
     """Check if incorrect padding and MAC is rejected by server."""
     host = "localhost"
     port = 4433
-    num_limit = 1024
-    rand_limit = None
+    num_limit = 50
+    rand_limit = 100
     run_exclude = set()
     dhe = False
     cipher = None
@@ -243,13 +249,6 @@ def main():
     block_size = 16
     if cipher in CipherSuite.tripleDESSuites:
         block_size = 8
-
-    if rand_limit is None:
-        if block_size == 16:
-            rand_limit = 4096
-        else:
-            assert block_size == 8
-            rand_limit = 8192
 
     dhe = cipher in CipherSuite.ecdhAllSuites or \
             cipher in CipherSuite.dhAllSuites
