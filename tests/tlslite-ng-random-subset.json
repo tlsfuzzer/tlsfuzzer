@@ -619,7 +619,8 @@
          },
          {"name": "test-ecdsa-sig-flexibility.py"},
          {"name": "test-fuzzed-plaintext.py",
-          "arguments" : ["-C", "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384"]},
+          "arguments" : ["-C", "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384"]
+	  },
          {"name" : "test-renegotiation-disabled-client-cert.py",
           "comment" : "tlslite-ng does not implement renegotiation. tlslite-ng#66. The test requires client certs, but since we exclude the runs with them, we don't really use them, so can run it against any server",
           "arguments" : ["-e", "try insecure (legacy) renegotiation",
