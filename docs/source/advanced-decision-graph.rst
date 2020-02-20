@@ -14,14 +14,16 @@ complex supported one.
 Node fields
 ===========
 
-A decision graph node has two pointers, to a ``child`` and to a ``next_sibling``.
+A decision graph node, a :py:class:`~tlsfuzzer.tree.TreeNode`, has two
+pointers, to a ``child`` and to a ``next_sibling``.
 On initialisation nodes set them to ``None``.
 
 Child nodes
 -----------
 
 When a node matches received message and processes it without errors,
-runner continues execution by switching to the child.
+:py:class:`~tlsfuzzer.runner.Runner` continues execution by switching to the
+child.
 
 If ``child`` points to ``None``, runner closes open connections and ends
 execution.
