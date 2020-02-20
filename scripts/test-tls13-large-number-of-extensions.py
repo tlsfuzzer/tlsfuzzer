@@ -58,7 +58,7 @@ def help_msg():
 def main():
     host = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 20
     run_exclude = set()
     ext_exclude = set()
     exp_sup_groups = False
