@@ -41,8 +41,8 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
-    print(" -n num         only run `num` random tests instead of a full set")
-    print("                (excluding \"sanity\" tests)")
+    print(" -n num         if zero: run all test instead of the default")
+    print("                number of random tests")
     print(" --help         this message")
 
 
