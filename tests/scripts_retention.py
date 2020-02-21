@@ -109,11 +109,12 @@ def flush_queue():
             break
 
 
-def run_clients(tests, srv, expected_size):
+def run_clients(tests,common_args, srv, expected_size):
     good = 0
     bad = 0
     failed = []
     print_all_from_queue()
+    
     for params in tests:
         script = params["name"]
         logger.info("{0}:started".format(script))
@@ -123,7 +124,15 @@ def run_clients(tests, srv, expected_size):
         arguments = params.get("arguments", [])
         arguments = [expected_size if arg == "{expected_size}" else arg for
                      arg in arguments]
-        proc_args.extend(arguments)
+        to_delete = []
+        for number, arg in enumerate(common_args):
+           if (arg in arguments) and ('-' in str(common_args[number])):
+                to_delete.append(number)
+                if not '-' in str(common_args[number+1]):
+                    to_delete.append(number+1)
+        for index in sorted(to_delete, reverse=True):
+            del common_args[index] 
+        proc_args.extend(common_args + arguments)
         my_env = os.environ.copy()
         my_env["PYTHONPATH"]="."
         proc = Popen(proc_args, env=my_env,
@@ -178,9 +187,10 @@ def run_with_json(config_file, srv_path, expected_size):
                                              server_host,
                                              server_port)
         logger.info("Server process started")
-
+        
+        common_args = srv_conf.get("common_arguments", [])
         try:
-            n_good, n_bad, f_cmds = run_clients(srv_conf["tests"], srv,
+            n_good, n_bad, f_cmds = run_clients(srv_conf["tests"],common_args, srv,
                                                 expected_size)
             good += n_good
             bad += n_bad
