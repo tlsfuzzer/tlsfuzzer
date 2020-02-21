@@ -16,6 +16,7 @@
      "server_hostname": "localhost",
      "server_port": 4433,
      "environment": {"PYTHONPATH": "."},
+     "common_arguments": ["-n", "0"],
      "tests" : [
          {"name" : "test-aesccm.py"},
          {"name" : "test-aesccm.py",
@@ -375,6 +376,7 @@
                  "-c", "tests/serverX509Cert.pem",
                  "--reqcert", "localhost:4433"],
      "environment": {"PYTHONPATH" : "."},
+     "common_arguments": ["-n", "0"],
      "tests" : [
          {"name": "test-certificate-malformed.py",
           "arguments" : ["-k", "tests/clientX509Key.pem",
@@ -459,6 +461,7 @@
      "server_hostname": "localhost",
      "server_port": 4433,
      "environment": {"PYTHONPATH": "."},
+     "common_arguments": ["-n", "0"],
      "comment" : "Tests of the SSLv3 implementation",
      "tests" : [
          {"name" : "test-dhe-key-share-random.py"},
@@ -474,6 +477,7 @@
      "server_hostname": "localhost",
      "server_port": 4433,
      "environment": {"PYTHONPATH": "."},
+     "common_arguments": ["-n", "0"],
      "comment" : "Tests of the TLSv1.3 PSK key exchanges with SHA256 PRF",
      "tests" : [
          {"name" : "test-tls13-psk_ke.py"},
@@ -488,6 +492,7 @@
      "server_hostname": "localhost",
      "server_port": 4433,
      "environment": {"PYTHONPATH": "."},
+     "common_arguments": ["-n", "0"],
      "comment" : "Tests of the TLSv1.3 PSK key exchanges with SHA384 PRF",
      "tests" : [
          {"name" : "test-tls13-psk_ke.py",
@@ -503,6 +508,7 @@
      "server_hostname": "localhost",
      "server_port": 4433,
      "environment": {"PYTHONPATH": "."},
+     "common_arguments": ["-n", "0"],
      "tests" : [
         {"name" : "test-tls13-rsapss-signatures.py"},
         {"name" : "test-sig-algs.py",
@@ -532,6 +538,7 @@
      "server_hostname": "localhost",
      "server_port": 4433,
      "environment": {"PYTHONPATH": "."},
+     "common_arguments": ["-n", "0"],
      "tests" : [
          {"name" : "test-downgrade-protection.py",
           "comments": "expects server to support TLSv1.2 by default",
@@ -551,6 +558,7 @@
                  "localhost:4433"],
      "server_hostname": "localhost",
      "server_port": 4433,
+     "common_arguments": ["-n", "0"],
      "environment": {"PYTHONPATH": "."},
      "tests" : [
          {"name" : "test-tls13-post-handshake-auth.py",
@@ -567,6 +575,7 @@
      "server_hostname": "localhost",
      "server_port": 4433,
      "environment": {"PYTHONPATH": "."},
+     "common_arguments": ["-n", "0"],
      "tests" : [
          {"name" : "test-tls13-post-handshake-auth.py",
           "arguments" : ["-k", "tests/clientX509Key.pem",
@@ -593,6 +602,7 @@
      "server_hostname": "localhost",
      "server_port": 4433,
      "environment": {"PYTHONPATH": "."},
+     "common_arguments": ["-n", "0"],
      "tests" : [
          {"name": "test-aesccm.py",
           "comments": "script by default uses kRSA, use (EC)DHE instead",
