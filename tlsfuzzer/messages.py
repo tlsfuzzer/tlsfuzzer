@@ -364,9 +364,17 @@ class CopyVariables(Command):
 
 class PlaintextMessageGenerator(Command):
     """
-    Send a plaintext data record even if encryption is already negotiated.
+    Send a plaintext data record irrespective of encryption state.
 
-    Do not update handshake hashes, record layer state, do not fragment, etc.
+    Does not update handshake hashes, record layer state, does not fragment,
+    etc.
+
+    :ivar int content_type: content type of message, used in record layer
+        header. See :py:class:`~tlslite.constants.ContentType` for well-known
+        values
+    :ivar bytearray ~.data: payload for the record
+    :ivar str ~.description: identifier to print when processing of the node
+        fails
     """
 
     def __init__(self, content_type, data, description=None):
@@ -432,6 +440,13 @@ class RawMessageGenerator(MessageGenerator):
 
     Can generate message with any content_type and any payload. Will
     be encrypted if encryption is negotiated in the connection.
+
+    :ivar int content_type: content type of message, used in record layer
+        header. See :py:class:`~tlslite.constants.ContentType` for well-known
+        values
+    :ivar bytearray ~.data: payload for the record
+    :ivar str ~.description: identifier to print when processing of the node
+        fails
     """
 
     def __init__(self, content_type, data, description=None):
@@ -1522,7 +1537,14 @@ def pad_handshake(generator, size=0, pad_byte=0, pad=None):
     Pad or truncate handshake messages.
 
     Pad or truncate a handshake message by given amount of bytes, use negative
-    size to truncate.
+    size to truncate. Update handshake protocol header to compensate.
+
+    :param MessageGenerator generator: modified message
+    :param int size: number of bytes to add at the end (if positive) or number
+        of bytes to remove at the end of payload (if negative)
+    :param int pad_byte: numerical value of added bytes, must be between
+        0 and 255 inclusive
+    :param bytearray pad: bytes to add at the end of payload
     """
     def new_generate(state, old_generate=generator.generate):
         """Monkey patch for the generate method of the Handshake generators."""
@@ -1552,12 +1574,20 @@ def pad_handshake(generator, size=0, pad_byte=0, pad=None):
 
 
 def truncate_handshake(generator, size=0, pad_byte=0):
-    """Truncate a handshake message."""
+    """
+    Truncate a handshake message.
+
+    See :py:func:`pad_handshake` for inverse of this function
+    """
     return pad_handshake(generator, -size, pad_byte)
 
 
 def substitute_and_xor(data, substitutions, xors):
-    """Apply changes from substitutions and xors to data for fuzzing."""
+    """
+    Apply changes from substitutions and xors to data for fuzzing.
+
+    (Method used internally by tlsfuzzer.)
+    """
     if substitutions is not None:
         for pos in substitutions:
             data[pos] = substitutions[pos]
@@ -1570,7 +1600,22 @@ def substitute_and_xor(data, substitutions, xors):
 
 
 def fuzz_message(generator, substitutions=None, xors=None):
-    """Change arbitrary bytes of the message after write."""
+    """
+    Change arbitrary bytes of the message after write.
+
+    Modified data includes handshake protocol header but doesn't include
+    record header, content type or record-level padding.
+
+    :param MessageGenerator generator: modified message
+    :param dict(int,int) substitutions: modify specified bytes of the message,
+        the keys indicate the positions in the message (negative numbers
+        count from the end of messages), the values of the dictionary specify
+        the values to change the bytes to
+    :param dict(int,int) xors: modify specified bytes of the message,
+        the keys indicate the positions in the message (negative numbers
+        count from the end of messages), the values of the dictionary specify
+        the values to xor with
+    """
     def new_generate(state, old_generate=generator.generate):
         """Monkey patch for the generate method of the Handshake generators."""
         msg = old_generate(state)
@@ -1592,7 +1637,11 @@ def fuzz_message(generator, substitutions=None, xors=None):
 
 
 def post_send_msg_sock_restore(obj, method_name, old_method_name):
-    """Un-Monkey patch a method of msg_sock."""
+    """
+    Un-Monkey patch a method of msg_sock.
+
+    (Method used internally by tlsfuzzer.)
+    """
     def new_post_send(state, obj=obj,
                       method_name=method_name,
                       old_method_name=old_method_name,
@@ -1605,7 +1654,22 @@ def post_send_msg_sock_restore(obj, method_name, old_method_name):
 
 
 def fuzz_mac(generator, substitutions=None, xors=None):
-    """Change arbitrary bytes of the MAC value."""
+    """
+    Change arbitrary bytes of the MAC value.
+
+    Works with stream and CBC cipher suites in SSL 3 up to TLS 1.2.
+    Works with both encrypt then MAC and MAC then encrypt connections.
+
+    :param MessageGenerator generator: modified message
+    :param dict(int,int) substitutions: modify specified bytes of the message,
+        the keys indicate the positions in the message (negative numbers
+        count from the end of messages), the values of the dictionary specify
+        the values to change the bytes to
+    :param dict(int,int) xors: modify specified bytes of the message,
+        the keys indicate the positions in the message (negative numbers
+        count from the end of messages), the values of the dictionary specify
+        the values to xor with
+    """
     def new_generate(state, self=generator,
                      old_generate=generator.generate,
                      substitutions=substitutions,
@@ -1640,7 +1704,22 @@ def fuzz_mac(generator, substitutions=None, xors=None):
 
 
 def fuzz_encrypted_message(generator, substitutions=None, xors=None):
-    """Change arbitrary bytes of the authenticated ciphertext block."""
+    """
+    Change arbitrary bytes of the authenticated ciphertext block.
+
+    Can modify authentication tag of AEAD ciphers and CBC ciphers working
+    in encrypt then MAC mode.
+
+    :param MessageGenerator generator: modified message
+    :param dict(int,int) substitutions: modify specified bytes of the message,
+        the keys indicate the positions in the message (negative numbers
+        count from the end of messages), the values of the dictionary specify
+        the values to change the bytes to
+    :param dict(int,int) xors: modify specified bytes of the message,
+        the keys indicate the positions in the message (negative numbers
+        count from the end of messages), the values of the dictionary specify
+        the values to xor with
+    """
     def new_generate(state, self=generator,
                      old_generate=generator.generate,
                      substitutions=substitutions,
@@ -1690,13 +1769,23 @@ def fuzz_padding(generator, min_length=None, substitutions=None, xors=None):
     """
     Change the padding of the message.
 
-    the min_length specifies the minimum length of the padding created,
-    including the byte specifying length of padding
+    Works with CBC ciphers only.
 
-    substitutions and xors are dictionaries that specify the values to which
-    the padding should be set, note that the "-1" position is the byte with
-    length of padding while "-2" is the last byte of padding (if padding
+    Note: the "-1" position is the byte with
+    the length of padding while "-2" is the last byte of padding (if padding
     has non-zero length)
+
+    :param MessageGenerator generator: modified message
+    :param int min_length: the minimum length of padding created, including
+        the byte specifying length of padding, must be smaller than 256
+    :param dict(int,int) substitutions: modify specified bytes of the message,
+        the keys indicate the positions in the message (negative numbers
+        count from the end of messages), the values of the dictionary specify
+        the values to change the bytes to
+    :param dict(int,int) xors: modify specified bytes of the message,
+        the keys indicate the positions in the message (negative numbers
+        count from the end of messages), the values of the dictionary specify
+        the values to xor with
     """
     if min_length is not None and min_length >= 256:
         raise ValueError("Padding cannot be longer than 255 bytes")
@@ -1796,12 +1885,20 @@ def fuzz_plaintext(generator, substitutions=None, xors=None):
     Get access to all data before encryption, including the IV, MAC and
     padding.
 
-    Note: works only with CBC ciphers. in EtM mode will not include MAC.
+    Works only with CBC ciphers. in EtM mode will not include MAC.
 
-    substitutions and xors are dictionaries that specify the values to which
-    the plaintext should be set, note that the "-1" position is the byte with
+    Note: the "-1" position is the byte with
     length of padding while "-2" is the last byte of padding (if padding
     has non-zero length)
+
+    :param dict(int,int) substitutions: modify specified bytes of the message,
+        the keys indicate the positions in the message (negative numbers
+        count from the end of messages), the values of the dictionary specify
+        the values to change the bytes to
+    :param dict(int,int) xors: modify specified bytes of the message,
+        the keys indicate the positions in the message (negative numbers
+        count from the end of messages), the values of the dictionary specify
+        the values to xor with
     """
     def new_generate(state, self=generator,
                      old_generate=generator.generate,

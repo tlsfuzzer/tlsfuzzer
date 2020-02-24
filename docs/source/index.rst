@@ -39,6 +39,7 @@ to see wanted, but not yet implemented features.
    theory
    writing-tests
    advanced-decision-graph
+   modifying-messages
    glossary
    modules
 
