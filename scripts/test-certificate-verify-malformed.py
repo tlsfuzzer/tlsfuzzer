@@ -16,7 +16,7 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         CertificateGenerator, CertificateVerifyGenerator, \
         AlertGenerator, pad_handshake, TCPBufferingEnable, \
         TCPBufferingDisable, TCPBufferingFlush, truncate_handshake, \
-        fuzz_message, RawMessageGenerator
+        fuzz_message
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectCertificateRequest, \

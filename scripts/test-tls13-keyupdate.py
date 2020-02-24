@@ -11,8 +11,8 @@ from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        KeyUpdateGenerator, RawMessageGenerator, split_message, \
-        FlushMessageList, PopMessageFromList, truncate_handshake, \
+        KeyUpdateGenerator, split_message, \
+        FlushMessageList, truncate_handshake, \
         pad_handshake
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \

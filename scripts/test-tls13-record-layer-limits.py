@@ -12,7 +12,7 @@ from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        SetMaxRecordSize, SetRecordVersion, TCPBufferingEnable, \
+        SetMaxRecordSize, TCPBufferingEnable, \
         TCPBufferingDisable, TCPBufferingFlush, PlaintextMessageGenerator, \
         fuzz_encrypted_message, SetPaddingCallback
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \

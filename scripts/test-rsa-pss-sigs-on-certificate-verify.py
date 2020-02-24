@@ -13,7 +13,7 @@ from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        fuzz_message, CertificateGenerator, CertificateVerifyGenerator, \
+        CertificateGenerator, CertificateVerifyGenerator, \
         TCPBufferingEnable, TCPBufferingDisable, TCPBufferingFlush
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
