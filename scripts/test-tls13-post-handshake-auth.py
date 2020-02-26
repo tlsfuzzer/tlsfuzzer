@@ -156,7 +156,7 @@ def main():
         bytearray(b"GET / HTTP/1.0\r\n\r\n")))
 
     for _ in range(min_tickets):
-        node = node.add_child(ExpectNewSessionTicket(note="counted"))
+        node = node.add_child(ExpectNewSessionTicket(description="counted"))
 
     # This message is optional and may show up 0 to many times
     cycle = ExpectNewSessionTicket()
@@ -206,10 +206,10 @@ def main():
             bytearray(pha_query)))
 
     for _ in range(min_tickets):
-        node = node.add_child(ExpectNewSessionTicket(note="counted"))
+        node = node.add_child(ExpectNewSessionTicket(description="counted"))
 
     # This message is optional and may show up 0 to many times
-    cycle = ExpectNewSessionTicket(note="first set")
+    cycle = ExpectNewSessionTicket(description="first set")
     node = node.add_child(cycle)
     node.add_child(cycle)
 
@@ -225,7 +225,7 @@ def main():
 
     # just like after the first handshake, after PHA, the NST can be sent
     # multiple times
-    cycle = ExpectNewSessionTicket(note="second set")
+    cycle = ExpectNewSessionTicket(description="second set")
     node = node.add_child(cycle)
     node.add_child(cycle)
 
@@ -274,10 +274,10 @@ def main():
             bytearray(pha_query)))
 
     for _ in range(min_tickets):
-        node = node.add_child(ExpectNewSessionTicket(note="counted"))
+        node = node.add_child(ExpectNewSessionTicket(description="counted"))
 
     # This message is optional and may show up 0 to many times
-    cycle = ExpectNewSessionTicket(note="first set")
+    cycle = ExpectNewSessionTicket(description="first set")
     node = node.add_child(cycle)
     node.add_child(cycle)
 
@@ -294,7 +294,7 @@ def main():
 
     # just like after the first handshake, after PHA, the NST can be sent
     # multiple times
-    cycle = ExpectNewSessionTicket(note="second set")
+    cycle = ExpectNewSessionTicket(description="second set")
     node = node.add_child(cycle)
     node.add_child(cycle)
 
@@ -304,7 +304,7 @@ def main():
     # but KeyUpdate can be sent asynchonously, then NST will be received
     # after KeyUpdate
 
-    cycle = ExpectNewSessionTicket(note="third set")
+    cycle = ExpectNewSessionTicket(description="third set")
     node = node.next_sibling.add_child(cycle)
     node.add_child(cycle)
 
@@ -352,10 +352,10 @@ def main():
             bytearray(pha_query)))
 
     for _ in range(min_tickets):
-        node = node.add_child(ExpectNewSessionTicket(note="counted"))
+        node = node.add_child(ExpectNewSessionTicket(description="counted"))
 
     # This message is optional and may show up 0 to many times
-    cycle = ExpectNewSessionTicket(note="first set")
+    cycle = ExpectNewSessionTicket(description="first set")
     node = node.add_child(cycle)
     node.add_child(cycle)
 
@@ -375,7 +375,7 @@ def main():
     else:
         # just like after the first handshake, after PHA, the NST can be sent
         # multiple times
-        cycle = ExpectNewSessionTicket(note="second set")
+        cycle = ExpectNewSessionTicket(description="second set")
         node = node.add_child(cycle)
         node.add_child(cycle)
 
@@ -422,7 +422,7 @@ def main():
             bytearray(pha_query)))
 
     for _ in range(min_tickets):
-        node = node.add_child(ExpectNewSessionTicket(note="counted"))
+        node = node.add_child(ExpectNewSessionTicket(description="counted"))
 
     # This message is optional and may show up 0 to many times
     cycle = ExpectNewSessionTicket()
