@@ -1675,9 +1675,9 @@ class ExpectHelloRequest(ExpectHandshake):
         # check if it is well-formed
         HelloRequest().parse(parser)
 
-	def __repr__(self):
-            """Return human readable representation of object."""
-            return self._repr(['note'])
+    def __repr__(self):
+        """Return human readable representation of object."""
+        return self._repr(['note'])
 
 class ExpectAlert(Expect):
     """Processing TLS Alert message"""
