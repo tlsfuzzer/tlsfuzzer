@@ -56,4 +56,14 @@ class TreeNode(object):
         """
         raise NotImplementedError("Subclasses need to implement this!")
 
+    def _repr(self, attributes):
+        """
+        Return a text representation of the object.
 
+        :param list(str) attributes: names of attributes of the object that
+            will be included in the text representation
+        """
+        return "{0}({1})".format(
+            self.__class__.__name__,
+            ", ".join("{0}={1!r}".format(name, getattr(self, name)) for name
+                      in attributes if getattr(self, name) is not None))

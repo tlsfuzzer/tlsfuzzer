@@ -1641,9 +1641,7 @@ class ExpectNewSessionTicket(ExpectHandshake):
 
     def __repr__(self):
         """Return human readable representation of object."""
-        return "ExpectNewSessionTicket({0})".format(
-            ", ".join("{0}={1!r}".format(name, getattr(self, name)) for name in
-                      ['description'] if getattr(self, name) is not None))
+        return self._repr(['description'])
 
 
 class ExpectHelloRequest(ExpectHandshake):
@@ -1681,9 +1679,8 @@ class ExpectHelloRequest(ExpectHandshake):
         HelloRequest().parse(parser)
 
     def __repr__(self):
-        return "ExpectHelloRequest({0})".format(
-            ", ".join("{0}={1!r}".format(name, getattr(self, name)) for name in
-                      ['description'] if getattr(self, name) is not None))
+        """Return human readable representation of object."""
+        return self._repr(['description'])
 
 
 class ExpectAlert(Expect):
