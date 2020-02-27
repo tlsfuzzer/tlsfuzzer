@@ -388,7 +388,7 @@ def main():
         # waiting for client Finished) but will abort reading of the
         # Finished after one record
         no_message = node.add_child(ExpectNoMessage(0.001))
-        nst = ExpectNewSessionTicket(note='first')
+        nst = ExpectNewSessionTicket(description='first')
         no_message.next_sibling = nst
         nst.add_child(no_message)
         node = no_message
@@ -405,7 +405,7 @@ def main():
         node.next_sibling = close_node
 
         # This message may be sent right after server finished
-        cycle = ExpectNewSessionTicket(note='second')
+        cycle = ExpectNewSessionTicket(description='second')
         node = node.add_child(cycle)
         node.add_child(cycle)
 

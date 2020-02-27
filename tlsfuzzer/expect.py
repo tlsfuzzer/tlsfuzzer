@@ -21,7 +21,7 @@ from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
         ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus, \
         CertificateVerify, EncryptedExtensions, NewSessionTicket, Heartbeat,\
-        KeyUpdate
+        KeyUpdate, HelloRequest
 from tlslite.extensions import TLSExtension, ALPNExtension
 from tlslite.utils.codec import Parser, Writer
 from tlslite.utils.compat import b2a_hex
@@ -1606,25 +1606,26 @@ class ExpectEncryptedExtensions(_ExpectExtensionsMessage):
 class ExpectNewSessionTicket(ExpectHandshake):
     """Processing TLS handshake protocol new session ticket message."""
 
-    def __init__(self, note=None):
+    def __init__(self, description=None):
         """
         Initialise object.
 
         .. note::
-        the ``note`` parameter MUST be specified as a keyword argument,
-        i.e. read the definition as ``(self, *, note=None)`` (see PEP 3102).
-        Otherwise the behaviour of this node is not guaranteed if new
-        arguments are added to it (as they will be added *before* the ``note``
-        argument).
+            The ``description`` parameter MUST be specified
+            as a keyword argument, i.e. read the definition as
+            ``(self, *, description=None)`` (see PEP 3102).
+            Otherwise the behaviour of this node is not guaranteed if new
+            arguments are added to it (as they will be added *before*
+            the ``description`` argument).
 
-        :type note: str
-        :param note: name or comment attached to the node, will be printed
-           when str() or repr() is called on the node
+        :param str description: name or comment attached to the node,
+            it will be printed when :py:func:`str` or :py:func:`repr` is
+            called on the node.
         """
         super(ExpectNewSessionTicket, self).__init__(
             ContentType.handshake,
             HandshakeType.new_session_ticket)
-        self.note = note
+        self.description = description
 
     def process(self, state, msg):
         """Parse, verify and process the message."""
@@ -1640,9 +1641,46 @@ class ExpectNewSessionTicket(ExpectHandshake):
 
     def __repr__(self):
         """Return human readable representation of object."""
-        return "ExpectNewSessionTicket({0})".format(
-            ", ".join("{0}={1!r}".format(name, getattr(self, name)) for name in
-                      ['note'] if getattr(self, name) is not None))
+        return self._repr(['description'])
+
+
+class ExpectHelloRequest(ExpectHandshake):
+    """Processing of TLS handshake protocol hello request message."""
+
+    def __init__(self, description=None):
+        """
+        Initialise object.
+
+        .. note::
+            The ``description`` parameter MUST be specified
+            as a keyword argument, i.e. read the definition as
+            ``(self, *, description=None)`` (see PEP 3102).
+            Otherwise the behaviour of this node is not guaranteed if new
+            arguments are added to it (as they will be added *before*
+            the ``description`` argument).
+
+        :param str description: name or comment attached to the node,
+            it will be printed when :py:func:`str` or :py:func:`repr` is
+            called on the node.
+        """
+        super(ExpectHelloRequest, self).__init__(
+            ContentType.handshake,
+            HandshakeType.hello_request)
+        self.description = description
+
+    def process(self, state, msg):
+        """Parse, verify and process the message."""
+        assert msg.contentType == ContentType.handshake
+        parser = Parser(msg.write())
+        hs_type = parser.get(1)
+        assert hs_type == HandshakeType.hello_request
+
+        # check if it is well-formed
+        HelloRequest().parse(parser)
+
+    def __repr__(self):
+        """Return human readable representation of object."""
+        return self._repr(['description'])
 
 
 class ExpectAlert(Expect):
