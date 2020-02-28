@@ -40,6 +40,8 @@ def help_msg():
     print("                      names and not all of them, e.g \"sanity\"")
     print(" -e probe-name        exclude the probe from the list of the ones run")
     print("                      may be specified multiple times")
+    print(" -x probe-name  expect the probe to fail and return good instead of bad")
+    print("                may be specified multiple times")
     print(" -n number_of_alerts  how many alerts client sends to server")
     print("                      4 by default")
     print(" -d                   negotiate (EC)DHE instead of RSA key exchange")
@@ -55,12 +57,13 @@ def main():
     port = 4433
     number_of_alerts = 4 
     run_exclude = set()
+    exp_to_fail = set()
     alert_level = AlertLevel.fatal
     alert_description = None
     dhe = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:d",
+    opts, args = getopt.getopt(argv, "h:p:e:x:n:d",
                                ["help", "alert-level=",
                                 "alert-description="])
     for opt, arg in opts:
@@ -70,6 +73,8 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-x':
+            exp_to_fail.add(arg)
         elif opt == '-n':
             number_of_alerts = int(arg)
         elif opt == '-d':
@@ -176,13 +181,13 @@ def main():
 
         runner = Runner(conversation)
 
-        res = True
+        res = c_name not in exp_to_fail
         try:
             runner.run()
         except Exception:
             print("Error while processing")
             print(traceback.format_exc())
-            res = False
+            res = not res
 
         if res:
             good += 1

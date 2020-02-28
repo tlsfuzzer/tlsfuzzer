@@ -45,6 +45,8 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -x probe-name  expect the probe to fail and return good instead of bad")
+    print("                may be specified multiple times")
     print(" -s sigalgs     hash and signature algorithm pairs that the server")
     print("                is expected to support. \"sha512+rsa sha384+rsa ")
     print("                sha256+rsa sha224+rsa sha1+rsa\" by default")
@@ -60,6 +62,7 @@ def main():
     hostname = "localhost"
     port = 4433
     run_exclude = set()
+    exp_to_fail = set()
     cert = None
     private_key = None
 
@@ -83,7 +86,7 @@ def main():
                   ClientCertificateType.ecdsa_sign]
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:s:k:c:T:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:s:k:c:T:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -91,6 +94,8 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-x':
+            exp_to_fail.add(arg)
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -304,13 +309,13 @@ def main():
 
         runner = Runner(c_test)
 
-        res = True
+        res = c_name not in exp_to_fail
         try:
             runner.run()
         except:
             print("Error while processing")
             print(traceback.format_exc())
-            res = False
+            res = not res
 
         if res:
             good += 1

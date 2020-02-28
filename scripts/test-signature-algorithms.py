@@ -47,6 +47,8 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -x probe-name  expect the probe to fail and return good instead of bad")
+    print("                may be specified multiple times")
     print(" --no-sha1      expect conversations with explicit/implicit sha1")
     print("                to fail")
     print(" --ecdsa        Use ecdsa sigalgs instead of rsa.")
@@ -58,12 +60,13 @@ def main():
     port = 4433
     fatal_alert = "decode_error"
     run_exclude = set()
+    exp_to_fail = set()
     no_sha1 = False
     expected_signature = SignatureAlgorithm.rsa
     expected_sig_list = RSA_SIG_ALL
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:", ["help", "alert=", "no-sha1", "ecdsa"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:", ["help", "alert=", "no-sha1", "ecdsa"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -71,6 +74,8 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-x':
+            exp_to_fail.add(arg)
         elif opt == '--alert':
             fatal_alert = arg
         elif opt == '--no-sha1':
@@ -737,13 +742,13 @@ def main():
 
         runner = Runner(c_test)
 
-        res = True
+        res = c_name not in exp_to_fail
         try:
             runner.run()
         except:
             print("Error while processing")
             print(traceback.format_exc())
-            res = False
+            res = not res
 
         if res:
             good+=1

@@ -41,6 +41,8 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -x probe-name  expect the probe to fail and return good instead of bad")
+    print("                may be specified multiple times")
     print(" -n num         only run `num` random tests instead of a full set")
     print("                (excluding \"sanity\" tests)")
     print(" --help         this message")
@@ -53,10 +55,11 @@ def main():
     num_limit = None
     fatal_alert = "insufficient_security"
     run_exclude = set()
+    exp_to_fail = set()
     sig_algs = None  # `sigalgs` w/o underscore is used for client certificates
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:S:e:n:", ["help", "alert="])
+    opts, args = getopt.getopt(argv, "h:p:S:e:x:n:", ["help", "alert="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -66,6 +69,8 @@ def main():
             sig_algs = sig_algs_to_ids(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-x':
+            exp_to_fail.add(arg)
         elif opt == '-n':
             num_limit = int(arg)
         elif opt == '--alert':
@@ -406,13 +411,13 @@ def main():
 
         runner = Runner(c_test)
 
-        res = True
+        res = c_name not in exp_to_fail
         try:
             runner.run()
         except Exception:
             print("Error while processing")
             print(traceback.format_exc())
-            res = False
+            res = not res
 
         if res:
             good += 1

@@ -47,6 +47,8 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -x probe-name  expect the probe to fail and return good instead of bad")
+    print("                may be specified multiple times")
     print(" -n num         run 'num' or all(if 0) tests instead of default(50)")
     print("                (excluding \"sanity\" tests)")
     print(" -d             Use (EC)DHE instead of RSA for key exchange (for")
@@ -59,10 +61,11 @@ def main():
     port = 4433
     num_limit = 50
     run_exclude = set()
+    exp_to_fail = set()
     dhe = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:d", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:n:d", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -70,6 +73,8 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-x':
+            exp_to_fail.add(arg)
         elif opt == '-n':
             num_limit = int(arg)
         elif opt == '-d':
@@ -5751,13 +5756,13 @@ def main():
 
         runner = Runner(c_test)
 
-        res = True
+        res = c_name not in exp_to_fail
         try:
             runner.run()
         except:
             print("Error while processing")
             print(traceback.format_exc())
-            res = False
+            res = not res
 
         if res:
             good += 1

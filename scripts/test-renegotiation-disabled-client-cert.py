@@ -43,6 +43,8 @@ def help_msg():
     print(" -d             Use (EC)DHE instead of RSA for key exchange")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -x probe-name  expect the probe to fail and return good instead of bad")
+    print("                may be specified multiple times")
     print(" -n num         only run `num` random tests instead of a full set")
     print("                (excluding \"sanity\" tests)")
     print(" --no-ins-renego expect the insecure renegotiation to be unsupported")
@@ -57,6 +59,7 @@ def main():
     port = 4433
     num_limit = None
     run_exclude = set()
+    exp_to_fail = set()
     no_ins_renego = False
     private_key = None
     cert = None
@@ -64,7 +67,7 @@ def main():
     dhe = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:k:c:d", ["help", "no-ins-renego",
+    opts, args = getopt.getopt(argv, "h:p:e:x:n:k:c:d", ["help", "no-ins-renego",
                                                       "early-abort"])
     for opt, arg in opts:
         if opt == '-h':
@@ -73,6 +76,8 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-x':
+            exp_to_fail.add(arg)
         elif opt == '-d':
             dhe = True
         elif opt == '-n':
@@ -316,13 +321,13 @@ def main():
 
         runner = Runner(c_test)
 
-        res = True
+        res = c_name not in exp_to_fail
         try:
             runner.run()
         except Exception:
             print("Error while processing")
             print(traceback.format_exc())
-            res = False
+            res = not res
 
         if res:
             good += 1
