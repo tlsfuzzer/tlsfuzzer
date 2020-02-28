@@ -406,45 +406,27 @@
                  "-c", "tests/serverX509Cert.pem",
                  "--reqcert", "localhost:4433"],
      "environment": {"PYTHONPATH" : "."},
+     "common_arguments" : ["-k", "tests/clientX509Key.pem",
+                           "-c", "tests/clientX509Cert.pem"],
      "tests" : [
-         {"name": "test-certificate-malformed.py",
-          "arguments" : ["-k", "tests/clientX509Key.pem",
-                         "-c", "tests/clientX509Cert.pem"]
-         },
-         {"name" : "test-certificate-request.py",
-          "arguments" : ["-k", "tests/clientX509Key.pem",
-                         "-c", "tests/clientX509Cert.pem"]
-          },
+         {"name": "test-certificate-malformed.py"},
+         {"name" : "test-certificate-request.py"},
          {"name" : "test-certificate-request.py",
           "arguments" : ["-k", "tests/clientRSAPSSKey.pem",
                          "-c", "tests/clientRSAPSSCert.pem"]
           },
-         {"name" : "test-certificate-verify-malformed-sig.py",
-          "arguments" : ["-k", "tests/clientX509Key.pem",
-                         "-c", "tests/clientX509Cert.pem"]
-          },
-         {"name" : "test-certificate-verify-malformed.py",
-          "arguments" : ["-k", "tests/clientX509Key.pem",
-                         "-c", "tests/clientX509Cert.pem"]
-          },
+         {"name" : "test-certificate-verify-malformed-sig.py"},
+         {"name" : "test-certificate-verify-malformed.py"},
+         {"name" : "test-certificate-verify.py"},
          {"name" : "test-certificate-verify.py",
-          "arguments" : ["-k", "tests/clientX509Key.pem",
-                         "-c", "tests/clientX509Cert.pem"]
-          },
-         {"name" : "test-certificate-verify.py",
-          "arguments" : ["-k", "tests/clientX509Key.pem",
-                         "-c", "tests/clientX509Cert.pem", "-d"]
+          "arguments" : ["-d"]
           },
          {"name" : "test-ecdsa-in-certificate-verify.py",
           "arguments" : ["-k", "tests/serverECKey.pem",
                          "-c", "tests/serverECCert.pem"]
           },
          {"name" : "test-rsa-pss-sigs-on-certificate-verify.py",
-          "comment" : "test script has over 2k test cases, limit it",
-          "arguments" : ["-k", "tests/clientX509Key.pem",
-                         "-c", "tests/clientX509Cert.pem",
-                         "-n", "15",
-                         "--illegpar"]
+          "arguments" : ["--illegpar" ,"-n", "15"]
           },
          {"name" : "test-rsa-pss-sigs-on-certificate-verify.py",
           "comment" : "test script has over 2k test cases, limit it",
@@ -453,32 +435,18 @@
                          "-n", "15",
                          "--illegpar"]
           },
-         {"name" : "test-extended-master-secret-extension-with-client-cert.py",
-          "arguments" : ["-k", "tests/clientX509Key.pem",
-                         "-c", "tests/clientX509Cert.pem"]
-          },
-         {"name" : "test-rsa-sigs-on-certificate-verify.py",
-          "arguments" : ["-k", "tests/clientX509Key.pem",
-                         "-c", "tests/clientX509Cert.pem"]
-          },
-         {"name" : "test-tls13-certificate-request.py",
-          "arguments" : ["-k", "tests/clientX509Key.pem",
-                         "-c", "tests/clientX509Cert.pem"]
-          },
+         {"name" : "test-extended-master-secret-extension-with-client-cert.py"},
+         {"name" : "test-rsa-sigs-on-certificate-verify.py"},
+         {"name" : "test-tls13-certificate-request.py"},
          {"name" : "test-tls13-certificate-request.py",
           "comment": "Test with additional extensions",
-          "arguments" : ["-k", "tests/clientX509Key.pem",
-                         "-c", "tests/clientX509Cert.pem",
-                         "-E", "status_request:CH:CT key_share:SH supported_versions:SH"]
+          "arguments" : ["-E", "status_request:CH:CT key_share:SH supported_versions:SH"]
           },
          {"name" : "test-tls13-certificate-verify.py",
           "arguments" : ["-k", "tests/clientRSAPSSKey.pem",
                          "-c", "tests/clientRSAPSSCert.pem", "-n", "10"]
           },
-         {"name" : "test-tls13-certificate-verify.py",
-          "arguments" : ["-k", "tests/clientX509Key.pem",
-                         "-c", "tests/clientX509Cert.pem", "-n", "10"]
-          },
+         {"name" : "test-tls13-certificate-verify.py"},
          {"name" : "test-tls13-ecdsa-in-certificate-verify.py",
           "arguments" : ["-k", "tests/serverECKey.pem",
                          "-c", "tests/serverECCert.pem",
@@ -526,12 +494,11 @@
      "server_hostname": "localhost",
      "server_port": 4433,
      "environment": {"PYTHONPATH": "."},
+     "common_arguments" : ["--psk-sha384"],
      "comment" : "Tests of the TLSv1.3 PSK key exchanges with SHA384 PRF",
      "tests" : [
-         {"name" : "test-tls13-psk_ke.py",
-          "arguments" : ["--psk-sha384"]},
-         {"name" : "test-tls13-psk_dhe_ke.py",
-          "arguments" : ["--psk-sha384"]}
+         {"name" : "test-tls13-psk_ke.py"},
+         {"name" : "test-tls13-psk_dhe_ke.py"}
      ]
     },
     {"server_command": ["python", "-u", "{command}", "server",
