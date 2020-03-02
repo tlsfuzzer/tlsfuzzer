@@ -44,6 +44,8 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -x probe-name  expect the probe to fail and return good instead of bad")
+    print("                may be specified multiple times")
     print(" -k keyfile     file with private key")
     print(" -c certfile    file with certificate of client")
     print(" --help         this message")
@@ -55,11 +57,12 @@ def main():
     hostname = "localhost"
     port = 4433
     run_exclude = set()
+    exp_to_fail = set()
     private_key = None
     cert = None
 
     argv = sys.argv[1:]
-    opts, argv = getopt.getopt(argv, "h:p:e:k:c:", ["help"])
+    opts, argv = getopt.getopt(argv, "h:p:e:x:k:c:", ["help"])
 
     for opt, arg in opts:
         if opt == '-k':
@@ -79,6 +82,8 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-x':
+            exp_to_fail.add(arg)
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -187,7 +192,7 @@ def main():
 
         runner = Runner(c_test)
 
-        res = True
+        res = c_name not in exp_to_fail
         #because we don't want to abort the testing and we are reporting
         #the errors to the user, using a bare except is OK
         #pylint: disable=bare-except
@@ -196,7 +201,7 @@ def main():
         except:
             print("Error while processing")
             print(traceback.format_exc())
-            res = False
+            res = not res
         #pylint: enable=bare-except
 
         if res:

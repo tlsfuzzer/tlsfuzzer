@@ -38,6 +38,8 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -x probe-name  expect the probe to fail and return good instead of bad")
+    print("                may be specified multiple times")
     print(" -n num         only run `num` random tests instead of a full set")
     print("                (excluding \"sanity\" tests)")
     print(" --no-ssl2      expect the server to not support SSL2 Client Hello")
@@ -56,11 +58,12 @@ def main():
     port = 4433
     num_limit = None
     run_exclude = set()
+    exp_to_fail = set()
     dhe = False
     no_ssl2 = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:d", ["help", "no-ssl2"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:n:d", ["help", "no-ssl2"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -68,6 +71,8 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-x':
+            exp_to_fail.add(arg)
         elif opt == '-n':
             num_limit = int(arg)
         elif opt == '-d':
@@ -320,13 +325,13 @@ def main():
 
         runner = Runner(c_test)
 
-        res = True
+        res = c_name not in exp_to_fail
         try:
             runner.run()
         except Exception:
             print("Error while processing")
             print(traceback.format_exc())
-            res = False
+            res = not res
 
         if res:
             good += 1

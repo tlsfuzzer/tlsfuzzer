@@ -42,6 +42,8 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -x probe-name  expect the probe to fail and return good instead of bad")
+    print("                may be specified multiple times")
     print(" --random count generate `count` random tests in addition to the")
     print("                basic 8192 pre-programmed ones. 8192 by default")
     print("                for ciphers with 128 bit block size and 16384 for")
@@ -194,12 +196,13 @@ def main():
     num_limit = 1024
     rand_limit = None
     run_exclude = set()
+    exp_to_fail = set()
     dhe = False
     cipher = None
     splitting = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:dC:", ["help", "random=",
+    opts, args = getopt.getopt(argv, "h:p:e:x:n:dC:", ["help", "random=",
                                                      "1/n-1", "0/n"])
     for opt, arg in opts:
         if opt == '-h':
@@ -208,6 +211,8 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-x':
+            exp_to_fail.add(arg)
         elif opt == '-n':
             num_limit = int(arg)
         elif opt == '--random':
@@ -420,13 +425,13 @@ def main():
 
         runner = Runner(c_test)
 
-        res = True
+        res = c_name not in exp_to_fail
         try:
             runner.run()
         except Exception:
             print("Error while processing")
             print(traceback.format_exc())
-            res = False
+            res = not res
 
         if res:
             good += 1

@@ -37,6 +37,8 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -x probe-name  expect the probe to fail and return good instead of bad")
+    print("                may be specified multiple times")
     print(" --tls-1.3      server does support TLS 1.3")
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
     print(" --help         this message")
@@ -46,11 +48,12 @@ def main():
     host = "localhost"
     port = 4433
     run_exclude = set()
+    exp_to_fail = set()
     dhe = False
     tls13 = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:d", ["help", "tls-1.3"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:d", ["help", "tls-1.3"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -58,6 +61,8 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-x':
+            exp_to_fail.add(arg)
         elif opt == '-d':
             dhe = True
         elif opt == '--tls-1.3':
@@ -601,13 +606,13 @@ def main():
 
         runner = Runner(c_test)
 
-        res = True
+        res = c_name not in exp_to_fail
         try:
             runner.run()
         except Exception:
             print("Error while processing")
             print(traceback.format_exc())
-            res = False
+            res = not res
 
         if res:
             good += 1
