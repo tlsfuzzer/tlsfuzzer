@@ -5772,7 +5772,6 @@ def main():
     print("failed: {0}".format(bad))
     failed_sorted = sorted(failed, key=natural_sort_keys)
     print("  {0}".format('\n  '.join(repr(i) for i in failed_sorted)))
-
     if bad > 0:
         sys.exit(1)
 
