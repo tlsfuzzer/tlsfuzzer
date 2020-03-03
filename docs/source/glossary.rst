@@ -47,6 +47,15 @@ Glossary
    AES-GCM
      Advanced Encryption Standard in Galois Counter Mode is an :term:`AEAD`
      cipher, it encrypts and authenticates data with one operation.
+     In :term:`TLS` those ciphers require version 1.2 or 1.3.
+
+   AES-CCM
+     :term:`AEAD` mode of Advanced Encryption Standard (:term:`AES`) that
+     combines counter mode with the CBC-MAC algorithm.
+     In :term:`TLS` those ciphers require version 1.2 or 1.3.
+
+   AES-CCM8
+     :term:`AES-CCM` with 8 byte long authentication tag.
 
    AEAD
      Authenticated Encryption with Associated Data, a mode of operation
@@ -62,3 +71,27 @@ Glossary
    TCP
      Transport Control Protocol is a stream protocol that provides reliable
      delivery over the Internet Protocol.
+
+   MAC
+     Message Authentication Code is the generic name for data used to verify
+     integrity of the received data. This data is called an authentication tag.
+     There are many MACs defined: :term:`HMAC`, :term:`CMAC`, or :term:`GMAC`.
+
+   HMAC
+     Hash-based :term:`MAC`, commonly used with CBC mode ciphers in :term:`TLS`
+     before version 1.3
+
+   CMAC
+     Cipher-based :term:`MAC`
+
+   GMAC
+     Galois :term:`MAC`, commonly used as part of the :term:`AES-GCM` cipher.
+
+   IV
+     Initialisation Vector, a value used to influence the generated ciphertext,
+     unlike the key, it doesn't have to remain secret
+
+   CBC
+     Cipher Block Chaining, an encryption mode for block ciphers, used
+     since SSLv2 until TLS 1.2.
+

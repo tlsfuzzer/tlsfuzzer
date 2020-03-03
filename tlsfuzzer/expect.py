@@ -515,6 +515,11 @@ class ExpectServerHello(_ExpectExtensionsMessage):
     """
     Parsing TLS Handshake protocol Server Hello messages.
 
+    Processing of the ServerHello message updates the record layer
+    to the version advertisied by the server.
+    Use :py:class:`~tlsfuzzer.messages.SetRecordVersion` to change it earlier
+    to send records with different versions.
+
     .. note::
       Receiving of the ServerHello in TLS 1.3 influences record layer
       encryption. After the message is received, the
