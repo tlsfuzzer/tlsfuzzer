@@ -109,7 +109,7 @@ def flush_queue():
             break
 
 
-def run_clients(tests, srv, expected_size):
+def run_clients(tests, common_args, srv, expected_size):
     good = 0
     bad = 0
     failed = []
@@ -123,7 +123,7 @@ def run_clients(tests, srv, expected_size):
         arguments = params.get("arguments", [])
         arguments = [expected_size if arg == "{expected_size}" else arg for
                      arg in arguments]
-        proc_args.extend(arguments)
+        proc_args.extend(common_args + arguments)
         my_env = os.environ.copy()
         my_env["PYTHONPATH"]="."
         proc = Popen(proc_args, env=my_env,
@@ -178,9 +178,9 @@ def run_with_json(config_file, srv_path, expected_size):
                                              server_host,
                                              server_port)
         logger.info("Server process started")
-
+        common_args = srv_conf.get("common_arguments", [])
         try:
-            n_good, n_bad, f_cmds = run_clients(srv_conf["tests"], srv,
+            n_good, n_bad, f_cmds = run_clients(srv_conf["tests"], common_args, srv,
                                                 expected_size)
             good += n_good
             bad += n_bad
