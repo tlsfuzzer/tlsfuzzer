@@ -331,11 +331,16 @@ class CopyVariables(Command):
 
     Available keys are either ``ClientHello.random``, ``ServerHello.random``,
     ``ServerHello.session_id`` or
-    one of the values in ConnectionState.key (like ``premaster_secret``,
+    one of the values in ``key`` in
+    :py:class:`~tlsfuzzer.runner.ConnectionState`
+    (``premaster_secret``,
     ``master_secret``, ``ServerHello.extensions.key_share.key_exchange``,
-    ``server handshake traffic secret``, ``exported master secret``,
+    ``server handshake traffic secret``, ``exporter master secret``,
     ``ServerKeyExchange.key_share``, ``ServerKeyExchange.dh_p``,
-    ``DH shared secret``, etc.)
+    ``DH shared secret``, ``PSK secret``, ``client_verify_data``,
+    ``server_verify_data``, ``client application traffic secret``,
+    ``server application traffic secret``,
+    ``resumption master secret``, ``early secret``, or ``handshake secret``)
 
     The log should be a dict (where keys have the above specified names)
     and values should be arrays (the values will be appended there).
@@ -343,7 +348,7 @@ class CopyVariables(Command):
     This node needs to be put right after a node that calculate or use the
     specific values to guarantee correct collection (i.e. if the conversation
     performs a renegotiation, it needs to be placed after both
-    :py:class:`ExpectServerHello` nodes to collect both
+    :py:class:`~tlsfuzzer.expect.ExpectServerHello` nodes to collect both
     ``ServerHello.random`` values).
 
     :param dict(str,list) log: dictionary with names of values to collect
