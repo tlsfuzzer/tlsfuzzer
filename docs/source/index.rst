@@ -41,6 +41,7 @@ to see wanted, but not yet implemented features.
    advanced-decision-graph
    modifying-messages
    connection-state
+   statistical-analysis
    glossary
    modules
 
