@@ -95,3 +95,29 @@ Glossary
      Cipher Block Chaining, an encryption mode for block ciphers, used
      since SSLv2 until TLS 1.2.
 
+   CI
+     Continuous Integration is a development practice in which changes are
+     merged to ``master`` branch, commonly after the test coverage for the
+     project is executed.
+
+   SNI
+     Server Name Indication, also known as ``server_name``, is a :term:`TLS`
+     extension for negotiatiating connections to "Virtual Hosts". It allows
+     a server to distinguish requests for different hostnames sharing a
+     single IP address.
+
+   ALPN
+     Application Layer Protocol Negotiation is a :term:`TLS` extension
+     allowing for co-existence of multiple applications protocols on the same
+     :term:`TCP` or :term:`UDP` port. Commonly used to negotiate HTTP/2 over
+     HTTP/1.1.
+
+   NPN
+     Next Protocol Negotiation is a :term:`TLS` extension allowing for use
+     of multiple application layer protocols on the same port. Not
+     standardised. Obsoleted by :term:`ALPN`.
+
+   HSM
+     Hardware Security Module is usually an extension card that is tasked with
+     secure storage of private keys. Some HSMs also provide hardware
+     acceleration for cryptographic operations.

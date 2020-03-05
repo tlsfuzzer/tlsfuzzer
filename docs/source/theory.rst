@@ -114,6 +114,8 @@ performed the expected error checking.
    focus on checking if the server behaves as expected, even when they use
    random data for it.
 
+.. _checking-alerts:
+
 Checking alerts
 ---------------
 
