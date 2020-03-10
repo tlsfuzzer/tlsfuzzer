@@ -22,9 +22,15 @@ logger = logging.getLogger(__name__)
 out = queue.Queue()
 
 pass_count = 0
+skip_count = 0
+xfail_count = 0
 fail_count = 0
+xpass_count = 0
 pass_lock = threading.Lock()
+skip_lock = threading.Lock()
+xfail_lock = threading.Lock()
 fail_lock = threading.Lock()
+xpass_lock = threading.Lock()
 
 
 def process_stdout(name, proc):
@@ -77,34 +83,58 @@ def start_server(server_cmd, server_env=tuple(), server_host=None,
     return ret, thr_stdout, thr_stderr
 
 
-def count_tc_passes(line):
+def count_tc_passes(line, exp_pass):
+    global skip_count
     global pass_count
+    global xfail_count
     global fail_count
-    if line.find(':successful: ') >= 0:
+    global xfail_count
+
+    if line.find(':SKIP: ') >= 0:
+        number = int(line.split(' ')[-1])
+        with skip_lock:
+            skip_count += number
+    elif line.find(':PASS: ') >= 0:
         number = int(line.split(' ')[-1])
         with pass_lock:
             pass_count += number
-    elif line.find(':failed: ') >= 0:
+    elif line.find(':XFAIL: ') >= 0:
         number = int(line.split(' ')[-1])
-        with fail_lock:
-            fail_count += number
+        with xfail_lock:
+            xfail_count += number
+    elif line.find(':FAIL: ') >= 0:
+        number = int(line.split(' ')[-1])
+        if exp_pass:
+            with fail_lock:
+                fail_count += number
+        else:
+            with xfail_lock:
+                xfail_count += number
+    elif line.find(':XPASS: ') >= 0:
+        number = int(line.split(' ')[-1])
+        if exp_pass:
+            with xpass_lock:
+                fail_count += number
+        else:
+            with pass_lock:
+                pass_count += number
 
 
-def print_all_from_queue():
+def print_all_from_queue(exp_pass = True):
     while True:
         try:
             line = out.get(False)
-            count_tc_passes(line)
+            count_tc_passes(line, exp_pass)
             print(line, file=sys.stderr)
         except queue.Empty:
             break
 
 
-def flush_queue():
+def flush_queue(exp_pass = True):
     while True:
         try:
             line = out.get(False)
-            count_tc_passes(line)
+            count_tc_passes(line, exp_pass)
         except queue.Empty:
             break
 
@@ -144,10 +174,10 @@ def run_clients(tests, common_args, srv, expected_size):
             good += 1
             logger.info("{0}:finished:{1:.2f}s".format(script,
                                                    end_time - start_time))
-            flush_queue()
+            flush_queue(params.get("exp_pass", True))
         else:
             bad += 1
-            print_all_from_queue()
+            print_all_from_queue(params.get("exp_pass", True))
             logger.error("{0}:failure:{1:.2f}s:{2}".format(script,
                                                        end_time - start_time,
                                                        ret))
@@ -208,14 +238,20 @@ def main():
     good, bad, failed = run_with_json(sys.argv[1], sys.argv[2], sys.argv[3])
 
     logging.shutdown()
-
-    print("Ran {0} test cases".format(pass_count + fail_count))
-    print("expected pass: {0}".format(pass_count))
-    print("expected fail: {0}\n".format(fail_count))
+    print(20 * '=')
+    print("Ran {0} test cases".format(pass_count + fail_count + skip_count + xfail_count + xpass_count))
+    print("skip {0}".format(skip_count))
+    print("pass: {0}".format(pass_count))
+    print("xfail: {0}".format(xfail_count))
+    print("fail: {0}".format(fail_count))
+    print("xpass: {0}".format(xpass_count))
+    print(20 * '=')
 
     print("Ran {0} scripts".format(good + bad))
-    print("good: {0}".format(good))
-    print("bad: {0}".format(bad))
+    print("PASS: {0}".format(good))
+    print("FAIL: {0}".format(bad))
+    print(20 * '=')
+
     if failed:
         print("Failed script configurations:")
         for i in failed:
