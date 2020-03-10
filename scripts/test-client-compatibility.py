@@ -59,10 +59,13 @@ def main():
     port = 4433
     num_limit = None
     run_exclude = set()
+    run_exp_fail = set()
+    run_exp_fail_m = [] 
+    exp_fail_messages = []
     dhe = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:d", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:d", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -70,6 +73,14 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-x':
+            run_exp_fail.add(arg)
+        elif opt == '-X':
+            if len(run_exp_fail) < (len (run_exp_fail_m) + 1):
+                print("Error: should have specified -x before -X");
+                sys.exit(1) 
+            run_exp_fail_m.append(run_exp_fail.pop())
+            exp_fail_messages.append(arg)
         elif opt == '-n':
             num_limit = int(arg)
         elif opt == '-d':
@@ -5733,7 +5744,11 @@ def main():
     # run the conversation
     good = 0
     bad = 0
+    xfail = 0
+    xpass = 0
     failed = []
+    xpassed = []
+    messages = []
     if not num_limit:
         num_limit = len(conversations)
 
@@ -5751,27 +5766,51 @@ def main():
 
         runner = Runner(c_test)
 
-        res = True
+        flag_x_fail_m = c_name in run_exp_fail_m
+        flag_x_fail = c_name in run_exp_fail
+        res = not (flag_x_fail or flag_x_fail_m)
         try:
             runner.run()
-        except:
+        except Exception as i:
             print("Error while processing")
             print(traceback.format_exc())
-            res = False
-
+            if flag_x_fail_m:
+                if str(i) != str(exp_fail_messages[run_exp_fail_m.index(c_name)]):
+                    res = not res
+            res = not res
+        
         if res:
-            good += 1
+            if flag_x_fail:
+                xfail += 1
+            else:
+                good += 1
             print("OK\n")
         else:
-            bad += 1
-            failed.append(c_name)
+            if flag_x_fail:
+                xpass += 1
+                xpassed.append(c_name)
+            else:
+                bad += 1
+                failed.append(c_name)
 
     print("Test end")
+    print(20 * '=')
     print("version: {0}".format(version))
-    print("successful: {0}".format(good))
-    print("failed: {0}".format(bad))
-    failed_sorted = sorted(failed, key=natural_sort_keys)
-    print("  {0}".format('\n  '.join(repr(i) for i in failed_sorted)))
+    print(20 * '=')
+    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("SKIP: {0}".format(len(run_exclude)))
+    print("PASS: {0}".format(good))
+    print("XFAIL: {0}".format(xfail))
+    print("FAIL: {0}".format(bad))
+    print("XPASS: {0}".format(xpass))
+    print(20 * '=')
+    sort = sorted(failed, key=natural_sort_keys)
+    if len(sort):
+        print("FAILED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
+    sort = sorted(xpassed ,key=natural_sort_keys)
+    if len(sort):
+        print("XPASED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
+
     if bad > 0:
         sys.exit(1)
 

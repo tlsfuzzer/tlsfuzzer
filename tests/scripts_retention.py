@@ -22,9 +22,15 @@ logger = logging.getLogger(__name__)
 out = queue.Queue()
 
 pass_count = 0
+skip_count = 0
+xfail_count = 0
 fail_count = 0
+xpass_count = 0
 pass_lock = threading.Lock()
+skip_lock = threading.Lock()
+xfail_lock = threading.Lock()
 fail_lock = threading.Lock()
+xpass_lock = threading.Lock()
 
 
 def process_stdout(name, proc):
@@ -78,17 +84,32 @@ def start_server(server_cmd, server_env=tuple(), server_host=None,
 
 
 def count_tc_passes(line):
+    global skip_count 
     global pass_count
+    global xfail_count 
     global fail_count
-    if line.find(':successful: ') >= 0:
+    global xfail_count 
+
+    if line.find(':SKIP: ') >= 0:
+        number = int(line.split(' ')[-1])
+        with skip_lock:
+            skip_count += number
+    elif line.find(':PASS: ') >= 0:
         number = int(line.split(' ')[-1])
         with pass_lock:
             pass_count += number
-    elif line.find(':failed: ') >= 0:
+    elif line.find(':XFAIL: ') >= 0:
+        number = int(line.split(' ')[-1])
+        with xfail_lock:
+            xfail_count += number
+    elif line.find(':FAIL: ') >= 0:
         number = int(line.split(' ')[-1])
         with fail_lock:
             fail_count += number
-
+    elif line.find(':XPASS: ') >= 0:
+        number = int(line.split(' ')[-1])
+        with xpass_lock:
+            fail_count += number
 
 def print_all_from_queue():
     while True:
@@ -208,14 +229,20 @@ def main():
     good, bad, failed = run_with_json(sys.argv[1], sys.argv[2], sys.argv[3])
 
     logging.shutdown()
-
-    print("Ran {0} test cases".format(pass_count + fail_count))
+    print(20 * '=')
+    print("Ran {0} test cases".format(pass_count + fail_count + skip_count + xfail_count + xpass_count))
+    print("expected skip {0}".format(skip_count))
     print("expected pass: {0}".format(pass_count))
-    print("expected fail: {0}\n".format(fail_count))
+    print("expected xfail: {0}".format(xfail_count))
+    print("expected fail: {0}".format(fail_count))
+    print("expected xpass: {0}".format(xpass_count))
+    print(20 * '=')
 
     print("Ran {0} scripts".format(good + bad))
-    print("good: {0}".format(good))
-    print("bad: {0}".format(bad))
+    print("PASS: {0}".format(good))
+    print("FAIL: {0}".format(bad))
+    print(20 * '=')
+
     if failed:
         print("Failed script configurations:")
         for i in failed:
