@@ -42,6 +42,10 @@ For example, to send an empty ClientHello message, write:
 You can find a usage example in:
 `test-aesccm.py <https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-aesccm.py>`_.
 
+.. tip::
+    If you want to send an otherwise valid message, only as plaintext, not
+    encrypted, see the :ref:`clearing-encryption-settings` section.
+
 Creating arbitrary messages
 ---------------------------
 

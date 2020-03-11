@@ -11,7 +11,7 @@ from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        ClientMasterKeyGenerator, Close
+        ClientMasterKeyGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, \
         ExpectAlert, ExpectClose, ExpectApplicationData, ExpectServerHello2, \

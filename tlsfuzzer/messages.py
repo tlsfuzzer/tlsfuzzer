@@ -63,7 +63,16 @@ class Connect(Command):
     """Object used to connect to a TCP server."""
 
     def __init__(self, hostname, port, version=(3, 0), timeout=5):
-        """Provide minimal settings needed to connect to other peer."""
+        """
+        Provide minimal settings needed to connect to other peer.
+
+        :param str hostname: host name of the server to connect to
+        :param int port: :term:`TCP` port number to connect to
+        :param tuple(int,int) version: the protocol version used in the
+            record layer for the initial messages
+        :param float timeout: amount of time to wait while expecting a message
+            before aborting the connection, in seconds
+        """
         super(Connect, self).__init__()
         self.hostname = hostname
         self.port = port

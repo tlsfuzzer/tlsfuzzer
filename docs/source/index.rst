@@ -40,6 +40,7 @@ to see wanted, but not yet implemented features.
    writing-tests
    advanced-decision-graph
    modifying-messages
+   connection-state
    glossary
    modules
 

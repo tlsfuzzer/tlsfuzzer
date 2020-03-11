@@ -12,7 +12,7 @@ from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        fuzz_message, ResetHandshakeHashes, Close, ResetRenegotiationInfo, \
+        fuzz_message, ResetHandshakeHashes, \
         CertificateGenerator, CertificateVerifyGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
