@@ -118,7 +118,7 @@ To pass that association around
 :py:class:`~tlsfuzzer.messages.CertificateVerifyGenerator`,
 and :py:class:`~tlsfuzzer.messages.FinishedGenerator` accept the ``context``
 keyword argument.
-If the runner executes the same conversation multiple times, as it does with
+If the runner executes the same conversation many times, as it does with
 ``sanity`` test cases, that context needs resetting between runs.
 :py:class:`~tlsfuzzer.messages.ClearContext` provides this functionality.
 
