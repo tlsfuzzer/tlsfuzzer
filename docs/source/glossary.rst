@@ -121,3 +121,9 @@ Glossary
      Hardware Security Module is usually an extension card that is tasked with
      secure storage of private keys. Some HSMs also provide hardware
      acceleration for cryptographic operations.
+
+   PRF
+     Pseudo-Random Function is used to sanitise random values to prepare them
+     for use as keys in encryption. :term:`TLS` 1.0 and 1.1 uses combination
+     of MD5 and SHA1. :term:`TLS` 1.2 and 1.3 use SHA-256 or SHA-384 based
+     algorithms depending on cipher suite negotiated.

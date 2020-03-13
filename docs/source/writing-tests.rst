@@ -1,6 +1,6 @@
-=============
-Test creation
-=============
+====================
+Simple test creation
+====================
 
 Network servers use connection timeouts to drop stalled or unused connections.
 For some that happens in a minute or two, for others in seconds.
