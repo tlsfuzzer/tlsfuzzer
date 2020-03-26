@@ -30,7 +30,7 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         SignatureAlgorithm
 from tlsfuzzer.helpers import RSA_SIG_ALL
  
-version = 2
+version = 3
 
 
 def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):

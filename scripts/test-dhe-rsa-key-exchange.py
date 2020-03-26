@@ -34,6 +34,12 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -x probe-name  expect the probe to fail. When such probe passes despite being marked like this")
+    print("                it will be reported in the test summary and the whole script will fail.")
+    print("                May be specified multiple times.")
+    print(" -X message     expect the `message` substring in exception raised during")
+    print("                execution of preceding expected failure probe")
+    print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" -n num         only run `num` random tests instead of a full set")
     print("                (excluding \"sanity\" tests)")
     print(" --help         this message")
@@ -44,9 +50,11 @@ def main():
     port = 4433
     num_limit = None
     run_exclude = set()
+    expected_failures = {}
+    last_exp_tmp = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -54,6 +62,13 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-x':
+            expected_failures[arg] = None
+            last_exp_tmp = str(arg)
+        elif opt == '-X':
+            if not last_exp_tmp:
+                raise ValueError("-x has to be specified before -X")
+            expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-n':
             num_limit = int(arg)
         elif opt == '--help':
@@ -98,7 +113,10 @@ def main():
     # run the conversation
     good = 0
     bad = 0
+    xfail = 0
+    xpass = 0
     failed = []
+    xpassed = []
     if not num_limit:
         num_limit = len(conversations)
 
@@ -117,25 +135,53 @@ def main():
         runner = Runner(c_test)
 
         res = True
+        exception = None
         try:
             runner.run()
-        except:
+        except Exception as exp:
+            exception = exp
             print("Error while processing")
             print(traceback.format_exc())
             res = False
 
-        if res:
-            good += 1
-            print("OK\n")
+        if c_name in expected_failures:
+            if res:
+                xpass += 1
+                xpassed.append(c_name)
+                print("XPASS: expected failure but test passed\n")
+            else:
+                if expected_failures[c_name] is not None and  \
+                    expected_failures[c_name] not in str(exception):
+                        bad += 1
+                        failed.append(c_name)
+                        print("Expected error message: {0}\n"
+                            .format(expected_failures[c_name]))
+                else:
+                    xfail += 1
+                    print("OK-expected failure\n")
         else:
-            bad += 1
-            failed.append(c_name)
+            if res:
+                good += 1
+                print("OK\n")
+            else:
+                bad += 1
+                failed.append(c_name)
 
     print("Test end")
-    print("successful: {0}".format(good))
-    print("failed: {0}".format(bad))
-    failed_sorted = sorted(failed, key=natural_sort_keys)
-    print("  {0}".format('\n  '.join(repr(i) for i in failed_sorted)))
+    print(20 * '=')
+    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
+    print("PASS: {0}".format(good))
+    print("XFAIL: {0}".format(xfail))
+    print("FAIL: {0}".format(bad))
+    print("XPASS: {0}".format(xpass))
+    print(20 * '=')
+    sort = sorted(xpassed ,key=natural_sort_keys)
+    if len(sort):
+        print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
+    sort = sorted(failed, key=natural_sort_keys)
+    if len(sort):
+        print("FAILED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
 
     if bad > 0:
         sys.exit(1)
