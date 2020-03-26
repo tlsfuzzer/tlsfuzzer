@@ -29,13 +29,9 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType, GroupName, ECPointFormat, HashAlgorithm, \
         SignatureAlgorithm
 from tlsfuzzer.helpers import RSA_SIG_ALL
- 
-version = 2
+from tlsfuzzer.utils.lists import natural_sort_keys
 
-
-def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
-    return [int(text) if text.isdigit() else text.lower()
-            for text in re.split(_nsre, s)]
+version = 3
 
 
 def help_msg():

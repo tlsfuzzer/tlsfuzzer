@@ -7,6 +7,7 @@ from __future__ import print_function
 from random import sample
 import traceback
 import sys
+import re
 import getopt
 
 from tlsfuzzer.runner import Runner
@@ -18,12 +19,22 @@ from tlsfuzzer.expect import ExpectFinished, ExpectApplicationData, \
 
 from tlslite.constants import CipherSuite, AlertLevel, \
         ExtensionType
+from tlsfuzzer.utils.lists import natural_sort_keys
+
 
 def help_msg():
     """Print usage information"""
     print("Usage: <script-name> [-h hostname] [-p port]")
     print(" -h hostname   hostname to connect to, \"localhost\" by default")
     print(" -p port       port to use for connection, \"4433\" by default")
+    print(" -e probe-name  exclude the probe from the list of the ones run")
+    print("                may be specified multiple times")
+    print(" -x probe-name  expect the probe to fail. When such probe passes despite being marked like this")
+    print("                it will be reported in the test summary and the whole script will fail.")
+    print("                May be specified multiple times.")
+    print(" -X message     expect the `message` substring in exception raised during")
+    print("                execution of preceding expected failure probe")
+    print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" --help        this message")
 
 def main():
@@ -31,15 +42,27 @@ def main():
     conversations = {}
     host = "localhost"
     port = 4433
+    run_exclude = set()
+    expected_failures = {}
+    last_exp_tmp = None
 
     argv = sys.argv[1:]
 
-    opts, argv = getopt.getopt(argv, "h:p:", ["help"])
+    opts, argv = getopt.getopt(argv, "h:p:e:x:X:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
         elif opt == '-p':
             port = int(arg)
+        elif opt == '-e':
+            run_exclude.add(arg)
+        elif opt == '-x':
+            expected_failures[arg] = None
+            last_exp_tmp = str(arg)
+        elif opt == '-X':
+            if not last_exp_tmp:
+                raise ValueError("-x has to be specified before -X")
+            expected_failures[last_exp_tmp] = str(arg)
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -81,28 +104,51 @@ def main():
 
     good = 0
     bad = 0
+    xfail = 0
+    xpass = 0
+    failed = []
+    xpassed = []
+    shuffled_tests = set(conversations.items())
 
-    shuffled_tests = sample(list(conversations.items()), len(conversations))
-
-    for conversation_name, conversation in shuffled_tests:
-        print("{0} ...".format(conversation_name))
+    for c_name, conversation in shuffled_tests:
+        if c_name in run_exclude:
+            continue
+        print("{0} ...".format(c_name))
 
         runner = Runner(conversation)
 
         res = True
+        exception = None
         try:
             runner.run()
-        except:
+        except Exception as exp:
+            exception = exp
             print("Error while processing")
             print(traceback.format_exc())
             print("")
             res = False
 
-        if res:
-            good+=1
-            print("OK\n")
+        if c_name in expected_failures:
+            if res:
+                xpass += 1
+                xpassed.append(c_name)
+                print("XPASS: expected failure but test passed\n")
+            else:
+                if expected_failures[c_name] is not None and  \
+                    expected_failures[c_name] not in str(exception):
+                        bad += 1
+                        failed.append(c_name)
+                        print("Expected error message: {0}\n"
+                            .format(expected_failures[c_name]))
+                else:
+                    xfail += 1
+                    print("OK-expected failure\n")
         else:
-            bad+=1
+            if res:
+                good+=1
+                print("OK\n")
+            else:
+                xfail+=1
 
     print("Note: This test verifies that an implementation implements and")
     print("      will negotiate SSLv2 protocol. This is a BAD configuration.")
@@ -115,8 +161,20 @@ def main():
     print("      code from this script will be 1 (i.e. 'failure')")
     print("")
     print("Test end")
-    print("successful: {0}".format(good))
-    print("failed: {0}".format(bad))
+    print(20 * '=')
+    print("TOTAL: {0}".format(len(shuffled_tests)))
+    print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
+    print("PASS: {0}".format(good))
+    print("XFAIL: {0}".format(xfail))
+    print("FAIL: {0}".format(bad))
+    print("XPASS: {0}".format(xpass))
+    print(20 * '=')
+    sort = sorted(xpassed ,key=natural_sort_keys)
+    if len(sort):
+        print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
+    sort = sorted(failed, key=natural_sort_keys)
+    if len(sort):
+        print("FAILED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
 
     if good > 0:
         sys.exit(1)
