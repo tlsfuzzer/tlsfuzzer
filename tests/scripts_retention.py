@@ -88,7 +88,7 @@ def count_tc_passes(line, exp_pass):
     global pass_count
     global xfail_count
     global fail_count
-    global xfail_count
+    global xpass_count
 
     if line.find(':SKIP: ') >= 0:
         number = int(line.split(' ')[-1])
@@ -114,7 +114,7 @@ def count_tc_passes(line, exp_pass):
         number = int(line.split(' ')[-1])
         if exp_pass:
             with xpass_lock:
-                fail_count += number
+                xpass_count += number
         else:
             with pass_lock:
                 pass_count += number

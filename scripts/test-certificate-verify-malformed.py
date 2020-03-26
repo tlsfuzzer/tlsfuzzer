@@ -30,14 +30,9 @@ from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 from tlsfuzzer.helpers import RSA_SIG_ALL
+from tlsfuzzer.utils.lists import natural_sort_keys
 
-
-def natural_sort_keys(s, _nsre=re.compile('([0-9]+)')):
-    return [int(text) if text.isdigit() else text.lower()
-            for text in re.split(_nsre, s)]
-
-
-version = 2
+version = 3
 
 
 def help_msg():
@@ -49,6 +44,12 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -x probe-name  expect the probe to fail. When such probe passes despite being marked like this")
+    print("                it will be reported in the test summary and the whole script will fail.")
+    print("                May be specified multiple times.")
+    print(" -X message     expect the `message` substring in exception raised during")
+    print("                execution of preceding expected failure probe")
+    print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" -k file.pem    file with private key for client")
     print(" -c file.pem    file with certificate for client")
     print(" --help         this message")
@@ -61,11 +62,13 @@ def main():
     host = "localhost"
     port = 4433
     run_exclude = set()
+    expected_failures = {}
+    last_exp_tmp = None
     private_key = None
     cert = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:k:c:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:k:c:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -73,6 +76,13 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-x':
+            expected_failures[arg] = None
+            last_exp_tmp = str(arg)
+        elif opt == '-X':
+            if not last_exp_tmp:
+                raise ValueError("-x has to be specified before -X")
+            expected_failures[last_exp_tmp] = str(arg)
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -304,14 +314,17 @@ def main():
     # run the conversation
     good = 0
     bad = 0
+    xfail = 0
+    xpass = 0
     failed = []
+    xpassed = []
 
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throughout
     sanity_tests = [('sanity', conversations['sanity'])]
     regular_tests = [(k, v) for k, v in conversations.items() if k != 'sanity']
-    shuffled_tests = sample(regular_tests, len(regular_tests))
-    ordered_tests = chain(sanity_tests, shuffled_tests, sanity_tests)
+    sampled_tests = sample(regular_tests, len(regular_tests))
+    ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
 
 
     for c_name, c_test in ordered_tests:
@@ -322,27 +335,55 @@ def main():
         runner = Runner(c_test)
 
         res = True
+        exception = None
         try:
             runner.run()
-        except:
+        except Exception as exp:
+            exception = exp
             print("Error while processing")
             print(traceback.format_exc())
             res = False
 
-        if res:
-            good += 1
-            print("OK\n")
+        if c_name in expected_failures:
+            if res:
+                xpass += 1
+                xpassed.append(c_name)
+                print("XPASS: expected failure but test passed\n")
+            else:
+                if expected_failures[c_name] is not None and  \
+                    expected_failures[c_name] not in str(exception):
+                        bad += 1
+                        failed.append(c_name)
+                        print("Expected error message: {0}\n"
+                            .format(expected_failures[c_name]))
+                else:
+                    xfail += 1
+                    print("OK-expected failure\n")
         else:
-            bad += 1
-            failed.append(c_name)
+            if res:
+                good += 1
+                print("OK\n")
+            else:
+                bad += 1
+                failed.append(c_name)
 
     print("Malformed CertificateVerify test\n")
     print("version: {0}\n".format(version))
     print("Test end")
-    print("successful: {0}".format(good))
-    print("failed: {0}".format(bad))
-    failed_sorted = sorted(failed, key=natural_sort_keys)
-    print("  {0}".format('\n  '.join(repr(i) for i in failed_sorted)))
+    print(20 * '=')
+    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
+    print("PASS: {0}".format(good))
+    print("XFAIL: {0}".format(xfail))
+    print("FAIL: {0}".format(bad))
+    print("XPASS: {0}".format(xpass))
+    print(20 * '=')
+    sort = sorted(xpassed ,key=natural_sort_keys)
+    if len(sort):
+        print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
+    sort = sorted(failed, key=natural_sort_keys)
+    if len(sort):
+        print("FAILED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
 
     if bad > 0:
         sys.exit(1)
