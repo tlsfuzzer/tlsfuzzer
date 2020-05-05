@@ -51,7 +51,7 @@ def main():
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
-    if not logfile or not capture or not output or not ip_address or not port:
+    if not all([logfile, capture, output, ip_address, port]):
         raise ValueError("All arguments need to be entered!")
 
     log = Log(logfile)

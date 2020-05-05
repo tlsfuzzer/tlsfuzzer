@@ -1232,15 +1232,18 @@ def main():
         sys.exit(1)
     elif timing:
         # if regular tests passed, run timing collection and analysis
-        timing_runner = TimingRunner(sys.argv[0],
-                                     sampled_tests,
-                                     outdir,
-                                     host,
-                                     port,
-                                     interface)
-        print("Running timing tests...")
-        timing_runner.generate_log(run_only, run_exclude, repetitions)
-        timing_runner.run()
+        if TimingRunner.check_availability():
+            timing_runner = TimingRunner(sys.argv[0],
+                                         sampled_tests,
+                                         outdir,
+                                         host,
+                                         port,
+                                         interface)
+            print("Running timing tests...")
+            timing_runner.generate_log(run_only, run_exclude, repetitions)
+            timing_runner.run()
+        else:
+            print("Skip timing tests because dependencies are not satisfied")
 
 
 if __name__ == "__main__":
