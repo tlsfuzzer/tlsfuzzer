@@ -1,36 +1,76 @@
 # Author: Jan Koscielniak, (c) 2020
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
-"""Tool for extraction and analysis of timing information from packet capture"""
+"""Extraction and analysis of timing information from a packet capture."""
 
-import argparse
-from collections import defaultdict
+import getopt
+import sys
+import os
 import csv
+from collections import defaultdict
+from socket import inet_aton
+
 import dpkt
 from tlsfuzzer.utils.log import Log
 
 
-def main():
-    """Process arguments and start extraction"""
-    parser = argparse.ArgumentParser(description="Timing analysis from packet capture")
-    parser.add_argument('-l', help="logfile", dest="log", required=True)
-    parser.add_argument('-c', help="capture file", dest="capture", required=True)
-    parser.add_argument('-i', help="server ip", dest="ip", required=True)
-    parser.add_argument('-p', help="server port", dest="port", required=True, type=int)
+def help_msg():
+    """Print help message."""
+    print("Usage: analysis [-l logfile] [-c capture] [[-o output] ...]")
+    print(" -l logfile     Filename of the timing log (required)")
+    print(" -c capture     Packet capture of the test run (required)")
+    print(" -o output      Where to output the resulting csv (required)")
+    print(" -i ip          TLS server ip (required)")
+    print(" -p port        TLS server port (required)")
 
-    args = parser.parse_args()
-    analysis = Analysis(args.log, args.capture, args.ip, args.port)
+
+def main():
+    """Process arguments and start extraction."""
+    logfile = None
+    capture = None
+    output = None
+    ip_address = None
+    port = None
+
+    argv = sys.argv[1:]
+    opts, args = getopt.getopt(argv, "l:c:i:p:", ["help"])
+    for opt, arg in opts:
+        if opt == '-l':
+            logfile = arg
+        elif opt == '-c':
+            capture = arg
+        elif opt == '-o':
+            output = arg
+        elif opt == '-i':
+            ip_address = arg
+        elif opt == '-p':
+            port = int(arg)
+        elif opt == "--help":
+            help_msg()
+            sys.exit(0)
+        else:
+            raise ValueError("Unknown option: {0}".format(opt))
+
+    if not logfile or not capture or not output or not ip_address or not port:
+        raise ValueError("All arguments need to be entered!")
+
+    log = Log(logfile)
+    log.read_log()
+    analysis = Analysis(log, capture, ip_address, port)
     analysis.parse()
+    analysis.write_csv(os.path.join("timing.csv"))
 
 
 class Analysis:
-    """Class to provide tools to extract and analyse timing information from packet capture"""
+    """
+    Extract and analyse timing information from packet capture.
+    """
 
-    def __init__(self, logfile, capture, ip_address, port):
+    def __init__(self, log, capture, ip_address, port):
         """
         Initialises instance and sets up class name generator from log.
 
-        :param str logfile: Log filename
+        :param Log log: Log class instance
         :param str capture: Packet capture filename
         :param str ip_address: TLS server ip address
         :param int port: TLS server port
@@ -42,13 +82,19 @@ class Analysis:
         self.client_message = None
         self.server_message = None
 
-        # set up class names generator
-        log = Log(logfile)
-        log.read_log()
+        if self.ip_address == "localhost":
+            self.ip_address = "127.0.0.1"
+
+            # set up class names generator
+        self.log = log
         self.class_generator = log.iterate_log()
+        self.class_names = log.get_classes()
 
     def parse(self):
-        """Extract timing information from capture file and associate it with class from log file"""
+        """
+        Extract timing information from capture file
+        and associate it with class from log file.
+        """
         with open(self.capture, 'rb') as pcap:
             capture = dpkt.pcap.Reader(pcap)
 
@@ -58,7 +104,8 @@ class Analysis:
                 tcp_pkt = ip_pkt.data
 
                 if tcp_pkt.data:
-                    if tcp_pkt.sport == self.port:
+                    if (tcp_pkt.sport == self.port and
+                            ip_pkt.src == inet_aton(self.ip_address)):
                         # message from the server
                         self.server_message = timestamp
                     else:
@@ -77,14 +124,15 @@ class Analysis:
     def add_timing(self):
         """Associate the timing information with it's class"""
         if self.client_message and self.server_message:
-            class_name = self.class_generator.__next__()
+            class_index = next(self.class_generator)
+            class_name = self.class_names[class_index]
             time_diff = abs(self.server_message - self.client_message)
             self.timings[class_name].append(time_diff)
 
     def write_csv(self, filename):
         """
-        Write timing information into a csv file. Each row starts with a class name and
-        the rest of the row are individual timing measurements.
+        Write timing information into a csv file. Each row starts with a class
+        name and the rest of the row are individual timing measurements.
 
         :param str filename: Target filename
         """
