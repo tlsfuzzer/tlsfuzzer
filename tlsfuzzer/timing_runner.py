@@ -11,7 +11,6 @@ import subprocess
 
 from tlsfuzzer.utils.log import Log
 from tlsfuzzer.runner import Runner
-from tlsfuzzer.analysis import Analysis
 
 
 class TimingRunner:
@@ -102,12 +101,21 @@ class TimingRunner:
         sniffer.wait()
 
         # start analysis
-        analysis = Analysis(self.log,
-                            os.path.join(self.out_dir, "capture.pcap"),
-                            self.ip_address,
-                            self.port)
-        analysis.parse()
-        analysis.write_csv(os.path.join(self.out_dir, "timing.csv"))
+        self.start_analysis()
+
+    def start_analysis(self):
+        try:
+            from tlsfuzzer.analysis import Analysis
+            analysis = Analysis(self.log,
+                                os.path.join(self.out_dir, "capture.pcap"),
+                                self.ip_address,
+                                self.port)
+            analysis.parse()
+            analysis.write_csv(os.path.join(self.out_dir, "timing.csv"))
+        except ImportError:
+            print("Analysis is not available."
+                  "Install required packages to enable")
+            exit(1)
 
     def sniff(self):
         """Start tcpdump with filter on communication to/from server"""
@@ -148,6 +156,19 @@ class TimingRunner:
             subprocess.check_call(['tcpdump', '--version'],
                                   stderr=subprocess.PIPE)
         except subprocess.CalledProcessError:
+            return False
+        return True
+
+    @staticmethod
+    def check_availability():
+        """
+        Checks if additional packages are installed so analysis can run.
+
+        :return: bool Indicating if it is okay to run
+        """
+        try:
+            from tlsfuzzer.analysis import Analysis
+        except ImportError:
             return False
         return True
 
