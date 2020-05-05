@@ -16,6 +16,7 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectApplicationData, ExpectNoMessage
+from tlsfuzzer.timing_runner import TimingRunner
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType
@@ -50,6 +51,12 @@ def help_msg():
     print(" -l level       the expected alert level for invalid Finished")
     print("                - 2 (fatal) by default")
     print("                Note: other values are NOT RFC compliant!")
+    print(" -i interface   Allows recording timing information on")
+    print("                on specified interface. Required to enable timing tests")
+    print(" -o dir         Specifies output directory for timing information")
+    print("                /tmp by default")
+    print(" --repeat rep   How much timing samples should be gathered for each test")
+    print("                100 by default")
     print(" --no-safe-renego  Allow the server not to support safe")
     print("                renegotiation extension")
     print(" --no-sni       do not send server name extension.")
@@ -71,11 +78,16 @@ def main():
     level = AlertLevel.fatal
     srv_extensions = {ExtensionType.renegotiation_info:None}
     no_sni = False
+    timing = False
+    outdir = "/tmp"
+    repetitions = 100
+    interface = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:t:n:a:l:", ["help",
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:t:n:a:l:o:i:", ["help",
                                                         "no-safe-renego",
-                                                        "no-sni"])
+                                                        "no-sni",
+                                                        "repeat="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -101,6 +113,13 @@ def main():
             alert = int(arg)
         elif opt == '-l':
             level = int(arg)
+        elif opt == "-i":
+            timing = True
+            interface = arg
+        elif opt == '-o':
+            outdir = arg
+        elif opt == "--repeat":
+            repetitions = int(arg)
         elif opt == "--no-safe-renego":
             srv_extensions = None
         elif opt == "--no-sni":
@@ -1211,6 +1230,18 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+    elif timing:
+        # if regular tests passed, run timing collection and analysis
+        timing_runner = TimingRunner(sys.argv[0],
+                                     sampled_tests,
+                                     outdir,
+                                     host,
+                                     port,
+                                     interface)
+        print("Running timing tests...")
+        timing_runner.generate_log(run_only, run_exclude, repetitions)
+        timing_runner.run()
+
 
 if __name__ == "__main__":
     main()
