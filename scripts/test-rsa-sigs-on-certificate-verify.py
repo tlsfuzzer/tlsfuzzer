@@ -78,7 +78,7 @@ def main():
             cert = X509()
             cert.parse(text_cert)
         elif opt == '-h':
-            host = arg
+            hostname = arg
         elif opt == '-p':
             port = int(arg)
         elif opt == '-e':
@@ -187,7 +187,7 @@ def main():
     failed = []
     xpassed = []
 
-    print("Certificate Verify test version 4")
+    print("Certificate Verify test version 5")
 
     sanity_tests = [('sanity', conversations['sanity'])]
     regular_tests = [(k, v) for k, v in conversations.items() if k != 'sanity']
