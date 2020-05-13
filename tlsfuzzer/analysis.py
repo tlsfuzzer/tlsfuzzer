@@ -8,7 +8,7 @@ import sys
 import os
 import csv
 from collections import defaultdict
-from socket import inet_aton
+from socket import inet_aton, gethostbyname, gaierror
 
 import dpkt
 from tlsfuzzer.utils.log import Log
@@ -76,16 +76,13 @@ class Analysis:
         :param int port: TLS server port
         """
         self.capture = capture
-        self.ip_address = ip_address
+        self.ip_address = self.hostname_to_ip(ip_address)
         self.port = port
         self.timings = defaultdict(list)
         self.client_message = None
         self.server_message = None
 
-        if self.ip_address == "localhost":
-            self.ip_address = "127.0.0.1"
-
-            # set up class names generator
+        # set up class names generator
         self.log = log
         self.class_generator = log.iterate_log()
         self.class_names = log.get_classes()
@@ -105,7 +102,7 @@ class Analysis:
 
                 if tcp_pkt.data:
                     if (tcp_pkt.sport == self.port and
-                            ip_pkt.src == inet_aton(self.ip_address)):
+                            ip_pkt.src == self.ip_address):
                         # message from the server
                         self.server_message = timestamp
                     else:
@@ -143,6 +140,27 @@ class Analysis:
                 row = [class_name]
                 row.extend(self.timings[class_name])
                 writer.writerow(row)
+
+    @staticmethod
+    def hostname_to_ip(hostname):
+        """
+        Converts hostname to IPv4 address, if needed.
+        :param str hostname: hostname or an IPv4 address
+        :return: 
+        """
+        # first check if it is not already IPv4
+        try:
+            ip = inet_aton(hostname)
+            return ip
+        except OSError:
+            pass
+
+        # not an IPv4, try a hostname
+        try:
+            ip = gethostbyname(hostname)
+            return inet_aton(ip)
+        except gaierror:
+            raise Exception("Hostname is not an IPv4 or a reachable hostname")
 
 
 if __name__ == '__main__':
