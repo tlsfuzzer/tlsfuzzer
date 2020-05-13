@@ -36,7 +36,7 @@ from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -111,7 +111,7 @@ def main():
     opts, args = getopt.getopt(argv, "h:p:e:x:X:s:k:c:E:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
-            host = arg
+            hostname = arg
         elif opt == '-p':
             port = int(arg)
         elif opt == '-e':
