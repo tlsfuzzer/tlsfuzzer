@@ -55,7 +55,7 @@ def help_msg():
     print("                on specified interface. Required to enable timing tests")
     print(" -o dir         Specifies output directory for timing information")
     print("                /tmp by default")
-    print(" --repeat rep   How much timing samples should be gathered for each test")
+    print(" --repeat rep   How many timing samples should be gathered for each test")
     print("                100 by default")
     print(" --no-safe-renego  Allow the server not to support safe")
     print("                renegotiation extension")

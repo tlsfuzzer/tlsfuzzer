@@ -69,6 +69,8 @@ def help_msg():
     # reserved:
     # -x expected fail for probe (alternative to -e)
     # -X expected failure message for probe (to be used together with -x)
+    # -i enables timing the test using the specified interface
+    # -o output directory for files related to collection of timing information
 
 
 def main():
