@@ -1232,7 +1232,7 @@ def main():
         sys.exit(1)
     elif timing:
         # if regular tests passed, run timing collection and analysis
-        if TimingRunner.check_availability():
+        if TimingRunner.check_tcpdump():
             timing_runner = TimingRunner(sys.argv[0],
                                          sampled_tests,
                                          outdir,
@@ -1243,7 +1243,7 @@ def main():
             timing_runner.generate_log(run_only, run_exclude, repetitions)
             timing_runner.run()
         else:
-            print("Skip timing tests because dependencies are not satisfied")
+            print("Skip timing tests because tcpdump is not present")
 
 
 if __name__ == "__main__":

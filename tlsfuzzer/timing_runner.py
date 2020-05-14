@@ -8,6 +8,7 @@ import traceback
 import os
 import time
 import subprocess
+import sys
 
 from tlsfuzzer.utils.log import Log
 from tlsfuzzer.runner import Runner
@@ -59,13 +60,13 @@ class TimingRunner:
                 # also convert internal test structure to dict for lookup
                 test_dict[c_name] = c_test
         self.tests = test_dict
-        self.log.set_classes_list(actual_tests)
+        self.log.start_log(actual_tests)
 
         # generate requested number of random order test runs
         for _ in range(0, repetitions):
             self.log.shuffle_new_run()
 
-        self.log.write_log()
+        self.log.write()
 
     def run(self):
         """
@@ -75,25 +76,22 @@ class TimingRunner:
 
         # run the conversations
         test_classes = self.log.get_classes()
-        run_counter = 1
-        for run in self.log.log["runs"]:
-            print("run {0} ...".format(run_counter))
-            for index in run:
-                c_name = test_classes[index]
-                c_test = self.tests[c_name]
+        print("Starting timing info collection. This might take a while...")
+        for index in self.log.iterate_log():
+            c_name = test_classes[index]
+            c_test = self.tests[c_name]
 
-                runner = Runner(c_test)
-                res = True
-                try:
-                    runner.run()
-                except Exception:
-                    print("Error while processing")
-                    print(traceback.format_exc())
-                    res = False
+            runner = Runner(c_test)
+            res = True
+            try:
+                runner.run()
+            except Exception:
+                print("Error while processing")
+                print(traceback.format_exc())
+                res = False
 
-                if not res:
-                    raise AssertionError("Test must pass in order to be timed")
-            run_counter += 1
+            if not res:
+                raise AssertionError("Test must pass in order to be timed")
 
         # stop sniffing and give tcpdump time to write all buffered packets
         time.sleep(2)
@@ -104,27 +102,29 @@ class TimingRunner:
         self.start_analysis()
 
     def start_analysis(self):
-        try:
+        """Starts the analysis if available."""
+        if self.check_availability():
             from tlsfuzzer.analysis import Analysis
+            self.log.read_log()
             analysis = Analysis(self.log,
                                 os.path.join(self.out_dir, "capture.pcap"),
                                 self.ip_address,
                                 self.port)
             analysis.parse()
             analysis.write_csv(os.path.join(self.out_dir, "timing.csv"))
-        except ImportError:
+        else:
             print("Analysis is not available."
-                  "Install required packages to enable")
-            exit(1)
+                  "Install required packages to enable.")
+            print("Exiting.")
+            sys.exit(0)
 
     def sniff(self):
         """Start tcpdump with filter on communication to/from server"""
 
         # check privileges for tcpdump to work
         if os.geteuid() != 0:
-            print('Please run this test with root privileges,'
-                  'as it requires packet capturing to work.')
-            raise SystemExit
+            print('WARNING: Timing tests should run with root privileges,'
+                  'as it improves accuracy and might be needed for tcpdump.')
 
         packet_filter = "host {0} and port {1} and tcp".format(self.ip_address,
                                                                self.port)
