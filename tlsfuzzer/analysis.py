@@ -5,7 +5,6 @@
 
 import getopt
 import sys
-import os
 import csv
 from collections import defaultdict
 from socket import inet_aton, gethostbyname, gaierror
@@ -19,8 +18,8 @@ def help_msg():
     print("Usage: analysis [-l logfile] [-c capture] [[-o output] ...]")
     print(" -l logfile     Filename of the timing log (required)")
     print(" -c capture     Packet capture of the test run (required)")
-    print(" -o output      Where to output the resulting csv (required)")
-    print(" -i ip          TLS server ip (required)")
+    print(" -o output      Filename of the resulting file (required)")
+    print(" -h host        TLS server host or ip (required)")
     print(" -p port        TLS server port (required)")
 
 
@@ -33,7 +32,7 @@ def main():
     port = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "l:c:i:p:", ["help"])
+    opts, args = getopt.getopt(argv, "l:c:h:p:o:", ["help"])
     for opt, arg in opts:
         if opt == '-l':
             logfile = arg
@@ -41,7 +40,7 @@ def main():
             capture = arg
         elif opt == '-o':
             output = arg
-        elif opt == '-i':
+        elif opt == '-h':
             ip_address = arg
         elif opt == '-p':
             port = int(arg)
@@ -58,7 +57,7 @@ def main():
     log.read_log()
     analysis = Analysis(log, capture, ip_address, port)
     analysis.parse()
-    analysis.write_csv(os.path.join("timing.csv"))
+    analysis.write_csv(output)
 
 
 class Analysis:
@@ -146,7 +145,7 @@ class Analysis:
         """
         Converts hostname to IPv4 address, if needed.
         :param str hostname: hostname or an IPv4 address
-        :return: 
+        :return: str IPv4 address
         """
         # first check if it is not already IPv4
         try:
