@@ -116,7 +116,6 @@ class TimingRunner:
             print("Analysis is not available."
                   "Install required packages to enable.")
             print("Exiting.")
-            sys.exit(0)
 
     def sniff(self):
         """Start tcpdump with filter on communication to/from server"""
@@ -137,12 +136,18 @@ class TimingRunner:
         process = subprocess.Popen(cmd, stderr=subprocess.PIPE)
 
         # detect when tcpdump starts capturing
+        ready = False
         for row in iter(process.stderr.readline, b''):
             line = row.rstrip()
             if 'listening' in line.decode():
                 # tcpdump is ready
                 print("tcpdump ready...")
+                ready = True
                 break
+        if not ready:
+            print('tcpdump could not be started.'
+                  ' Do you have the correct permissions?')
+            sys.exit(1)
         return process
 
     @staticmethod

@@ -1243,7 +1243,8 @@ def main():
             timing_runner.generate_log(run_only, run_exclude, repetitions)
             timing_runner.run()
         else:
-            print("Skip timing tests because tcpdump is not present")
+            print("Could not run timing tests because tcpdump is not present!")
+            sys.exit(1)
 
 
 if __name__ == "__main__":

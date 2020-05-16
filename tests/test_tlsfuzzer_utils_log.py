@@ -6,83 +6,83 @@ try:
 except ImportError:
     import unittest
 
-import tempfile
-from os.path import join
-from shutil import rmtree
+try:
+    import mock
+except ImportError:
+    import unittest.mock as mock
+
 from tlsfuzzer.utils.log import Log
 
 
 class TestLog(unittest.TestCase):
     def setUp(self):
-        # setup temp dir
-        self.tmpdir = tempfile.mkdtemp()
-        self.logfile = join(self.tmpdir, "test.log")
-    
-    def tearDown(self):
-        # clean up
-        rmtree(self.tmpdir, ignore_errors=True)
-    
+        self.logfile = "test.log"
+
+        # fix mock not supporting iterators
+        self.mock_open = mock.mock_open()
+        self.mock_open.return_value.__iter__ = lambda s: s
+        self.mock_open.return_value.__next__ = lambda s: s.readline()
+
+        with mock.patch('tlsfuzzer.utils.log', self.mock_open):
+            self.log = Log(self.logfile)
+
     def test_classes(self):
-        log = Log(self.logfile)
+        self.log.start_log(["A", "B", "C"])
+        self.log.write()
 
-        log.start_log(["A", "B", "C"])
-        log.write()
-
-        classes = log.get_classes()
+        classes = self.log.get_classes()
         self.assertEqual(classes, ["A", "B", "C"])
 
     def test_add_run(self):
-        log = Log(self.logfile)
         classes = ["A", "B", "C"]
-        log.start_log(classes)
+        self.log.start_log(classes)
 
         # add regular runs
         runs = [0, 2, 1, 2, 0, 1, 2, 1, 0]
-        log.add_run(runs[0:3])
-        log.add_run(runs[3:6])
-        log.add_run(runs[6:9])
+        self.log.add_run(runs[0:3])
+        self.log.add_run(runs[3:6])
+        self.log.add_run(runs[6:9])
 
-        log.write()
+        self.log.write()
 
         i = 0
-        for index in log.iterate_log():
+        for index in self.log.iterate_log():
             self.assertEqual(index, runs[i])
             i += 1
         self.assertEqual(i, len(runs))
 
     def test_shuffled_run(self):
-        log = Log(self.logfile)
         classes = ["A", "B", "C"]
-        log.start_log(classes)
+        self.log.start_log(classes)
 
         num = 3
         for _ in range(num):
-            log.shuffle_new_run()
-    
-        log.write()
-        
+            self.log.shuffle_new_run()
+
+        self.log.write()
+
         i = 0
-        for index in log.iterate_log():
+        for index in self.log.iterate_log():
             self.assertTrue(0 <= index < len(classes))
             i += 1
         self.assertEqual(i, num * len(classes))
 
     def test_write_read(self):
         # set up first log with example data
-        log1 = Log(self.logfile)
         classes = ["A", "B", "C"]
-        log1.start_log(classes)
+        self.log.start_log(classes)
 
         for _ in range(3):
-            log1.shuffle_new_run()
+            self.log.shuffle_new_run()
 
-        log1.write()
-        runs1 = [index for index in log1.iterate_log()]
+        self.log.write()
+        runs1 = list(self.log.iterate_log())
 
         # create a new log from the logfile
-        log2 = Log(self.logfile)
+        with mock.patch('tlsfuzzer.utils.log', self.mock_open):
+            log2 = Log(self.logfile)
         log2.read_log()
-        runs2 = [index for index in log2.iterate_log()]
+        runs2 = list(log2.iterate_log())
 
         self.assertEqual(log2.get_classes(), classes)
         self.assertEqual(runs1, runs2)
