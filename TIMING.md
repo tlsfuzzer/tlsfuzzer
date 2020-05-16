@@ -74,11 +74,12 @@ sudo PYTHONPATH=. python scripts/test-bleichenbacher-workaround.py -i lo
 ```
 
 By default, if all dependencies are available, the analysis will run right
-after the timing packet capture.  
+after the timing packet capture.
 In case you want to run the analysis on another machine (e.g. you were not able
-to install the requirements) you can do this by providing the log, the packet
-capture and server port and hostname (or ip) to the analysis script.
+to install the optional dependencies) you can do this by providing the log, the
+packet capture and server port and hostname (or ip) to the analysis script.
+Resulting file will be outputted to the specified folder.
 
 ```bash
-sudo PYTHONPATH=. python tlsfuzzer/analysis.py -h localhost -p 4433 -c capture.pcap -l class.log -o timing.csv
+sudo PYTHONPATH=. python tlsfuzzer/analysis.py -h localhost -p 4433 -c capture.pcap -l class.log -o /tmp/results/
 ```

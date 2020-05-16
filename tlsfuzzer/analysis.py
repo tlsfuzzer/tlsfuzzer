@@ -6,8 +6,9 @@
 import getopt
 import sys
 import csv
+from os.path import join
 from collections import defaultdict
-from socket import inet_aton, gethostbyname, gaierror
+from socket import inet_aton, gethostbyname, gaierror, error
 
 import dpkt
 from tlsfuzzer.utils.log import Log
@@ -18,7 +19,7 @@ def help_msg():
     print("Usage: analysis [-l logfile] [-c capture] [[-o output] ...]")
     print(" -l logfile     Filename of the timing log (required)")
     print(" -c capture     Packet capture of the test run (required)")
-    print(" -o output      Filename of the resulting file (required)")
+    print(" -o output      Directory where to place results (required)")
     print(" -h host        TLS server host or ip (required)")
     print(" -p port        TLS server port (required)")
 
@@ -57,7 +58,7 @@ def main():
     log.read_log()
     analysis = Analysis(log, capture, ip_address, port)
     analysis.parse()
-    analysis.write_csv(output)
+    analysis.write_csv(join(output, 'timing.csv'))
 
 
 class Analysis:
@@ -151,7 +152,7 @@ class Analysis:
         try:
             ip = inet_aton(hostname)
             return ip
-        except OSError:
+        except error:
             pass
 
         # not an IPv4, try a hostname
