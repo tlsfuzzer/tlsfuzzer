@@ -9,12 +9,12 @@ import os
 import time
 import subprocess
 import sys
+from threading import Thread, Lock
 from itertools import chain, repeat
 
 from tlsfuzzer.utils.log import Log
 from tlsfuzzer.runner import Runner
-
-WARM_UP = 250
+from tlsfuzzer.analysis import WARM_UP
 
 
 class TimingRunner:
@@ -43,6 +43,9 @@ class TimingRunner:
         self.port = port
         self.interface = interface
         self.log = Log(os.path.join(self.out_dir, "class.log"))
+
+        self.tcpdump_running = True
+        self.tcpdump_lock = Lock()
 
     def generate_log(self, run_only, run_exclude, repetitions):
         """
@@ -76,29 +79,37 @@ class TimingRunner:
         Run test the specified number of times and start analysis
         """
         sniffer = self.sniff()
+        status = Thread(target=self.tcpdump_status, args=(sniffer,))
+        status.setDaemon(True)
+        status.start()
 
         # run the conversations
         test_classes = self.log.get_classes()
         # prepend the conversations with few warm-up ones
-        queries = chain(repeat(0, 250), self.log.iterate_log())
+        queries = chain(repeat(0, WARM_UP), self.log.iterate_log())
         print("Starting timing info collection. This might take a while...")
         for index in queries:
-            c_name = test_classes[index]
-            c_test = self.tests[c_name]
+            if self.tcpdump_running:
+                c_name = test_classes[index]
+                c_test = self.tests[c_name]
 
-            runner = Runner(c_test)
-            res = True
-            try:
-                runner.run()
-            except Exception:
-                print("Error while processing")
-                print(traceback.format_exc())
-                res = False
+                runner = Runner(c_test)
+                res = True
+                try:
+                    runner.run()
+                except Exception:
+                    print("Error while processing")
+                    print(traceback.format_exc())
+                    res = False
 
-            if not res:
-                raise AssertionError("Test must pass in order to be timed")
+                if not res:
+                    raise AssertionError("Test must pass in order to be timed")
+            else:
+                sys.exit(1)
 
         # stop sniffing and give tcpdump time to write all buffered packets
+        with self.tcpdump_lock:
+            self.tcpdump_running = False
         time.sleep(2)
         sniffer.terminate()
         sniffer.wait()
@@ -141,15 +152,15 @@ class TimingRunner:
         process = subprocess.Popen(cmd, stderr=subprocess.PIPE)
 
         # detect when tcpdump starts capturing
-        ready = False
+        self.tcpdump_running = False
         for row in iter(process.stderr.readline, b''):
             line = row.rstrip()
             if 'listening' in line.decode():
                 # tcpdump is ready
                 print("tcpdump ready...")
-                ready = True
+                self.tcpdump_running = True
                 break
-        if not ready:
+        if not self.tcpdump_running:
             print('tcpdump could not be started.'
                   ' Do you have the correct permissions?')
             sys.exit(1)
@@ -168,6 +179,21 @@ class TimingRunner:
         except subprocess.CalledProcessError:
             return False
         return True
+
+    def tcpdump_status(self, process):
+        """
+        Checks if tcpdump is running. Intended to be run as a separate thread.
+
+        :param Popen process: A process with running tcpdump attached
+        """
+        _, stderr = process.communicate()
+        with self.tcpdump_lock:
+            if self.tcpdump_running:
+                self.tcpdump_running = False
+                print("tcpdump unexpectedly exited with return code {}"
+                      .format(process.returncode))
+                if stderr:
+                    print(stderr.decode())
 
     @staticmethod
     def check_availability():
