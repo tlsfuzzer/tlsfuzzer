@@ -12,6 +12,7 @@ from socket import inet_aton, gethostbyname, gaierror, error
 
 import dpkt
 from tlsfuzzer.utils.log import Log
+from tlsfuzzer.timing_runner import WARM_UP
 
 
 def help_msg():
@@ -81,6 +82,7 @@ class Analysis:
         self.timings = defaultdict(list)
         self.client_message = None
         self.server_message = None
+        self.warm_up_messages_left = WARM_UP
 
         # set up class names generator
         self.log = log
@@ -121,10 +123,13 @@ class Analysis:
     def add_timing(self):
         """Associate the timing information with it's class"""
         if self.client_message and self.server_message:
-            class_index = next(self.class_generator)
-            class_name = self.class_names[class_index]
-            time_diff = abs(self.server_message - self.client_message)
-            self.timings[class_name].append(time_diff)
+            if self.warm_up_messages_left == 0:
+                class_index = next(self.class_generator)
+                class_name = self.class_names[class_index]
+                time_diff = abs(self.server_message - self.client_message)
+                self.timings[class_name].append(time_diff)
+            else:
+                self.warm_up_messages_left -= 1
 
     def write_csv(self, filename):
         """

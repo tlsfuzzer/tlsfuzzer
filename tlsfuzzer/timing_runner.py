@@ -9,9 +9,12 @@ import os
 import time
 import subprocess
 import sys
+from itertools import chain, repeat
 
 from tlsfuzzer.utils.log import Log
 from tlsfuzzer.runner import Runner
+
+WARM_UP = 250
 
 
 class TimingRunner:
@@ -76,8 +79,10 @@ class TimingRunner:
 
         # run the conversations
         test_classes = self.log.get_classes()
+        # prepend the conversations with few warm-up ones
+        queries = chain(repeat(0, 250), self.log.iterate_log())
         print("Starting timing info collection. This might take a while...")
-        for index in self.log.iterate_log():
+        for index in queries:
             c_name = test_classes[index]
             c_test = self.tests[c_name]
 
