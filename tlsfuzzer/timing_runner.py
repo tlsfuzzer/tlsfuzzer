@@ -9,7 +9,7 @@ import os
 import time
 import subprocess
 import sys
-from threading import Thread, Lock
+from threading import Thread
 from itertools import chain, repeat
 
 from tlsfuzzer.utils.log import Log
@@ -45,7 +45,6 @@ class TimingRunner:
         self.log = Log(os.path.join(self.out_dir, "class.log"))
 
         self.tcpdump_running = True
-        self.tcpdump_lock = Lock()
 
     def generate_log(self, run_only, run_exclude, repetitions):
         """
@@ -108,8 +107,7 @@ class TimingRunner:
                 sys.exit(1)
 
         # stop sniffing and give tcpdump time to write all buffered packets
-        with self.tcpdump_lock:
-            self.tcpdump_running = False
+        self.tcpdump_running = False
         time.sleep(2)
         sniffer.terminate()
         sniffer.wait()
@@ -187,13 +185,12 @@ class TimingRunner:
         :param Popen process: A process with running tcpdump attached
         """
         _, stderr = process.communicate()
-        with self.tcpdump_lock:
-            if self.tcpdump_running:
-                self.tcpdump_running = False
-                print("tcpdump unexpectedly exited with return code {}"
-                      .format(process.returncode))
-                if stderr:
-                    print(stderr.decode())
+        if self.tcpdump_running:
+            self.tcpdump_running = False
+            print("tcpdump unexpectedly exited with return code {}"
+                  .format(process.returncode))
+            if stderr:
+                print(stderr.decode())
 
     @staticmethod
     def check_availability():
