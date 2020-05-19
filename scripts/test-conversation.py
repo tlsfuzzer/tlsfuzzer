@@ -195,7 +195,7 @@ def main():
             if res:
                 xpass += 1
                 xpassed.append(c_name)
-                print("XPASS: expected failure but test passed\n")
+                print("XPASS-expected failure but test passed\n")
             else:
                 if expected_failures[c_name] is not None and  \
                     expected_failures[c_name] not in str(exception):
@@ -217,9 +217,10 @@ def main():
     print("Basic conversation script; check basic communication with typical")
     print("cipher, TLS 1.2 or earlier and RSA key exchange (or (EC)DHE if")
     print("-d option is used)\n")
-    print("version: {0}\n".format(version))
 
     print("Test end")
+    print(20 * '=')
+    print("version: {0}".format(version))
     print(20 * '=')
     print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))

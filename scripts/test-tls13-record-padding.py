@@ -242,7 +242,14 @@ def main():
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throughout
     sanity_tests = [('sanity', conversations['sanity'])]
-    regular_tests = [(k, v) for k, v in conversations.items() if k != 'sanity']
+    if run_only:
+        if num_limit > len(run_only):
+            num_limit = len(run_only)
+        regular_tests = [(k, v) for k, v in conversations.items() if
+                          k in run_only]
+    else:
+        regular_tests = [(k, v) for k, v in conversations.items() if
+                         (k != 'sanity') and k not in run_exclude]
     sampled_tests = sample(regular_tests, min(num_limit, len(regular_tests)))
     ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
 
@@ -267,7 +274,7 @@ def main():
             if res:
                 xpass += 1
                 xpassed.append(c_name)
-                print("XPASS: expected failure but test passed\n")
+                print("XPASS-expected failure but test passed\n")
             else:
                 if expected_failures[c_name] is not None and  \
                     expected_failures[c_name] not in str(exception):
@@ -289,9 +296,10 @@ def main():
     print("Test if TLS 1.3 record layer message padding is supported")
     print("Check if the server correctly handles the padding in record layer")
     print(".\n")
-    print("version: {0}\n".format(version))
 
     print("Test end")
+    print(20 * '=')
+    print("version: {0}".format(version))
     print(20 * '=')
     print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
