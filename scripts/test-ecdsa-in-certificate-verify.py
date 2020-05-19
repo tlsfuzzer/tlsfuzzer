@@ -305,7 +305,7 @@ def main():
             if res:
                 xpass += 1
                 xpassed.append(c_name)
-                print("XPASS: expected failure but test passed\n")
+                print("XPASS-expected failure but test passed\n")
             else:
                 if expected_failures[c_name] is not None and  \
                     expected_failures[c_name] not in str(exception):
