@@ -31,7 +31,7 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
 from tlsfuzzer.helpers import RSA_SIG_ALL
 from tlsfuzzer.utils.lists import natural_sort_keys
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -5783,7 +5783,7 @@ def main():
             if res:
                 xpass += 1
                 xpassed.append(c_name)
-                print("XPASS: expected failure but test passed\n")
+                print("XPASS-expected failure but test passed\n")
             else:
                 if expected_failures[c_name] is not None and  \
                     expected_failures[c_name] not in str(exception):
@@ -5803,6 +5803,8 @@ def main():
                 failed.append(c_name)
 
     print("Test end")
+    print(20 * '=')
+    print("version: {0}".format(version))
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
