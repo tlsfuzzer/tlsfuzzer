@@ -30,7 +30,7 @@ from tlslite.extensions import SignatureAlgorithmsExtension, \
         SupportedGroupsExtension, TLSExtension, \
         SignatureAlgorithmsCertExtension
 
-version = 3
+version = 4
 
 def help_msg():
     print("Usage: <script-name> [-h hostname] [OPTIONS] [[probe-name] ...]")
@@ -729,7 +729,7 @@ def main():
             if res:
                 xpass += 1
                 xpassed.append(c_name)
-                print("XPASS: expected failure but test passed\n")
+                print("XPASS-expected failure but test passed\n")
             else:
                 if expected_failures[c_name] is not None and  \
                     expected_failures[c_name] not in str(exception):
@@ -753,9 +753,10 @@ def main():
     print("invalid properly rejected by the TLS 1.3 server.\n")
     print("Server must be configured to support only rsa_pss_rsae_sha512")
     print("signature algorithm.")
-    print("version: {0}\n".format(version))
 
     print("Test end")
+    print(20 * '=')
+    print("version: {0}".format(version))
     print(20 * '=')
     print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))

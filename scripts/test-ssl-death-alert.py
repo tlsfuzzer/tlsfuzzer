@@ -26,7 +26,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import RSA_SIG_ALL
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -46,7 +46,7 @@ def help_msg():
     print(" -X message           expect the `message` substring in exception raised during")
     print("                      execution of preceding expected failure probe")
     print("                      usage: [-x probe-name] [-X exception], order is compulsory!")
-    print(" -n num               only run `num` random tests instead of a full set")
+    print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
     print("                      (excluding \"sanity\" tests)")
     print(" -d                   negotiate (EC)DHE instead of RSA key exchange")
     print(" --alerts num         sends 'num' of alerts. by default(4)")
@@ -186,11 +186,9 @@ def main():
     xpass = 0
     failed = []
     xpassed = []
-
     if not num_limit:
         num_limit = len(conversations)
 
-    sanity_tests = [('sanity', conversations['sanity'])]
     if run_only:
         if num_limit > len(run_only):
             num_limit = len(run_only)
@@ -198,11 +196,10 @@ def main():
                           k in run_only]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
-                         (k != 'sanity') and k not in run_exclude]
+                          k not in run_exclude]
     sampled_tests = sample(regular_tests, min(num_limit, len(regular_tests)))
-    ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
 
-    for c_name, conversation in ordered_tests:
+    for c_name, conversation in sampled_tests:
         if run_only and c_name not in run_only:
             continue
         if c_name in run_exclude:
@@ -225,7 +222,7 @@ def main():
             if res:
                 xpass += 1
                 xpassed.append(c_name)
-                print("XPASS: expected failure but test passed\n")
+                print("XPASS-expected failure but test passed\n")
             else:
                 if expected_failures[c_name] is not None and  \
                     expected_failures[c_name] not in str(exception):
@@ -247,9 +244,10 @@ def main():
     print("Test for the OpenSSL Death Alert (CVE-2016-8610) vulnerability")
     print("Checks if the server will accept arbitrary number of warning level")
     print("alerts (specified with the -n option)")
-    print("version: {0}\n".format(version))
 
     print("Test end")
+    print(20 * '=')
+    print("version: {0}".format(version))
     print(20 * '=')
     print("TOTAL: {0}".format(len(sampled_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))

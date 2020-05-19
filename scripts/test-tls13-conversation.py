@@ -28,7 +28,7 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
 from tlsfuzzer.helpers import key_share_gen, SIG_ALL
 
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -46,7 +46,7 @@ def help_msg():
     print(" -X message     expect the `message` substring in exception raised during")
     print("                execution of preceding expected failure probe")
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
-    print(" -n num         only run `num` random tests instead of a full set")
+    print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
     print("                (\"sanity\" tests are always executed)")
     print(" --help         this message")
 
@@ -177,7 +177,7 @@ def main():
             if res:
                 xpass += 1
                 xpassed.append(c_name)
-                print("XPASS: expected failure but test passed\n")
+                print("XPASS-expected failure but test passed\n")
             else:
                 if expected_failures[c_name] is not None and  \
                     expected_failures[c_name] not in str(exception):
@@ -199,9 +199,10 @@ def main():
     print("Basic communication test with TLS 1.3 server")
     print("Check if communication with typical group and cipher works with")
     print("the TLS 1.3 server.\n")
-    print("version: {0}\n".format(version))
 
     print("Test end")
+    print(20 * '=')
+    print("version: {0}".format(version))
     print(20 * '=')
     print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
