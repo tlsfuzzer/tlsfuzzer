@@ -364,7 +364,14 @@ def main():
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throughout
     sanity_tests = [('sanity', conversations['sanity'])]
-    regular_tests = [(k, v) for k, v in conversations.items() if k != 'sanity']
+    if run_only:
+        if num_limit > len(run_only):
+            num_limit = len(run_only)
+        regular_tests = [(k, v) for k, v in conversations.items() if
+                          k in run_only]
+    else:
+        regular_tests = [(k, v) for k, v in conversations.items() if
+                         (k != 'sanity') and k not in run_exclude]
     sampled_tests = sample(regular_tests, min(num_limit, len(regular_tests)))
     ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
 
@@ -389,7 +396,7 @@ def main():
             if res:
                 xpass += 1
                 xpassed.append(c_name)
-                print("XPASS: expected failure but test passed\n")
+                print("XPASS-expected failure but test passed\n")
             else:
                 if expected_failures[c_name] is not None and  \
                     expected_failures[c_name] not in str(exception):
