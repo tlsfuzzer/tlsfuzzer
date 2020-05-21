@@ -12,8 +12,7 @@ from socket import inet_aton, gethostbyname, gaierror, error
 
 import dpkt
 from tlsfuzzer.utils.log import Log
-
-WARM_UP = 250
+from tlsfuzzer.utils.statics import WARM_UP
 
 
 def help_msg():
