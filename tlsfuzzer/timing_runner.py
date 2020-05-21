@@ -14,7 +14,7 @@ from itertools import chain, repeat
 
 from tlsfuzzer.utils.log import Log
 from tlsfuzzer.runner import Runner
-from tlsfuzzer.analysis import WARM_UP
+from tlsfuzzer.utils.statics import WARM_UP
 
 
 class TimingRunner:
@@ -42,7 +42,7 @@ class TimingRunner:
         self.ip_address = ip_address
         self.port = port
         self.interface = interface
-        self.log = Log(os.path.join(self.out_dir, "class.log"))
+        self.log = Log(os.path.join(self.out_dir, "log.csv"))
 
         self.tcpdump_running = True
 
