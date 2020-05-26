@@ -13,15 +13,22 @@ except ImportError:
 
 import io
 import subprocess
+from sys import version_info
+
 from tlsfuzzer.timing_runner import TimingRunner
 from tlsfuzzer.utils.statics import WARM_UP
 
 
+def is_33():
+    major, minor, _, _, _ = version_info
+    return major == 3 and minor == 3
+
+
 class TestRunner(unittest.TestCase):
     def setUp(self):
-        with mock.patch('tlsfuzzer.timing_runner.os.mkdir'), \
-             mock.patch('tlsfuzzer.timing_runner.TimingRunner.check_tcpdump'):
-            self.runner = TimingRunner("test", [], "/outdir", "localhost", 4433, "lo")
+        with mock.patch('tlsfuzzer.timing_runner.os.mkdir'):
+            with mock.patch('tlsfuzzer.timing_runner.TimingRunner.check_tcpdump'):
+                self.runner = TimingRunner("test", [], "/outdir", "localhost", 4433, "lo")
 
     @staticmethod
     def _mock_open(*args, **kwargs):
@@ -33,9 +40,9 @@ class TestRunner(unittest.TestCase):
     def test_init_without_tcpdump(self):
         mock_check = mock.Mock()
         mock_check.return_value = False
-        with mock.patch('tlsfuzzer.timing_runner.os.mkdir'), \
-             mock.patch('tlsfuzzer.timing_runner.TimingRunner.check_tcpdump', mock_check):
-            self.assertRaises(Exception, TimingRunner, "test", [], "/outdir", "localhost", 4433, "lo")
+        with mock.patch('tlsfuzzer.timing_runner.os.mkdir'):
+            with mock.patch('tlsfuzzer.timing_runner.TimingRunner.check_tcpdump', mock_check):
+                self.assertRaises(Exception, TimingRunner, "test", [], "/outdir", "localhost", 4433, "lo")
 
     def test_check_tcpdump(self):
         mock_call = mock.Mock(spec=subprocess.check_call)
@@ -88,14 +95,14 @@ class TestRunner(unittest.TestCase):
     def test_generate_log_exclusion(self):
         self.runner.tests = [("regular", None), ("exclude", None)]
         with mock.patch('__main__.__builtins__.open', mock.mock_open()) as mock_file:
-            self.runner.generate_log(set(), {"exclude"}, 10)
+            self.runner.generate_log(set(), set(["exclude"]), 10)
             self.assertEqual(self.runner.log.classes, ["regular"])
             self.assertEqual(mock_file.return_value.write.call_count, 11)
 
     def test_generate_log_run_only(self):
         self.runner.tests = [("regular", None), ("exclude", None)]
         with mock.patch('__main__.__builtins__.open', mock.mock_open()) as mock_file:
-            self.runner.generate_log({"regular"}, set(), 10)
+            self.runner.generate_log(set(["regular"]), set(), 10)
             self.assertEqual(self.runner.log.classes, ["regular"])
             self.assertEqual(mock_file.return_value.write.call_count, 11)
 
@@ -108,46 +115,47 @@ class TestRunner(unittest.TestCase):
         self.runner.tests = {"A": None, "B": None, "C": None}
         self.runner.tcpdump_running = True
         with mock.patch('__main__.__builtins__.open',
-                        self._mock_open(read_data="A,B,C\r\n0,2,1\r\n2,0,1\r\n2,1,0\r\n")), \
-                mock.patch('tlsfuzzer.timing_runner.TimingRunner.sniff'), \
-                mock.patch('tlsfuzzer.timing_runner.TimingRunner.extract') as extract, \
-                mock.patch('tlsfuzzer.timing_runner.TimingRunner.analyse') as analyse, \
-                mock.patch('tlsfuzzer.timing_runner.Thread'), \
-                mock.patch('tlsfuzzer.timing_runner.time.sleep'), \
-                mock.patch('tlsfuzzer.timing_runner.Runner') as runner:
-            self.runner.run()
-            self.assertEqual(runner.call_count, WARM_UP + 9)
-            extract.assert_called_once()
-            analyse.assert_called_once()
+                        self._mock_open(read_data="A,B,C\r\n0,2,1\r\n2,0,1\r\n2,1,0\r\n")):
+            with mock.patch('tlsfuzzer.timing_runner.TimingRunner.sniff'):
+                with mock.patch('tlsfuzzer.timing_runner.TimingRunner.extract') as extract:
+                    with mock.patch('tlsfuzzer.timing_runner.TimingRunner.analyse') as analyse:
+                        with mock.patch('tlsfuzzer.timing_runner.Thread'):
+                            with mock.patch('tlsfuzzer.timing_runner.time.sleep'):
+                                with mock.patch('tlsfuzzer.timing_runner.Runner') as runner:
+                                    self.runner.run()
+                                    self.assertEqual(runner.call_count, WARM_UP + 9)
+                                    extract.assert_called_once()
+                                    analyse.assert_called_once()
 
     def test_run_tcpdump_failure(self):
         self.runner.tests = {"A": None, "B": None, "C": None}
         with mock.patch('__main__.__builtins__.open',
-                        self._mock_open(read_data="A,B,C\r\n0,2,1\r\n2,0,1\r\n2,1,0\r\n")), \
-                mock.patch('tlsfuzzer.timing_runner.TimingRunner.sniff'), \
-                mock.patch('tlsfuzzer.timing_runner.TimingRunner.extract'), \
-                mock.patch('tlsfuzzer.timing_runner.TimingRunner.analyse'), \
-                mock.patch('tlsfuzzer.timing_runner.Thread'), \
-                mock.patch('tlsfuzzer.timing_runner.time.sleep'), \
-                mock.patch('tlsfuzzer.timing_runner.Runner') as runner:
-            self.runner.tcpdump_running = False
-            self.assertRaises(SystemExit, self.runner.run)
-            self.assertEqual(runner.call_count, 0)
+                        self._mock_open(read_data="A,B,C\r\n0,2,1\r\n2,0,1\r\n2,1,0\r\n")):
+            with mock.patch('tlsfuzzer.timing_runner.TimingRunner.sniff'):
+                with mock.patch('tlsfuzzer.timing_runner.TimingRunner.extract'):
+                    with mock.patch('tlsfuzzer.timing_runner.TimingRunner.analyse'):
+                        with mock.patch('tlsfuzzer.timing_runner.Thread'):
+                            with mock.patch('tlsfuzzer.timing_runner.time.sleep'):
+                                with mock.patch('tlsfuzzer.timing_runner.Runner') as runner:
+                                    self.runner.tcpdump_running = False
+                                    self.assertRaises(SystemExit, self.runner.run)
+                                    self.assertEqual(runner.call_count, 0)
 
+    @unittest.skipIf(is_33(), reason="Skipping because of a bug in unittest")
     def test_run_test_failure(self):
         self.runner.tests = {"A": None, "B": None, "C": None}
         self.runner.tcpdump_running = True
 
         def raise_error(*args, **kwargs):
-            raise Exception()
+            raise Exception("Test failure")
 
         with mock.patch('__main__.__builtins__.open',
-                        self._mock_open(read_data="A,B,C\r\n0,2,1\r\n2,0,1\r\n2,1,0\r\n")), \
-                mock.patch('tlsfuzzer.timing_runner.TimingRunner.sniff'), \
-                mock.patch('tlsfuzzer.timing_runner.TimingRunner.analyse'), \
-                mock.patch('tlsfuzzer.timing_runner.TimingRunner.extract'), \
-                mock.patch('tlsfuzzer.timing_runner.Thread'), \
-                mock.patch('tlsfuzzer.timing_runner.time.sleep'), \
-                mock.patch('tlsfuzzer.timing_runner.Runner') as runner:
-            runner.return_value.run.side_effect = raise_error
-            self.assertRaises(AssertionError, self.runner.run)
+                        self._mock_open(read_data="A,B,C\r\n0,2,1\r\n2,0,1\r\n2,1,0\r\n")):
+            with mock.patch('tlsfuzzer.timing_runner.TimingRunner.sniff'):
+                with mock.patch('tlsfuzzer.timing_runner.TimingRunner.analyse'):
+                    with mock.patch('tlsfuzzer.timing_runner.TimingRunner.extract'):
+                        with mock.patch('tlsfuzzer.timing_runner.Thread'):
+                            with mock.patch('tlsfuzzer.timing_runner.time.sleep'):
+                                with mock.patch('tlsfuzzer.timing_runner.Runner') as runner:
+                                    runner.return_value.run.side_effect = raise_error
+                                    self.assertRaises(AssertionError, self.runner.run)

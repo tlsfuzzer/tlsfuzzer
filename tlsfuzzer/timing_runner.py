@@ -203,7 +203,7 @@ class TimingRunner:
         _, stderr = process.communicate()
         if self.tcpdump_running:
             self.tcpdump_running = False
-            print("tcpdump unexpectedly exited with return code {}"
+            print("tcpdump unexpectedly exited with return code {0}"
                   .format(process.returncode))
             if stderr:
                 print(stderr.decode())

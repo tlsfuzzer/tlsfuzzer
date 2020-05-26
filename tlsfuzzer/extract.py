@@ -121,7 +121,7 @@ class Extract:
             self.add_timing()
 
     def add_timing(self):
-        """Associate the timing information with it's class"""
+        """Associate the timing information with its class"""
         if self.client_message and self.server_message:
             if self.warm_up_messages_left == 0:
                 class_index = next(self.class_generator)

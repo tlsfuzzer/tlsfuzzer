@@ -37,21 +37,21 @@ class TestReport(unittest.TestCase):
         self.mock_read_csv.return_value = timings.transpose()
 
     def test_report(self):
-        with mock.patch("tlsfuzzer.analysis.pd.read_csv", self.mock_read_csv), \
-             mock.patch("tlsfuzzer.analysis.Analysis.qq_plot") as mock_qq, \
-                mock.patch("tlsfuzzer.analysis.Analysis.ecdf_plot") as mock_ecdf, \
-                mock.patch("tlsfuzzer.analysis.Analysis.box_plot") as mock_box, \
-                mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter, \
-                mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
-            analysis = Analysis("/tmp")
-            analysis.generate_report()
+        with mock.patch("tlsfuzzer.analysis.pd.read_csv", self.mock_read_csv):
+            with mock.patch("tlsfuzzer.analysis.Analysis.qq_plot") as mock_qq:
+                with mock.patch("tlsfuzzer.analysis.Analysis.ecdf_plot") as mock_ecdf:
+                    with mock.patch("tlsfuzzer.analysis.Analysis.box_plot") as mock_box:
+                        with mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter:
+                            with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
+                                analysis = Analysis("/tmp")
+                                analysis.generate_report()
 
-            self.mock_read_csv.assert_called_once()
-            mock_qq.assert_called_once()
-            mock_ecdf.assert_called_once()
-            mock_box.assert_called_once()
-            mock_scatter.assert_called_once()
-            mock_open.assert_called_once()
+                                self.mock_read_csv.assert_called_once()
+                                mock_qq.assert_called_once()
+                                mock_ecdf.assert_called_once()
+                                mock_box.assert_called_once()
+                                mock_scatter.assert_called_once()
+                                mock_open.assert_called_once()
 
     def test_ks_test(self):
         with mock.patch("tlsfuzzer.analysis.pd.read_csv", self.mock_read_csv):
@@ -136,11 +136,11 @@ class TestCommandLine(unittest.TestCase):
         sys.argv = ["analysis.py", "-o", output]
         mock_init = mock.Mock()
         mock_init.return_value = None
-        with mock.patch('tlsfuzzer.analysis.Analysis.generate_report') as mock_report, \
-                mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
-            main()
-            mock_report.assert_called_once()
-            mock_init.assert_called_once_with(output)
+        with mock.patch('tlsfuzzer.analysis.Analysis.generate_report') as mock_report:
+            with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
+                main()
+                mock_report.assert_called_once()
+                mock_init.assert_called_once_with(output)
 
     def test_help(self):
         sys.argv = ["analysis.py", "--help"]

@@ -92,13 +92,13 @@ class TestCommandLine(unittest.TestCase):
                     "-o", output]
         mock_init = mock.Mock()
         mock_init.return_value = None
-        with mock.patch('tlsfuzzer.extract.Extract.parse'), \
-             mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init), \
-             mock.patch('tlsfuzzer.extract.Extract.write_csv'), \
-             mock.patch('tlsfuzzer.extract.Log') as mock_log:
-            main()
-            mock_log.assert_called_once_with(logfile)
-            mock_init.assert_called_once_with(mock.ANY, capture, output, host, int(port))
+        with mock.patch('tlsfuzzer.extract.Extract.parse'):
+            with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
+                with mock.patch('tlsfuzzer.extract.Extract.write_csv'):
+                    with mock.patch('tlsfuzzer.extract.Log') as mock_log:
+                        main()
+                        mock_log.assert_called_once_with(logfile)
+                        mock_init.assert_called_once_with(mock.ANY, capture, output, host, int(port))
 
     def test_help(self):
         sys.argv = ["extract.py", "--help"]
