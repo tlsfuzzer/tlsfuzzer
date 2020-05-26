@@ -1,25 +1,27 @@
-language: python
-
-python:
-  - 2.6
-  - 2.7
-  - 3.3
-  - 3.4
-  - 3.5
-  - 3.6
-  - 3.7
-  - 3.8
-
 # workaround for 3.7 and 3.8 not available in default configuration
 # travis-ci/travis-ci#9815
 dist: trusty
 sudo: false
+cache: pip
+language: python
 
-matrix:
- exclude:
-   - python: 3.7
-   - python: 3.8
+addons:
+  apt_packages:
+    # needed for M2Crypto
+    - swig
+    - libssl-dev
+
+before_cache:
+  - rm -f $HOME/.cache/pip/log/debug.log
+
+jobs:
  include:
+   - python: 2.6
+   - python: 2.7
+   - python: 3.3
+   - python: 3.4
+   - python: 3.5
+   - python: 3.6
 # workaround for 3.7 and 3.8 not available in default configuration
 # travis-ci/travis-ci#9815
    - python: 3.7
@@ -32,12 +34,6 @@ matrix:
 branches:
   only:
     - master
-
-addons:
-  apt_packages:
-    # needed for M2Crypto
-    - swig
-    - libssl-dev
 
 before_install:
   - |
@@ -108,8 +104,6 @@ script:
         done
       fi
 
-sudo: false
-
 after_success:
- - coveralls
+ - travis_retry coveralls
  - if [[ $TRAVIS_PYTHON_VERSION == '3.6' ]]; then coverage xml; ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT; fi
