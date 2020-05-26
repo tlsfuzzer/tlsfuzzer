@@ -3,3 +3,7 @@ coveralls
 pylint
 diff_cover
 dpkt>=1.9.2
+numpy>=1.15.0
+scipy
+matplotlib
+pandas

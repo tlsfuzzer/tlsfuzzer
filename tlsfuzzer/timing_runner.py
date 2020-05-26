@@ -33,8 +33,7 @@ class TimingRunner:
         """
         # first check tcpdump presence
         if not self.check_tcpdump():
-            raise FileNotFoundError(
-                "Could not find tcpdump, aborting timing tests")
+            raise Exception("Could not find tcpdump, aborting timing tests")
 
         self.tests = tests
         self.out_dir = out_dir
@@ -57,6 +56,7 @@ class TimingRunner:
         # first filter out what is really going to be run
         actual_tests = []
         test_dict = {}
+
         for c_name, c_test in self.tests:
             if run_only and c_name not in run_only or c_name in run_exclude:
                 continue
@@ -112,24 +112,40 @@ class TimingRunner:
         sniffer.terminate()
         sniffer.wait()
 
-        # start analysis
-        self.start_analysis()
+        # start extraction and analysis
+        print("Starting extraction...")
+        if self.extract():
+            print("Starting analysis...")
+            self.analyse()
 
-    def start_analysis(self):
-        """Starts the analysis if available."""
-        if self.check_availability():
-            from tlsfuzzer.analysis import Analysis
+    def extract(self):
+        """Starts the extraction if available."""
+        if self.check_extraction_availability():
+            from tlsfuzzer.extract import Extract
             self.log.read_log()
-            analysis = Analysis(self.log,
-                                os.path.join(self.out_dir, "capture.pcap"),
-                                self.ip_address,
-                                self.port)
+            analysis = Extract(self.log,
+                               os.path.join(self.out_dir, "capture.pcap"),
+                               self.out_dir,
+                               self.ip_address,
+                               self.port)
             analysis.parse()
             analysis.write_csv(os.path.join(self.out_dir, "timing.csv"))
+            return True
+
+        print("Extraction is not available. "
+              "Install required packages to enable.")
+        return False
+
+    def analyse(self):
+        """Starts analysis if available"""
+        if self.check_analysis_availability():
+            from tlsfuzzer.analysis import Analysis
+            self.log.read_log()
+            analysis = Analysis(self.out_dir)
+            analysis.generate_report()
         else:
-            print("Analysis is not available."
+            print("Analysis is not available. "
                   "Install required packages to enable.")
-            print("Exiting.")
 
     def sniff(self):
         """Start tcpdump with filter on communication to/from server"""
@@ -187,13 +203,26 @@ class TimingRunner:
         _, stderr = process.communicate()
         if self.tcpdump_running:
             self.tcpdump_running = False
-            print("tcpdump unexpectedly exited with return code {}"
+            print("tcpdump unexpectedly exited with return code {0}"
                   .format(process.returncode))
             if stderr:
                 print(stderr.decode())
 
     @staticmethod
-    def check_availability():
+    def check_extraction_availability():
+        """
+        Checks if additional packages are installed so extraction can run.
+
+        :return: bool Indicating if it is okay to run
+        """
+        try:
+            from tlsfuzzer.extract import Extract
+        except ImportError:
+            return False
+        return True
+
+    @staticmethod
+    def check_analysis_availability():
         """
         Checks if additional packages are installed so analysis can run.
 

@@ -1,171 +1,238 @@
 # Author: Jan Koscielniak, (c) 2020
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
-"""Extraction and analysis of timing information from a packet capture."""
+"""Analysis of timing information."""
 
+import csv
 import getopt
 import sys
-import csv
 from os.path import join
-from collections import defaultdict
-from socket import inet_aton, gethostbyname, gaierror, error
+from collections import namedtuple
+from itertools import combinations, product
 
-import dpkt
-from tlsfuzzer.utils.log import Log
-from tlsfuzzer.utils.statics import WARM_UP
+import numpy as np
+from scipy import stats
+import pandas as pd
+import matplotlib.pyplot as plt
+
+TestPair = namedtuple('TestPair', 'index1  index2')
 
 
 def help_msg():
-    """Print help message."""
-    print("Usage: analysis [-l logfile] [-c capture] [[-o output] ...]")
-    print(" -l logfile     Filename of the timing log (required)")
-    print(" -c capture     Packet capture of the test run (required)")
+    """Print help message"""
+    print("Usage: analysis [-o output]")
     print(" -o output      Directory where to place results (required)")
-    print(" -h host        TLS server host or ip (required)")
-    print(" -p port        TLS server port (required)")
+    print("                and where timing.csv is located")
+    print(" --help         Display this message")
 
 
 def main():
-    """Process arguments and start extraction."""
-    logfile = None
-    capture = None
+    """Process arguments and start analysis."""
     output = None
-    ip_address = None
-    port = None
-
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "l:c:h:p:o:", ["help"])
+    opts, args = getopt.getopt(argv, "o:", ["help"])
+
     for opt, arg in opts:
-        if opt == '-l':
-            logfile = arg
-        elif opt == '-c':
-            capture = arg
-        elif opt == '-o':
+        if opt == '-o':
             output = arg
-        elif opt == '-h':
-            ip_address = arg
-        elif opt == '-p':
-            port = int(arg)
         elif opt == "--help":
             help_msg()
             sys.exit(0)
-        else:
-            raise ValueError("Unknown option: {0}".format(opt))
 
-    if not all([logfile, capture, output, ip_address, port]):
-        raise ValueError("All arguments need to be entered!")
-
-    log = Log(logfile)
-    log.read_log()
-    analysis = Analysis(log, capture, ip_address, port)
-    analysis.parse()
-    analysis.write_csv(join(output, 'timing.csv'))
+    if output:
+        analysis = Analysis(output)
+        analysis.generate_report()
+    else:
+        raise ValueError("Missing -o option!")
 
 
 class Analysis:
-    """
-    Extract and analyse timing information from packet capture.
-    """
+    """Analyse extracted timing information from csv file."""
 
-    def __init__(self, log, capture, ip_address, port):
+    def __init__(self, output):
+        self.output = output
+        self.data = self.load_data()
+        self.class_names = list(self.data)
+
+    def load_data(self):
+        """Loads data into pandas Dataframe for generating plots and stats."""
+        data = pd.read_csv(join(self.output, "timing.csv"), header=None)
+
+        # transpose and set header
+        data = data.transpose()
+        data = data.rename(columns=data.iloc[0]).drop(data.index[0])
+        return data
+
+    def _box_test(self, interval1, interval2, quantile_start, quantile_end):
         """
-        Initialises instance and sets up class name generator from log.
+        Internal configurable function to perform the box test.
 
-        :param Log log: Log class instance
-        :param str capture: Packet capture filename
-        :param str ip_address: TLS server ip address
-        :param int port: TLS server port
+        :param int interval1: index to self.data representing first sample
+        :param int interval2: index to self.data representing second sample
+        :param float quantile_start: starting quantile of the box
+        :param float quantile_end: closing quantile of the box
+        :return: None on no difference, int index of smaller sample if there
+            is a difference
         """
-        self.capture = capture
-        self.ip_address = self.hostname_to_ip(ip_address)
-        self.port = port
-        self.timings = defaultdict(list)
-        self.client_message = None
-        self.server_message = None
-        self.warm_up_messages_left = WARM_UP
+        box1_start = np.quantile(self.data.iloc[:, interval1], quantile_start)
+        box1_end = np.quantile(self.data.iloc[:, interval1], quantile_end)
 
-        # set up class names generator
-        self.log = log
-        self.class_generator = log.iterate_log()
-        self.class_names = log.get_classes()
+        box2_start = np.quantile(self.data.iloc[:, interval2], quantile_start)
+        box2_end = np.quantile(self.data.iloc[:, interval2], quantile_end)
 
-    def parse(self):
-        """
-        Extract timing information from capture file
-        and associate it with class from log file.
-        """
-        with open(self.capture, 'rb') as pcap:
-            capture = dpkt.pcap.Reader(pcap)
+        if box1_start == box2_start or box1_end == box2_end:
+            # can return early because the intervals overlap
+            return None
 
-            for timestamp, pkt in capture:
-                link_packet = dpkt.ethernet.Ethernet(pkt)
-                ip_pkt = link_packet.data
-                tcp_pkt = ip_pkt.data
+        intervals = {interval1: (box1_start, box1_end),
+                     interval2: (box2_start, box2_end)}
+        is_smaller = min(box1_start, box2_start) == box1_start
+        smaller = interval1 if is_smaller else interval2
+        bigger = interval2 if smaller == interval1 else interval1
 
-                if tcp_pkt.data:
-                    if (tcp_pkt.sport == self.port and
-                            ip_pkt.src == self.ip_address):
-                        # message from the server
-                        self.server_message = timestamp
-                    else:
-                        # message from the client
-                        self.client_message = timestamp
-                if (tcp_pkt.flags & 0x02) != 0:
-                    # a SYN packet was found - new connection
-                    self.add_timing()
+        if (intervals[smaller][0] < intervals[bigger][0] and
+                intervals[smaller][1] < intervals[bigger][0]):
+            return smaller, bigger
+        return None
 
-                    # reset timestamps
-                    self.server_message = None
-                    self.client_message = None
-            # deal with the last connection
-            self.add_timing()
+    def box_test(self):
+        """Cross-test all classes with the box test"""
+        results = {}
+        comb = combinations(list(range(len(self.class_names))), 2)
+        for index1, index2 in comb:
+            result = self._box_test(index1, index2, 0.03, 0.04)
+            results[TestPair(index1, index2)] = result
+        return results
 
-    def add_timing(self):
-        """Associate the timing information with it's class"""
-        if self.client_message and self.server_message:
-            if self.warm_up_messages_left == 0:
-                class_index = next(self.class_generator)
-                class_name = self.class_names[class_index]
-                time_diff = abs(self.server_message - self.client_message)
-                self.timings[class_name].append(time_diff)
-            else:
-                self.warm_up_messages_left -= 1
+    def ks_test(self):
+        """Cross-test all classes with the KS test"""
+        results = {}
+        comb = combinations(list(range(len(self.class_names))), 2)
+        for index1, index2 in comb:
+            data1 = self.data.iloc[:, index1]
+            data2 = self.data.iloc[:, index2]
+            _, pval = stats.ks_2samp(data1, data2)
+            results[TestPair(index1, index2)] = pval
+        return results
 
-    def write_csv(self, filename):
-        """
-        Write timing information into a csv file. Each row starts with a class
-        name and the rest of the row are individual timing measurements.
+    def box_plot(self):
+        """Generate box plot for the test classes."""
+        axes = self.data.plot(kind="box", showfliers=False)
+        axes.set_xticklabels(list(range(len(self.data))))
 
-        :param str filename: Target filename
-        """
-        with open("{0}".format(filename), 'w') as csvfile:
-            print("Writing to {0}".format(filename))
-            writer = csv.writer(csvfile, quoting=csv.QUOTE_MINIMAL)
-            for class_name in self.timings:
-                row = [class_name]
-                row.extend(self.timings[class_name])
+        plt.title("Box plot")
+        plt.ylabel("Time [s]")
+        plt.xlabel("Class index")
+        plt.savefig(join(self.output, "box_plot.png"), bbox_inches="tight")
+
+    def qq_plot(self):
+        """Generate Q-Q plot grid for the test classes."""
+        indexes = list(range(len(self.class_names)))
+        prod = product(indexes, repeat=2)
+        data_length = len(self.data.iloc[:, 1])
+        quantiles = np.linspace(start=0, stop=1, num=int(data_length))
+
+        fig, axes = plt.subplots(len(indexes),
+                                 len(indexes),
+                                 figsize=(len(indexes) * 3, len(indexes) * 3))
+
+        for index1, index2 in prod:
+            data1 = self.data.iloc[:, index1]
+            data2 = self.data.iloc[:, index2]
+            quantile1 = np.quantile(data1, quantiles, interpolation="midpoint")
+            quantile2 = np.quantile(data2, quantiles, interpolation="midpoint")
+            plot = axes[index1, index2]
+            if index1 == 0:
+                plot.set_title(index2)
+            if index2 == 0:
+                plot.set_ylabel(index1,
+                                fontsize=plt.rcParams['axes.titlesize'])
+            plot.scatter(quantile1, quantile2, marker=".")
+            plot.set_xticks([])
+            plot.set_yticks([])
+            plot.set_xlim([quantile1[0], quantile1[-1]])
+            plot.set_ylim([quantile2[0], quantile2[-1]])
+
+        fig.suptitle("Q-Q plot grid")
+        plt.subplots_adjust(top=0.92,
+                            bottom=0.05,
+                            left=0.1,
+                            right=0.925)
+        plt.savefig(join(self.output, "qq_plot.png"), bbox_inches="tight")
+
+    def scatter_plot(self):
+        """Generate scatter plot showing how the measurement went."""
+        plt.figure(figsize=(8, 6))
+        plt.plot(self.data, ".", fillstyle='none', alpha=0.6)
+
+        plt.title("Scatter plot")
+        plt.ylabel("Time [s]")
+        plt.xlabel("Sample index")
+        plt.yscale("log")
+        self.make_legend()
+        plt.savefig(join(self.output, "scatter_plot.png"), bbox_inches="tight")
+
+    def ecdf_plot(self):
+        """Generate ECDF plot comparing distributions of the test classes."""
+        plt.figure()
+        for classname in self.data:
+            data = self.data.loc[:, classname]
+            levels = np.linspace(1. / len(data), 1, len(data))
+            plt.step(sorted(data), levels, where='post')
+        self.make_legend()
+        plt.title("Empirical Cumulative Distribution Function")
+        plt.xlabel("Time [s]")
+        plt.ylabel("Cumulative probability")
+        plt.savefig(join(self.output, "ecdf_plot.png"), bbox_inches="tight")
+
+    def make_legend(self):
+        """Generate common legend for plots that need it."""
+        header = list(range(len(list(self.data))))
+        plt.legend(header,
+                   ncol=6,
+                   loc='upper center',
+                   bbox_to_anchor=(0.5, -0.15)
+                   )
+
+    def generate_report(self):
+        """Compiles a report consisting of statistical tests and plots."""
+        self.box_plot()
+        self.scatter_plot()
+        self.qq_plot()
+        self.ecdf_plot()
+
+        # create a report with statistical tests
+        box_results = self.box_test()
+        ks_results = self.ks_test()
+
+        report_filename = join(self.output, "report.csv")
+        with open(report_filename, 'w') as file:
+            writer = csv.writer(file)
+            writer.writerow(["Class 1", "Class 2", "Box test", "KS test"])
+            for pair, result in box_results.items():
+                index1 = pair.index1
+                index2 = pair.index2
+                box_write = "="
+                if result:
+                    smaller, bigger = result
+                    print("Box test {} vs {}: {} < {}".format(index1,
+                                                              index2,
+                                                              smaller,
+                                                              bigger))
+                    box_write = "<" if smaller == index1 else ">"
+                else:
+                    print("Box test {} vs {}: No difference".format(index1,
+                                                                    index2))
+                print("KS test {} vs {}: {}".format(index1,
+                                                    index2,
+                                                    ks_results[pair]))
+                row = [self.class_names[index1],
+                       self.class_names[index2],
+                       box_write,
+                       ks_results[pair]
+                       ]
                 writer.writerow(row)
-
-    @staticmethod
-    def hostname_to_ip(hostname):
-        """
-        Converts hostname to IPv4 address, if needed.
-        :param str hostname: hostname or an IPv4 address
-        :return: str IPv4 address
-        """
-        # first check if it is not already IPv4
-        try:
-            ip = inet_aton(hostname)
-            return ip
-        except error:
-            pass
-
-        # not an IPv4, try a hostname
-        try:
-            ip = gethostbyname(hostname)
-            return inet_aton(ip)
-        except gaierror:
-            raise Exception("Hostname is not an IPv4 or a reachable hostname")
+            print("For detailed report see {}".format(report_filename))
 
 
 if __name__ == '__main__':

@@ -17,72 +17,65 @@ from tlsfuzzer.utils.log import Log
 class TestLog(unittest.TestCase):
     def setUp(self):
         self.logfile = "test.log"
+        self.log = Log(self.logfile)
 
-        # fix mock not supporting iterators
-        self.mock_open = mock.mock_open()
-        self.mock_open.return_value.__iter__ = lambda s: s
-        self.mock_open.return_value.__next__ = lambda s: s.readline()
+    @staticmethod
+    def _mock_open(*args, **kwargs):
+        """Fix mock not supporting iterators in all Python versions."""
+        mock_open = mock.mock_open(*args, **kwargs)
+        mock_open.return_value.__iter__ = lambda s: iter(s.readline, '')
+        return mock_open
 
-        with mock.patch('tlsfuzzer.utils.log', self.mock_open):
-            self.log = Log(self.logfile)
+    def test_write_classes(self):
+        with mock.patch('__main__.__builtins__.open', self._mock_open()) as mock_file:
+            self.log.start_log(["A", "B", "C"])
+            self.log.write()
+            mock_file.return_value.write.assert_called_once_with("A,B,C\r\n")
+            mock_file.return_value.close.assert_called_once_with()
 
-    def test_classes(self):
-        self.log.start_log(["A", "B", "C"])
-        self.log.write()
-
-        classes = self.log.get_classes()
-        self.assertEqual(classes, ["A", "B", "C"])
+    def test_read_classes(self):
+        with mock.patch('__main__.__builtins__.open', self._mock_open(read_data="A,B,C\r\n")):
+            classes = self.log.get_classes()
+            self.assertEqual(classes, ["A", "B", "C"])
 
     def test_add_run(self):
-        classes = ["A", "B", "C"]
-        self.log.start_log(classes)
+        with mock.patch('__main__.__builtins__.open', self._mock_open()) as mock_file:
+            classes = ["A", "B", "C"]
+            self.log.start_log(classes)
+            mock_file.return_value.write.assert_called_with("A,B,C\r\n")
+            # add regular runs
+            runs = [0, 2, 1, 2, 0, 1, 2, 1, 0]
+            self.log.add_run(runs[0:3])
+            mock_file.return_value.write.assert_called_with("0,2,1\r\n")
 
-        # add regular runs
+            self.log.add_run(runs[3:6])
+            mock_file.return_value.write.assert_called_with("2,0,1\r\n")
+            self.log.add_run(runs[6:9])
+            mock_file.return_value.write.assert_called_with("2,1,0\r\n")
+
+            self.log.write()
+            mock_file.return_value.close.assert_called_once()
+
+    def test_read_run(self):
         runs = [0, 2, 1, 2, 0, 1, 2, 1, 0]
-        self.log.add_run(runs[0:3])
-        self.log.add_run(runs[3:6])
-        self.log.add_run(runs[6:9])
-
-        self.log.write()
-
         i = 0
-        for index in self.log.iterate_log():
-            self.assertEqual(index, runs[i])
-            i += 1
+        with mock.patch('__main__.__builtins__.open',
+                        self._mock_open(read_data="A,B,C\r\n0,2,1\r\n2,0,1\r\n2,1,0\r\n")):
+            for index in self.log.iterate_log():
+                self.assertEqual(index, runs[i])
+                i += 1
         self.assertEqual(i, len(runs))
 
     def test_shuffled_run(self):
-        classes = ["A", "B", "C"]
-        self.log.start_log(classes)
+        def check_indexes(class_count, line):
+            indexes = line.strip().split(',')
+            self.assertTrue(all(indexes) in range(0, class_count))
 
-        num = 3
-        for _ in range(num):
-            self.log.shuffle_new_run()
-
-        self.log.write()
-
-        i = 0
-        for index in self.log.iterate_log():
-            self.assertTrue(0 <= index < len(classes))
-            i += 1
-        self.assertEqual(i, num * len(classes))
-
-    def test_write_read(self):
-        # set up first log with example data
-        classes = ["A", "B", "C"]
-        self.log.start_log(classes)
-
-        for _ in range(3):
-            self.log.shuffle_new_run()
-
-        self.log.write()
-        runs1 = list(self.log.iterate_log())
-
-        # create a new log from the logfile
-        with mock.patch('tlsfuzzer.utils.log', self.mock_open):
-            log2 = Log(self.logfile)
-        log2.read_log()
-        runs2 = list(log2.iterate_log())
-
-        self.assertEqual(log2.get_classes(), classes)
-        self.assertEqual(runs1, runs2)
+        with mock.patch('__main__.__builtins__.open', self._mock_open()) as mock_file:
+            classes = ["A", "B", "C"]
+            self.log.start_log(classes)
+            mock_file.return_value.write.side_effect = lambda s: check_indexes(len(classes), s)
+            num = 3
+            for _ in range(num):
+                self.log.shuffle_new_run()
+            self.assertEqual(mock_file.return_value.write.call_count, 4)
