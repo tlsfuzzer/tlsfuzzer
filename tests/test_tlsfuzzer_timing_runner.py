@@ -147,7 +147,7 @@ class TestRunner(unittest.TestCase):
         self.runner.tcpdump_running = True
 
         def raise_error(*args, **kwargs):
-            raise Exception("Test failure")
+            raise Exception()
 
         with mock.patch('__main__.__builtins__.open',
                         self._mock_open(read_data="A,B,C\r\n0,2,1\r\n2,0,1\r\n2,1,0\r\n")):

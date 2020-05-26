@@ -12,8 +12,9 @@ except ImportError:
 
 import sys
 from socket import inet_aton
-from tlsfuzzer.utils.log import Log
 from os.path import join, dirname, abspath
+
+from tlsfuzzer.utils.log import Log
 
 failed_import = False
 try:
