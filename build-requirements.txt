@@ -2,4 +2,3 @@ coverage
 coveralls
 pylint
 diff_cover
-dpkt>=1.9.2
