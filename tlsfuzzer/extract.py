@@ -3,6 +3,8 @@
 
 """Extraction and analysis of timing information from a packet capture."""
 
+from __future__ import print_function
+
 import getopt
 import sys
 import csv
