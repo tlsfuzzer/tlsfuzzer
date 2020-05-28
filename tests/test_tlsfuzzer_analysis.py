@@ -14,7 +14,7 @@ import sys
 
 failed_import = False
 try:
-    from tlsfuzzer.analysis import Analysis, main, TestPair
+    from tlsfuzzer.analysis import Analysis, main, TestPair, help_msg
     import pandas as pd
 except ImportError:
     failed_import = True
@@ -147,6 +147,11 @@ class TestCommandLine(unittest.TestCase):
         with mock.patch('tlsfuzzer.analysis.help_msg') as help_mock:
             self.assertRaises(SystemExit, main)
             help_mock.assert_called_once()
+
+    def test_help_msg(self):
+        with mock.patch('__main__.__builtins__.print') as print_mock:
+            help_msg()
+            self.assertGreaterEqual(print_mock.call_count, 1)
 
     def test_missing_output(self):
         sys.argv = ["analysis.py"]

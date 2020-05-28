@@ -110,6 +110,24 @@ class TestRunner(unittest.TestCase):
             TimingRunner("test", [], "/outdir", "localhost", 4433, "lo")
             mock_mkdir.assert_called_once()
 
+    def test_check_extraction_availability(self):
+        extraction_present = True
+        try:
+            from tlsfuzzer.extract import Extract
+        except ImportError:
+            extraction_present = False
+
+        self.assertEqual(TimingRunner.check_extraction_availability(), extraction_present)
+
+    def test_check_analysis_availability(self):
+        analysis_present = True
+        try:
+            from tlsfuzzer.analysis import Analysis
+        except ImportError:
+            analysis_present = False
+
+        self.assertEqual(TimingRunner.check_analysis_availability(), analysis_present)
+
     def test_run(self):
         self.runner.tests = {"A": None, "B": None, "C": None}
         self.runner.tcpdump_running = True

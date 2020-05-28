@@ -18,7 +18,7 @@ from tlsfuzzer.utils.log import Log
 
 failed_import = False
 try:
-    from tlsfuzzer.extract import Extract, main
+    from tlsfuzzer.extract import Extract, main, help_msg
 except ImportError:
     failed_import = True
 
@@ -106,3 +106,12 @@ class TestCommandLine(unittest.TestCase):
         with mock.patch('tlsfuzzer.extract.help_msg') as help_mock:
             self.assertRaises(SystemExit, main)
             help_mock.assert_called_once()
+
+    def test_help_msg(self):
+        with mock.patch('__main__.__builtins__.print') as print_mock:
+            help_msg()
+            self.assertGreaterEqual(print_mock.call_count, 1)
+
+    def test_missing_output(self):
+        sys.argv = ["extract.py"]
+        self.assertRaises(ValueError, main)
