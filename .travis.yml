@@ -16,20 +16,72 @@ before_cache:
 
 jobs:
  include:
+# ANALYSIS_DEP=EXTRACT_DEP=false
    - python: 2.6
+     env: ANALYSIS_DEP=false EXTRACT_DEP=false
    - python: 2.7
+     env: ANALYSIS_DEP=false EXTRACT_DEP=false
    - python: 3.3
+     env: ANALYSIS_DEP=false EXTRACT_DEP=false
    - python: 3.4
+     env: ANALYSIS_DEP=false EXTRACT_DEP=false
    - python: 3.5
+     env: ANALYSIS_DEP=false EXTRACT_DEP=false
    - python: 3.6
+     env: ANALYSIS_DEP=false EXTRACT_DEP=false
 # workaround for 3.7 and 3.8 not available in default configuration
 # travis-ci/travis-ci#9815
    - python: 3.7
      dist: xenial
      sudo: true
+     env: ANALYSIS_DEP=false EXTRACT_DEP=false
    - python: 3.8
      dist: xenial
      sudo: true
+     env: ANALYSIS_DEP=false EXTRACT_DEP=false
+# ANALYSIS_DEP=false EXTRACT_DEP=true
+   - python: 2.6
+     env: ANALYSIS_DEP=false EXTRACT_DEP=true
+   - python: 2.7
+     env: ANALYSIS_DEP=false EXTRACT_DEP=true
+   - python: 3.3
+     env: ANALYSIS_DEP=false EXTRACT_DEP=true
+   - python: 3.4
+     env: ANALYSIS_DEP=false EXTRACT_DEP=true
+   - python: 3.5
+     env: ANALYSIS_DEP=false EXTRACT_DEP=true
+   - python: 3.6
+     env: ANALYSIS_DEP=false EXTRACT_DEP=true
+   - python: 3.7
+     dist: xenial
+     sudo: true
+     env: ANALYSIS_DEP=false EXTRACT_DEP=true
+   - python: 3.8
+     dist: xenial
+     sudo: true
+     env: ANALYSIS_DEP=false EXTRACT_DEP=true
+# ANALYSIS_DEP=true EXTRACT_DEP=false
+   - python: 3.6
+     env: ANALYSIS_DEP=true EXTRACT_DEP=false
+   - python: 3.7
+     dist: xenial
+     sudo: true
+     env: ANALYSIS_DEP=true EXTRACT_DEP=false
+   - python: 3.8
+     dist: xenial
+     sudo: true
+     env: ANALYSIS_DEP=true EXTRACT_DEP=false
+# ANALYSIS_DEP=EXTRACT_DEP=true
+   - python: 3.6
+     env: ANALYSIS_DEP=true EXTRACT_DEP=true
+   - python: 3.7
+     dist: xenial
+     sudo: true
+     env: ANALYSIS_DEP=true EXTRACT_DEP=true
+   - python: 3.8
+     dist: xenial
+     sudo: true
+     env: ANALYSIS_DEP=true EXTRACT_DEP=true
 
 branches:
   only:
@@ -59,6 +111,8 @@ before_install:
 
 install:
   - if [[ -e build-requirements-${TRAVIS_PYTHON_VERSION}.txt ]]; then travis_retry pip install -r build-requirements-${TRAVIS_PYTHON_VERSION}.txt; else travis_retry pip install -r build-requirements.txt; fi
+  - if [[ $EXTRACT_DEP == 'true' ]]; then travis_retry pip install "dpkt>=1.9.2"; fi
+  - if [[ $ANALYSIS_DEP == 'true' ]]; then travis_retry pip install -r build-requirements-analysis.txt; fi
   - travis_retry pip install -r requirements.txt
   # codeclimate supports natively just one set of results, so use the most recent python for that
   - if [[ $TRAVIS_PYTHON_VERSION == '3.6' ]]; then ./cc-test-reporter before-build; fi
