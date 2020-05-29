@@ -85,27 +85,29 @@ class TestCommandLine(unittest.TestCase):
         host = "localhost"
         port = "4433"
         output = "/tmp"
-        sys.argv = ["extract.py",
-                    "-l", logfile,
-                    "-c", capture,
-                    "-h", host,
-                    "-p", port,
-                    "-o", output]
+        args = ["extract.py",
+                "-l", logfile,
+                "-c", capture,
+                "-h", host,
+                "-p", port,
+                "-o", output]
         mock_init = mock.Mock()
         mock_init.return_value = None
         with mock.patch('tlsfuzzer.extract.Extract.parse'):
             with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
                 with mock.patch('tlsfuzzer.extract.Extract.write_csv'):
                     with mock.patch('tlsfuzzer.extract.Log') as mock_log:
-                        main()
-                        mock_log.assert_called_once_with(logfile)
-                        mock_init.assert_called_once_with(mock.ANY, capture, output, host, int(port))
+                        with mock.patch("sys.argv", args):
+                            main()
+                            mock_log.assert_called_once_with(logfile)
+                            mock_init.assert_called_once_with(mock.ANY, capture, output, host, int(port))
 
     def test_help(self):
-        sys.argv = ["extract.py", "--help"]
+        args = ["extract.py", "--help"]
         with mock.patch('tlsfuzzer.extract.help_msg') as help_mock:
-            self.assertRaises(SystemExit, main)
-            help_mock.assert_called_once()
+            with mock.patch("sys.argv", args):
+                self.assertRaises(SystemExit, main)
+                help_mock.assert_called_once()
 
     def test_help_msg(self):
         with mock.patch('__main__.__builtins__.print') as print_mock:
@@ -113,5 +115,6 @@ class TestCommandLine(unittest.TestCase):
             self.assertGreaterEqual(print_mock.call_count, 1)
 
     def test_missing_output(self):
-        sys.argv = ["extract.py"]
-        self.assertRaises(ValueError, main)
+        args = ["extract.py"]
+        with mock.patch("sys.argv", args):
+            self.assertRaises(ValueError, main)
