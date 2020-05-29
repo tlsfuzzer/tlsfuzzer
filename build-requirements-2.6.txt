@@ -8,4 +8,3 @@ coveralls<1.3.0
 pylint
 diff_cover
 idna<2.8
-dpkt>=1.9.2

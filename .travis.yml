@@ -18,59 +18,51 @@ jobs:
  include:
 # ANALYSIS_DEP=EXTRACT_DEP=false
    - python: 2.6
-     env: ANALYSIS_DEP=false EXTRACT_DEP=false
    - python: 2.7
-     env: ANALYSIS_DEP=false EXTRACT_DEP=false
    - python: 3.3
-     env: ANALYSIS_DEP=false EXTRACT_DEP=false
    - python: 3.4
-     env: ANALYSIS_DEP=false EXTRACT_DEP=false
    - python: 3.5
-     env: ANALYSIS_DEP=false EXTRACT_DEP=false
    - python: 3.6
-     env: ANALYSIS_DEP=false EXTRACT_DEP=false
 # workaround for 3.7 and 3.8 not available in default configuration
 # travis-ci/travis-ci#9815
    - python: 3.7
      dist: xenial
      sudo: true
-     env: ANALYSIS_DEP=false EXTRACT_DEP=false
    - python: 3.8
      dist: xenial
      sudo: true
-     env: ANALYSIS_DEP=false EXTRACT_DEP=false
 # ANALYSIS_DEP=false EXTRACT_DEP=true
    - python: 2.6
-     env: ANALYSIS_DEP=false EXTRACT_DEP=true
+     env: EXTRACT_DEP=true
    - python: 2.7
-     env: ANALYSIS_DEP=false EXTRACT_DEP=true
+     env: EXTRACT_DEP=true
    - python: 3.3
-     env: ANALYSIS_DEP=false EXTRACT_DEP=true
+     env: EXTRACT_DEP=true
    - python: 3.4
-     env: ANALYSIS_DEP=false EXTRACT_DEP=true
+     env: EXTRACT_DEP=true
    - python: 3.5
-     env: ANALYSIS_DEP=false EXTRACT_DEP=true
+     env: EXTRACT_DEP=true
    - python: 3.6
-     env: ANALYSIS_DEP=false EXTRACT_DEP=true
+     env: EXTRACT_DEP=true
    - python: 3.7
      dist: xenial
      sudo: true
-     env: ANALYSIS_DEP=false EXTRACT_DEP=true
+     env: EXTRACT_DEP=true
    - python: 3.8
      dist: xenial
      sudo: true
-     env: ANALYSIS_DEP=false EXTRACT_DEP=true
+     env: EXTRACT_DEP=true
 # ANALYSIS_DEP=true EXTRACT_DEP=false
    - python: 3.6
-     env: ANALYSIS_DEP=true EXTRACT_DEP=false
+     env: ANALYSIS_DEP=true
    - python: 3.7
      dist: xenial
      sudo: true
-     env: ANALYSIS_DEP=true EXTRACT_DEP=false
+     env: ANALYSIS_DEP=true
    - python: 3.8
      dist: xenial
      sudo: true
-     env: ANALYSIS_DEP=true EXTRACT_DEP=false
+     env: ANALYSIS_DEP=true
 # ANALYSIS_DEP=EXTRACT_DEP=true
    - python: 3.6
      env: ANALYSIS_DEP=true EXTRACT_DEP=true
