@@ -133,20 +133,22 @@ class TestPlots(unittest.TestCase):
 class TestCommandLine(unittest.TestCase):
     def test_command_line(self):
         output = "/tmp"
-        sys.argv = ["analysis.py", "-o", output]
+        args = ["analysis.py", "-o", output]
         mock_init = mock.Mock()
         mock_init.return_value = None
         with mock.patch('tlsfuzzer.analysis.Analysis.generate_report') as mock_report:
             with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
-                main()
-                mock_report.assert_called_once()
-                mock_init.assert_called_once_with(output)
+                with mock.patch("sys.argv", args):
+                    main()
+                    mock_report.assert_called_once()
+                    mock_init.assert_called_once_with(output)
 
     def test_help(self):
-        sys.argv = ["analysis.py", "--help"]
+        args = ["analysis.py", "--help"]
         with mock.patch('tlsfuzzer.analysis.help_msg') as help_mock:
-            self.assertRaises(SystemExit, main)
-            help_mock.assert_called_once()
+            with mock.patch("sys.argv", args):
+                self.assertRaises(SystemExit, main)
+                help_mock.assert_called_once()
 
     def test_help_msg(self):
         with mock.patch('__main__.__builtins__.print') as print_mock:
@@ -154,5 +156,6 @@ class TestCommandLine(unittest.TestCase):
             self.assertGreaterEqual(print_mock.call_count, 1)
 
     def test_missing_output(self):
-        sys.argv = ["analysis.py"]
-        self.assertRaises(ValueError, main)
+        args = ["analysis.py"]
+        with mock.patch("sys.argv", args):
+            self.assertRaises(ValueError, main)
