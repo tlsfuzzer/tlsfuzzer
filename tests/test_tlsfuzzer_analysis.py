@@ -32,6 +32,15 @@ class TestReport(unittest.TestCase):
             2: ["C", 0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
                 0.000734843, 0.000754852, 0.000667378, 0.000671230, 0.000790935]
         }
+        self.neq_data = {
+            0: ["A", 0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
+                0.000734843, 0.000754852, 0.000667378, 0.000671230, 0.000790935],
+            1: ["B", 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+        }
+        self.neq_data_overlap = {
+            0: ["A", 0, 0, 1, 7, 7] + [7] * 95,
+            1: ["B", 0, 0, 2, 6, 7] + [7] * 95,
+        }
         timings = pd.DataFrame(data=data)
         self.mock_read_csv = mock.Mock(spec=pd.read_csv)
         self.mock_read_csv.return_value = timings.transpose()
@@ -44,7 +53,7 @@ class TestReport(unittest.TestCase):
                         with mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter:
                             with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
                                 analysis = Analysis("/tmp")
-                                analysis.generate_report()
+                                ret = analysis.generate_report()
 
                                 self.mock_read_csv.assert_called_once()
                                 mock_qq.assert_called_once()
@@ -52,6 +61,28 @@ class TestReport(unittest.TestCase):
                                 mock_box.assert_called_once()
                                 mock_scatter.assert_called_once()
                                 mock_open.assert_called_once()
+                                self.assertEqual(ret, 0)
+
+    def test_report_neq(self):
+        timings = pd.DataFrame(data=self.neq_data)
+        mock_read_csv = mock.Mock(spec=pd.read_csv)
+        mock_read_csv.return_value = timings.transpose()
+        with mock.patch("tlsfuzzer.analysis.pd.read_csv", mock_read_csv):
+            with mock.patch("tlsfuzzer.analysis.Analysis.qq_plot") as mock_qq:
+                with mock.patch("tlsfuzzer.analysis.Analysis.ecdf_plot") as mock_ecdf:
+                    with mock.patch("tlsfuzzer.analysis.Analysis.box_plot") as mock_box:
+                        with mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter:
+                            with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
+                                analysis = Analysis("/tmp")
+                                ret = analysis.generate_report()
+
+                                mock_read_csv.assert_called_once()
+                                mock_qq.assert_called_once()
+                                mock_ecdf.assert_called_once()
+                                mock_box.assert_called_once()
+                                mock_scatter.assert_called_once()
+                                mock_open.assert_called_once()
+                                self.assertEqual(ret, 1)
 
     def test_ks_test(self):
         with mock.patch("tlsfuzzer.analysis.pd.read_csv", self.mock_read_csv):
@@ -74,12 +105,7 @@ class TestReport(unittest.TestCase):
                 self.assertEqual(result, None)
 
     def test_box_test_neq(self):
-        data = {0: ["A", 0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
-                    0.000734843, 0.000754852, 0.000667378, 0.000671230, 0.000790935],
-                1: ["B", 0.000747009, 0.000920462, 0.001327954, 0.000904547, 0.000768453,
-                    0.000752226, 0.000862102, 0.000706491, 0.000668237, 0.000992733]
-                }
-        timings = pd.DataFrame(data=data)
+        timings = pd.DataFrame(data=self.neq_data)
         mock_read_csv = mock.Mock(spec=pd.read_csv)
         mock_read_csv.return_value = timings.transpose()
         with mock.patch("tlsfuzzer.analysis.pd.read_csv", mock_read_csv):
@@ -89,6 +115,19 @@ class TestReport(unittest.TestCase):
             self.assertEqual(len(res), 1)
             for index, result in res.items():
                 self.assertNotEqual(result, None)
+
+    def test_box_test_neq_overlap(self):
+        timings = pd.DataFrame(data=self.neq_data_overlap)
+        mock_read_csv = mock.Mock(spec=pd.read_csv)
+        mock_read_csv.return_value = timings.transpose()
+        with mock.patch("tlsfuzzer.analysis.pd.read_csv", mock_read_csv):
+            analysis = Analysis("/tmp")
+            mock_read_csv.assert_called_once()
+
+            res = analysis.box_test()
+            self.assertEqual(len(res), 1)
+            for index, result in res.items():
+                self.assertEqual(result, None)
 
 
 @unittest.skipIf(failed_import,

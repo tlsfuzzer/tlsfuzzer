@@ -60,7 +60,7 @@ class TimingRunner:
         for c_name, c_test in self.tests:
             if run_only and c_name not in run_only or c_name in run_exclude:
                 continue
-            if c_name != "sanity":
+            if not c_name.startswith("sanity"):
                 actual_tests.append(c_name)
                 # also convert internal test structure to dict for lookup
                 test_dict[c_name] = c_test
@@ -76,6 +76,8 @@ class TimingRunner:
     def run(self):
         """
         Run test the specified number of times and start analysis
+
+        :return: int 0 for no difference, 1 for difference, 2 if unavailable
         """
         sniffer = self.sniff()
         status = Thread(target=self.tcpdump_status, args=(sniffer,))
@@ -116,20 +118,21 @@ class TimingRunner:
         print("Starting extraction...")
         if self.extract():
             print("Starting analysis...")
-            self.analyse()
+            return self.analyse()
+        return 2
 
     def extract(self):
         """Starts the extraction if available."""
         if self.check_extraction_availability():
             from tlsfuzzer.extract import Extract
             self.log.read_log()
-            analysis = Extract(self.log,
-                               os.path.join(self.out_dir, "capture.pcap"),
-                               self.out_dir,
-                               self.ip_address,
-                               self.port)
-            analysis.parse()
-            analysis.write_csv(os.path.join(self.out_dir, "timing.csv"))
+            extraction = Extract(self.log,
+                                 os.path.join(self.out_dir, "capture.pcap"),
+                                 self.out_dir,
+                                 self.ip_address,
+                                 self.port)
+            extraction.parse()
+            extraction.write_csv(os.path.join(self.out_dir, "timing.csv"))
             return True
 
         print("Extraction is not available. "
@@ -137,15 +140,19 @@ class TimingRunner:
         return False
 
     def analyse(self):
-        """Starts analysis if available"""
+        """
+        Starts analysis if available
+
+        :return: int 0 for no difference, 1 for difference, 2 unavailable
+        """
         if self.check_analysis_availability():
             from tlsfuzzer.analysis import Analysis
-            self.log.read_log()
             analysis = Analysis(self.out_dir)
-            analysis.generate_report()
-        else:
-            print("Analysis is not available. "
-                  "Install required packages to enable.")
+            return analysis.generate_report()
+
+        print("Analysis is not available. "
+              "Install required packages to enable.")
+        return 2
 
     def sniff(self):
         """Start tcpdump with filter on communication to/from server"""

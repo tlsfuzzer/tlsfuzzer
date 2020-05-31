@@ -34,6 +34,7 @@ under test. The example script `test-conversation.py` can be used as a starting
 point.
 
 After it is clear, that all the tests passed, timing of the tests can be executed.
+Please note that any tests with `sanity` prefix will be ignored in the timing run.
 Start by importing the `TimingRunner` class.
 Because the timing information collection adds some extra dependencies, it is
 necessary to wrap everything related to timing in an if statement:
