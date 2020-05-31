@@ -176,6 +176,8 @@
           "arguments" : ["-d"],
           "comment" : "tlslite-ng does not support renegotiation",
           "exp_pass" : false},
+         {"name":  "test-lucky13.py",
+          "arguments" :  ["--quick"]},
          {"name" : "test-message-duplication.py"},
          {"name" : "test-message-skipping.py"},
          {"name" : "test-message-skipping.py",
