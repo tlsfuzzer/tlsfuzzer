@@ -126,6 +126,7 @@ class Analysis:
         plt.ylabel("Time [s]")
         plt.xlabel("Class index")
         plt.savefig(join(self.output, "box_plot.png"), bbox_inches="tight")
+        plt.close()
 
     def qq_plot(self):
         """Generate Q-Q plot grid for the test classes."""
@@ -161,6 +162,7 @@ class Analysis:
                             left=0.1,
                             right=0.925)
         plt.savefig(join(self.output, "qq_plot.png"), bbox_inches="tight")
+        plt.close()
 
     def scatter_plot(self):
         """Generate scatter plot showing how the measurement went."""
@@ -173,6 +175,7 @@ class Analysis:
         plt.yscale("log")
         self.make_legend()
         plt.savefig(join(self.output, "scatter_plot.png"), bbox_inches="tight")
+        plt.close()
 
     def ecdf_plot(self):
         """Generate ECDF plot comparing distributions of the test classes."""
@@ -186,6 +189,7 @@ class Analysis:
         plt.xlabel("Time [s]")
         plt.ylabel("Cumulative probability")
         plt.savefig(join(self.output, "ecdf_plot.png"), bbox_inches="tight")
+        plt.close()
 
     def make_legend(self):
         """Generate common legend for plots that need it."""
@@ -197,11 +201,17 @@ class Analysis:
                    )
 
     def generate_report(self):
-        """Compiles a report consisting of statistical tests and plots."""
+        """
+        Compiles a report consisting of statistical tests and plots.
+
+        :return: int 0 if no difference was detected, 1 otherwise
+        """
         self.box_plot()
         self.scatter_plot()
         self.qq_plot()
         self.ecdf_plot()
+
+        difference = 0
 
         # create a report with statistical tests
         box_results = self.box_test()
@@ -228,6 +238,11 @@ class Analysis:
                 print("KS test {} vs {}: {}".format(index1,
                                                     index2,
                                                     ks_results[pair]))
+                # if both tests found a difference
+                # consider it a possible side-channel
+                if result and ks_results[pair] < 0.05:
+                    difference = 1
+
                 row = [self.class_names[index1],
                        self.class_names[index2],
                        box_write,
@@ -235,6 +250,7 @@ class Analysis:
                        ]
                 writer.writerow(row)
             print("For detailed report see {}".format(report_filename))
+            return difference
 
 
 if __name__ == '__main__':
