@@ -1791,7 +1791,7 @@ def fuzz_padding(generator, min_length=None, substitutions=None, xors=None):
 
     :param MessageGenerator generator: modified message
     :param int min_length: the minimum length of padding created, including
-        the byte specifying length of padding, must be smaller than 256
+        the byte specifying length of padding, must be smaller than 257
     :param dict(int,int) substitutions: modify specified bytes of the message,
         the keys indicate the positions in the message (negative numbers
         count from the end of messages), the values of the dictionary specify
@@ -1801,8 +1801,8 @@ def fuzz_padding(generator, min_length=None, substitutions=None, xors=None):
         count from the end of messages), the values of the dictionary specify
         the values to xor with
     """
-    if min_length is not None and min_length >= 256:
-        raise ValueError("Padding cannot be longer than 255 bytes")
+    if min_length is not None and min_length > 256:
+        raise ValueError("Padding cannot be longer than 256 bytes")
 
     def new_generate(state, self=generator,
                      old_generate=generator.generate,
