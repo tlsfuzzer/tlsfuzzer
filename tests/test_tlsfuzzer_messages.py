@@ -3150,7 +3150,7 @@ class TestFuzzPadding(unittest.TestCase):
 
     def test_min_length_with_invalid_length(self):
         with self.assertRaises(ValueError):
-            fuzz_padding(ClientHelloGenerator(), min_length=256)
+            fuzz_padding(ClientHelloGenerator(), min_length=257)
 
     def test_min_length_with_length_too_big_for_data(self):
         data_gen = fuzz_padding(ApplicationDataGenerator(b"text"),
