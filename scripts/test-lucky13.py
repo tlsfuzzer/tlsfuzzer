@@ -7,7 +7,7 @@ from __future__ import print_function
 import traceback
 import sys
 import getopt
-from itertools import chain
+from itertools import chain, product
 from random import sample
 
 from tlsfuzzer.runner import Runner
@@ -58,6 +58,7 @@ def help_msg():
     print("                /tmp by default")
     print(" --repeat rep   How many timing samples should be gathered for each test")
     print("                100 by default")
+    print(" --quick        Only run a basic subset of tests")
     print(" --help         this message")
 
 
@@ -72,10 +73,13 @@ def main():
     outdir = "/tmp"
     repetitions = 100
     interface = None
+    quick = False
     cipher = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:l:o:i:C:", ["help", "repeat="])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:l:o:i:C:", ["help",
+                                                              "repeat=",
+                                                              "quick"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -112,6 +116,8 @@ def main():
         elif opt == '--help':
             help_msg()
             sys.exit(0)
+        elif opt == '--quick':
+            quick = True
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -120,21 +126,26 @@ def main():
     else:
         run_only = None
 
-    tag_sizes = {
+    mac_sizes = {
         "md5": 16,
         "sha": 20,
         "sha256": 32,
         "sha384": 48,
     }
 
-    if CipherSuite.canonicalMacName(cipher) not in tag_sizes:
+    if CipherSuite.canonicalMacName(cipher) not in mac_sizes:
         print("Unsupported MAC, exiting")
         exit(1)
 
-    classes = {
-        "wrong padding and mac": {},
-        "mac out of bounds": {}
-    }
+    # group conversations that should have the same timing signature
+    if quick:
+        groups = {"quick - wrong MAC": {}}
+    else:
+        groups = {
+            "wrong padding and MAC": {},
+            "MAC out of bounds": {}
+        }
+
     dhe = cipher in CipherSuite.ecdhAllSuites
     if dhe:
         ext = {}
@@ -172,108 +183,179 @@ def main():
                                       AlertDescription.close_notify))
     node.next_sibling = ExpectClose()
     node = node.add_child(ExpectClose())
-    for class_name in classes:
-        classes[class_name]["sanity"] = conversation
+    for group_name in groups:
+        groups[group_name]["sanity"] = conversation
     runner = Runner(conversation)
     try:
         runner.run()
     except Exception as exp:
-        # no exception means the server rejected the ciphersuite, skip to next ciphersuite
-        print("Skipping {0} because server does not support it. ".format(CipherSuite.ietfNames[cipher]))
+        # Exception means the server rejected the ciphersuite
+        print("Failing on {0} because server does not support it. ".format(CipherSuite.ietfNames[cipher]))
         print(20 * '=')
-        exit(0)
+        exit(1)
 
     # assume block length of 16 if not 3des
     block_len = 8 if CipherSuite.canonicalCipherName(cipher) == "3des" else 16
-    mac_len = tag_sizes[CipherSuite.canonicalMacName(cipher)]
+    mac_len = mac_sizes[CipherSuite.canonicalMacName(cipher)]
     invert_mac = {}
     for index in range(0, mac_len):
         invert_mac[index] = 0xff
 
-    # iterate over: incorrect padding
-    for pad_len in range(1, 256):
+    if quick:
+        # iterate over min/max padding and first/last byte MAC error
+        for pad_len, error_pos in product([1, 256], [0, -1]):
+            payload_len = 512 - mac_len - pad_len - block_len
 
-        # ciphertext 1 has 512 bytes, calculate payload size
-        payload_len = 512 - mac_len - pad_len - block_len
+            conversation = Connect(host, port)
+            node = conversation
+            ciphers = [cipher]
+            node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+            node = node.add_child(ExpectServerHello())
+            node = node.add_child(ExpectCertificate())
+            if dhe:
+                node = node.add_child(ExpectServerKeyExchange())
+            node = node.add_child(ExpectServerHelloDone())
+            node = node.add_child(ClientKeyExchangeGenerator())
+            node = node.add_child(ChangeCipherSpecGenerator())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(ExpectChangeCipherSpec())
+            node = node.add_child(ExpectFinished())
+            node = node.add_child(
+                fuzz_padding(
+                    fuzz_mac(
+                        ApplicationDataGenerator(bytearray(payload_len)),
+                        xors={error_pos: 0xff}
+                    ),
+                    min_length=pad_len
+                )
+            )
+            node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                              AlertDescription.bad_record_mac))
+            node = node.add_child(ExpectClose())
+            groups["quick - wrong MAC"][
+                "wrong MAC at pos {0}, padding of length {1} ".format(error_pos, pad_len)] = conversation
 
-        sub = 0
-        if pad_len == 1:
-            sub = 0xff
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [cipher]
-        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-        node = node.add_child(ExpectServerHello())
-        node = node.add_child(ExpectCertificate())
-        if dhe:
-            node = node.add_child(ExpectServerKeyExchange())
-        node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator())
-        node = node.add_child(ChangeCipherSpecGenerator())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectFinished())
-        node = node.add_child(
-            fuzz_padding(ApplicationDataGenerator(bytearray(payload_len)), substitutions={0: sub},
-                         min_length=pad_len))
-        node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
-        node = node.add_child(ExpectClose())
-        classes["wrong padding and mac"]["incorrect padding of length {0}".format(pad_len)] = conversation
+    else:
+        # iterate over: padding length with incorrect MAC
+        #               invalid padding length with correct MAC
+        for pad_len in range(1, 257):
 
-        # ciphertext 2 has 128 bytes and broken padding to make server check mac "before" the plaintext
-        padding = 128 - 1 - block_len - mac_len
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [cipher]
-        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-        node = node.add_child(ExpectServerHello())
-        node = node.add_child(ExpectCertificate())
-        if dhe:
-            node = node.add_child(ExpectServerKeyExchange())
-        node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator())
-        node = node.add_child(ChangeCipherSpecGenerator())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectFinished())
-        node = node.add_child(
-            fuzz_padding(ApplicationDataGenerator(bytearray(1)), substitutions={-1: pad_len, 0: 0},
-                         min_length=padding))
-        node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
-        node = node.add_child(ExpectClose())
-        classes["mac out of bounds"]["padding length byte={0}".format(pad_len)] = conversation
+            # ciphertext 1 has 512 bytes, calculate payload size
+            payload_len = 512 - mac_len - pad_len - block_len
 
-    # iterate over payload length to shift incorrect mac around
-    min_payload_len = 512 - mac_len - 255 - block_len
-    for payload_len in range(min_payload_len, 512 - mac_len - block_len):
-        # wrong mac at different position with correct padding
-        padding = 512 - mac_len - block_len - payload_len
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [cipher]
-        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-        node = node.add_child(ExpectServerHello())
-        node = node.add_child(ExpectCertificate())
-        if dhe:
-            node = node.add_child(ExpectServerKeyExchange())
-        node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator())
-        node = node.add_child(ChangeCipherSpecGenerator())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectFinished())
-        node = node.add_child(
-            fuzz_padding(fuzz_mac(ApplicationDataGenerator(bytearray(payload_len)), xors=invert_mac),
-                         min_length=padding))
-        node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.bad_record_mac))
-        node = node.add_child(ExpectClose())
-        classes["wrong padding and mac"][
-            "incorrect mac at pos {0}, padding of length {1}".format((payload_len - 1), padding)] = conversation
+            conversation = Connect(host, port)
+            node = conversation
+            ciphers = [cipher]
+            node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+            node = node.add_child(ExpectServerHello())
+            node = node.add_child(ExpectCertificate())
+            if dhe:
+                node = node.add_child(ExpectServerKeyExchange())
+            node = node.add_child(ExpectServerHelloDone())
+            node = node.add_child(ClientKeyExchangeGenerator())
+            node = node.add_child(ChangeCipherSpecGenerator())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(ExpectChangeCipherSpec())
+            node = node.add_child(ExpectFinished())
+            node = node.add_child(
+                fuzz_padding(
+                    fuzz_mac(
+                        ApplicationDataGenerator(bytearray(payload_len)),
+                        xors=invert_mac
+                    ),
+                    min_length=pad_len
+                )
+            )
+            node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                              AlertDescription.bad_record_mac))
+            node = node.add_child(ExpectClose())
+            groups["wrong padding and MAC"]["wrong MAC, padding of length {0} ".format(pad_len)] = conversation
 
-    for class_name, conversations in classes.items():
+            # incorrect padding of length 255 (256 with the length byte)
+            # with error byte iterated over the length of padding
+
+            # avoid changing the padding length byte
+            if pad_len < 256:
+                payload_len = 512 - mac_len - 256 - block_len
+
+                conversation = Connect(host, port)
+                node = conversation
+                ciphers = [cipher]
+                node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+                node = node.add_child(ExpectServerHello())
+                node = node.add_child(ExpectCertificate())
+                if dhe:
+                    node = node.add_child(ExpectServerKeyExchange())
+                node = node.add_child(ExpectServerHelloDone())
+                node = node.add_child(ClientKeyExchangeGenerator())
+                node = node.add_child(ChangeCipherSpecGenerator())
+                node = node.add_child(FinishedGenerator())
+                node = node.add_child(ExpectChangeCipherSpec())
+                node = node.add_child(ExpectFinished())
+                node = node.add_child(
+                    fuzz_padding(
+                        ApplicationDataGenerator(bytearray(payload_len)),
+                        min_length=256,
+                        xors={(pad_len - 1): 0xff}
+                    )
+                )
+                node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                                  AlertDescription.bad_record_mac))
+                node = node.add_child(ExpectClose())
+                groups["wrong padding and MAC"][
+                    "padding of length 255 (256 with the length byte), error at position {0}".format(
+                        pad_len - 1)] = conversation
+
+            # ciphertext 2 has 128 bytes and broken padding to make server check mac "before" the plaintext
+            padding = 128 - 1 - block_len - mac_len
+            conversation = Connect(host, port)
+            node = conversation
+            ciphers = [cipher]
+            node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+            node = node.add_child(ExpectServerHello())
+            node = node.add_child(ExpectCertificate())
+            if dhe:
+                node = node.add_child(ExpectServerKeyExchange())
+            node = node.add_child(ExpectServerHelloDone())
+            node = node.add_child(ClientKeyExchangeGenerator())
+            node = node.add_child(ChangeCipherSpecGenerator())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(ExpectChangeCipherSpec())
+            node = node.add_child(ExpectFinished())
+            node = node.add_child(
+                fuzz_padding(ApplicationDataGenerator(bytearray(1)), substitutions={-1: pad_len - 1, 0: 0},
+                             min_length=padding))
+            node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                              AlertDescription.bad_record_mac))
+            node = node.add_child(ExpectClose())
+            groups["MAC out of bounds"]["padding length byte={0}".format(pad_len - 1)] = conversation
+
+        # iterate over MAC length and fuzz byte by byte
+        payload_len = 512 - mac_len - block_len - 256
+        for mac_index in range(0, mac_len):
+            conversation = Connect(host, port)
+            node = conversation
+            ciphers = [cipher]
+            node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+            node = node.add_child(ExpectServerHello())
+            node = node.add_child(ExpectCertificate())
+            if dhe:
+                node = node.add_child(ExpectServerKeyExchange())
+            node = node.add_child(ExpectServerHelloDone())
+            node = node.add_child(ClientKeyExchangeGenerator())
+            node = node.add_child(ChangeCipherSpecGenerator())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(ExpectChangeCipherSpec())
+            node = node.add_child(ExpectFinished())
+            node = node.add_child(
+                fuzz_padding(fuzz_mac(ApplicationDataGenerator(bytearray(payload_len)), xors={mac_index: 0xff}),
+                             min_length=256))
+            node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                              AlertDescription.bad_record_mac))
+            node = node.add_child(ExpectClose())
+            groups["wrong padding and MAC"]["incorrect MAC at pos {0}".format(mac_index)] = conversation
+
+    for group_name, conversations in groups.items():
 
         # run the conversation
         good = 0
@@ -334,7 +416,7 @@ def main():
                     bad += 1
                     failed.append(c_name)
 
-        print("Lucky 13 attack check for {0} {1}".format(class_name, CipherSuite.ietfNames[cipher]))
+        print("Lucky 13 attack check for {0} {1}".format(group_name, CipherSuite.ietfNames[cipher]))
 
         print("Test end")
         print(20 * '=')
@@ -358,7 +440,7 @@ def main():
             # if regular tests passed, run timing collection and analysis
             if TimingRunner.check_tcpdump():
                 timing_runner = TimingRunner("{0}_{1}_{2}".format(sys.argv[0],
-                                                                  class_name,
+                                                                  group_name,
                                                                   CipherSuite.ietfNames[cipher]),
                                              sampled_tests,
                                              outdir,
