@@ -30,7 +30,7 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
 from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL, AutoEmptyExtension
 
 
-version = 2
+version = 3
 
 
 def help_msg():
@@ -48,7 +48,7 @@ def help_msg():
     print(" -X message     expect the `message` substring in exception raised during")
     print("                execution of preceding expected failure probe")
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
-    print(" -n num         only run `num` random tests instead of a full set")
+    print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
     print("                (excluding \"sanity\" tests)")
     print(" --exc ext-id   exclude specific extenion id from a list")
     print("                of unassigned extenions,")
@@ -260,7 +260,14 @@ def main():
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throughout
     sanity_tests = [('sanity', conversations['sanity'])]
-    regular_tests = [(k, v) for k, v in conversations.items() if k != 'sanity']
+    if run_only:
+        if num_limit > len(run_only):
+            num_limit = len(run_only)
+        regular_tests = [(k, v) for k, v in conversations.items() if
+                          k in run_only]
+    else:
+        regular_tests = [(k, v) for k, v in conversations.items() if
+                         (k != 'sanity') and k not in run_exclude]
     sampled_tests = sample(regular_tests, min(num_limit, len(regular_tests)))
     ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
 
@@ -285,7 +292,7 @@ def main():
             if res:
                 xpass += 1
                 xpassed.append(c_name)
-                print("XPASS: expected failure but test passed\n")
+                print("XPASS-expected failure but test passed\n")
             else:
                 if expected_failures[c_name] is not None and  \
                     expected_failures[c_name] not in str(exception):
@@ -308,9 +315,10 @@ def main():
     print("Verify that server reject second CH message,")
     print("when the order of extensions in first and second CH is different.")
     print("Also unassigned extensions are used.\n")
-    print("version: {0}\n".format(version))
 
     print("Test end")
+    print(20 * '=')
+    print("version: {0}".format(version))
     print(20 * '=')
     print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))

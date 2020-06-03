@@ -36,7 +36,7 @@ from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -54,8 +54,7 @@ def help_msg():
     print(" -X message     expect the `message` substring in exception raised during")
     print("                execution of preceding expected failure probe")
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
-    print(" -n num         only run `num` long random fuzzing tests")
-    print("                instead of a full set")
+    print(" -n num         run 'num' or all(if 0) long fuzzing tests instead of default(10)")
     print("                (excluding \"sanity\" and other short tests)")
     print(" -s sigalgs     hash and signature algorithm pairs that the server")
     print("                is expected to support. Either pairs of algorithms")
@@ -119,7 +118,7 @@ def main():
     """Check that server propoerly rejects pkcs1 signatures in TLS 1.3"""
     hostname = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 10
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
@@ -584,13 +583,20 @@ def main():
 
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throughout
+
     sanity_tests = [('sanity', conversations['sanity'])]
-    short_tests = [(k, v) for k, v in conversations.items() if k != 'sanity']
-    long_tests = list(conversations_long.items())
-    long_sampled_tests = sample(long_tests, min(num_limit, len(long_tests)))
-    regular_tests = sample(long_sampled_tests + short_tests,
-                           len(long_sampled_tests) + len(short_tests))
-    ordered_tests = chain(sanity_tests, regular_tests, sanity_tests)
+    if run_only:
+        short_tests = [(k, v) for k, v in conversations.items() if
+                        (k != 'sanity') and k in run_only]
+        long_tests = [(k, v) for k, v in conversations_long.items() if
+                        k in run_only]
+    else:
+        short_tests = [(k, v) for k, v in conversations.items() if
+                         (k != 'sanity') and k not in run_exclude]
+        long_tests = [(k, v) for k, v in conversations_long.items() if
+                        k not in run_exclude]
+    sampled_tests = sample(long_tests, min(num_limit, len(long_tests)))
+    ordered_tests = chain(sanity_tests, short_tests, sampled_tests, sanity_tests)
 
     for c_name, c_test in ordered_tests:
         if run_only and c_name not in run_only or c_name in run_exclude:
@@ -613,7 +619,7 @@ def main():
             if res:
                 xpass += 1
                 xpassed.append(c_name)
-                print("XPASS: expected failure but test passed\n")
+                print("XPASS-expected failure but test passed\n")
             else:
                 if expected_failures[c_name] is not None and  \
                     expected_failures[c_name] not in str(exception):
@@ -636,11 +642,12 @@ def main():
     print("signatures in TLS1.3; PKCS1 signatures are always refused.")
     print("Other signatures are accepted or refused accordingly to")
     print("the certificate type provided ('rsa' vs 'rsa-pss').\n")
-    print("version: {0}\n".format(version))
 
     print("Test end")
     print(20 * '=')
-    print("TOTAL: {0}".format(len(regular_tests) + 2*len(sanity_tests)))
+    print("version: {0}".format(version))
+    print(20 * '=')
+    print("TOTAL: {0}".format(len(sampled_tests) + len(short_tests) + 2*len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))

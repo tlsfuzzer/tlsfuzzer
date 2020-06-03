@@ -26,11 +26,11 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import RSA_SIG_ALL
 
 
-version = 4
+version = 5
 
 
 def help_msg():
-    print("Usage: <script-name> [-h hostname] [-p port] [-n number_of_alerts]")
+    print("Usage: <script-name> [-h hostname] [-p port] [--alerts number_of_alerts]")
     print("       [[probe-name] ...]")
     print(" -h hostname          name of the host to run the test against")
     print("                      localhost by default")
@@ -40,15 +40,16 @@ def help_msg():
     print("                      names and not all of them, e.g \"sanity\"")
     print(" -e probe-name        exclude the probe from the list of the ones run")
     print("                      may be specified multiple times")
-    print(" -x probe-name  expect the probe to fail. When such probe passes despite being marked like this")
-    print("                it will be reported in the test summary and the whole script will fail.")
-    print("                May be specified multiple times.")
-    print(" -X message     expect the `message` substring in exception raised during")
-    print("                execution of preceding expected failure probe")
-    print("                usage: [-x probe-name] [-X exception], order is compulsory!")
-    print(" -n number_of_alerts  how many alerts client sends to server,")
-    print("                      4 by default")
+    print(" -x probe-name        expect the probe to fail. When such probe passes despite being marked like this")
+    print("                      it will be reported in the test summary and the whole script will fail.")
+    print("                      May be specified multiple times.")
+    print(" -X message           expect the `message` substring in exception raised during")
+    print("                      execution of preceding expected failure probe")
+    print("                      usage: [-x probe-name] [-X exception], order is compulsory!")
+    print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
+    print("                      (excluding \"sanity\" tests)")
     print(" -d                   negotiate (EC)DHE instead of RSA key exchange")
+    print(" --alerts num         sends 'num' of alerts. by default(4)")
     print(" --alert-level        expected Alert.level of the abort")
     print("                      alert from server, fatal by default")
     print(" --alert-description  expected Alert.description of the")
@@ -60,6 +61,7 @@ def main():
     hostname = "localhost"
     port = 4433
     number_of_alerts = 4
+    num_limit = None
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
@@ -69,7 +71,7 @@ def main():
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "h:p:e:x:X:n:d",
-                               ["help", "alert-level=",
+                               ["help", "alerts=", "alert-level=",
                                 "alert-description="])
     for opt, arg in opts:
         if opt == '-h':
@@ -86,12 +88,14 @@ def main():
                 raise ValueError("-x has to be specified before -X")
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-n':
-            number_of_alerts = int(arg)
+            num_limit = int(arg)
         elif opt == '-d':
             dhe = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
+        elif opt == '--alerts':
+            number_of_alerts = flexible_getattr(arg, number_of_alerts)
         elif opt == '--alert-level':
             alert_level = flexible_getattr(arg, AlertLevel)
         elif opt == '--alert-description':
@@ -182,8 +186,18 @@ def main():
     xpass = 0
     failed = []
     xpassed = []
+    if not num_limit:
+        num_limit = len(conversations)
 
-    sampled_tests = sample(list(conversations.items()), len(conversations))
+    if run_only:
+        if num_limit > len(run_only):
+            num_limit = len(run_only)
+        regular_tests = [(k, v) for k, v in conversations.items() if
+                          k in run_only]
+    else:
+        regular_tests = [(k, v) for k, v in conversations.items() if
+                          k not in run_exclude]
+    sampled_tests = sample(regular_tests, min(num_limit, len(regular_tests)))
 
     for c_name, conversation in sampled_tests:
         if run_only and c_name not in run_only:
@@ -208,7 +222,7 @@ def main():
             if res:
                 xpass += 1
                 xpassed.append(c_name)
-                print("XPASS: expected failure but test passed\n")
+                print("XPASS-expected failure but test passed\n")
             else:
                 if expected_failures[c_name] is not None and  \
                     expected_failures[c_name] not in str(exception):
@@ -225,14 +239,15 @@ def main():
                 print("OK\n")
             else:
                 bad += 1
-                failed.append(conversation_name)
+                failed.append(c_name)
 
     print("Test for the OpenSSL Death Alert (CVE-2016-8610) vulnerability")
     print("Checks if the server will accept arbitrary number of warning level")
     print("alerts (specified with the -n option)")
-    print("version: {0}\n".format(version))
 
     print("Test end")
+    print(20 * '=')
+    print("version: {0}".format(version))
     print(20 * '=')
     print("TOTAL: {0}".format(len(sampled_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))

@@ -20,6 +20,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription
 from tlsfuzzer.utils.lists import natural_sort_keys
+version = 2
 
 def help_msg():
     print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
@@ -28,6 +29,8 @@ def help_msg():
     print(" -p port        port number to use for connection, 4433 by default")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
+    print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
+    print("                (excluding \"sanity\" tests)")
     print(" -x probe-name  expect the probe to fail. When such probe passes despite being marked like this")
     print("                it will be reported in the test summary and the whole script will fail.")
     print("                May be specified multiple times.")
@@ -42,12 +45,13 @@ def main():
     conversations = {}
     host = "localhost"
     port = 4433
+    num_limit = None
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
 
     argv = sys.argv[1:]
-    opts, argv = getopt.getopt(argv, "h:p:e:x:X:", ["help"])
+    opts, argv = getopt.getopt(argv, "h:p:e:n:x:X:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -58,6 +62,8 @@ def main():
             sys.exit(0)
         elif opt == '-e':
             run_exclude.add(arg)
+        elif opt == '-n':
+            num_limit = int(arg)
         elif opt == '-x':
             expected_failures[arg] = None
             last_exp_tmp = str(arg)
@@ -105,6 +111,9 @@ def main():
     xpass = 0
     failed = []
     xpassed = []
+    if not num_limit:
+        num_limit = len(conversations)
+
     sampled_tests = sample(list(conversations.items()), len(conversations))
 
     for c_name, conversation in sampled_tests:
@@ -133,7 +142,7 @@ def main():
             if res:
                 xpass += 1
                 xpassed.append(c_name)
-                print("XPASS: expected failure but test passed\n")
+                print("XPASS-expected failure but test passed\n")
             else:
                 if expected_failures[c_name] is not None and  \
                     expected_failures[c_name] not in str(exception):
@@ -150,8 +159,10 @@ def main():
                 print("OK")
             else:
                 bad+=1
-    
+
     print("Test end")
+    print(20 * '=')
+    print("version: {0}".format(version))
     print(20 * '=')
     print("TOTAL: {0}".format(len(sampled_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
