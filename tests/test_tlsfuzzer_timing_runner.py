@@ -128,21 +128,65 @@ class TestRunner(unittest.TestCase):
 
         self.assertEqual(TimingRunner.check_analysis_availability(), analysis_present)
 
+    def test_extract(self):
+        check_extract = mock.Mock()
+        check_extract.return_value = False
+
+        with mock.patch("tlsfuzzer.timing_runner.TimingRunner.check_extraction_availability", check_extract):
+            self.assertFalse(self.runner.extract())
+
+        self.runner.log = mock.Mock(autospec=True)
+        with mock.patch("__main__.__builtins__.__import__"):
+            self.assertTrue(self.runner.extract())
+
+    def test_analyse(self):
+        check_analysis = mock.Mock()
+        check_analysis.return_value = False
+
+        with mock.patch("tlsfuzzer.timing_runner.TimingRunner.check_analysis_availability", check_analysis):
+            self.assertEqual(self.runner.analyse(), 2)
+
+        self.runner.log = mock.Mock(autospec=True)
+        with mock.patch("__main__.__builtins__.__import__"):
+            self.assertNotEqual(self.runner.analyse(), 2)
+
     def test_run(self):
         self.runner.tests = {"A": None, "B": None, "C": None}
         self.runner.tcpdump_running = True
+        analyse = mock.Mock()
+        analyse.return_value = 1
         with mock.patch('__main__.__builtins__.open',
                         self._mock_open(read_data="A,B,C\r\n0,2,1\r\n2,0,1\r\n2,1,0\r\n")):
             with mock.patch('tlsfuzzer.timing_runner.TimingRunner.sniff'):
                 with mock.patch('tlsfuzzer.timing_runner.TimingRunner.extract') as extract:
+                    with mock.patch('tlsfuzzer.timing_runner.TimingRunner.analyse', analyse):
+                        with mock.patch('tlsfuzzer.timing_runner.Thread'):
+                            with mock.patch('tlsfuzzer.timing_runner.time.sleep'):
+                                with mock.patch('tlsfuzzer.timing_runner.Runner') as runner:
+                                    ret = self.runner.run()
+                                    self.assertEqual(runner.call_count, WARM_UP + 9)
+                                    extract.assert_called_once()
+                                    analyse.assert_called_once()
+                                    self.assertEqual(ret, 1)
+
+    def test_run_no_extraction(self):
+        self.runner.tests = {"A": None, "B": None, "C": None}
+        self.runner.tcpdump_running = True
+        extract = mock.Mock()
+        extract.return_value = False
+        with mock.patch('__main__.__builtins__.open',
+                        self._mock_open(read_data="A,B,C\r\n0,2,1\r\n2,0,1\r\n2,1,0\r\n")):
+            with mock.patch('tlsfuzzer.timing_runner.TimingRunner.sniff'):
+                with mock.patch('tlsfuzzer.timing_runner.TimingRunner.extract', extract):
                     with mock.patch('tlsfuzzer.timing_runner.TimingRunner.analyse') as analyse:
                         with mock.patch('tlsfuzzer.timing_runner.Thread'):
                             with mock.patch('tlsfuzzer.timing_runner.time.sleep'):
                                 with mock.patch('tlsfuzzer.timing_runner.Runner') as runner:
-                                    self.runner.run()
+                                    ret = self.runner.run()
                                     self.assertEqual(runner.call_count, WARM_UP + 9)
                                     extract.assert_called_once()
-                                    analyse.assert_called_once()
+                                    self.assertEqual(analyse.call_count, 0)
+                                    self.assertEqual(ret, 2)
 
     def test_run_tcpdump_failure(self):
         self.runner.tests = {"A": None, "B": None, "C": None}

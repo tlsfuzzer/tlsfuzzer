@@ -119,19 +119,20 @@ class TimingRunner:
         if self.extract():
             print("Starting analysis...")
             return self.analyse()
+        return 2
 
     def extract(self):
         """Starts the extraction if available."""
         if self.check_extraction_availability():
             from tlsfuzzer.extract import Extract
             self.log.read_log()
-            analysis = Extract(self.log,
-                               os.path.join(self.out_dir, "capture.pcap"),
-                               self.out_dir,
-                               self.ip_address,
-                               self.port)
-            analysis.parse()
-            analysis.write_csv(os.path.join(self.out_dir, "timing.csv"))
+            extraction = Extract(self.log,
+                                 os.path.join(self.out_dir, "capture.pcap"),
+                                 self.out_dir,
+                                 self.ip_address,
+                                 self.port)
+            extraction.parse()
+            extraction.write_csv(os.path.join(self.out_dir, "timing.csv"))
             return True
 
         print("Extraction is not available. "
@@ -146,12 +147,11 @@ class TimingRunner:
         """
         if self.check_analysis_availability():
             from tlsfuzzer.analysis import Analysis
-            self.log.read_log()
             analysis = Analysis(self.out_dir)
             return analysis.generate_report()
-        else:
-            print("Analysis is not available. "
-                  "Install required packages to enable.")
+
+        print("Analysis is not available. "
+              "Install required packages to enable.")
         return 2
 
     def sniff(self):
