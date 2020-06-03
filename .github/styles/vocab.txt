@@ -1,6 +1,8 @@
 alog
+asan
 bytearray
 cavp
+cipherstring
 ciphertext
 ecdsa
 func
@@ -20,6 +22,7 @@ plaintext
 py
 pycrypto
 rsa
+smartcard
 sosedkin
 ssl
 tls
@@ -27,8 +30,10 @@ tlsfuzzer
 tlslite
 tlslite-ng
 tripledes
+ubsan
 unencrypted
 utf
+valgrind
 varga
 vartype
 xor
