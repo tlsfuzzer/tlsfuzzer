@@ -1041,7 +1041,7 @@ class ExpectServerKeyExchange(ExpectHandshake):
     """Processing TLS Handshake protocol Server Key Exchange message"""
 
     def __init__(self, version=None, cipher_suite=None, valid_sig_algs=None,
-                 valid_groups=None):
+                 valid_groups=None, valid_params=None):
         """
         Expect ServerKeyExchange message from server.
 
@@ -1049,6 +1049,12 @@ class ExpectServerKeyExchange(ExpectHandshake):
             server can use. In case the groups include identifiers between 256
             and 512 (see RFC 7919), the node will also check that the server
             selected FFDH parameters match the parameters specified in the RFC.
+
+        :param set(tuple(int,int)) valid_params: set of explicit expected
+            parameters used by the server, the first element of the tuple
+            is the expected generator and the second is the prime used for the
+            DH calculation. Applicable only to ciphersuites that use FFDHE
+            key exchange.
         """
         msg_type = HandshakeType.server_key_exchange
         super(ExpectServerKeyExchange, self).__init__(ContentType.handshake,
@@ -1057,12 +1063,21 @@ class ExpectServerKeyExchange(ExpectHandshake):
         self.cipher_suite = cipher_suite
         self.valid_sig_algs = valid_sig_algs
         self.valid_groups = valid_groups
+        self.valid_params = valid_params
+        if self.valid_groups and self.valid_params:
+            raise ValueError("valid_groups and valid_params are exclusive")
 
     def _checkParams(self, server_key_exchange):
-        groups = [RFC7919_GROUPS[i - 256] for i in self.valid_groups
-                  if i in range(256, 512)]
-        if (server_key_exchange.dh_g, server_key_exchange.dh_p) not in groups:
-            raise AssertionError("DH parameters not from RFC 7919")
+        groups = []
+        if self.valid_groups and any(i in range(256, 512)
+                                     for i in self.valid_groups):
+            groups = [RFC7919_GROUPS[i - 256] for i in self.valid_groups
+                      if i in range(256, 512)]
+        if self.valid_params:
+            groups = self.valid_params
+        if groups and (server_key_exchange.dh_g, server_key_exchange.dh_p) \
+                not in groups:
+            raise AssertionError("DH parameters not from valid set")
 
     def process(self, state, msg):
         """Process the Server Key Exchange message"""
@@ -1120,9 +1135,7 @@ class ExpectServerKeyExchange(ExpectHandshake):
             raise
 
         if self.cipher_suite in CipherSuite.dhAllSuites:
-            if valid_groups and any(i in range(256, 512)
-                                    for i in valid_groups):
-                self._checkParams(server_key_exchange)
+            self._checkParams(server_key_exchange)
             state.key_exchange = DHE_RSAKeyExchange(self.cipher_suite,
                                                     clientHello=None,
                                                     serverHello=server_hello,
