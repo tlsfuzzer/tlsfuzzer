@@ -1042,6 +1042,14 @@ class ExpectServerKeyExchange(ExpectHandshake):
 
     def __init__(self, version=None, cipher_suite=None, valid_sig_algs=None,
                  valid_groups=None):
+        """
+        Expect ServerKeyExchange message from server.
+
+        :param list(int) valid_groups: TLS group identifiers for groups that
+            server can use. In case the groups include identifiers between 256
+            and 512 (see RFC 7919), the node will also check that the server
+            selected FFDH parameters match the parameters specified in the RFC.
+        """
         msg_type = HandshakeType.server_key_exchange
         super(ExpectServerKeyExchange, self).__init__(ContentType.handshake,
                                                       msg_type)
