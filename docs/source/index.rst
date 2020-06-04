@@ -43,6 +43,8 @@ to see wanted, but not yet implemented features.
    connection-state
    statistical-analysis
    ci-integration
+   testing-extensions
+   testimonials
    glossary
    modules
 
