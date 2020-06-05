@@ -15,6 +15,7 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
 from tlslite.extensions import \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlslite.mathtls import FFDHE_PARAMETERS
+import tlslite.dh as dh
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
@@ -49,7 +50,10 @@ def help_msg():
     print("                (excluding \"sanity\" tests)")
     print(" --named-ffdh   Name of the well-known FFDHE parameters that the server can use")
     print("                can be used multiple times to specify multiple valid groups")
-    print("                \"RFC7919 ffdhe2048\" by default")
+    print("                \"RFC7919 ffdhe2048\" by default, unless --dhparam used")
+    print(" --dhparam      File with the expected DH parameters that the server should use")
+    print("                can be used together with --named-ffdh to specify multiple")
+    print("                acceptable parameters")
     print(" --help         this message")
 
 
@@ -62,9 +66,11 @@ def main():
     expected_failures = {}
     last_exp_tmp = None
     group_names = []
+    dh_file = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:", ["help", "named-ffdh="])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:", ["help", "named-ffdh=",
+                                                      "dhparam="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -86,6 +92,8 @@ def main():
             sys.exit(0)
         elif opt == '--named-ffdh':
             group_names.append(arg)
+        elif opt == '--dhparam':
+            dh_file = arg
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -94,10 +102,15 @@ def main():
     else:
         run_only = None
 
-    if not group_names:
+    if not group_names and not dh_file:
         group_names = ["RFC7919 ffdhe2048"]
 
     valid_params = set(FFDHE_PARAMETERS[i] for i in group_names)
+
+    if dh_file:
+        with open(dh_file, "r") as f:
+            data = f.read()
+        valid_params.add(dh.parse(data))
 
     conversations = {}
 
