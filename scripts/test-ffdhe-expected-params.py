@@ -105,7 +105,14 @@ def main():
     if not group_names and not dh_file:
         group_names = ["RFC7919 ffdhe2048"]
 
-    valid_params = set(FFDHE_PARAMETERS[i] for i in group_names)
+    try:
+        valid_params = set(FFDHE_PARAMETERS[i] for i in group_names)
+    except KeyError as e:
+        raise ValueError(
+            "Unrecognised group name: {0}, known names: {1}"
+            .format(str(e),
+                ", ".join("'{0}'".format(i) for i in
+                          FFDHE_PARAMETERS.keys())))
 
     if dh_file:
         with open(dh_file, "r") as f:
