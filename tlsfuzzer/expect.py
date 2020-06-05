@@ -27,7 +27,7 @@ from tlslite.utils.codec import Parser, Writer
 from tlslite.utils.compat import b2a_hex
 from tlslite.utils.cryptomath import secureHMAC, derive_secret, \
         HKDF_expand_label
-from tlslite.mathtls import calcFinished, RFC7919_GROUPS
+from tlslite.mathtls import calcFinished, RFC7919_GROUPS, FFDHE_PARAMETERS
 from tlslite.keyexchange import KeyExchange, DHE_RSAKeyExchange, \
         ECDHE_RSAKeyExchange
 from tlslite.x509 import X509
@@ -1075,9 +1075,18 @@ class ExpectServerKeyExchange(ExpectHandshake):
                       if i in range(256, 512)]
         if self.valid_params:
             groups = self.valid_params
-        if groups and (server_key_exchange.dh_g, server_key_exchange.dh_p) \
-                not in groups:
-            raise AssertionError("DH parameters not from valid set")
+        server_params = (server_key_exchange.dh_g, server_key_exchange.dh_p)
+        if groups and server_params not in groups:
+            for name, params in FFDHE_PARAMETERS.items():
+                if server_params == params:
+                    raise AssertionError(
+                        "DH parameters not from valid set, "
+                        "received: {0}".format(name))
+            raise AssertionError(
+                "DH parameters not from valid set, "
+                "received: g:{0}, p:{1}".format(
+                    hex(server_params[0]),
+                    hex(server_params[1])))
 
     def process(self, state, msg):
         """Process the Server Key Exchange message"""
