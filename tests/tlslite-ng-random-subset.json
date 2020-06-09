@@ -38,6 +38,7 @@
           "comment": "tlslite-ng doesn't support renegotiation, only session id based resumption is supported"
          },
          {"name" : "test-atypical-padding.py" },
+         {"name" : "test-bleichenbacher-timing.py"},
          {"name" : "test-bleichenbacher-workaround.py",
           "arguments" : ["-t", "0.01"],
           "comment" : "test over loopack, so 10ms RTT is entirely reasonable"},
@@ -176,6 +177,8 @@
           "arguments" : ["-d"],
           "comment" : "tlslite-ng does not support renegotiation",
           "exp_pass" : false},
+         {"name":  "test-lucky13.py",
+          "arguments" :  ["--quick"]},
          {"name" : "test-message-duplication.py"},
          {"name" : "test-message-skipping.py"},
          {"name" : "test-message-skipping.py",
