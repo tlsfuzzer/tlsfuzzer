@@ -1,5 +1,5 @@
 [
-    {"server_command": ["python", "-u", "{command}", "server",
+    {"server_command": ["{python}", "-u", "{command}", "server",
                  "-k", "tests/serverX509Key.pem",
                  "-c", "tests/serverX509Cert.pem",
                  "--cipherlist", "chacha20-poly1305",
@@ -324,7 +324,7 @@
          {"name" : "test-zero-length-data.py"}
      ]
     },
-    {"server_command": ["python", "-u", "{command}", "server",
+    {"server_command": ["{python}", "-u", "{command}", "server",
                  "-k", "tests/serverX509Key.pem",
                  "-c", "tests/serverX509Cert.pem",
                  "--reqcert", "localhost:4433"],
@@ -374,7 +374,7 @@
           }
      ]
     },
-    {"server_command": ["python", "-u", "{command}", "server",
+    {"server_command": ["{python}", "-u", "{command}", "server",
                  "-k", "tests/serverX509Key.pem",
                  "-c", "tests/serverX509Cert.pem",
                  "--ssl3",
@@ -392,7 +392,7 @@
          {"name" : "test-SSLv3-padding.py"}
      ]
     },
-    {"server_command": ["python", "-u", "{command}", "server",
+    {"server_command": ["{python}", "-u", "{command}", "server",
                  "--psk", "aa",
                  "--psk-ident", "test",
                  "localhost:4433"],
@@ -405,7 +405,7 @@
          {"name" : "test-tls13-psk_dhe_ke.py"}
      ]
     },
-    {"server_command": ["python", "-u", "{command}", "server",
+    {"server_command": ["{python}", "-u", "{command}", "server",
                  "--psk", "aa",
                  "--psk-ident", "test",
                  "--psk-sha384",
@@ -420,7 +420,7 @@
          {"name" : "test-tls13-psk_dhe_ke.py"}
      ]
     },
-    {"server_command": ["python", "-u", "{command}", "server",
+    {"server_command": ["{python}", "-u", "{command}", "server",
                  "-k", "tests/serverRSAPSSKey.pem",
                  "-c", "tests/serverRSAPSSCert.pem",
                  "localhost:4433"],
@@ -437,7 +437,7 @@
         }
      ]
     },
-    {"server_command": ["python", "-u", "{command}", "server",
+    {"server_command": ["{python}", "-u", "{command}", "server",
                  "-k", "tests/serverX509Key.pem",
                  "-c", "tests/serverX509Cert.pem",
                  "--max-ver", "tls1.2",
@@ -457,7 +457,7 @@
          {"name" : "test-tls13-non-support.py"}
      ]
     },
-    {"server_command": ["python", "-u", "{command}", "server",
+    {"server_command": ["{python}", "-u", "{command}", "server",
                  "-k", "tests/serverX509Key.pem",
                  "-c", "tests/serverX509Cert.pem",
                  "--request-pha",
@@ -472,7 +472,7 @@
          }
      ]
     },
-    {"server_command": ["python", "-u", "{command}", "server",
+    {"server_command": ["{python}", "-u", "{command}", "server",
                  "-k", "tests/serverX509Key.pem",
                  "-c", "tests/serverX509Cert.pem",
                  "--require-pha",
@@ -489,7 +489,7 @@
          }
      ]
     },
-    {"server_command": ["python", "-u", "{command}", "server",
+    {"server_command": ["{python}", "-u", "{command}", "server",
                 "-c", "tests/serverECCert.pem",
                 "-k", "tests/serverECKey.pem",
                 "-c", "tests/serverP384ECCert.pem",

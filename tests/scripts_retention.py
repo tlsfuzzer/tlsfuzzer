@@ -148,7 +148,7 @@ def run_clients(tests, common_args, srv, expected_size):
         script = params["name"]
         logger.info("{0}:started".format(script))
         start_time = time.time()
-        proc_args = ['python', '-u',
+        proc_args = [sys.executable, '-u',
                      'scripts/{0}'.format(script)]
         arguments = params.get("arguments", [])
         arguments = [expected_size if arg == "{expected_size}" else arg for
@@ -196,6 +196,10 @@ def run_with_json(config_file, srv_path, expected_size):
 
     for srv_conf in config:
         command = srv_conf["server_command"]
+        for number, value in enumerate(command):
+            if value == '{python}':
+                command[number] = sys.executable
+                break
         for number, value in enumerate(command):
             if value == "{command}":
                 command[number] = srv_path
