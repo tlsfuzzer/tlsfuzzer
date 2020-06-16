@@ -187,7 +187,7 @@ def main():
             print(traceback.format_exc())
             res = False
 
-         if c_name in expected_failures:
+        if c_name in expected_failures:
             if res:
                 xpass += 1
                 xpassed.append(c_name)
@@ -202,7 +202,7 @@ def main():
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
-         else:
+        else:
             if res:
                 good += 1
                 print("OK\n")
