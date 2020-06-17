@@ -30,7 +30,7 @@ from tlslite.extensions import \
 """Script to verify that the DH keys are computed correctly."""
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -48,7 +48,7 @@ def help_msg():
     print(" -X message     expect the `message` substring in exception raised during")
     print("                execution of preceding expected failure probe")
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
-    print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
+    print(" -n num         run 'num' or all(if 0) tests instead of default(1)")
     print("                (excluding \"sanity\" tests)")
     print(" --min-zeros num number of zeros that need to be found in the")
     print("                shared secret for the test case to be considered")
@@ -59,7 +59,7 @@ def help_msg():
 def main():
     host = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 1
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
