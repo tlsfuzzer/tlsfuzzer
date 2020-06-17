@@ -29,7 +29,7 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
 from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL, key_share_ext_gen
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -47,7 +47,7 @@ def help_msg():
     print(" -X message     expect the `message` substring in exception raised during")
     print("                execution of preceding expected failure probe")
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
-    print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
+    print(" -n num         run 'num' or all(if 0) tests instead of default(200)")
     print("                (excluding \"sanity\" tests)")
     print(" --help         this message")
 
@@ -55,7 +55,7 @@ def help_msg():
 def main():
     host = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 200
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
