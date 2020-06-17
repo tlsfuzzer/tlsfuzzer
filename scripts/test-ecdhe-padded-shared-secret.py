@@ -262,6 +262,7 @@ def main():
                     else:
                         xfail += 1
                         print("OK-expected failure\n")
+                break_loop = True
             else:
                 if res:
                     good += 1
@@ -270,12 +271,12 @@ def main():
                         print("Got premaster secret with {0} most significant "
                             "bytes equal to zero."
                             .format(min_zeros))
-                    break_loop = True
+                        break_loop = True
                     print("OK\n")
                 else:
                     bad += 1
                     failed.append(c_name)
-                    break
+                    break_loop = True
             if break_loop:
                 break
 
