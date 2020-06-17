@@ -27,7 +27,7 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
 from tlsfuzzer.helpers import RSA_SIG_ALL
 from tlsfuzzer.utils.lists import natural_sort_keys
 
-version = 2
+version = 3
 
 def help_msg():
     print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
@@ -123,6 +123,7 @@ def main():
                                          AlertDescription.close_notify))
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
 
     conversations["sanity"] = conversation
 
@@ -160,6 +161,7 @@ def main():
                                                  AlertDescription.close_notify))
             node = node.add_child(ExpectAlert())
             node.next_sibling = ExpectClose()
+            node = node.add_child(ExpectClose())
 
             conversations[CipherSuite.ietfNames[cipher] + " " + hash_alg
                           + " signature"] = conversation
