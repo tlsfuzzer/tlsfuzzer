@@ -27,7 +27,7 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
 from tlsfuzzer.helpers import RSA_SIG_ALL
 from tlsfuzzer.utils.lists import natural_sort_keys
 
-version = 2
+version = 4
 
 def help_msg():
     print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
@@ -38,7 +38,7 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
-    print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
+    print(" -n num         run 'num' or all(if 0) tests instead of default(10)")
     print("                (excluding \"sanity\" tests)")
     print(" -x probe-name  expect the probe to fail. When such probe passes despite being marked like this")
     print("                it will be reported in the test summary and the whole script will fail.")
@@ -53,7 +53,7 @@ def main():
     """Test if server supports all common hash algorithms in DHE_RSA kex"""
     host = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 10
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
@@ -123,6 +123,7 @@ def main():
                                          AlertDescription.close_notify))
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
+    node = node.add_child(ExpectClose())
 
     conversations["sanity"] = conversation
 
@@ -160,6 +161,7 @@ def main():
                                                  AlertDescription.close_notify))
             node = node.add_child(ExpectAlert())
             node.next_sibling = ExpectClose()
+            node = node.add_child(ExpectClose())
 
             conversations[CipherSuite.ietfNames[cipher] + " " + hash_alg
                           + " signature"] = conversation

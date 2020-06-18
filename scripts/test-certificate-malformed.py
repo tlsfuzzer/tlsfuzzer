@@ -33,7 +33,7 @@ from tlsfuzzer.helpers import RSA_SIG_ALL
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 2
+version = 3
 
 def help_msg():
     print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
@@ -44,7 +44,7 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
-    print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
+    print(" -n num         run 'num' or all(if 0) tests instead of default(1000)")
     print("                (excluding \"sanity\" tests)")
     print(" -x probe-name  expect the probe to fail. When such probe passes despite being marked like this")
     print("                it will be reported in the test summary and the whole script will fail.")
@@ -63,7 +63,7 @@ def main():
     conversations = {}
     host = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 1000
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
@@ -71,7 +71,7 @@ def main():
     cert = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:k:c:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:k:c:n:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg

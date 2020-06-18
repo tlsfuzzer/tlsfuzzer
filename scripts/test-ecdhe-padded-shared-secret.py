@@ -27,7 +27,7 @@ from tlslite.extensions import ECPointFormatsExtension, \
         SupportedGroupsExtension
 
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -45,7 +45,7 @@ def help_msg():
     print(" -X message     expect the `message` substring in exception raised during")
     print("                execution of preceding expected failure probe")
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
-    print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
+    print(" -n num         run 'num' or all(if 0) tests instead of default(1)")
     print("                (excluding \"sanity\" tests)")
     print(" --min-zeros m  minimal number of zeros that have to be cut from")
     print("                shared secret for test case to be valid,")
@@ -58,7 +58,7 @@ def main():
     """Verify correct ECDHE shared secret handling."""
     host = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 1
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
@@ -262,6 +262,7 @@ def main():
                     else:
                         xfail += 1
                         print("OK-expected failure\n")
+                break_loop = True
             else:
                 if res:
                     good += 1
@@ -270,12 +271,12 @@ def main():
                         print("Got premaster secret with {0} most significant "
                             "bytes equal to zero."
                             .format(min_zeros))
-                    break_loop = True
+                        break_loop = True
                     print("OK\n")
                 else:
                     bad += 1
                     failed.append(c_name)
-                    break
+                    break_loop = True
             if break_loop:
                 break
 
