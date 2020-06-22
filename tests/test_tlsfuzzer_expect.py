@@ -3293,6 +3293,119 @@ class TestExpectServerKeyExchange(unittest.TestCase):
         with self.assertRaises(AssertionError):
             exp.process(state, msg)
 
+    def test_process_with_specific_parameters(self):
+        exp = ExpectServerKeyExchange(valid_params=[goodGroupParameters[0]])
+
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA
+
+        cert = Certificate(CertificateType.x509).\
+                create(X509CertChain([X509().parse(srv_raw_certificate)]))
+
+        private_key = parsePEMKey(srv_raw_key, private=True)
+        client_hello = ClientHello()
+        client_hello.client_version = (3, 3)
+        client_hello.random = bytearray(32)
+        client_hello.extensions = []
+        state.client_random = client_hello.random
+        state.handshake_messages.append(client_hello)
+        server_hello = ServerHello()
+        server_hello.server_version = (3, 3)
+        server_hello.random = bytearray(32)
+        state.server_random = server_hello.random
+        # server hello is not necessary for the test to work
+        #state.handshake_messages.append(server_hello)
+        state.handshake_messages.append(cert)
+        srv_key_exchange = DHE_RSAKeyExchange(
+                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                client_hello,
+                server_hello,
+                private_key,
+                dhParams=goodGroupParameters[0])
+
+        msg = srv_key_exchange.makeServerKeyExchange('sha1')
+
+        exp.process(state, msg)
+
+    def test_process_with_unexpected_parameters(self):
+        exp = ExpectServerKeyExchange(valid_params=[goodGroupParameters[0]])
+
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA
+
+        cert = Certificate(CertificateType.x509).\
+                create(X509CertChain([X509().parse(srv_raw_certificate)]))
+
+        private_key = parsePEMKey(srv_raw_key, private=True)
+        client_hello = ClientHello()
+        client_hello.client_version = (3, 3)
+        client_hello.random = bytearray(32)
+        client_hello.extensions = []
+        state.client_random = client_hello.random
+        state.handshake_messages.append(client_hello)
+        server_hello = ServerHello()
+        server_hello.server_version = (3, 3)
+        server_hello.random = bytearray(32)
+        state.server_random = server_hello.random
+        # server hello is not necessary for the test to work
+        #state.handshake_messages.append(server_hello)
+        state.handshake_messages.append(cert)
+        srv_key_exchange = DHE_RSAKeyExchange(
+                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                client_hello,
+                server_hello,
+                private_key,
+                dhParams=goodGroupParameters[1])
+
+        msg = srv_key_exchange.makeServerKeyExchange('sha1')
+
+        with self.assertRaises(AssertionError) as e:
+            exp.process(state, msg)
+
+        self.assertIn("RFC5054 group 2", str(e.exception))
+
+    def test_process_with_unrecognised_parameters(self):
+        exp = ExpectServerKeyExchange(valid_params=[goodGroupParameters[0]])
+
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA
+
+        cert = Certificate(CertificateType.x509).\
+                create(X509CertChain([X509().parse(srv_raw_certificate)]))
+
+        private_key = parsePEMKey(srv_raw_key, private=True)
+        client_hello = ClientHello()
+        client_hello.client_version = (3, 3)
+        client_hello.random = bytearray(32)
+        client_hello.extensions = []
+        state.client_random = client_hello.random
+        state.handshake_messages.append(client_hello)
+        server_hello = ServerHello()
+        server_hello.server_version = (3, 3)
+        server_hello.random = bytearray(32)
+        state.server_random = server_hello.random
+        # server hello is not necessary for the test to work
+        #state.handshake_messages.append(server_hello)
+        state.handshake_messages.append(cert)
+        srv_key_exchange = DHE_RSAKeyExchange(
+                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                client_hello,
+                server_hello,
+                private_key,
+                dhParams=(0xabc, goodGroupParameters[1][1]))
+
+        msg = srv_key_exchange.makeServerKeyExchange('sha1')
+
+        with self.assertRaises(AssertionError) as e:
+            exp.process(state, msg)
+
+        self.assertIn("g:0xabc", str(e.exception))
+
+    def test_with_mutually_exclusive_dh_settings(self):
+        with self.assertRaises(ValueError):
+            ExpectServerKeyExchange(valid_params=[goodGroupParameters[0]],
+                                    valid_groups=[255])
+
 
 class TestExpectCertificateRequest(unittest.TestCase):
     def test___init__(self):
