@@ -20,15 +20,16 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerKeyExchange
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType, HashAlgorithm, SignatureAlgorithm, SignatureScheme
+        ExtensionType, HashAlgorithm, SignatureAlgorithm, SignatureScheme, \
+        GroupName
 from tlslite.extensions import SignatureAlgorithmsExtension, TLSExtension, \
-        SignatureAlgorithmsCertExtension
+        SignatureAlgorithmsCertExtension, SupportedGroupsExtension
 from tlsfuzzer.helpers import RSA_SIG_ALL
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -107,6 +108,12 @@ def main():
             SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
             SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    groups = [GroupName.secp256r1,
+              GroupName.x25519,
+              GroupName.secp384r1,
+              GroupName.secp521r1]
+    ext[ExtensionType.supported_groups] = \
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -144,6 +151,8 @@ def main():
                 SignatureAlgorithmsExtension().create([sig]),
                ExtensionType.signature_algorithms_cert:
                 SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+        ext[ExtensionType.supported_groups] = \
+            SupportedGroupsExtension().create(groups)
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -185,6 +194,8 @@ def main():
             SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
             SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext[ExtensionType.supported_groups] = \
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -223,6 +234,8 @@ def main():
             SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
             SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext[ExtensionType.supported_groups] = \
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -261,6 +274,8 @@ def main():
             SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
             SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext[ExtensionType.supported_groups] = \
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -304,6 +319,8 @@ def main():
             SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
             SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext[ExtensionType.supported_groups] = \
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -340,6 +357,8 @@ def main():
             SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
             SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext[ExtensionType.supported_groups] = \
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -357,6 +376,8 @@ def main():
             SignatureAlgorithmsExtension().create([]),
            ExtensionType.signature_algorithms_cert:
             SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext[ExtensionType.supported_groups] = \
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -371,8 +392,10 @@ def main():
     conversation = Connect(host, port)
     node = conversation
     ext = OrderedDict()
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
+    ext[ExtensionType.supported_groups] = \
+        SupportedGroupsExtension().create(groups)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
     sigs = [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sigs)
@@ -391,8 +414,10 @@ def main():
     node = conversation
     sigs = [(HashAlgorithm.sha256, SignatureAlgorithm.rsa)]
     ext = OrderedDict()
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
+    ext[ExtensionType.supported_groups] = \
+        SupportedGroupsExtension().create(groups)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
     ext[ExtensionType.signature_algorithms] =  SignatureAlgorithmsExtension()\
         .create(sigs)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
@@ -415,6 +440,8 @@ def main():
                               b'\x04')),  # the odd byte
            ExtensionType.signature_algorithms_cert:
            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext[ExtensionType.supported_groups] = \
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -436,6 +463,8 @@ def main():
                               b'\x04\x03')),  # extra bytes
            ExtensionType.signature_algorithms_cert:
            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext[ExtensionType.supported_groups] = \
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -508,18 +537,17 @@ def main():
                 bad += 1
                 failed.append(c_name)
 
-    print("Check if server correctly selects signature algorithm for SKE")
+    print("Test end\n")
+
+    print("Check if server correctly selects signature algorithm for SKE\n")
     print("Test to verify that Server Key Exchange is signed with safe")
-    print("and correct algorithms.")
+    print("and correct algorithms.\n")
     print("Note that test expects server with support for both rsa_pss_rsae_*")
     print("and rsa_pss_pss_* signatures, in other words, one with both")
     print("rsaEncryption key in one certificate and rsasse-pss in second")
     print("certificate. If there's only one certificate installed in server,")
     print("some of the tests that advertise just one algorithm may need to be")
-    print("disabled.")
-
-
-    print("Test end")
+    print("configured as expected failures.")
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
