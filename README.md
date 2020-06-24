@@ -91,6 +91,14 @@ service to be tested.
 See [USAGE.md](https://github.com/tomato42/tlsfuzzer/blob/master/USAGE.md) for
 more info and how to interpret errors and failures reported by scripts.
 
+You can find mode detailed documentation for the project at
+[tlsfuzzer.readthedocs.io](https://tlsfuzzer.readthedocs.io).
+
+Using tlsfuzzer to test for timing side-channel attacks (Lucky13, padding
+oracle attacks and timing-based Bleichenbacher oracle) is described in
+the [TIMING.md](https://github.com/tomato42/tlsfuzzer/blob/master/TIMING.md)
+document.
+
 ## Server under test configuration
 
 In general, the server under test requires just a RSA certificate, you
