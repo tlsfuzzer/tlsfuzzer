@@ -29,14 +29,14 @@ You'll need:
    they conflict with each other)
  * [ecdsa](https://github.com/warner/python-ecdsa)
    python module (dependency of tlslite-ng, should get installed
-   automatically with it)
+   automatically with it), use at least version 0.15 for optimal performance
 
-Optionally, to make some calculations faster, you may want to install the
-following libraries (see tlslite-ng README for details):
+Optionally, to make cryptographic calculations significantly faster, you may
+want to install the following libraries (see tlslite-ng and python-ecdsa
+README files for details):
 
  * m2crypto
- * pycrypto
- * gmp
+ * gmpy
 
 To get `pip` (if your python installation doesn't already have it) download
 [get-pip.py](https://bootstrap.pypa.io/get-pip.py) and run
