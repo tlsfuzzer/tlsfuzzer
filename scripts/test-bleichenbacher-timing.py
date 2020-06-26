@@ -24,7 +24,7 @@ from tlslite.utils.dns_utils import is_valid_hostname
 from tlslite.extensions import SNIExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 
-version = 1
+version = 2
 
 
 def help_msg():
@@ -67,6 +67,9 @@ def help_msg():
     print(" --no-sni       do not send server name extension.")
     print("                Sends extension by default if the hostname is a")
     print("                valid DNS name, not an IP address")
+    print(" --cpu-list     Set the CPU affinity for the tcpdump process")
+    print("                See taskset(1) man page for the syntax of this")
+    print("                option. Not used by default.")
     print(" --help         this message")
 
 
@@ -88,6 +91,7 @@ def main():
     timing = False
     outdir = "/tmp"
     cipher = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA
+    affinity = None
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv,
@@ -95,7 +99,8 @@ def main():
                                ["help",
                                 "no-safe-renego",
                                 "no-sni",
-                                "repeat="])
+                                "repeat=",
+                                "cpu-list="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -137,6 +142,8 @@ def main():
             srv_extensions = None
         elif opt == "--no-sni":
             no_sni = True
+        elif opt == "--cpu-list":
+            affinity = arg
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -782,7 +789,8 @@ def main():
                                          outdir,
                                          host,
                                          port,
-                                         interface)
+                                         interface,
+                                         affinity)
             print("Running timing tests...")
             timing_runner.generate_log(run_only, run_exclude, repetitions)
             ret_val = timing_runner.run()

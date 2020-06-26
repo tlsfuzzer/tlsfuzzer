@@ -59,6 +59,9 @@ def help_msg():
     print(" --repeat rep   How many timing samples should be gathered for each test")
     print("                100 by default")
     print(" --quick        Only run a basic subset of tests")
+    print(" --cpu-list     Set the CPU affinity for the tcpdump process")
+    print("                See taskset(1) man page for the syntax of this")
+    print("                option. Not used by default.")
     print(" --help         this message")
 
 
@@ -75,11 +78,13 @@ def main():
     interface = None
     quick = False
     cipher = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA
+    affinity = None
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "h:p:e:x:X:n:l:o:i:C:", ["help",
                                                               "repeat=",
-                                                              "quick"])
+                                                              "quick",
+                                                              "cpu-list="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -118,6 +123,8 @@ def main():
             sys.exit(0)
         elif opt == '--quick':
             quick = True
+        elif opt == '--cpu-list':
+            affinity = arg
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -446,7 +453,8 @@ def main():
                                              outdir,
                                              host,
                                              port,
-                                             interface)
+                                             interface,
+                                             affinity)
                 print("Running timing tests...")
                 timing_runner.generate_log(run_only, run_exclude, repetitions)
                 ret_val = timing_runner.run()
