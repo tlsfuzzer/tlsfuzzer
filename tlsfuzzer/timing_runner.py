@@ -20,7 +20,8 @@ from tlsfuzzer.utils.statics import WARM_UP
 class TimingRunner:
     """Repeatedly runs tests and captures timing information."""
 
-    def __init__(self, name, tests, out_dir, ip_address, port, interface):
+    def __init__(self, name, tests, out_dir, ip_address, port, interface,
+                 affinity=None):
         """
         Check if tcpdump is present and setup instance parameters.
 
@@ -30,6 +31,9 @@ class TimingRunner:
         :param str ip_address: Server IP address
         :param int port: Server port
         :param str interface: Network interface to run tcpdump on
+        :param str affinity: The processor IDs to use for affinity of
+            the `tcpdump` process. See taskset man page for description
+            of --cpu-list option.
         """
         # first check tcpdump presence
         if not self.check_tcpdump():
@@ -42,6 +46,7 @@ class TimingRunner:
         self.port = port
         self.interface = interface
         self.log = Log(os.path.join(self.out_dir, "log.csv"))
+        self.affinity = affinity
 
         self.tcpdump_running = True
 
@@ -169,7 +174,10 @@ class TimingRunner:
                  '--time-stamp-precision', 'nano']
 
         output_file = os.path.join(self.out_dir, "capture.pcap")
-        cmd = ['tcpdump', packet_filter, '-w', output_file] + flags
+        cmd = []
+        if self.affinity:
+            cmd += ['taskset', '--cpu-list', self.affinity]
+        cmd += ['tcpdump', packet_filter, '-w', output_file] + flags
         process = subprocess.Popen(cmd, stderr=subprocess.PIPE)
 
         # detect when tcpdump starts capturing
