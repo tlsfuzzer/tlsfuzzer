@@ -42,6 +42,7 @@ to see wanted, but not yet implemented features.
    modifying-messages
    connection-state
    statistical-analysis
+   timing-analysis
    ci-integration
    testing-extensions
    testimonials
