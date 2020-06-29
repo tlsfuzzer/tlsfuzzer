@@ -250,8 +250,15 @@ class Analysis:
                        ks_results[pair]
                        ]
                 writer.writerow(row)
-            print("For detailed report see {}".format(report_filename))
-            return difference
+        legend_filename = join(self.output, "legend.csv")
+        with open(legend_filename, "w") as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerow(['ID', 'Name'])
+            for num, name in enumerate(self.class_names):
+                writer.writerow([num, name])
+
+        print("For detailed report see {}".format(report_filename))
+        return difference
 
 
 if __name__ == '__main__':
