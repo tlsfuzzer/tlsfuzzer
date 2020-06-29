@@ -49,6 +49,8 @@ class Log:
         :param list class_list: List of test classes to be used to identify a
             connection later during the analysis
         """
+        if self.logfile:
+            self.logfile.close()
         self.logfile = open(self.filename, 'w')
         self.classes = class_list
         self.writer = csv.writer(self.logfile)
@@ -60,6 +62,8 @@ class Log:
 
     def read_log(self):
         """Read classes from log file into internal list."""
+        if self.logfile:
+            self.logfile.close()
         self.logfile = open(self.filename, 'r')
         self.reader = csv.reader(self.logfile)
         self.classes = next(self.reader)

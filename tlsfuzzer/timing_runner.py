@@ -73,7 +73,7 @@ class TimingRunner:
         self.log.start_log(actual_tests)
 
         # generate requested number of random order test runs
-        for _ in range(0, repetitions):
+        for _ in range(repetitions):
             self.log.shuffle_new_run()
 
         self.log.write()
@@ -92,9 +92,14 @@ class TimingRunner:
         # run the conversations
         test_classes = self.log.get_classes()
         # prepend the conversations with few warm-up ones
+        exp_len = WARM_UP + sum(1 for _ in self.log.iterate_log())
+        self.log.read_log()
         queries = chain(repeat(0, WARM_UP), self.log.iterate_log())
         print("Starting timing info collection. This might take a while...")
-        for index in queries:
+        for executed, index in enumerate(queries):
+            if executed % 20 == 0:
+                print("Done: {0:6.2f}%".format(executed*100.0/exp_len),
+                      end="\r")
             if self.tcpdump_running:
                 c_name = test_classes[index]
                 c_test = self.tests[c_name]
