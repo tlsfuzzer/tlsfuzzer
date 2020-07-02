@@ -219,6 +219,7 @@ class Analysis:
         wilcox_results = self.wilcoxon_test()
 
         report_filename = join(self.output, "report.csv")
+        p_vals = []
         with open(report_filename, 'w') as file:
             writer = csv.writer(file)
             writer.writerow(["Class 1", "Class 2", "Box test",
@@ -250,12 +251,22 @@ class Analysis:
                        wilcox_results[pair]
                        ]
                 writer.writerow(row)
+
+                p_vals.append(wilcox_results[pair])
+
         legend_filename = join(self.output, "legend.csv")
         with open(legend_filename, "w") as csv_file:
             writer = csv.writer(csv_file)
             writer.writerow(['ID', 'Name'])
             for num, name in enumerate(self.class_names):
                 writer.writerow([num, name])
+
+        _, p = stats.kstest(p_vals, 'uniform')
+        print("KS-test for uniformity of p-values from Wilcoxon signed-rank "
+              "test")
+        print("p-value: {}".format(p))
+        if p < 0.05:
+            difference = 1
 
         print("For detailed report see {}".format(report_filename))
         return difference
