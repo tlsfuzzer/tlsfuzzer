@@ -26,7 +26,7 @@ from tlslite.extensions import SNIExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -803,7 +803,13 @@ def main():
             print("Running timing tests...")
             timing_runner.generate_log(run_only, run_exclude, repetitions)
             ret_val = timing_runner.run()
-            print("Statistical analysis exited with {0}".format(ret_val))
+            if ret_val == 0:
+                print("No statistically significant difference detected")
+            elif ret_val == 1:
+                print("Statisticaly significant difference detected at alpha="
+                      "0.05")
+            else:
+                print("Statistical analysis exited with {0}".format(ret_val))
         else:
             print("Could not run timing tests because tcpdump is not present!")
             sys.exit(1)
