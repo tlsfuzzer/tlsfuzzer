@@ -106,14 +106,14 @@ class Analysis:
             results[TestPair(index1, index2)] = result
         return results
 
-    def ks_test(self):
-        """Cross-test all classes with the KS test"""
+    def wilcoxon_test(self):
+        """Cross-test all classes with the Wilcoxon signed-rank test"""
         results = {}
         comb = combinations(list(range(len(self.class_names))), 2)
         for index1, index2 in comb:
             data1 = self.data.iloc[:, index1]
             data2 = self.data.iloc[:, index2]
-            _, pval = stats.ks_2samp(data1, data2)
+            _, pval = stats.wilcoxon(data1, data2)
             results[TestPair(index1, index2)] = pval
         return results
 
@@ -216,12 +216,13 @@ class Analysis:
 
         # create a report with statistical tests
         box_results = self.box_test()
-        ks_results = self.ks_test()
+        wilcox_results = self.wilcoxon_test()
 
         report_filename = join(self.output, "report.csv")
         with open(report_filename, 'w') as file:
             writer = csv.writer(file)
-            writer.writerow(["Class 1", "Class 2", "Box test", "KS test"])
+            writer.writerow(["Class 1", "Class 2", "Box test",
+                             "Wilcoxon signed-rank test"])
             for pair, result in box_results.items():
                 index1 = pair.index1
                 index2 = pair.index2
@@ -236,18 +237,17 @@ class Analysis:
                 else:
                     print("Box test {} vs {}: No difference".format(index1,
                                                                     index2))
-                print("KS test {} vs {}: {}".format(index1,
-                                                    index2,
-                                                    ks_results[pair]))
+                print("Wilcoxon signed-rank test {} vs {}: {}"
+                      .format(index1, index2, wilcox_results[pair]))
                 # if both tests found a difference
                 # consider it a possible side-channel
-                if result and ks_results[pair] < 0.05:
+                if result and wilcox_results[pair] < 0.05:
                     difference = 1
 
                 row = [self.class_names[index1],
                        self.class_names[index2],
                        box_write,
-                       ks_results[pair]
+                       wilcox_results[pair]
                        ]
                 writer.writerow(row)
         legend_filename = join(self.output, "legend.csv")
