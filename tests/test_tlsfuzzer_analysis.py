@@ -25,11 +25,11 @@ except ImportError:
 class TestReport(unittest.TestCase):
     def setUp(self):
         data = {
-            0: ["A", 0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
+            0: ["A", 0.000758129, 0.000696719, 0.000980079, 0.000988900, 0.000875509,
                 0.000734843, 0.000754852, 0.000667378, 0.000671230, 0.000790935],
             1: ["B", 0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
                 0.000734843, 0.000754852, 0.000667378, 0.000671230, 0.000790935],
-            2: ["C", 0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
+            2: ["C", 0.000758131, 0.000696717, 0.000980081, 0.000988898, 0.000875511,
                 0.000734843, 0.000754852, 0.000667378, 0.000671230, 0.000790935]
         }
         self.neq_data = {
@@ -91,10 +91,10 @@ class TestReport(unittest.TestCase):
             analysis = Analysis("/tmp")
             self.mock_read_csv.assert_called_once()
 
-            res = analysis.ks_test()
+            res = analysis.wilcoxon_test()
             self.assertEqual(len(res), 3)
             for index, result in res.items():
-                self.assertEqual(result, 1.0)
+                self.assertGreaterEqual(result, 0.25)
 
     def test_box_test(self):
         with mock.patch("tlsfuzzer.analysis.pd.read_csv", self.mock_read_csv):
