@@ -10,7 +10,7 @@ import getopt
 import sys
 from os.path import join
 from collections import namedtuple
-from itertools import combinations, product
+from itertools import combinations
 
 import numpy as np
 from scipy import stats
@@ -129,42 +129,6 @@ class Analysis:
         plt.savefig(join(self.output, "box_plot.png"), bbox_inches="tight")
         plt.close()
 
-    def qq_plot(self):
-        """Generate Q-Q plot grid for the test classes."""
-        indexes = list(range(len(self.class_names)))
-        prod = product(indexes, repeat=2)
-        data_length = len(self.data.iloc[:, 1])
-        quantiles = np.linspace(start=0, stop=1, num=int(data_length))
-
-        fig, axes = plt.subplots(len(indexes),
-                                 len(indexes),
-                                 figsize=(len(indexes) * 3, len(indexes) * 3))
-
-        for index1, index2 in prod:
-            data1 = self.data.iloc[:, index1]
-            data2 = self.data.iloc[:, index2]
-            quantile1 = np.quantile(data1, quantiles, interpolation="midpoint")
-            quantile2 = np.quantile(data2, quantiles, interpolation="midpoint")
-            plot = axes[index1, index2]
-            if index1 == 0:
-                plot.set_title(index2)
-            if index2 == 0:
-                plot.set_ylabel(index1,
-                                fontsize=plt.rcParams['axes.titlesize'])
-            plot.scatter(quantile1, quantile2, marker=".")
-            plot.set_xticks([])
-            plot.set_yticks([])
-            plot.set_xlim([quantile1[0], quantile1[-1]])
-            plot.set_ylim([quantile2[0], quantile2[-1]])
-
-        fig.suptitle("Q-Q plot grid")
-        plt.subplots_adjust(top=0.92,
-                            bottom=0.05,
-                            left=0.1,
-                            right=0.925)
-        plt.savefig(join(self.output, "qq_plot.png"), bbox_inches="tight")
-        plt.close()
-
     def scatter_plot(self):
         """Generate scatter plot showing how the measurement went."""
         plt.figure(figsize=(8, 6))
@@ -209,7 +173,6 @@ class Analysis:
         """
         self.box_plot()
         self.scatter_plot()
-        self.qq_plot()
         self.ecdf_plot()
 
         difference = 0
