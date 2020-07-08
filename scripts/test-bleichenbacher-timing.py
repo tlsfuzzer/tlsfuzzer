@@ -26,7 +26,7 @@ from tlslite.extensions import SNIExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -608,6 +608,49 @@ def main():
     node.add_child(ExpectClose())
 
     conversations["too long (49-byte) pre master secret"] = conversation
+
+    # check if very long PMS is detected
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [cipher]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=cln_extensions))
+    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1] * 124)))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(level,
+                                      alert))
+    node.add_child(ExpectClose())
+
+    conversations["very long (124-byte) pre master secret"] = conversation
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [cipher]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=cln_extensions))
+    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1] * 96)))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(level,
+                                      alert))
+    node.add_child(ExpectClose())
+
+    conversations["very long (96-byte) pre master secret"] = conversation
 
     # check if wrong TLS version number is rejected
     conversation = Connect(host, port)
