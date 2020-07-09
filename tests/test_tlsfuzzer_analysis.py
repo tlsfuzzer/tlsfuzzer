@@ -58,7 +58,7 @@ class TestReport(unittest.TestCase):
                             mock_ecdf.assert_called_once()
                             mock_box.assert_called_once()
                             mock_scatter.assert_called_once()
-                            # we're writing both report.csv and legend.csv
+                            # we're writing to report.csv, and report.txt
                             self.assertEqual(mock_open.call_count, 2)
                             self.assertEqual(ret, 0)
 
@@ -78,7 +78,7 @@ class TestReport(unittest.TestCase):
                             mock_ecdf.assert_called_once()
                             mock_box.assert_called_once()
                             mock_scatter.assert_called_once()
-                            # we're writing both report.csv and legend.csv
+                            # we're writing to report.csv, and report.txt
                             self.assertEqual(mock_open.call_count, 2)
                             self.assertEqual(ret, 1)
 

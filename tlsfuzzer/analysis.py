@@ -43,7 +43,8 @@ def main():
 
     if output:
         analysis = Analysis(output)
-        analysis.generate_report()
+        ret = analysis.generate_report()
+        return ret
     else:
         raise ValueError("Missing -o option!")
 
@@ -165,18 +166,38 @@ class Analysis:
                    bbox_to_anchor=(0.5, -0.15)
                    )
 
-    def generate_report(self):
+    def calc_diff_conf_int(self, pair, reps=5000, ci=0.95):
         """
-        Compiles a report consisting of statistical tests and plots.
+        Bootstrap a confidence interval for the central tendency of differences
 
-        :return: int 0 if no difference was detected, 1 otherwise
+        :param TestPair pair: pairs to calculate the confidence interval
+        :param int reps: how many bootstraping repetitions to perform
+        :param float ci: confidence interval for the low and high estimate.
+            0.95, i.e. "2 sigma", by default
+        :return: tuple with low estimate, median, and high estimate of
+            truncated mean of differences of observations
         """
-        self.box_plot()
-        self.scatter_plot()
-        self.ecdf_plot()
+        # because the samples are not independent, we calculate mean of
+        # differences not a difference of means
+        diffs = self.data.iloc[:, pair.index1] - self.data.iloc[:, pair.index2]
 
+        cent_tend = []
+        observ_count = len(diffs)
+
+        for _ in range(reps):
+            boot = np.random.choice(diffs, replace=True, size=observ_count)
+            # use trimmed mean as the pairing of samples in not perfect:
+            # the noise source could get activated in the middle of testing
+            # of the test set, causing some results to be unusable
+            # discard 50% of samples total (cut 25% from the median) to exclude
+            # non central modes
+            cent_tend.append(stats.trim_mean(boot, 0.25))
+
+        return np.quantile(cent_tend, [(1-ci)/2, 0.5, 1-(1-ci)/2])
+
+    def _write_individual_results(self):
+        """Write results to report.csv"""
         difference = 0
-
         # create a report with statistical tests
         box_results = self.box_test()
         wilcox_results = self.wilcoxon_test()
@@ -187,6 +208,8 @@ class Analysis:
             writer = csv.writer(file)
             writer.writerow(["Class 1", "Class 2", "Box test",
                              "Wilcoxon signed-rank test"])
+            worst_pair = None
+            worst_p = None
             for pair, result in box_results.items():
                 index1 = pair.index1
                 index2 = pair.index2
@@ -208,15 +231,24 @@ class Analysis:
                 if result and wilcox_results[pair] < 0.05:
                     difference = 1
 
+                wilcox_p = wilcox_results[pair]
                 row = [self.class_names[index1],
                        self.class_names[index2],
                        box_write,
-                       wilcox_results[pair]
+                       wilcox_p
                        ]
                 writer.writerow(row)
 
-                p_vals.append(wilcox_results[pair])
+                p_vals.append(wilcox_p)
 
+                if worst_pair is None or wilcox_p < worst_p:
+                    worst_pair = pair
+                    worst_p = wilcox_p
+
+        return difference, p_vals, worst_pair, worst_p
+
+    def _write_legend(self):
+        """Write the legend.csv file."""
         legend_filename = join(self.output, "legend.csv")
         with open(legend_filename, "w") as csv_file:
             writer = csv.writer(csv_file)
@@ -224,16 +256,70 @@ class Analysis:
             for num, name in enumerate(self.class_names):
                 writer.writerow([num, name])
 
-        _, p = stats.kstest(p_vals, 'uniform')
-        print("KS-test for uniformity of p-values from Wilcoxon signed-rank "
-              "test")
-        print("p-value: {}".format(p))
-        if p < 0.05:
-            difference = 1
+    def _write_summary(self, difference, p_vals, worst_pair, worst_p):
+        """Write the report.txt file and print summary."""
+        report_filename = join(self.output, "report.csv")
+        text_report_filename = join(self.output, "report.txt")
+        with open(text_report_filename, 'w') as txt_file:
+            _, p = stats.kstest(p_vals, 'uniform')
+            txt = ("KS-test for uniformity of p-values from Wilcoxon "
+                   "signed-rank test")
+            print(txt)
+            txt_file.write(txt)
+            txt_file.write('\n')
 
-        print("For detailed report see {}".format(report_filename))
+            txt = "p-value: {}".format(p)
+            print(txt)
+            txt_file.write(txt)
+            txt_file.write('\n')
+
+            if p < 0.05:
+                difference = 1
+
+            txt = "Worst pair: {}({}), {}({})".format(
+                worst_pair.index1,
+                self.class_names[worst_pair.index1],
+                worst_pair.index2,
+                self.class_names[worst_pair.index2])
+            print(txt)
+            txt_file.write(txt)
+            txt_file.write('\n')
+
+            low, med, high = self.calc_diff_conf_int(worst_pair)
+            # use 95% CI as that translates to 2 standard deviations, making
+            # it easy to estimate higher CIs
+            txt = "Median difference: {:.5e}s, 95% CI: {:.5e}s, {:.5e}s".\
+                format(med, low, high)
+            print(txt)
+            txt_file.write(txt)
+            txt_file.write('\n')
+
+            txt = "For detailed report see {}".format(report_filename)
+            print(txt)
+            txt_file.write(txt)
+            txt_file.write('\n')
+        return difference
+
+    def generate_report(self):
+        """
+        Compiles a report consisting of statistical tests and plots.
+
+        :return: int 0 if no difference was detected, 1 otherwise
+        """
+        self.box_plot()
+        self.scatter_plot()
+        self.ecdf_plot()
+
+        difference, p_vals, worst_pair, worst_p = \
+            self._write_individual_results()
+
+        difference = self._write_summary(difference, p_vals, worst_pair,
+                                         worst_p)
+
         return difference
 
 
 if __name__ == '__main__':
-    main()
+    ret = main()
+    print("Analysis return value: {}".format(ret))
+    sys.exit(ret)
