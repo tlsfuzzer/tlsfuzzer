@@ -73,7 +73,7 @@ jobs:
    - python: 3.8
      dist: xenial
      sudo: true
-     env: ANALYSIS_DEP=true EXTRACT_DEP=true
+     env: ANALYSIS_DEP=true EXTRACT_DEP=true CC_REPORT=true
 
 branches:
   only:
@@ -114,7 +114,7 @@ install:
   - if [[ $ANALYSIS_DEP == 'true' ]]; then travis_retry pip install -r build-requirements-analysis.txt; fi
   - travis_retry pip install -r requirements.txt
   # codeclimate supports natively just one set of results, so use the most recent python for that
-  - if [[ $TRAVIS_PYTHON_VERSION == '3.6' ]]; then ./cc-test-reporter before-build; fi
+  - if [[ $CC_REPORT == 'true' ]]; then ./cc-test-reporter before-build; fi
 
 script:
   - |
@@ -159,4 +159,4 @@ script:
 
 after_success:
  - travis_retry coveralls
- - if [[ $TRAVIS_PYTHON_VERSION == '3.6' ]]; then coverage xml; ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT; fi
+ - if [[ $CC_REPORT == 'true' ]]; then coverage xml; ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT; fi
