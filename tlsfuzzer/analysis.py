@@ -8,6 +8,7 @@ from __future__ import print_function
 import csv
 import getopt
 import sys
+import multiprocessing as mp
 from os.path import join
 from collections import namedtuple
 from itertools import combinations
@@ -15,9 +16,12 @@ from itertools import combinations
 import numpy as np
 from scipy import stats
 import pandas as pd
-import matplotlib.pyplot as plt
+import matplotlib as mpl
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
 TestPair = namedtuple('TestPair', 'index1  index2')
+mpl.use('Agg')
 
 
 def help_msg():
@@ -124,47 +128,55 @@ class Analysis:
 
     def box_plot(self):
         """Generate box plot for the test classes."""
-        axes = self.data.plot(kind="box", showfliers=False)
-        axes.set_xticks(range(len(self.data)))
-        axes.set_xticklabels(list(range(len(self.data))))
+        fig = Figure(figsize=(8, 6))
+        canvas = FigureCanvas(fig)
+        ax = fig.add_subplot(1, 1, 1)
 
-        plt.title("Box plot")
-        plt.ylabel("Time [s]")
-        plt.xlabel("Class index")
-        plt.savefig(join(self.output, "box_plot.png"), bbox_inches="tight")
-        plt.close()
+        self.data.boxplot(ax=ax, grid=False, showfliers=False)
+        ax.set_xticks(list(range(len(self.data))))
+        ax.set_xticklabels(list(range(len(self.data))))
+
+        ax.set_title("Box plot")
+        ax.set_ylabel("Time [s]")
+        ax.set_xlabel("Class index")
+        canvas.print_figure(join(self.output, "box_plot.png"),
+                            bbox_inches="tight")
 
     def scatter_plot(self):
         """Generate scatter plot showing how the measurement went."""
-        plt.figure(figsize=(8, 6))
-        plt.plot(self.data, ".", fillstyle='none', alpha=0.6)
+        fig = Figure(figsize=(8, 6))
+        canvas = FigureCanvas(fig)
+        ax = fig.add_subplot(1, 1, 1)
+        ax.plot(self.data, ".", fillstyle='none', alpha=0.6)
 
-        plt.title("Scatter plot")
-        plt.ylabel("Time [s]")
-        plt.xlabel("Sample index")
-        plt.yscale("log")
-        self.make_legend()
-        plt.savefig(join(self.output, "scatter_plot.png"), bbox_inches="tight")
-        plt.close()
+        ax.set_title("Scatter plot")
+        ax.set_ylabel("Time [s]")
+        ax.set_xlabel("Sample index")
+        ax.set_yscale("log")
+        self.make_legend(ax)
+        canvas.print_figure(join(self.output, "scatter_plot.png"),
+                            bbox_inches="tight")
 
     def ecdf_plot(self):
         """Generate ECDF plot comparing distributions of the test classes."""
-        plt.figure()
+        fig = Figure(figsize=(8, 6))
+        canvas = FigureCanvas(fig)
+        ax = fig.add_subplot(1, 1, 1)
         for classname in self.data:
             data = self.data.loc[:, classname]
             levels = np.linspace(1. / len(data), 1, len(data))
-            plt.step(sorted(data), levels, where='post')
-        self.make_legend()
-        plt.title("Empirical Cumulative Distribution Function")
-        plt.xlabel("Time [s]")
-        plt.ylabel("Cumulative probability")
-        plt.savefig(join(self.output, "ecdf_plot.png"), bbox_inches="tight")
-        plt.close()
+            ax.step(sorted(data), levels, where='post')
+        self.make_legend(ax)
+        ax.set_title("Empirical Cumulative Distribution Function")
+        ax.set_xlabel("Time [s]")
+        ax.set_ylabel("Cumulative probability")
+        canvas.print_figure(join(self.output, "ecdf_plot.png"),
+                            bbox_inches="tight")
 
-    def make_legend(self):
+    def make_legend(self, fig):
         """Generate common legend for plots that need it."""
         header = list(range(len(list(self.data))))
-        plt.legend(header,
+        fig.legend(header,
                    ncol=6,
                    loc='upper center',
                    bbox_to_anchor=(0.5, -0.15)
@@ -310,9 +322,17 @@ class Analysis:
 
         :return: int 0 if no difference was detected, 1 otherwise
         """
-        self.box_plot()
-        self.scatter_plot()
-        self.ecdf_plot()
+        # plot in separate processes so that the matplotlib memory leaks are
+        # not cumulative, see https://stackoverflow.com/q/28516828/462370
+        proc = mp.Process(target=self.box_plot)
+        proc.start()
+        proc.join()
+        proc = mp.Process(target=self.scatter_plot)
+        proc.start()
+        proc.join()
+        proc = mp.Process(target=self.ecdf_plot)
+        proc.start()
+        proc.join()
 
         difference, p_vals, worst_pair, worst_p = \
             self._write_individual_results()
