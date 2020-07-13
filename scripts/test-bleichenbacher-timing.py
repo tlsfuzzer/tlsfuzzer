@@ -26,7 +26,7 @@ from tlslite.extensions import SNIExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -720,6 +720,33 @@ def main():
     node.add_child(ExpectClose())
 
     conversations["too short PKCS padding"] = conversation
+
+    # check if very short PKCS padding doesn't have a different behaviour
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [cipher]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=cln_extensions))
+    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    # move the start of the padding 40 bytes towards LSB
+    subs = {}
+    for i in range(41):
+        subs[i] = 0
+    subs[41] = 2
+    node = node.add_child(ClientKeyExchangeGenerator(padding_subs=subs))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(level,
+                                      alert))
+    node.add_child(ExpectClose())
+
+    conversations["very short PKCS padding (40 bytes short)"] = conversation
 
     # check if too long PKCS padding is detected
     conversation = Connect(host, port)
