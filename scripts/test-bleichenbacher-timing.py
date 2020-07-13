@@ -841,6 +841,85 @@ def main():
 
     print("Test end")
     print(20 * '=')
+    print("""Tests for handling of malformed encrypted values in CKE
+
+This test script checks if the server correctly handles malformed
+Client Key Exchange messages in RSA key exchange.
+When executed with `-i` it will also verify that different errors
+are rejected in the same amount of time; it checks for timing
+sidechannel.
+The script executes tests without \"sanity\" in name multiple
+times to estimate server response time.
+
+Quick reminder: when encrypting a value using PKCS#1 v1.5 standard
+the plaintext has the following structure, starting from most
+significant byte:
+- one byte, the version of the encryption, must be 0
+- one byte, the type of encryption, must be 2 (is 1 in case of
+  signature)
+- one or more bytes of random padding, with no zero bytes. The
+  count must equal the byte size of the public key modulus less
+  size of encrypted value and 3 (for version, type and separator)
+  For signatures the bytes must equal 0xff
+- one zero byte that acts as separator between padding and
+  encrypted value
+- one or more bytes that are the encrypted value, for TLS it must
+  be 48 bytes long and the first two bytes need to equal the
+  TLS version advertised in Client Hello
+
+All tests should exhibit the same kind of timing behaviour, but
+if some groups of tests are inconsistent, that points to likely
+place where the timing leak happens:
+- the control group, lack of consistency here points to Lucky 13:
+  - 'invalid MAC in Finished on pos 0'
+  - 'invalid MAC in Finished on pos -1'
+  - 'invalid padding_length in Finished'
+- different PKCS#1 v1.5 padding types, inconsistent results here
+  may be caued by the same code used for decryption and signature
+  verification:
+  - 'set PKCS#1 padding type to 3'
+  - 'set PKCS#1 padding type to 1'
+- incorrect size of encrypted value (pre-master secret),
+  inconsistent results here suggests that the decryption leaks
+  length of plaintext:
+  - 'zero byte in random padding' - this creates a PMS that's 4
+    bytes shorter than the public key size and has a random TLS
+    version
+  - 'zero byte in last byte of random padding' - this creates a
+    PMS that's one byte too long (49 bytes long), with a TLS
+    version that's (0, major_version)
+  - 'no null separator in padding' - as the PMS is all zero, this
+    effectively sends a PMS that's 45 bytes long with TLS version
+    of (0, 0)
+  - 'two byte long PMS (TLS version only)'
+  - 'one byte encrypted value' - the encrypted value is 3, as a
+    correct value for first byte of TLS version
+  - 'too short (47-byte) pre master secret'
+  - 'very short (4-byte) pre master secret'
+  - 'too long (49-byte) pre master secret'
+  - 'very long (124-byte) pre master secret'
+  - 'very long (96-byte) pre master secret'
+- invalid PKCS#1 v1.5 encryption padding:
+  - 'zero byte in first byte of random padding' - this is a mix
+    of too long PMS and invalid padding, it actually doesn't send
+    padding at all, the padding length is zero
+  - 'invalid version number in padding' - this sets the first byte
+    of plaintext to 1
+  - 'no null separator in encrypted value' - this doesn't send a
+    null byte separating padding and encrypted value
+  - 'no encrypted value' - this sends a null separator, but it's
+    the last byte of plaintext
+  - 'too short PKCS padding' - this sends the correct encryption
+    type in the padding (2), but one byte later than required
+  - 'very short PKCS padding (40 bytes short)' - same as above
+    only 40 bytes later
+  - 'too long PKCS padding' this doesn't send the PKCS#1 v1.5
+    version at all, but starts with padding type
+- invalid TLS version in PMS, differences here suggest a leak in
+  code checking for correctness of this value:
+  - 'wrong TLS version (2, 2) in pre master secret'
+  - 'wrong TLS version (0, 0) in pre master secret'""")
+    print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
     print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
