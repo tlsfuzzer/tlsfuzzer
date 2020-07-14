@@ -58,8 +58,9 @@ class TestReport(unittest.TestCase):
                             #mock_ecdf.assert_called_once()
                             #mock_box.assert_called_once()
                             #mock_scatter.assert_called_once()
-                            # we're writing to report.csv, and report.txt
-                            self.assertEqual(mock_open.call_count, 2)
+                            # we're writing to report.csv, legend.csv, and
+                            # report.txt
+                            self.assertEqual(mock_open.call_count, 3)
                             self.assertEqual(ret, 0)
 
     def test_report_neq(self):
@@ -78,8 +79,9 @@ class TestReport(unittest.TestCase):
                             #mock_ecdf.assert_called_once()
                             #mock_box.assert_called_once()
                             #mock_scatter.assert_called_once()
-                            # we're writing to report.csv, and report.txt
-                            self.assertEqual(mock_open.call_count, 2)
+                            # we're writing to report.csv, legend.csv,
+                            # and report.txt
+                            self.assertEqual(mock_open.call_count, 3)
                             self.assertEqual(ret, 1)
 
     def test_ks_test(self):

@@ -333,6 +333,7 @@ class Analysis:
         proc = mp.Process(target=self.ecdf_plot)
         proc.start()
         proc.join()
+        self._write_legend()
 
         difference, p_vals, worst_pair, worst_p = \
             self._write_individual_results()
