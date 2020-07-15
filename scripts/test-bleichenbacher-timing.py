@@ -22,12 +22,14 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
     ExtensionType
 from tlslite.utils.dns_utils import is_valid_hostname
-from tlslite.extensions import SNIExtension
+from tlslite.extensions import SNIExtension, SignatureAlgorithmsCertExtension,\
+    SignatureAlgorithmsExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.utils.ordered_dict import OrderedDict
+from tlsfuzzer.helpers import SIG_ALL, RSA_PKCS1_ALL
 
 
-version = 8
+version = 9
 
 
 def help_msg():
@@ -162,6 +164,10 @@ def main():
     if is_valid_hostname(host) and not no_sni:
         cln_extensions[ExtensionType.server_name] = \
             SNIExtension().create(bytearray(host, 'ascii'))
+    cln_extensions[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(RSA_PKCS1_ALL)
+    cln_extensions[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(SIG_ALL)
 
     # RSA key exchange check
     if cipher not in CipherSuite.certSuites:
