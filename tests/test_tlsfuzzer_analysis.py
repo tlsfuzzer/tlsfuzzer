@@ -25,11 +25,11 @@ except ImportError:
 class TestReport(unittest.TestCase):
     def setUp(self):
         data = {
-            0: ["A", 0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
+            0: ["A", 0.000758129, 0.000696719, 0.000980079, 0.000988900, 0.000875509,
                 0.000734843, 0.000754852, 0.000667378, 0.000671230, 0.000790935],
             1: ["B", 0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
                 0.000734843, 0.000754852, 0.000667378, 0.000671230, 0.000790935],
-            2: ["C", 0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
+            2: ["C", 0.000758131, 0.000696717, 0.000980081, 0.000988898, 0.000875511,
                 0.000734843, 0.000754852, 0.000667378, 0.000671230, 0.000790935]
         }
         self.neq_data = {
@@ -47,52 +47,52 @@ class TestReport(unittest.TestCase):
 
     def test_report(self):
         with mock.patch("tlsfuzzer.analysis.pd.read_csv", self.mock_read_csv):
-            with mock.patch("tlsfuzzer.analysis.Analysis.qq_plot") as mock_qq:
-                with mock.patch("tlsfuzzer.analysis.Analysis.ecdf_plot") as mock_ecdf:
-                    with mock.patch("tlsfuzzer.analysis.Analysis.box_plot") as mock_box:
-                        with mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter:
-                            with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
-                                analysis = Analysis("/tmp")
-                                ret = analysis.generate_report()
+            with mock.patch("tlsfuzzer.analysis.Analysis.ecdf_plot") as mock_ecdf:
+                with mock.patch("tlsfuzzer.analysis.Analysis.box_plot") as mock_box:
+                    with mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter:
+                        with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
+                            analysis = Analysis("/tmp")
+                            ret = analysis.generate_report()
 
-                                self.mock_read_csv.assert_called_once()
-                                mock_qq.assert_called_once()
-                                mock_ecdf.assert_called_once()
-                                mock_box.assert_called_once()
-                                mock_scatter.assert_called_once()
-                                mock_open.assert_called_once()
-                                self.assertEqual(ret, 0)
+                            self.mock_read_csv.assert_called_once()
+                            #mock_ecdf.assert_called_once()
+                            #mock_box.assert_called_once()
+                            #mock_scatter.assert_called_once()
+                            # we're writing to report.csv, legend.csv, and
+                            # report.txt
+                            self.assertEqual(mock_open.call_count, 3)
+                            self.assertEqual(ret, 0)
 
     def test_report_neq(self):
         timings = pd.DataFrame(data=self.neq_data)
         mock_read_csv = mock.Mock(spec=pd.read_csv)
         mock_read_csv.return_value = timings.transpose()
         with mock.patch("tlsfuzzer.analysis.pd.read_csv", mock_read_csv):
-            with mock.patch("tlsfuzzer.analysis.Analysis.qq_plot") as mock_qq:
-                with mock.patch("tlsfuzzer.analysis.Analysis.ecdf_plot") as mock_ecdf:
-                    with mock.patch("tlsfuzzer.analysis.Analysis.box_plot") as mock_box:
-                        with mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter:
-                            with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
-                                analysis = Analysis("/tmp")
-                                ret = analysis.generate_report()
+            with mock.patch("tlsfuzzer.analysis.Analysis.ecdf_plot") as mock_ecdf:
+                with mock.patch("tlsfuzzer.analysis.Analysis.box_plot") as mock_box:
+                    with mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter:
+                        with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
+                            analysis = Analysis("/tmp")
+                            ret = analysis.generate_report()
 
-                                mock_read_csv.assert_called_once()
-                                mock_qq.assert_called_once()
-                                mock_ecdf.assert_called_once()
-                                mock_box.assert_called_once()
-                                mock_scatter.assert_called_once()
-                                mock_open.assert_called_once()
-                                self.assertEqual(ret, 1)
+                            mock_read_csv.assert_called_once()
+                            #mock_ecdf.assert_called_once()
+                            #mock_box.assert_called_once()
+                            #mock_scatter.assert_called_once()
+                            # we're writing to report.csv, legend.csv,
+                            # and report.txt
+                            self.assertEqual(mock_open.call_count, 3)
+                            self.assertEqual(ret, 1)
 
     def test_ks_test(self):
         with mock.patch("tlsfuzzer.analysis.pd.read_csv", self.mock_read_csv):
             analysis = Analysis("/tmp")
             self.mock_read_csv.assert_called_once()
 
-            res = analysis.ks_test()
+            res = analysis.wilcoxon_test()
             self.assertEqual(len(res), 3)
             for index, result in res.items():
-                self.assertEqual(result, 1.0)
+                self.assertGreaterEqual(result, 0.25)
 
     def test_box_test(self):
         with mock.patch("tlsfuzzer.analysis.pd.read_csv", self.mock_read_csv):
@@ -146,23 +146,21 @@ class TestPlots(unittest.TestCase):
         with mock.patch("tlsfuzzer.analysis.pd.read_csv", mock_read_csv):
             self.analysis = Analysis("/tmp")
 
-    def test_qq_plot(self):
-        with mock.patch("tlsfuzzer.analysis.plt.savefig", mock.Mock()) as mock_save:
-            self.analysis.qq_plot()
-            mock_save.assert_called_once()
-
     def test_ecdf_plot(self):
-        with mock.patch("tlsfuzzer.analysis.plt.savefig", mock.Mock()) as mock_save:
+        with mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure",
+                        mock.Mock()) as mock_save:
             self.analysis.ecdf_plot()
             mock_save.assert_called_once()
 
     def test_scatter_plot(self):
-        with mock.patch("tlsfuzzer.analysis.plt.savefig", mock.Mock()) as mock_save:
+        with mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure",
+                        mock.Mock()) as mock_save:
             self.analysis.scatter_plot()
             mock_save.assert_called_once()
 
     def test_box_plot(self):
-        with mock.patch("tlsfuzzer.analysis.plt.savefig", mock.Mock()) as mock_save:
+        with mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure",
+                        mock.Mock()) as mock_save:
             self.analysis.box_plot()
             mock_save.assert_called_once()
 

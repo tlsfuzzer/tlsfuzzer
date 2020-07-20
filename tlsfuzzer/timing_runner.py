@@ -20,7 +20,8 @@ from tlsfuzzer.utils.statics import WARM_UP
 class TimingRunner:
     """Repeatedly runs tests and captures timing information."""
 
-    def __init__(self, name, tests, out_dir, ip_address, port, interface):
+    def __init__(self, name, tests, out_dir, ip_address, port, interface,
+                 affinity=None):
         """
         Check if tcpdump is present and setup instance parameters.
 
@@ -30,6 +31,9 @@ class TimingRunner:
         :param str ip_address: Server IP address
         :param int port: Server port
         :param str interface: Network interface to run tcpdump on
+        :param str affinity: The processor IDs to use for affinity of
+            the `tcpdump` process. See taskset man page for description
+            of --cpu-list option.
         """
         # first check tcpdump presence
         if not self.check_tcpdump():
@@ -42,6 +46,7 @@ class TimingRunner:
         self.port = port
         self.interface = interface
         self.log = Log(os.path.join(self.out_dir, "log.csv"))
+        self.affinity = affinity
 
         self.tcpdump_running = True
 
@@ -68,7 +73,7 @@ class TimingRunner:
         self.log.start_log(actual_tests)
 
         # generate requested number of random order test runs
-        for _ in range(0, repetitions):
+        for _ in range(repetitions):
             self.log.shuffle_new_run()
 
         self.log.write()
@@ -84,35 +89,43 @@ class TimingRunner:
         status.setDaemon(True)
         status.start()
 
-        # run the conversations
-        test_classes = self.log.get_classes()
-        # prepend the conversations with few warm-up ones
-        queries = chain(repeat(0, WARM_UP), self.log.iterate_log())
-        print("Starting timing info collection. This might take a while...")
-        for index in queries:
-            if self.tcpdump_running:
-                c_name = test_classes[index]
-                c_test = self.tests[c_name]
+        try:
+            # run the conversations
+            test_classes = self.log.get_classes()
+            # prepend the conversations with few warm-up ones
+            exp_len = WARM_UP + sum(1 for _ in self.log.iterate_log())
+            self.log.read_log()
+            queries = chain(repeat(0, WARM_UP), self.log.iterate_log())
+            print("Starting timing info collection. "
+                  "This might take a while...")
+            for executed, index in enumerate(queries):
+                if executed % 20 == 0:
+                    print("Done: {0:6.2f}%".format(executed*100.0/exp_len),
+                          end="\r")
+                if self.tcpdump_running:
+                    c_name = test_classes[index]
+                    c_test = self.tests[c_name]
 
-                runner = Runner(c_test)
-                res = True
-                try:
-                    runner.run()
-                except Exception:
-                    print("Error while processing")
-                    print(traceback.format_exc())
-                    res = False
+                    runner = Runner(c_test)
+                    res = True
+                    try:
+                        runner.run()
+                    except Exception:
+                        print("Error while processing")
+                        print(traceback.format_exc())
+                        res = False
 
-                if not res:
-                    raise AssertionError("Test must pass in order to be timed")
-            else:
-                sys.exit(1)
-
-        # stop sniffing and give tcpdump time to write all buffered packets
-        self.tcpdump_running = False
-        time.sleep(2)
-        sniffer.terminate()
-        sniffer.wait()
+                    if not res:
+                        raise AssertionError(
+                            "Test must pass in order to be timed")
+                else:
+                    sys.exit(1)
+        finally:
+            # stop sniffing and give tcpdump time to write all buffered packets
+            self.tcpdump_running = False
+            time.sleep(2)
+            sniffer.terminate()
+            sniffer.wait()
 
         # start extraction and analysis
         print("Starting extraction...")
@@ -169,7 +182,10 @@ class TimingRunner:
                  '--time-stamp-precision', 'nano']
 
         output_file = os.path.join(self.out_dir, "capture.pcap")
-        cmd = ['tcpdump', packet_filter, '-w', output_file] + flags
+        cmd = []
+        if self.affinity:
+            cmd += ['taskset', '--cpu-list', self.affinity]
+        cmd += ['tcpdump', packet_filter, '-w', output_file] + flags
         process = subprocess.Popen(cmd, stderr=subprocess.PIPE)
 
         # detect when tcpdump starts capturing
