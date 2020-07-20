@@ -103,7 +103,14 @@ before_install:
 
 install:
   - if [[ -e build-requirements-${TRAVIS_PYTHON_VERSION}.txt ]]; then travis_retry pip install -r build-requirements-${TRAVIS_PYTHON_VERSION}.txt; else travis_retry pip install -r build-requirements.txt; fi
-  - if [[ $EXTRACT_DEP == 'true' ]]; then travis_retry pip install "dpkt>=1.9.2"; fi
+  - |
+      if [[ $EXTRACT_DEP == 'true' ]]; then
+          if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then
+              travis_retry pip install "dpkt==1.9.2";
+          else
+              travis_retry pip install "dpkt>=1.9.2";
+          fi
+      fi
   - if [[ $ANALYSIS_DEP == 'true' ]]; then travis_retry pip install -r build-requirements-analysis.txt; fi
   - travis_retry pip install -r requirements.txt
   # codeclimate supports natively just one set of results, so use the most recent python for that
