@@ -120,6 +120,7 @@ class Analysis:
     def box_plot(self):
         """Generate box plot for the test classes."""
         axes = self.data.plot(kind="box", showfliers=False)
+        axes.set_xticks(range(len(self.data)))
         axes.set_xticklabels(list(range(len(self.data))))
 
         plt.title("Box plot")
