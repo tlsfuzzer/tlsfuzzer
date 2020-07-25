@@ -551,7 +551,6 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
         self.version = version
         self.ciphers = ciphers
         self.extensions = extensions
-        self.version = version
         self.session_id = session_id
         self.random = random
         self.compression = compression
