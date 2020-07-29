@@ -133,8 +133,8 @@ class Analysis:
         ax = fig.add_subplot(1, 1, 1)
 
         self.data.boxplot(ax=ax, grid=False, showfliers=False)
-        ax.set_xticks(list(range(len(self.data))))
-        ax.set_xticklabels(list(range(len(self.data))))
+        ax.set_xticks(list(range(len(self.data.columns)+1)))
+        ax.set_xticklabels([''] + list(range(len(self.data.columns))))
 
         ax.set_title("Box plot")
         ax.set_ylabel("Time [s]")
