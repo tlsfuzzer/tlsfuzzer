@@ -23,11 +23,18 @@ def help_msg():
     """Print help message."""
     print("Usage: extract [-l logfile] [-c capture] [[-o output] ...]")
     print(" -l logfile     Filename of the timing log (required)")
-    print(" -c capture     Packet capture of the test run (required)")
+    print(" -c capture     Packet capture of the test run")
     print(" -o output      Directory where to place results (required)")
-    print(" -h host        TLS server host or ip (required)")
-    print(" -p port        TLS server port (required)")
+    print(" -h host        TLS server host or ip")
+    print(" -p port        TLS server port")
+    print(" --raw-times FILE Read the timings from an external file, not")
+    print("                the packet capture")
     print(" --help         Display this message")
+    print("")
+    print("When extracting data from a capture file, specifying the capture")
+    print("file, host and port is necessary.")
+    print("When using the external timing source, only it, and the always")
+    print("required options: logfile and output dir are necessary.")
 
 
 def main():
@@ -37,9 +44,16 @@ def main():
     output = None
     ip_address = None
     port = None
+    raw_times = None
+
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "l:c:h:p:o:t:", ["help"])
+
+    if not argv:
+        help_msg()
+        sys.exit(1)
+
+    opts, args = getopt.getopt(argv, "l:c:h:p:o:t:", ["help", "raw-times="])
     for opt, arg in opts:
         if opt == '-l':
             logfile = arg
@@ -51,16 +65,26 @@ def main():
             ip_address = arg
         elif opt == '-p':
             port = int(arg)
+        elif opt == "--raw-times":
+            raw_times = arg
         elif opt == "--help":
             help_msg()
             sys.exit(0)
 
-    if not all([logfile, capture, output, ip_address, port]):
+    if raw_times and capture:
+        raise ValueError(
+            "Can't specify both a capture file and external timing log")
+
+    if not all([logfile, output]):
+        raise ValueError(
+            "Specifying logfile and output is mandatory")
+
+    if capture and not all([logfile, output, ip_address, port]):
         raise ValueError("Some arguments are missing!")
 
     log = Log(logfile)
     log.read_log()
-    analysis = Extract(log, capture, output, ip_address, port)
+    analysis = Extract(log, capture, output, ip_address, port, raw_times)
     analysis.parse()
     analysis.write_csv('timing.csv')
 
@@ -68,7 +92,8 @@ def main():
 class Extract:
     """Extract timing information from packet capture."""
 
-    def __init__(self, log, capture, output, ip_address, port):
+    def __init__(self, log, capture=None, output=None, ip_address=None,
+                 port=None, raw_times=None):
         """
         Initialises instance and sets up class name generator from log.
 
@@ -80,12 +105,13 @@ class Extract:
         """
         self.capture = capture
         self.output = output
-        self.ip_address = self.hostname_to_ip(ip_address)
+        self.ip_address = ip_address and self.hostname_to_ip(ip_address)
         self.port = port
         self.timings = defaultdict(list)
         self.client_message = None
         self.server_message = None
         self.warm_up_messages_left = WARM_UP
+        self.raw_times = raw_times
 
         # set up class names generator
         self.log = log
@@ -97,6 +123,48 @@ class Extract:
         Extract timing information from capture file
         and associate it with class from log file.
         """
+        if self.capture:
+            return self._parse_pcap()
+        return self._parse_raw_times()
+
+    def _parse_raw_times(self):
+        """Classify already extracted times."""
+        # as unlike with capture file, we don't know how many sanity tests,
+        # manual checks, etc. were performed to the server before the
+        # timing tests were started, we don't know how many measurements to
+        # skip. Count the probes, the times, and then use the last len(probes)
+        # of times for classification
+
+        # do counting in memory efficient way
+        probe_count = sum(1 for _ in self.class_generator)
+        self.log.read_log()
+        self.class_generator = self.log.iterate_log()
+        with open(self.raw_times, 'r') as raw_times:
+            # skip the header line
+            raw_times.readline()
+            times_count = 0
+            for times_count, _ in enumerate(raw_times, 1):
+                pass
+        if probe_count > times_count:
+            raise ValueError(
+                "Insufficient number of times for provided log file")
+
+        self.warm_up_messages_left = times_count - probe_count
+
+        with open(self.raw_times, 'r') as raw_times:
+            # skip the header line
+            raw_times.readline()
+
+            for _ in range(self.warm_up_messages_left):
+                raw_times.readline()
+
+            for line in raw_times:
+                class_index = next(self.class_generator)
+                class_name = self.class_names[class_index]
+                self.timings[class_name].append(line.strip())
+
+    def _parse_pcap(self):
+        """Process capture file."""
         with open(self.capture, 'rb') as pcap:
             capture = dpkt.pcap.Reader(pcap)
 

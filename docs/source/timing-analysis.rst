@@ -265,7 +265,7 @@ script. Resulting file will be outputted to the specified folder.
 .. code:: bash
 
    PYTHONPATH=. python tlsfuzzer/extract.py -h localhost -p 4433 \
-   -c capture.pcap -l class.log -o /tmp/results/
+   -c capture.pcap -l log.csv -o /tmp/results/
 
 Timing runner will also launch analysis, if its dependencies are available.
 Again, in case you need to run it later, you can do that by providing the
@@ -274,7 +274,39 @@ file.
 
 .. code:: bash
 
-   PYTHONPATH=. python tlsfuzzer/analysis.py -o "/tmp"
+   PYTHONPATH=. python tlsfuzzer/analysis.py -o "/tmp/results"
+
+
+External timing data
+--------------------
+
+The ``extract.py`` can also process data collected by some external source
+(be it packet capture closer to server under test or an internal probe
+inside the server).
+
+The provided csv file must have a header and one column. While the file
+can contain additional data points at the beginning, the very last
+data point must correspond to the last connection made by tlsfuzzer.
+
+Place such file in the directory (in this example named ``timings-log.csv``)
+with the ``log.csv`` file and execute:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/extract.py -l /tmp/results/log.csv \
+   -o /tmp/results --raw-times /tmp/results/timings-log.csv
+
+.. warning::
+
+   The above mentioned command will overrite the timings extracted from the
+   ``capture.pcap`` file!
+
+Then run ``analysis.py`` as in the case of data extracted from ``capture.pcap``
+file:
+
+.. code:: bash
+   PYTHONPATH=. python tlsfuzzer/analysis.py -o "/tmp/results"
+
 
 Interpreting the results
 ========================
