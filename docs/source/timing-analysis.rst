@@ -57,30 +57,30 @@ Red Hat Enterprise Linux 8
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 To isolate CPUs on RHEL-8, install the following packages:
 
-.. code-block::
+.. code:: bash
 
-    dnf install -y tuned tuned-utils tuned-profiles-cpu-partitioning
+   dnf install -y tuned tuned-utils tuned-profiles-cpu-partitioning
 
 
 And add the following code to ``/etc/tuned/cpu-partitioning-variables.conf``
 file:
 
-.. code-block::
+.. code::
 
-    isolated_cores=2-10
-    no_balance_cores=2-20
+   isolated_cores=2-10
+   no_balance_cores=2-20
 
 Then apply the profile:
 
-.. code-block::
+.. code:: bash
 
-    tuned-adm profile cpu-partitioning
+   tuned-adm profile cpu-partitioning
 
 and restart the system to apply the changes to the kernel.
 
 Then you can install tlsfuzzer dependencies to speed-up the test execution:
 
-.. code-block::
+.. code:: bash
 
    dnf install python3 python3-devel tcpdump gmp-devel swig mpfr-devel \
    libmpc openssl-devel make gcc gcc-c++ git libmpc-devel python3-six
@@ -90,7 +90,7 @@ Then you can install tlsfuzzer dependencies to speed-up the test execution:
 
 And the general requirements to collect and analyse timing results:
 
-.. code-block::
+.. code:: bash
 
    pip install -r requirements-timing.txt
 
@@ -112,7 +112,7 @@ results. This is caused by the fact that the measurements don't follow
 a simple and well-defined distribution, in many cases they are
 `multimodal
 <https://en.wikipedia.org/wiki/Multimodal_distribution>`_
-and not `normal<https://en.wikipedia.org/wiki/Normal_distribution>`_.
+and not `normal <https://en.wikipedia.org/wiki/Normal_distribution>`_.
 That means that the scripts need to use statistical tests to check if the
 observations differ significantly or not.
 
@@ -154,7 +154,7 @@ the uniformity of p-values of the Wilcoxon tests.
 The test scripts allow setting the sample size as it has impact on the smallest
 effect size that the test can detect.
 Generally, with Wilcoxon signed-rank test, the sample size must be proportional
-to 1/e to detect effect of size e.
+to 1/e² to detect effect of size e.
 That is, to detect a 0.1% difference between expected values of samples, the
 samples must have at least 1000 observations each.
 The actual number depends on multiple factors (including the particular
@@ -251,7 +251,7 @@ Tests can be executed the same way as any non-timing tests, just make sure the
 current user has permissions to run tcpdump or use sudo. As an example, the
 Bleichenbacher test is extended to use the timing functionality:
 
-.. code::
+.. code:: bash
 
    sudo PYTHONPATH=. python scripts/test-bleichenbacher-timing.py -i lo
 
@@ -262,7 +262,7 @@ able to install the optional dependencies) you can do this by providing the
 log, the packet capture and server port and hostname (or ip) to the analysis
 script. Resulting file will be outputted to the specified folder.
 
-.. code::
+.. code:: bash
 
    PYTHONPATH=. python tlsfuzzer/extract.py -h localhost -p 4433 \
    -c capture.pcap -l class.log -o /tmp/results/
@@ -272,7 +272,7 @@ Again, in case you need to run it later, you can do that by providing the
 script with an output folder where extraction step put the ``timing.csv``
 file.
 
-.. code::
+.. code:: bash
 
    PYTHONPATH=. python tlsfuzzer/analysis.py -o "/tmp"
 
@@ -311,6 +311,7 @@ samples with 1 million observations each on a 4 core/8 thread 2GHz CPU:
    df <- fread('timing.csv', header=F)
    data <- data.frame(t(df[,2:length(df[1,])]))
    colnames(data) <- as.matrix(df[,1:10])[,1]
+   df <- 0
    R = 5000
    rsq <- function(data, indices) {
      d <- data[indices]
@@ -358,7 +359,7 @@ Start by importing the ``TimingRunner`` class.
 Because the timing information collection adds some extra dependencies, it is
 necessary to wrap everything related to timing in an if statement:
 
-.. code::
+.. code:: python
 
    if TimingRunner.check_tcpdump():
 
