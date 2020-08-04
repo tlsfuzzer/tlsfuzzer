@@ -33,14 +33,19 @@ def help_msg():
     print("Usage: analysis [-o output]")
     print(" -o output      Directory where to place results (required)")
     print("                and where timing.csv is located")
+    print(" --no-ecdf-plot Don't create the ecdf_plot.png file")
+    print(" --no-scatter-plot Don't create the scatter_plot.png file")
     print(" --help         Display this message")
 
 
 def main():
     """Process arguments and start analysis."""
     output = None
+    ecdf_plot = True
+    scatter_plot = True
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "o:", ["help"])
+    opts, args = getopt.getopt(argv, "o:",
+                               ["help", "no-ecdf-plot", "no-scatter-plot"])
 
     for opt, arg in opts:
         if opt == '-o':
@@ -48,9 +53,13 @@ def main():
         elif opt == "--help":
             help_msg()
             sys.exit(0)
+        elif opt == "--no-ecdf-plot":
+            ecdf_plot = False
+        elif opt == "--no-scatter-plot":
+            scatter_plot = False
 
     if output:
-        analysis = Analysis(output)
+        analysis = Analysis(output, ecdf_plot, scatter_plot)
         ret = analysis.generate_report()
         return ret
     else:
@@ -60,10 +69,12 @@ def main():
 class Analysis:
     """Analyse extracted timing information from csv file."""
 
-    def __init__(self, output):
+    def __init__(self, output, draw_ecdf_plot=True, draw_scatter_plot=True):
         self.output = output
         self.data = self.load_data()
         self.class_names = list(self.data)
+        self.draw_ecdf_plot = draw_ecdf_plot
+        self.draw_scatter_plot = draw_scatter_plot
 
     def load_data(self):
         """Loads data into pandas Dataframe for generating plots and stats."""
@@ -167,6 +178,8 @@ class Analysis:
 
     def scatter_plot(self):
         """Generate scatter plot showing how the measurement went."""
+        if not self.draw_scatter_plot:
+            return None
         fig = Figure(figsize=(8, 6))
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(1, 1, 1)
@@ -182,6 +195,8 @@ class Analysis:
 
     def ecdf_plot(self):
         """Generate ECDF plot comparing distributions of the test classes."""
+        if not self.draw_ecdf_plot:
+            return None
         fig = Figure(figsize=(8, 6))
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(1, 1, 1)
