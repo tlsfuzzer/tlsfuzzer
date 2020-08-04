@@ -30,12 +30,13 @@ mpl.use('Agg')
 
 def help_msg():
     """Print help message"""
-    print("Usage: analysis [-o output]")
-    print(" -o output      Directory where to place results (required)")
-    print("                and where timing.csv is located")
-    print(" --no-ecdf-plot Don't create the ecdf_plot.png file")
-    print(" --no-scatter-plot Don't create the scatter_plot.png file")
-    print(" --help         Display this message")
+    print("""Usage: analysis [-o output]
+ -o output      Directory where to place results (required)
+                and where timing.csv is located
+ --no-ecdf-plot Don't create the ecdf_plot.png file
+ --no-scatter-plot Don't create the scatter_plot.png file
+ --no-conf-interval-plot Don't create the conf_interval_plot.png file
+ --help         Display this message""")
 
 
 def main():
@@ -43,9 +44,11 @@ def main():
     output = None
     ecdf_plot = True
     scatter_plot = True
+    conf_int_plot = True
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "o:",
-                               ["help", "no-ecdf-plot", "no-scatter-plot"])
+                               ["help", "no-ecdf-plot", "no-scatter-plot",
+                                "no-conf-interval-plot"])
 
     for opt, arg in opts:
         if opt == '-o':
@@ -57,9 +60,11 @@ def main():
             ecdf_plot = False
         elif opt == "--no-scatter-plot":
             scatter_plot = False
+        elif opt == "--no-conf-interval-plot":
+            conf_int_plot = False
 
     if output:
-        analysis = Analysis(output, ecdf_plot, scatter_plot)
+        analysis = Analysis(output, ecdf_plot, scatter_plot, conf_int_plot)
         ret = analysis.generate_report()
         return ret
     else:
@@ -69,12 +74,14 @@ def main():
 class Analysis:
     """Analyse extracted timing information from csv file."""
 
-    def __init__(self, output, draw_ecdf_plot=True, draw_scatter_plot=True):
+    def __init__(self, output, draw_ecdf_plot=True, draw_scatter_plot=True,
+                 draw_conf_interval_plot=True):
         self.output = output
         self.data = self.load_data()
         self.class_names = list(self.data)
         self.draw_ecdf_plot = draw_ecdf_plot
         self.draw_scatter_plot = draw_scatter_plot
+        self.draw_conf_interval_plot = draw_conf_interval_plot
 
     def load_data(self):
         """Loads data into pandas Dataframe for generating plots and stats."""
@@ -220,15 +227,30 @@ class Analysis:
                    bbox_to_anchor=(0.5, -0.15)
                    )
 
-    def _mean_of_random_sample(self, diffs):
+    def _mean_of_random_sample(self, diffs, reps=100):
         """Calculate a mean with a single instance of bootstrapping."""
-        boot = np.random.choice(diffs, replace=True, size=len(diffs))
-        # use trimmed mean as the pairing of samples in not perfect:
-        # the noise source could get activated in the middle of testing
-        # of the test set, causing some results to be unusable
-        # discard 50% of samples total (cut 25% from the median) to exclude
-        # non central modes
-        return stats.trim_mean(boot, 0.25)
+        ret = []
+        for _ in range(reps):
+            boot = np.random.choice(diffs, replace=True, size=len(diffs))
+            # use trimmed mean as the pairing of samples in not perfect:
+            # the noise source could get activated in the middle of testing
+            # of the test set, causing some results to be unusable
+            # discard 50% of samples total (cut 25% from the median) to exclude
+            # non central modes
+            ret.append(stats.trim_mean(boot, 0.25))
+        return ret
+
+    def _bootstrap_differences(self, pair, reps=5000):
+        """Return a list of bootstrapped means of differences."""
+        # because the samples are not independent, we calculate mean of
+        # differences not a difference of means
+        diffs = self.data.iloc[:, pair.index1] - self.data.iloc[:, pair.index2]
+
+        with mp.Pool() as pool:
+            cent_tend = list(pool.imap_unordered(
+                self._mean_of_random_sample,
+                repeat(diffs, reps//100)))
+        return [i for sublist in cent_tend for i in sublist]
 
     def calc_diff_conf_int(self, pair, reps=5000, ci=0.95):
         """
@@ -241,18 +263,37 @@ class Analysis:
         :return: tuple with low estimate, median, and high estimate of
             truncated mean of differences of observations
         """
-        # because the samples are not independent, we calculate mean of
-        # differences not a difference of means
-        diffs = self.data.iloc[:, pair.index1] - self.data.iloc[:, pair.index2]
-
-        cent_tend = []
-        observ_count = len(diffs)
-
-        with mp.Pool() as pool:
-            cent_tend = pool.map(self._mean_of_random_sample,
-                                 repeat(diffs, reps))
+        cent_tend = self._bootstrap_differences(pair, reps)
 
         return np.quantile(cent_tend, [(1-ci)/2, 0.5, 1-(1-ci)/2])
+
+    def conf_interval_plot(self):
+        """Generate the confidence inteval for differences between samples."""
+        if not self.draw_conf_interval_plot:
+            return
+
+        reps = 5000
+        data = pd.DataFrame()
+
+        for i in range(1, len(self.class_names)):
+            pair = TestPair(i, 0)
+            diffs = self._bootstrap_differences(pair, reps)
+            data['{}-0'.format(i)] = diffs
+
+        fig = Figure(figsize=(16, 12))
+        canvas = FigureCanvas(fig)
+        ax = fig.add_subplot(1, 1, 1)
+        ax.violinplot(data.T, widths=0.7, showmeans=True, showextrema=True)
+        ax.set_xticks(list(range(len(data.columns)+1)))
+        ax.set_xticklabels([' '] + list(data.columns))
+        formatter = mpl.ticker.EngFormatter('s')
+        ax.get_yaxis().set_major_formatter(formatter)
+
+        ax.set_title("Confidence intervals for truncated mean of differences")
+        ax.set_xlabel("Class pairs")
+        ax.set_ylabel("Mean of differences")
+        canvas.print_figure(join(self.output, "conf_interval_plot.png"),
+                            bbox_inches="tight")
 
     def _write_individual_results(self):
         """Write results to report.csv"""
@@ -379,6 +420,11 @@ class Analysis:
         if proc.exitcode != 0:
             raise Exception("graph generation failed")
         proc = mp.Process(target=self.ecdf_plot)
+        proc.start()
+        proc.join()
+        if proc.exitcode != 0:
+            raise Exception("graph generation failed")
+        proc = mp.Process(target=self.conf_interval_plot)
         proc.start()
         proc.join()
         if proc.exitcode != 0:
