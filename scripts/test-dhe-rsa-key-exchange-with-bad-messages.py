@@ -25,6 +25,9 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType
 from tlsfuzzer.utils.lists import natural_sort_keys
+from tlslite.extensions import SignatureAlgorithmsExtension, \
+        SignatureAlgorithmsCertExtension
+from tlsfuzzer.helpers import RSA_SIG_ALL
 
 version = 2
 
@@ -98,10 +101,15 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
+    ext[ExtensionType.renegotiation_info] = None
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
     ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions={ExtensionType.
-                                                   renegotiation_info:None}))
+                                               extensions=ext))
     node = node.add_child(ExpectServerHello(extensions={ExtensionType.
                                                      renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
@@ -128,10 +136,15 @@ def main():
     for i in [8*1024]:
         conversation = Connect(host, port)
         node = conversation
+        ext = {}
+        ext[ExtensionType.renegotiation_info] = None
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
         ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.
-                                                       renegotiation_info:None}))
+                                                   extensions=ext))
         node = node.add_child(ExpectServerHello(extensions={ExtensionType.
                                                          renegotiation_info:None}))
         node = node.add_child(ExpectCertificate())
@@ -152,10 +165,15 @@ def main():
     for i in [0, 1]:
         conversation = Connect(host, port)
         node = conversation
+        ext = {}
+        ext[ExtensionType.renegotiation_info] = None
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
         ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions={ExtensionType.
-                                                       renegotiation_info:None}))
+                                                   extensions=ext))
         node = node.add_child(ExpectServerHello(extensions={ExtensionType.
                                                          renegotiation_info:None}))
         node = node.add_child(ExpectCertificate())
@@ -176,10 +194,15 @@ def main():
     # share equal to p
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
+    ext[ExtensionType.renegotiation_info] = None
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
     ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions={ExtensionType.
-                                                   renegotiation_info:None}))
+                                               extensions=ext))
     node = node.add_child(ExpectServerHello(extensions={ExtensionType.
                                                      renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
@@ -200,10 +223,15 @@ def main():
     # share equal to p-1
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
+    ext[ExtensionType.renegotiation_info] = None
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
     ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions={ExtensionType.
-                                                   renegotiation_info:None}))
+                                               extensions=ext))
     node = node.add_child(ExpectServerHello(extensions={ExtensionType.
                                                      renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
@@ -224,10 +252,15 @@ def main():
     # truncated dh_Yc value
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
+    ext[ExtensionType.renegotiation_info] = None
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
     ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions={ExtensionType.
-                                                   renegotiation_info:None}))
+                                               extensions=ext))
     node = node.add_child(ExpectServerHello(extensions={ExtensionType.
                                                      renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
@@ -249,10 +282,15 @@ def main():
     # padded Client Key Exchange
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
+    ext[ExtensionType.renegotiation_info] = None
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
     ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions={ExtensionType.
-                                                   renegotiation_info:None}))
+                                               extensions=ext))
     node = node.add_child(ExpectServerHello(extensions={ExtensionType.
                                                      renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
