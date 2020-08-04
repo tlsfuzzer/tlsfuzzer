@@ -327,12 +327,18 @@ class Analysis:
         proc = mp.Process(target=self.box_plot)
         proc.start()
         proc.join()
+        if proc.exitcode != 0:
+            raise Exception("graph generation failed")
         proc = mp.Process(target=self.scatter_plot)
         proc.start()
         proc.join()
+        if proc.exitcode != 0:
+            raise Exception("graph generation failed")
         proc = mp.Process(target=self.ecdf_plot)
         proc.start()
         proc.join()
+        if proc.exitcode != 0:
+            raise Exception("graph generation failed")
         self._write_legend()
 
         difference, p_vals, worst_pair, worst_p = \
