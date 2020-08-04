@@ -323,8 +323,9 @@ class Analysis:
             low, med, high = self.calc_diff_conf_int(worst_pair)
             # use 95% CI as that translates to 2 standard deviations, making
             # it easy to estimate higher CIs
-            txt = "Median difference: {:.5e}s, 95% CI: {:.5e}s, {:.5e}s".\
-                format(med, low, high)
+            txt = "Median difference: {:.5e}s, 95% CI: {:.5e}s, {:.5e}s"\
+                " (±{:.3e}s)".\
+                format(med, low, high, (high-low)/2)
             print(txt)
             txt_file.write(txt)
             txt_file.write('\n')
