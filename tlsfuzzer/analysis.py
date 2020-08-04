@@ -15,7 +15,7 @@ import sys
 import multiprocessing as mp
 from os.path import join
 from collections import namedtuple
-from itertools import combinations
+from itertools import combinations, repeat
 
 import numpy as np
 from scipy import stats
@@ -220,6 +220,16 @@ class Analysis:
                    bbox_to_anchor=(0.5, -0.15)
                    )
 
+    def _mean_of_random_sample(self, diffs):
+        """Calculate a mean with a single instance of bootstrapping."""
+        boot = np.random.choice(diffs, replace=True, size=len(diffs))
+        # use trimmed mean as the pairing of samples in not perfect:
+        # the noise source could get activated in the middle of testing
+        # of the test set, causing some results to be unusable
+        # discard 50% of samples total (cut 25% from the median) to exclude
+        # non central modes
+        return stats.trim_mean(boot, 0.25)
+
     def calc_diff_conf_int(self, pair, reps=5000, ci=0.95):
         """
         Bootstrap a confidence interval for the central tendency of differences
@@ -238,14 +248,9 @@ class Analysis:
         cent_tend = []
         observ_count = len(diffs)
 
-        for _ in range(reps):
-            boot = np.random.choice(diffs, replace=True, size=observ_count)
-            # use trimmed mean as the pairing of samples in not perfect:
-            # the noise source could get activated in the middle of testing
-            # of the test set, causing some results to be unusable
-            # discard 50% of samples total (cut 25% from the median) to exclude
-            # non central modes
-            cent_tend.append(stats.trim_mean(boot, 0.25))
+        with mp.Pool() as pool:
+            cent_tend = pool.map(self._mean_of_random_sample,
+                                 repeat(diffs, reps))
 
         return np.quantile(cent_tend, [(1-ci)/2, 0.5, 1-(1-ci)/2])
 
