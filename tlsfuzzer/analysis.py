@@ -132,7 +132,26 @@ class Analysis:
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(1, 1, 1)
 
-        self.data.boxplot(ax=ax, grid=False, showfliers=False)
+        # a simpler alternative would use self.data.boxplot() but that
+        # copies the data to the mathplot object
+        # which means it doesn't keep it in a neat array.array, blowing up
+        # the memory usage significantly
+        # so calculate the values externally and just provide the computed
+        # quantiles to the boxplot drawing function
+        percentiles = self.data.quantile([0.05, 0.25, 0.5, 0.75, 0.95])
+
+        boxes = []
+        for name in percentiles:
+            vals = [i for i in percentiles.loc[:, name]]
+            boxes += [{'label': name,
+                       'whislo': vals[0],
+                       'q1': vals[1],
+                       'med': vals[2],
+                       'q3': vals[3],
+                       'whishi': vals[4],
+                       'fliers': []}]
+
+        ax.bxp(boxes, showfliers=False)
         ax.set_xticks(list(range(len(self.data.columns)+1)))
         ax.set_xticklabels([''] + list(range(len(self.data.columns))))
 
