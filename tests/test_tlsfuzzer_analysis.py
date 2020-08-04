@@ -178,7 +178,7 @@ class TestCommandLine(unittest.TestCase):
                 with mock.patch("sys.argv", args):
                     main()
                     mock_report.assert_called_once()
-                    mock_init.assert_called_once_with(output)
+                    mock_init.assert_called_once_with(output, True, True)
 
     def test_help(self):
         args = ["analysis.py", "--help"]
