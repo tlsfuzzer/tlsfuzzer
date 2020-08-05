@@ -29,7 +29,9 @@ from tlslite.extensions import SignatureAlgorithmsExtension, \
         SignatureAlgorithmsCertExtension
 from tlsfuzzer.helpers import RSA_SIG_ALL
 
-version = 2
+
+version = 3
+
 
 def help_msg():
     print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
