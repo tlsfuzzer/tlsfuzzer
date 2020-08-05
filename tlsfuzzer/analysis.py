@@ -85,15 +85,10 @@ class Analysis:
 
     def load_data(self):
         """Loads data into pandas Dataframe for generating plots and stats."""
-        data = pd.read_csv(join(self.output, "timing.csv"), header=None)
-
-        # transpose and set header
-        data = data.transpose()
-        data = data.rename(columns=data.iloc[0]).drop(data.index[0])
         # as we're dealing with 9 digits of precision (nanosecond range)
         # and the responses can be assumed to take less than a second,
         # we need to use the double precision IEEE floating point numbers
-        data = data.astype(np.float64)
+        data = pd.read_csv(join(self.output, "timing.csv"), dtype=np.float64)
         return data
 
     def _box_test(self, interval1, interval2, quantile_start, quantile_end):
