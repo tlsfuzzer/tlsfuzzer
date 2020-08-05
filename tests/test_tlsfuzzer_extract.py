@@ -51,13 +51,15 @@ class TestHostnameToIp(unittest.TestCase):
                  "Could not import extraction. Skipping related tests.")
 class TestExtraction(unittest.TestCase):
     def setUp(self):
-        self.logfile = "test.log"
+        self.logfile = join(dirname(abspath(__file__)), "test.log")
         log_content = "A,B\n1,0\n0,1\n1,0\n0,1\n0,1\n0,1\n0,1\n1,0\n1,0\n1,0\n"
         self.expected = (
             "B,0.000747009,0.000920462,0.001327954,0.000904547,0.000768453,"
             "0.000752226,0.000862102,0.000706491,0.000668237,0.000992733\n"
             "A,0.000758130,0.000696718,0.000980080,0.000988899,0.000875510,"
             "0.000734843,0.000754852,0.000667378,0.000671230,0.000790935\n")
+        self.time_vals = "\n".join(["some random header"] +
+                                   list(str(i) for i in range(20)))
         # fix mock not supporting iterators
         self.mock_log = mock.mock_open(read_data=log_content)
         self.mock_log.return_value.__iter__ = lambda s: iter(s.readline, '')
@@ -66,13 +68,25 @@ class TestExtraction(unittest.TestCase):
             self.log = Log(self.logfile)
             self.log.read_log()
 
-    def test_extraction(self):
-        extract = Extract(self.log, join(dirname(abspath(__file__)), "capture.pcap"), "/tmp", "localhost", 4433)
+    def test_extraction_from_external_time_source(self):
+        extract = Extract(self.log, None, "/tmp", None, None,
+                          join(dirname(abspath(__file__)), "times-log.csv"))
         extract.parse()
 
         with mock.patch('__main__.__builtins__.open', mock.mock_open()) as mock_file:
-            mock_file.return_value.write.side_effect = lambda s: self.assertTrue(
-                s.strip() in self.expected.splitlines())
+            mock_file.return_value.write.side_effect = lambda s: self.assertIn(
+                s.strip(), self.expected.splitlines())
+            extract.write_csv('timing.csv')
+
+    def test_extraction(self):
+        extract = Extract(self.log,
+                          join(dirname(abspath(__file__)), "capture.pcap"),
+                          "/tmp", "localhost", 4433)
+        extract.parse()
+
+        with mock.patch('__main__.__builtins__.open', mock.mock_open()) as mock_file:
+            mock_file.return_value.write.side_effect = lambda s: self.assertIn(
+                s.strip(), self.expected.splitlines())
             extract.write_csv('timing.csv')
 
 
@@ -100,7 +114,30 @@ class TestCommandLine(unittest.TestCase):
                         with mock.patch("sys.argv", args):
                             main()
                             mock_log.assert_called_once_with(logfile)
-                            mock_init.assert_called_once_with(mock.ANY, capture, output, host, int(port))
+                            mock_init.assert_called_once_with(
+                                mock.ANY, capture, output, host, int(port),
+                                None)
+
+    def test_raw_times(self):
+        raw_times = "times-log.csv"
+        logfile = "log.csv"
+        output = "/tmp"
+        args = ["extract.py",
+                "-l", logfile,
+                "-o", output,
+                "--raw-times", raw_times]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.extract.Extract.parse'):
+            with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
+                with mock.patch('tlsfuzzer.extract.Extract.write_csv'):
+                    with mock.patch('tlsfuzzer.extract.Log') as mock_log:
+                        with mock.patch("sys.argv", args):
+                            main()
+                            mock_log.assert_called_once_with(logfile)
+                            mock_init.assert_called_once_with(
+                                mock.ANY, None, output, None, None,
+                                raw_times)
 
     def test_help(self):
         args = ["extract.py", "--help"]
@@ -117,4 +154,24 @@ class TestCommandLine(unittest.TestCase):
     def test_missing_output(self):
         args = ["extract.py"]
         with mock.patch("sys.argv", args):
-            self.assertRaises(ValueError, main)
+            self.assertRaises(SystemExit, main)
+
+    def test_incompatible_options(self):
+        args = ["extract.py", "-c", "capture.pcap", "--raw-times",
+                "times-log.csv"]
+        with mock.patch("sys.argv", args):
+            with self.assertRaises(ValueError):
+                main()
+
+    def test_incomplete_packet_capture_options(self):
+        args = ["extract.py", "-c", "capture.pcap", "-l", "log.csv",
+                "-o", "/tmp"]
+        with mock.patch("sys.argv", args):
+            with self.assertRaises(ValueError):
+                main()
+
+    def test_incomplete_ext_times_options(self):
+        args = ["extract.py", "--raw-times", "times-log.csv", "-o", "/tmp"]
+        with mock.patch("sys.argv", args):
+            with self.assertRaises(ValueError):
+                main()

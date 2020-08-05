@@ -49,9 +49,6 @@ pylint_report.txt
 *.mo
 *.pot
 
-# Django stuff:
-*.log
-
 # Sphinx documentation
 docs/_build/
 epydoc/
