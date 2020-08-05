@@ -68,7 +68,7 @@ file:
 .. code::
 
    isolated_cores=2-10
-   no_balance_cores=2-20
+   no_balance_cores=2-10
 
 Then apply the profile:
 
@@ -305,6 +305,7 @@ Then run ``analysis.py`` as in the case of data extracted from ``capture.pcap``
 file:
 
 .. code:: bash
+
    PYTHONPATH=. python tlsfuzzer/analysis.py -o "/tmp/results"
 
 
