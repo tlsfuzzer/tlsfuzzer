@@ -68,7 +68,7 @@ file:
 .. code::
 
    isolated_cores=2-10
-   no_balance_cores=2-20
+   no_balance_cores=2-10
 
 Then apply the profile:
 
