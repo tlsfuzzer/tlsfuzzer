@@ -146,7 +146,7 @@ class Analysis:
 
     def box_plot(self):
         """Generate box plot for the test classes."""
-        fig = Figure(figsize=(8, 6))
+        fig = Figure(figsize=(16, 12))
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(1, 1, 1)
 
@@ -183,7 +183,7 @@ class Analysis:
         """Generate scatter plot showing how the measurement went."""
         if not self.draw_scatter_plot:
             return None
-        fig = Figure(figsize=(8, 6))
+        fig = Figure(figsize=(16, 12))
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(1, 1, 1)
         ax.plot(self.data, ".", fillstyle='none', alpha=0.6)
@@ -200,7 +200,7 @@ class Analysis:
         """Generate ECDF plot comparing distributions of the test classes."""
         if not self.draw_ecdf_plot:
             return None
-        fig = Figure(figsize=(8, 6))
+        fig = Figure(figsize=(16, 12))
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(1, 1, 1)
         for classname in self.data:
