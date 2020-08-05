@@ -305,6 +305,7 @@ Then run ``analysis.py`` as in the case of data extracted from ``capture.pcap``
 file:
 
 .. code:: bash
+
    PYTHONPATH=. python tlsfuzzer/analysis.py -o "/tmp/results"
 
 
