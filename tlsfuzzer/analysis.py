@@ -15,7 +15,8 @@ import sys
 import multiprocessing as mp
 from os.path import join
 from collections import namedtuple
-from itertools import combinations, repeat
+from itertools import combinations, repeat, chain
+import os
 
 import numpy as np
 from scipy import stats
@@ -222,9 +223,13 @@ class Analysis:
                    bbox_to_anchor=(0.5, -0.15)
                    )
 
-    def _mean_of_random_sample(self, diffs, reps=100):
+    @staticmethod
+    def _mean_of_random_sample(reps=100):
         """Calculate a mean with a single instance of bootstrapping."""
         ret = []
+        global _diffs
+        diffs = _diffs
+
         for _ in range(reps):
             boot = np.random.choice(diffs, replace=True, size=len(diffs))
             # use trimmed mean as the pairing of samples in not perfect:
@@ -237,14 +242,20 @@ class Analysis:
 
     def _bootstrap_differences(self, pair, reps=5000):
         """Return a list of bootstrapped means of differences."""
+        # don't pickle the diffs as they are read-only, use a global to pass
+        # it to workers
+        global _diffs
         # because the samples are not independent, we calculate mean of
         # differences not a difference of means
-        diffs = self.data.iloc[:, pair.index1] - self.data.iloc[:, pair.index2]
+        _diffs = self.data.iloc[:, pair.index1] -\
+            self.data.iloc[:, pair.index2]
+
+        job_size = os.cpu_count() * 10
 
         with mp.Pool() as pool:
             cent_tend = list(pool.imap_unordered(
                 self._mean_of_random_sample,
-                repeat(diffs, reps//100)))
+                chain(repeat(job_size, reps//job_size), [reps % job_size])))
         return [i for sublist in cent_tend for i in sublist]
 
     def calc_diff_conf_int(self, pair, reps=5000, ci=0.95):
