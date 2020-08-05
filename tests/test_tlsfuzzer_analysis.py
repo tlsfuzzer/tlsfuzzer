@@ -25,25 +25,25 @@ except ImportError:
 class TestReport(unittest.TestCase):
     def setUp(self):
         data = {
-            0: ["A", 0.000758129, 0.000696719, 0.000980079, 0.000988900, 0.000875509,
+            'A': [0.000758129, 0.000696719, 0.000980079, 0.000988900, 0.000875509,
                 0.000734843, 0.000754852, 0.000667378, 0.000671230, 0.000790935],
-            1: ["B", 0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
+            'B': [0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
                 0.000734843, 0.000754852, 0.000667378, 0.000671230, 0.000790935],
-            2: ["C", 0.000758131, 0.000696717, 0.000980081, 0.000988898, 0.000875511,
+            'C': [0.000758131, 0.000696717, 0.000980081, 0.000988898, 0.000875511,
                 0.000734843, 0.000754852, 0.000667378, 0.000671230, 0.000790935]
         }
-        self.neq_data = {
-            0: ["A", 0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
+        self.neq_data = pd.DataFrame(data={
+            'A': [0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
                 0.000734843, 0.000754852, 0.000667378, 0.000671230, 0.000790935],
-            1: ["B", 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-        }
-        self.neq_data_overlap = {
-            0: ["A", 0, 0, 1, 7, 7] + [7] * 95,
-            1: ["B", 0, 0, 2, 6, 7] + [7] * 95,
-        }
+            'B': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+        })
+        self.neq_data_overlap = pd.DataFrame(data={
+            'A': [0, 0, 1, 7, 7] + [7] * 95,
+            'B': [0, 0, 2, 6, 7] + [7] * 95,
+        })
         timings = pd.DataFrame(data=data)
         self.mock_read_csv = mock.Mock(spec=pd.read_csv)
-        self.mock_read_csv.return_value = timings.transpose()
+        self.mock_read_csv.return_value = timings
 
     def test_report(self):
         with mock.patch("tlsfuzzer.analysis.pd.read_csv", self.mock_read_csv):
@@ -67,7 +67,7 @@ class TestReport(unittest.TestCase):
     def test_report_neq(self):
         timings = pd.DataFrame(data=self.neq_data)
         mock_read_csv = mock.Mock(spec=pd.read_csv)
-        mock_read_csv.return_value = timings.transpose()
+        mock_read_csv.return_value = timings
         with mock.patch("tlsfuzzer.analysis.pd.read_csv", mock_read_csv):
             with mock.patch("tlsfuzzer.analysis.Analysis.ecdf_plot") as mock_ecdf:
                 with mock.patch("tlsfuzzer.analysis.Analysis.box_plot") as mock_box:
@@ -109,7 +109,7 @@ class TestReport(unittest.TestCase):
     def test_box_test_neq(self):
         timings = pd.DataFrame(data=self.neq_data)
         mock_read_csv = mock.Mock(spec=pd.read_csv)
-        mock_read_csv.return_value = timings.transpose()
+        mock_read_csv.return_value = timings
         with mock.patch("tlsfuzzer.analysis.pd.read_csv", mock_read_csv):
             analysis = Analysis("/tmp")
 
@@ -121,7 +121,7 @@ class TestReport(unittest.TestCase):
     def test_box_test_neq_overlap(self):
         timings = pd.DataFrame(data=self.neq_data_overlap)
         mock_read_csv = mock.Mock(spec=pd.read_csv)
-        mock_read_csv.return_value = timings.transpose()
+        mock_read_csv.return_value = timings
         with mock.patch("tlsfuzzer.analysis.pd.read_csv", mock_read_csv):
             analysis = Analysis("/tmp")
             mock_read_csv.assert_called_once()
@@ -137,14 +137,14 @@ class TestReport(unittest.TestCase):
 class TestPlots(unittest.TestCase):
     def setUp(self):
         data = {
-            0: ["A", 0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
+            'A': [0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
                 0.000734843, 0.000754852, 0.000667378, 0.000671230, 0.000790935],
-            1: ["B", 0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
+            'B': [0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
                 0.000734843, 0.000754852, 0.000667378, 0.000671230, 0.000790935]
         }
         timings = pd.DataFrame(data=data)
         mock_read_csv = mock.Mock(spec=pd.read_csv)
-        mock_read_csv.return_value = timings.transpose()
+        mock_read_csv.return_value = timings
         with mock.patch("tlsfuzzer.analysis.pd.read_csv", mock_read_csv):
             self.analysis = Analysis("/tmp")
 
