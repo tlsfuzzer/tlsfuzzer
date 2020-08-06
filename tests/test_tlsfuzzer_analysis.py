@@ -166,6 +166,14 @@ class TestPlots(unittest.TestCase):
             self.analysis.box_plot()
             mock_save.assert_called_once()
 
+    def test_conf_interval_plot(self):
+        with mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure",
+                        mock.Mock()) as mock_save:
+            with mock.patch("__main__.__builtins__.open", mock.mock_open())\
+                    as mock_open:
+                self.analysis.conf_interval_plot()
+                mock_save.assert_called_once()
+
 
 @unittest.skipIf(failed_import,
                  "Could not import analysis. Skipping related tests.")

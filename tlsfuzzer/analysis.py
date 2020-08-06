@@ -286,6 +286,11 @@ class Analysis:
             diffs = self._bootstrap_differences(pair, reps)
             data['{}-0'.format(i)] = diffs
 
+        with open(join(self.output, "bootstrapped_means.csv"), "w") as f:
+            writer = csv.writer(f)
+            writer.writerow(data.columns)
+            writer.writerows(data.itertuples(index=False))
+
         fig = Figure(figsize=(16, 12))
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(1, 1, 1)
