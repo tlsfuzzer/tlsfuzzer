@@ -52,17 +52,18 @@ class TestReport(unittest.TestCase):
                     with mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter:
                         with mock.patch("tlsfuzzer.analysis.Analysis.conf_interval_plot") as mock_conf_int:
                             with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
-                                analysis = Analysis("/tmp")
-                                ret = analysis.generate_report()
+                                with mock.patch("builtins.print"):
+                                    analysis = Analysis("/tmp")
+                                    ret = analysis.generate_report()
 
-                                self.mock_read_csv.assert_called_once()
-                                #mock_ecdf.assert_called_once()
-                                #mock_box.assert_called_once()
-                                #mock_scatter.assert_called_once()
-                                # we're writing to report.csv, legend.csv, and
-                                # report.txt
-                                self.assertEqual(mock_open.call_count, 3)
-                                self.assertEqual(ret, 0)
+                                    self.mock_read_csv.assert_called_once()
+                                    #mock_ecdf.assert_called_once()
+                                    #mock_box.assert_called_once()
+                                    #mock_scatter.assert_called_once()
+                                    # we're writing to report.csv, legend.csv, and
+                                    # report.txt
+                                    self.assertEqual(mock_open.call_count, 3)
+                                    self.assertEqual(ret, 0)
 
     def test_report_neq(self):
         timings = pd.DataFrame(data=self.neq_data)
@@ -74,19 +75,20 @@ class TestReport(unittest.TestCase):
                     with mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter:
                         with mock.patch("tlsfuzzer.analysis.Analysis.conf_interval_plot") as mock_conf_int:
                             with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
-                                analysis = Analysis("/tmp")
-                                ret = analysis.generate_report()
+                                with mock.patch("builtins.print"):
+                                    analysis = Analysis("/tmp")
+                                    ret = analysis.generate_report()
 
-                                mock_read_csv.assert_called_once()
-                                #mock_ecdf.assert_called_once()
-                                #mock_box.assert_called_once()
-                                #mock_scatter.assert_called_once()
-                                # we're writing to report.csv, legend.csv,
-                                # and report.txt
-                                self.assertEqual(mock_open.call_count, 3)
-                                self.assertEqual(ret, 1)
+                                    mock_read_csv.assert_called_once()
+                                    #mock_ecdf.assert_called_once()
+                                    #mock_box.assert_called_once()
+                                    #mock_scatter.assert_called_once()
+                                    # we're writing to report.csv, legend.csv,
+                                    # and report.txt
+                                    self.assertEqual(mock_open.call_count, 3)
+                                    self.assertEqual(ret, 1)
 
-    def test_ks_test(self):
+    def test_wilcoxon_test(self):
         with mock.patch("tlsfuzzer.analysis.pd.read_csv", self.mock_read_csv):
             analysis = Analysis("/tmp")
             self.mock_read_csv.assert_called_once()
