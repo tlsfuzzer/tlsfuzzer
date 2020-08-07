@@ -133,6 +133,34 @@ class TestReport(unittest.TestCase):
             for index, result in res.items():
                 self.assertEqual(result, None)
 
+    def test__mean_of_random_sample(self):
+        diffs = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        timings = pd.DataFrame(data=self.neq_data_overlap)
+        mock_read_csv = mock.Mock(spec=pd.read_csv)
+        mock_read_csv.return_value = timings
+        with mock.patch("tlsfuzzer.analysis.pd.read_csv", mock_read_csv):
+            with mock.patch("tlsfuzzer.analysis._diffs", diffs):
+                analysis = Analysis("/tmp")
+                vals = analysis._mean_of_random_sample(10)
+
+                self.assertEqual(len(vals), 10)
+                avg = sum(vals)/len(vals)
+                self.assertLessEqual(avg, 8)
+                self.assertLessEqual(2, avg)
+
+    def test__mean_of_random_sample_with_no_reps(self):
+        diffs = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        timings = pd.DataFrame(data=self.neq_data_overlap)
+        mock_read_csv = mock.Mock(spec=pd.read_csv)
+        mock_read_csv.return_value = timings
+        with mock.patch("tlsfuzzer.analysis.pd.read_csv", mock_read_csv):
+            with mock.patch("tlsfuzzer.analysis._diffs", diffs):
+                analysis = Analysis("/tmp")
+                vals = analysis._mean_of_random_sample(0)
+
+                self.assertEqual(len(vals), 0)
+                self.assertEqual(vals, [])
+
 
 @unittest.skipIf(failed_import,
                  "Could not import analysis. Skipping related tests.")
@@ -191,6 +219,20 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(output, True, True, True)
+
+    def test_call_with_no_plots(self):
+        output = "/tmp"
+        args = ["analysis.py", "-o", output, "--no-ecdf-plot",
+                "--no-scatter-plot", "--no-conf-interval-plot"]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.analysis.Analysis.generate_report') as mock_report:
+            with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
+                with mock.patch("sys.argv", args):
+                    main()
+                    mock_report.assert_called_once()
+                    mock_init.assert_called_once_with(
+                        output, False, False, False)
 
     def test_help(self):
         args = ["analysis.py", "--help"]

@@ -29,6 +29,9 @@ TestPair = namedtuple('TestPair', 'index1  index2')
 mpl.use('Agg')
 
 
+_diffs = None
+
+
 def help_msg():
     """Print help message"""
     print("""Usage: analysis [-o output]
