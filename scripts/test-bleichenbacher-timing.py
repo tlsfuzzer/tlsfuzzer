@@ -26,7 +26,8 @@ from tlslite.extensions import SNIExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 
-version = 7
+
+version = 8
 
 
 def help_msg():
@@ -226,74 +227,8 @@ def main():
 
     conversations["sanity - static non-zero byte in random padding"] = conversation
 
-    # first put tests that are the benchmark to be compared to
-    # fuzz MAC in the Finshed message to make decryption fail
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(fuzz_mac(FinishedGenerator(), xors={0:0xff}))
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
-
-    conversations["invalid MAC in Finished on pos 0"] = conversation
-
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(fuzz_mac(FinishedGenerator(), xors={-1:0xff}))
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
-
-    conversations["invalid MAC in Finished on pos -1"] = conversation
-
-    # and for good measure, add something that sends invalid padding
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(fuzz_padding(FinishedGenerator(),
-                                       xors={-1:0xff, -2:0x01}))
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
-
-    conversations["invalid padding_length in Finished"] = conversation
-
     # create a CKE with PMS the runner doesn't know/use
+    # (benchmark to measure other tests to)
     conversation = Connect(host, port)
     node = conversation
     ciphers = [cipher]
@@ -309,7 +244,7 @@ def main():
     # that tlsfuzzer calculates will be incorrect
     node = node.add_child(ClientKeyExchangeGenerator(
         padding_subs={-3: 0, -2: 3, -1: 3},
-        premaster_secret=bytearray([1] * 46)))
+        premaster_secret=bytearray([0] * 46)))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -363,6 +298,29 @@ def main():
     node.add_child(ExpectClose())
 
     conversations["set PKCS#1 padding type to 1"] = conversation
+
+    # use the padding for signing (type 1)
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [cipher]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=cln_extensions))
+    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1: 1},
+                                                     padding_byte=0xff))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(level,
+                                      alert))
+    node.add_child(ExpectClose())
+
+    conversations["use PKCS#1 padding type 1"] = conversation
 
     # test early zero in random data
     conversation = Connect(host, port)
@@ -487,7 +445,7 @@ def main():
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
     node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1: 1},
-                                                     premaster_secret=bytearray([1] * 48)))
+                                                     premaster_secret=bytearray([3, 3])))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -581,7 +539,7 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1] * 47)))
+    node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([0] * 47)))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -603,7 +561,7 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1] * 4)))
+    node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([0] * 4)))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -625,7 +583,7 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1] * 49)))
+    node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([0] * 49)))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -647,7 +605,7 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1] * 124)))
+    node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([0] * 124)))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -668,7 +626,7 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1] * 96)))
+    node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([0] * 96)))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -800,6 +758,55 @@ def main():
 
     conversations["too long PKCS padding"] = conversation
 
+    # test for Hamming weight sensitivity:
+    # very low Hamming weight:
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [cipher]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=cln_extensions))
+    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientKeyExchangeGenerator(padding_byte=0,
+                                                     client_version=(0, 0)))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(level,
+                                      alert))
+    node.add_child(ExpectClose())
+
+    conversations["very low Hamming weight RSA plaintext"] = conversation
+
+    # test for Hamming weight sensitivity:
+    # very high Hamming weight:
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [cipher]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=cln_extensions))
+    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1: 0xff},
+                                                     padding_byte=0xff,
+                                                     client_version=(0xff, 0xff)))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(level,
+                                      alert))
+    node.add_child(ExpectClose())
+
+    conversations["very high Hamming weight RSA plaintext"] = conversation
+
     # run the conversation
     good = 0
     bad = 0
@@ -897,15 +904,14 @@ significant byte:
 All tests should exhibit the same kind of timing behaviour, but
 if some groups of tests are inconsistent, that points to likely
 place where the timing leak happens:
-- the control group, lack of consistency here points to Lucky 13:
-  - 'invalid MAC in Finished on pos 0'
-  - 'invalid MAC in Finished on pos -1'
+- the control test case:
   - 'fuzzed pre master secret' - this will end up with random
     plaintexts in record with Finished, most resembling a randomly
     selected PMS by the server
-  verification:
+- padding type verification:
   - 'set PKCS#1 padding type to 3'
   - 'set PKCS#1 padding type to 1'
+  - 'use PKCS#1 padding type 1'
 - incorrect size of encrypted value (pre-master secret),
   inconsistent results here suggests that the decryption leaks
   length of plaintext:
@@ -945,7 +951,15 @@ place where the timing leak happens:
 - invalid TLS version in PMS, differences here suggest a leak in
   code checking for correctness of this value:
   - 'wrong TLS version (2, 2) in pre master secret'
-  - 'wrong TLS version (0, 0) in pre master secret'""")
+  - 'wrong TLS version (0, 0) in pre master secret'
+- plaintext with specific Hamming weights, start with 0x00 and 0x02 bytes
+  but then switch to special plaintext, differences here suggest a leak
+  happening in the maths library:
+  - 'very low Hamming weight RSA plaintext' - padding, TLS version and PMS
+    are all zero bytes
+  - 'very high Hamming weight RSA plaintext' - padding, padding separator, TLS
+    version and PMS are all 0xff bytes
+  - 'use PKCS#1 padding type 1' - here the padding will be all 0xff bytes""")
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
