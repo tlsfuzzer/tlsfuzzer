@@ -277,6 +277,12 @@ file.
    PYTHONPATH=. python tlsfuzzer/analysis.py -o "/tmp/results"
 
 
+With large sample sizes, to avoid exhausting available memory and to speed up
+the analysis, you can skip the generation of some graphs using the
+``--no-ecdf-plot``, ``--no-scatter-plot`` and ``--no-conf-interval-plot``.
+That last option disables generation of the ``bootstrapped_means.csv`` file
+too.
+
 External timing data
 --------------------
 
@@ -308,6 +314,37 @@ file:
 
    PYTHONPATH=. python tlsfuzzer/analysis.py -o "/tmp/results"
 
+
+Combining results from multiple runs
+------------------------------------
+
+You can use the ``combine.py`` script to combine the results from runs.
+
+The script checks if the set of executed probes match in all the files,
+but you need to ensure that the environments of the test execution match
+too.
+
+To combine the runs, provide the output directory (``out-dir`` here) and
+paths to one or more ``timing.csv`` files:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/combine.py -o out-dir \
+   in_1596892760/timing.csv in_1596892742/timing.csv
+
+.. warning::
+
+   The script overwrites the ``timing.csv`` in the output directory!
+
+After combining the ``timing.csv`` files, execute analysis as usual.
+
+.. tip::
+
+   ``combine.py`` is the only script able to read the old format of
+   ``timing.csv`` files. Use it with a single input file to covert from
+   old file format (where all results for a given probe ware listed in a single
+   line) to the new file format (where all results for a given probe are
+   in a single column)
 
 Interpreting the results
 ========================
