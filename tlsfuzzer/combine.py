@@ -59,20 +59,17 @@ def get_format(file_name):
 
 
 def read_row_based_csv(file_name):
-    ret = []
     with open(file_name, 'r') as f:
         in_file = csv.reader(f)
-        values = (list(i) for i in zip(*in_file))
-        ret.extend(values)
-        return ret
+        for i in (list(i) for i in zip(*in_file)):
+            yield i
 
 
 def read_column_based_csv(file_name):
-    ret = []
     with open(file_name, 'r') as f:
         in_file = csv.reader(f)
-        ret.extend(in_file)
-        return ret
+        for i in in_file:
+            yield i
 
 
 def combine(output, inputs):
@@ -89,16 +86,18 @@ def combine(output, inputs):
                 assert fmt == "column-based"
                 values = read_column_based_csv(file_name)
 
+            values_header = next(values)
+
             if columns is None:
-                columns = values[0]
+                columns = values_header
                 out_csv.writerow(columns)
 
-            if columns != values[0]:
+            if columns != values_header:
                 raise ValueError(
                     "Column names in {0} don't match column "
                     "names from first input file".format(file_name))
 
-            out_csv.writerows(values[1:])
+            out_csv.writerows(values)
 
 
 def main():

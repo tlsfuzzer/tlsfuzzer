@@ -92,7 +92,7 @@ class TestParseFile(unittest.TestCase):
                 mock.mock_open(read_data=self.row_based_file))\
                 as mock_open:
             self.assertEqual(
-                read_row_based_csv('./non-existant'),
+                list(read_row_based_csv('./non-existant')),
                 self.parsed_data)
 
     @unittest.skipIf(sys.version_info < (2, 7),
@@ -102,7 +102,7 @@ class TestParseFile(unittest.TestCase):
                 mock.mock_open(read_data=self.column_based_file))\
                 as mock_open:
             self.assertEqual(
-                read_column_based_csv('./non-existant'),
+                list(read_column_based_csv('./non-existant')),
                 self.parsed_data)
 
 
