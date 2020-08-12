@@ -75,7 +75,7 @@ def main():
         raise ValueError("Missing -o option!")
 
 
-class Analysis:
+class Analysis(object):
     """Analyse extracted timing information from csv file."""
 
     def __init__(self, output, draw_ecdf_plot=True, draw_scatter_plot=True,
@@ -87,12 +87,90 @@ class Analysis:
         self.draw_scatter_plot = draw_scatter_plot
         self.draw_conf_interval_plot = draw_conf_interval_plot
 
-    def load_data(self):
-        """Loads data into pandas Dataframe for generating plots and stats."""
+    def _convert_to_binary(self):
+        timing_bin_path = join(self.output, "timing.bin")
+        timing_csv_path = join(self.output, "timing.csv")
+        legend_csv_path = join(self.output, "legend.csv")
+        timing_bin_shape_path = join(self.output, "timing.bin.shape")
+        if os.path.isfile(timing_bin_path) and \
+                os.path.isfile(legend_csv_path) and \
+                os.path.isfile(timing_bin_shape_path) and \
+                os.path.getmtime(timing_csv_path) < \
+                os.path.getmtime(timing_bin_path):
+            return
+
+        for chunk in pd.read_csv(timing_csv_path, chunksize=1,
+                                 dtype=np.float64):
+            self.class_names = list(chunk)
+            self._write_legend()
+            break
+
+        ncol = len(self.class_names)
+
+        rows_written = 0
+
         # as we're dealing with 9 digits of precision (nanosecond range)
         # and the responses can be assumed to take less than a second,
         # we need to use the double precision IEEE floating point numbers
-        data = pd.read_csv(join(self.output, "timing.csv"), dtype=np.float64)
+
+        # load 512000 rows at a time so that we don't use more than 2000MiB
+        # (including pandas overhead) of memory at a time to process a file
+        # with 256 columns
+        csv_reader = pd.read_csv(timing_csv_path, chunksize=512000,
+                                 dtype=np.float64)
+        chunk = next(csv_reader)
+        timing_bin = np.memmap(timing_bin_path, dtype=np.float64,
+                               mode="w+",
+                               shape=(len(chunk.index), ncol),
+                               order="C")
+        timing_bin[:, :] = chunk.iloc[:, :]
+        rows_written += len(chunk.index)
+        del timing_bin
+
+        for chunk in csv_reader:
+            timing_bin = np.memmap(timing_bin_path, dtype=np.float64,
+                                   mode="r+",
+                                   shape=(rows_written + len(chunk.index),
+                                          ncol),
+                                   order="C")
+            timing_bin[rows_written:, :] = chunk.iloc[:, :]
+            rows_written += len(chunk.index)
+
+            del timing_bin
+
+        with open(timing_bin_shape_path, "w") as f:
+            writer = csv.writer(f)
+            writer.writerow(["nrow", "ncol"])
+            writer.writerow([rows_written, ncol])
+
+    def load_data(self):
+        """Loads data into pandas Dataframe for generating plots and stats."""
+        self._convert_to_binary()
+        timing_bin_path = join(self.output, "timing.bin")
+        legend_csv_path = join(self.output, "legend.csv")
+        timing_bin_shape_path = join(self.output, "timing.bin.shape")
+
+        with open(timing_bin_shape_path, "r") as f:
+            reader = csv.reader(f)
+            if next(reader) != ["nrow", "ncol"]:
+                raise ValueError("Malformed {0} file, delete it and try again"
+                                 .format(timing_bin_shape_path))
+            nrow, ncol = next(reader)
+            nrow = int(nrow)
+            ncol = int(ncol)
+
+        legend = pd.read_csv(legend_csv_path)
+
+        if len(legend.index) != ncol:
+            raise ValueError("Inconsistent {0} and {1} files, delete and try "
+                             "again".format(legend_csv_path,
+                                            timing_bin_shape_path))
+        columns = list(legend.iloc[:, 1])
+
+        timing_bin = np.memmap(timing_bin_path, dtype=np.float64,
+                               mode="r", shape=(nrow, ncol), order="C")
+
+        data = pd.DataFrame(timing_bin, columns=columns, copy=False)
         return data
 
     def _box_test(self, interval1, interval2, quantile_start, quantile_end):
