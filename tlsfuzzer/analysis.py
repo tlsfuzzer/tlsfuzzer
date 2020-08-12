@@ -13,6 +13,7 @@ import csv
 import getopt
 import sys
 import multiprocessing as mp
+import shutil
 from os.path import join
 from collections import namedtuple
 from itertools import combinations, repeat, chain
@@ -24,6 +25,7 @@ import pandas as pd
 import matplotlib as mpl
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+
 
 TestPair = namedtuple('TestPair', 'index1  index2')
 mpl.use('Agg')
@@ -225,6 +227,26 @@ class Analysis(object):
             results[TestPair(index1, index2)] = pval
         return results
 
+    def _calc_percentiles(self):
+        try:
+            quantiles_file_name = join(self.output, ".quantiles.tmp")
+            shutil.copyfile(join(self.output, "timing.bin"),
+                            quantiles_file_name)
+            quant_in = np.memmap(quantiles_file_name,
+                                 dtype=np.float64,
+                                 mode="r+",
+                                 shape=self.data.shape)
+            percentiles = np.quantile(quant_in,
+                                      [0.05, 0.25, 0.5, 0.75, 0.95],
+                                      overwrite_input=True,
+                                      axis=0)
+            percentiles = pd.DataFrame(percentiles, columns=list(self.data),
+                                       copy=False)
+            return percentiles
+        finally:
+            del quant_in
+            os.remove(quantiles_file_name)
+
     def box_plot(self):
         """Generate box plot for the test classes."""
         fig = Figure(figsize=(16, 12))
@@ -237,8 +259,7 @@ class Analysis(object):
         # the memory usage significantly
         # so calculate the values externally and just provide the computed
         # quantiles to the boxplot drawing function
-        percentiles = self.data.quantile([0.05, 0.25, 0.5, 0.75, 0.95])
-
+        percentiles = self._calc_percentiles()
         boxes = []
         for name in percentiles:
             vals = [i for i in percentiles.loc[:, name]]
@@ -337,6 +358,7 @@ class Analysis(object):
             cent_tend = list(pool.imap_unordered(
                 self._mean_of_random_sample,
                 chain(repeat(job_size, reps//job_size), [reps % job_size])))
+        _diffs = None
         return [i for sublist in cent_tend for i in sublist]
 
     def calc_diff_conf_int(self, pair, reps=5000, ci=0.95):

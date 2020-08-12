@@ -195,8 +195,28 @@ class TestPlots(unittest.TestCase):
     def test_box_plot(self):
         with mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure",
                         mock.Mock()) as mock_save:
-            self.analysis.box_plot()
-            mock_save.assert_called_once()
+            with mock.patch("tlsfuzzer.analysis.Analysis._calc_percentiles")\
+                    as mock_percentiles:
+                mock_percentiles.return_value = pd.DataFrame(
+                    data={'A': [0.05, 0.25, 0.5, 0.75, 0.95],
+                          'B': [0.55, 0.75, 1, 1.25, 1.45]})
+                self.analysis.box_plot()
+                mock_save.assert_called_once()
+                mock_percentiles.assert_called_once_with()
+
+    @mock.patch("tlsfuzzer.analysis.np.memmap")
+    @mock.patch("tlsfuzzer.analysis.os.remove")
+    @mock.patch("tlsfuzzer.analysis.shutil.copyfile")
+    def test__calc_percentiles(self, mock_copyfile, mock_remove, mock_memmap):
+        mock_memmap.return_value = self.analysis.data.values
+
+        ret = self.analysis._calc_percentiles()
+
+        self.assertIsNotNone(ret)
+        self.assertEqual(ret.values[0, 0], 0.0006691114)
+        mock_copyfile.assert_called_once_with(
+            "/tmp/timing.bin", "/tmp/.quantiles.tmp")
+        mock_remove.assert_called_once_with("/tmp/.quantiles.tmp")
 
     def test_conf_interval_plot(self):
         with mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure",
