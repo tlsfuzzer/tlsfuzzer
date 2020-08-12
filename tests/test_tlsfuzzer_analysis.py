@@ -42,34 +42,35 @@ class TestReport(unittest.TestCase):
             'B': [0, 0, 2, 6, 7] + [7] * 95,
         })
         timings = pd.DataFrame(data=data)
-        self.mock_read_csv = mock.Mock(spec=pd.read_csv)
+        self.mock_read_csv = mock.Mock()
         self.mock_read_csv.return_value = timings
 
     def test_report(self):
-        with mock.patch("tlsfuzzer.analysis.pd.read_csv", self.mock_read_csv):
+        with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
             with mock.patch("tlsfuzzer.analysis.Analysis.ecdf_plot") as mock_ecdf:
                 with mock.patch("tlsfuzzer.analysis.Analysis.box_plot") as mock_box:
                     with mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter:
                         with mock.patch("tlsfuzzer.analysis.Analysis.conf_interval_plot") as mock_conf_int:
                             with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
                                 with mock.patch("builtins.print"):
-                                    analysis = Analysis("/tmp")
-                                    ret = analysis.generate_report()
+                                    with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
+                                        analysis = Analysis("/tmp")
+                                        ret = analysis.generate_report()
 
-                                    self.mock_read_csv.assert_called_once()
-                                    #mock_ecdf.assert_called_once()
-                                    #mock_box.assert_called_once()
-                                    #mock_scatter.assert_called_once()
-                                    # we're writing to report.csv, legend.csv, and
-                                    # report.txt
-                                    self.assertEqual(mock_open.call_count, 3)
-                                    self.assertEqual(ret, 0)
+                                        self.mock_read_csv.assert_called_once()
+                                        #mock_ecdf.assert_called_once()
+                                        #mock_box.assert_called_once()
+                                        #mock_scatter.assert_called_once()
+                                        # we're writing to report.csv, legend.csv, and
+                                        # report.txt
+                                        self.assertEqual(mock_open.call_count, 3)
+                                        self.assertEqual(ret, 0)
 
     def test_report_neq(self):
         timings = pd.DataFrame(data=self.neq_data)
-        mock_read_csv = mock.Mock(spec=pd.read_csv)
+        mock_read_csv = mock.Mock()
         mock_read_csv.return_value = timings
-        with mock.patch("tlsfuzzer.analysis.pd.read_csv", mock_read_csv):
+        with mock.patch("tlsfuzzer.analysis.Analysis.load_data", mock_read_csv):
             with mock.patch("tlsfuzzer.analysis.Analysis.ecdf_plot") as mock_ecdf:
                 with mock.patch("tlsfuzzer.analysis.Analysis.box_plot") as mock_box:
                     with mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter:
@@ -89,7 +90,7 @@ class TestReport(unittest.TestCase):
                                     self.assertEqual(ret, 1)
 
     def test_wilcoxon_test(self):
-        with mock.patch("tlsfuzzer.analysis.pd.read_csv", self.mock_read_csv):
+        with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
             analysis = Analysis("/tmp")
             self.mock_read_csv.assert_called_once()
 
@@ -99,7 +100,7 @@ class TestReport(unittest.TestCase):
                 self.assertGreaterEqual(result, 0.25)
 
     def test_box_test(self):
-        with mock.patch("tlsfuzzer.analysis.pd.read_csv", self.mock_read_csv):
+        with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
             analysis = Analysis("/tmp")
             self.mock_read_csv.assert_called_once()
 
@@ -110,9 +111,9 @@ class TestReport(unittest.TestCase):
 
     def test_box_test_neq(self):
         timings = pd.DataFrame(data=self.neq_data)
-        mock_read_csv = mock.Mock(spec=pd.read_csv)
+        mock_read_csv = mock.Mock()
         mock_read_csv.return_value = timings
-        with mock.patch("tlsfuzzer.analysis.pd.read_csv", mock_read_csv):
+        with mock.patch("tlsfuzzer.analysis.Analysis.load_data", mock_read_csv):
             analysis = Analysis("/tmp")
 
             res = analysis.box_test()
@@ -122,9 +123,9 @@ class TestReport(unittest.TestCase):
 
     def test_box_test_neq_overlap(self):
         timings = pd.DataFrame(data=self.neq_data_overlap)
-        mock_read_csv = mock.Mock(spec=pd.read_csv)
+        mock_read_csv = mock.Mock()
         mock_read_csv.return_value = timings
-        with mock.patch("tlsfuzzer.analysis.pd.read_csv", mock_read_csv):
+        with mock.patch("tlsfuzzer.analysis.Analysis.load_data", mock_read_csv):
             analysis = Analysis("/tmp")
             mock_read_csv.assert_called_once()
 
@@ -136,9 +137,9 @@ class TestReport(unittest.TestCase):
     def test__mean_of_random_sample(self):
         diffs = [1, 2, 3, 4, 5, 6, 7, 8, 9]
         timings = pd.DataFrame(data=self.neq_data_overlap)
-        mock_read_csv = mock.Mock(spec=pd.read_csv)
+        mock_read_csv = mock.Mock()
         mock_read_csv.return_value = timings
-        with mock.patch("tlsfuzzer.analysis.pd.read_csv", mock_read_csv):
+        with mock.patch("tlsfuzzer.analysis.Analysis.load_data", mock_read_csv):
             with mock.patch("tlsfuzzer.analysis._diffs", diffs):
                 analysis = Analysis("/tmp")
                 vals = analysis._mean_of_random_sample(10)
@@ -151,9 +152,9 @@ class TestReport(unittest.TestCase):
     def test__mean_of_random_sample_with_no_reps(self):
         diffs = [1, 2, 3, 4, 5, 6, 7, 8, 9]
         timings = pd.DataFrame(data=self.neq_data_overlap)
-        mock_read_csv = mock.Mock(spec=pd.read_csv)
+        mock_read_csv = mock.Mock()
         mock_read_csv.return_value = timings
-        with mock.patch("tlsfuzzer.analysis.pd.read_csv", mock_read_csv):
+        with mock.patch("tlsfuzzer.analysis.Analysis.load_data", mock_read_csv):
             with mock.patch("tlsfuzzer.analysis._diffs", diffs):
                 analysis = Analysis("/tmp")
                 vals = analysis._mean_of_random_sample(0)
@@ -173,9 +174,9 @@ class TestPlots(unittest.TestCase):
                 0.000734843, 0.000754852, 0.000667378, 0.000671230, 0.000790935]
         }
         timings = pd.DataFrame(data=data)
-        mock_read_csv = mock.Mock(spec=pd.read_csv)
+        mock_read_csv = mock.Mock()
         mock_read_csv.return_value = timings
-        with mock.patch("tlsfuzzer.analysis.pd.read_csv", mock_read_csv):
+        with mock.patch("tlsfuzzer.analysis.Analysis.load_data", mock_read_csv):
             self.analysis = Analysis("/tmp")
 
     def test_ecdf_plot(self):
