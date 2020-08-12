@@ -213,10 +213,10 @@ class Extract:
         with open(filename, 'w') as csvfile:
             print("Writing to {0}".format(filename))
             writer = csv.writer(csvfile, quoting=csv.QUOTE_MINIMAL)
-            for class_name in sorted(self.timings, key=natural_sort_keys):
-                row = [class_name]
-                row.extend(self.timings[class_name])
-                writer.writerow(row)
+            class_names = sorted(self.timings, key=natural_sort_keys)
+            writer.writerow(class_names)
+            for values in zip(*[self.timings[i] for i in class_names]):
+                writer.writerow(values)
 
     @staticmethod
     def hostname_to_ip(hostname):
