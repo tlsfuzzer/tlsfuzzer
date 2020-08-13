@@ -162,6 +162,10 @@ script:
   - |
       if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]]; then
         export REPLY_SIZE=1850
+      elif [[ $TRAVIS_PYTHON_VERSION == '3.9-dev' ]]; then
+        export REPLY_SIZE=1853
+      elif [[ $TRAVIS_PYTHON_VERSION == 'nightly' ]]; then
+        export REPLY_SIZE=1853
       else
         export REPLY_SIZE=1849
       fi
