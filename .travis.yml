@@ -31,6 +31,12 @@ jobs:
    - python: 3.8
      dist: xenial
      sudo: true
+   - python: 3.9-dev
+     dist: xenial
+     sudo: true
+   - python: nightly
+     dist: xenial
+     sudo: true
 # ANALYSIS_DEP=false EXTRACT_DEP=true
    - python: 2.6
      env: EXTRACT_DEP=true
@@ -52,6 +58,14 @@ jobs:
      dist: xenial
      sudo: true
      env: EXTRACT_DEP=true
+   - python: 3.9-dev
+     dist: xenial
+     sudo: true
+     env: EXTRACT_DEP=true
+   - python: nightly
+     dist: xenial
+     sudo: true
+     env: EXTRACT_DEP=true
 # ANALYSIS_DEP=true EXTRACT_DEP=false
    - python: 3.6
      env: ANALYSIS_DEP=true
@@ -60,6 +74,14 @@ jobs:
      sudo: true
      env: ANALYSIS_DEP=true
    - python: 3.8
+     dist: xenial
+     sudo: true
+     env: ANALYSIS_DEP=true
+   - python: 3.9-dev
+     dist: xenial
+     sudo: true
+     env: ANALYSIS_DEP=true
+   - python: nightly
      dist: xenial
      sudo: true
      env: ANALYSIS_DEP=true
@@ -73,6 +95,22 @@ jobs:
    - python: 3.8
      dist: xenial
      sudo: true
+     env: ANALYSIS_DEP=true EXTRACT_DEP=true CC_REPORT=true
+   - python: 3.9-dev
+     dist: xenial
+     sudo: true
+     env: ANALYSIS_DEP=true EXTRACT_DEP=true CC_REPORT=true
+   - python: nightly
+     dist: xenial
+     sudo: true
+     env: ANALYSIS_DEP=true EXTRACT_DEP=true CC_REPORT=true
+ allow_failures:
+   # lazy-object-proxy fails to build
+   - python: nightly
+   # scipy fails to build
+   - python: 3.9-dev
+     env: ANALYSIS_DEP=true
+   - python: 3.9-dev
      env: ANALYSIS_DEP=true EXTRACT_DEP=true CC_REPORT=true
 
 branches:
@@ -129,11 +167,18 @@ script:
   # check if all scripts are included in the json files
   - python tests/verify-scripts-json.py tests/tlslite-ng-random-subset.json tests/tlslite-ng.json
   # the HTTP header includes python version, since "2.7.15" is longer than "2.6.9", the reply itself is longer too
+  # more generally, it should be `1845 + len(sys.version.split()[0])`,
+  # as http.server uses `sys_version = "Python/" + sys.version.split()[0]`
+  # https://github.com/python/cpython/blob/2c050e52f1ccf5db03819e4ed70690521d67e9fa/Lib/http/server.py#L253
   - |
       if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]]; then
         export REPLY_SIZE=1850
+      elif [[ $TRAVIS_PYTHON_VERSION == '3.9-dev' ]]; then
+        export REPLY_SIZE=1853  # Server: SimpleHTTP/0.6 Python/3.9.0rc1+
+      elif [[ $TRAVIS_PYTHON_VERSION == 'nightly' ]]; then
+        export REPLY_SIZE=1852  # Server: SimpleHTTP/0.6 Python/3.10.0a0
       else
-        export REPLY_SIZE=1849
+        export REPLY_SIZE=1849  # Server: SimpleHTTP/0.6 Python/3.7.6
       fi
   - travis_wait 30 python tests/scripts_retention.py tests/tlslite-ng-random-subset.json `which tls.py` $REPLY_SIZE
   # pylint doesn't work on 2.6: https://bitbucket.org/logilab/pylint/issue/390/py26-compatiblity-broken
