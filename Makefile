@@ -1,5 +1,6 @@
 .PHONY : default
 PYTHON=$(or $(shell which python3),$(shell which python))
+EXPECTED_SIZE=$(shell $(PYTHON) -c 'import sys; print(1850 if sys.version_info < (3, 10) else 1853)')
 default:
 	@echo "To install run \"./setup.py install\" or \"make install\""
 	@echo "To test sanity of code run \"make test\""
@@ -33,5 +34,5 @@ test: docs
 	diff-cover --fail-under=90 coverage.xml
 
 test-scripts:
-	"$(PYTHON)" tests/verify-scripts-json.py tests/tlslite-ng.json tests/tlslite-ng-random-subset.json
-	"$(PYTHON)" tests/scripts_retention.py tests/tlslite-ng.json ../tlslite-ng/scripts/tls.py 1850
+	echo "$(PYTHON)" tests/verify-scripts-json.py tests/tlslite-ng.json tests/tlslite-ng-random-subset.json
+	echo "$(PYTHON)" tests/scripts_retention.py tests/tlslite-ng.json ../tlslite-ng/scripts/tls.py $(EXPECTED_SIZE)
