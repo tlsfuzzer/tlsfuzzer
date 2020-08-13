@@ -104,6 +104,8 @@ jobs:
      dist: xenial
      sudo: true
      env: ANALYSIS_DEP=true EXTRACT_DEP=true CC_REPORT=true
+ allow_failures:
+   - python: nightly
 
 branches:
   only:
