@@ -31,6 +31,9 @@ jobs:
    - python: 3.8
      dist: xenial
      sudo: true
+   - python: nightly
+     dist: xenial
+     sudo: true
 # ANALYSIS_DEP=false EXTRACT_DEP=true
    - python: 2.6
      env: EXTRACT_DEP=true
@@ -52,6 +55,10 @@ jobs:
      dist: xenial
      sudo: true
      env: EXTRACT_DEP=true
+   - python: nightly
+     dist: xenial
+     sudo: true
+     env: EXTRACT_DEP=true
 # ANALYSIS_DEP=true EXTRACT_DEP=false
    - python: 3.6
      env: ANALYSIS_DEP=true
@@ -63,6 +70,10 @@ jobs:
      dist: xenial
      sudo: true
      env: ANALYSIS_DEP=true
+   - python: nightly
+     dist: xenial
+     sudo: true
+     env: ANALYSIS_DEP=true
 # ANALYSIS_DEP=EXTRACT_DEP=true
    - python: 3.6
      env: ANALYSIS_DEP=true EXTRACT_DEP=true
@@ -71,6 +82,10 @@ jobs:
      sudo: true
      env: ANALYSIS_DEP=true EXTRACT_DEP=true
    - python: 3.8
+     dist: xenial
+     sudo: true
+     env: ANALYSIS_DEP=true EXTRACT_DEP=true CC_REPORT=true
+   - python: nightly
      dist: xenial
      sudo: true
      env: ANALYSIS_DEP=true EXTRACT_DEP=true CC_REPORT=true
