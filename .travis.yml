@@ -105,7 +105,13 @@ jobs:
      sudo: true
      env: ANALYSIS_DEP=true EXTRACT_DEP=true CC_REPORT=true
  allow_failures:
+   # lazy-object-proxy fails to build
    - python: nightly
+   # scipy fails to build
+   - python: 3.9-dev
+     env: ANALYSIS_DEP=true
+   - python: 3.9-dev
+     env: ANALYSIS_DEP=true EXTRACT_DEP=true CC_REPORT=true
 
 branches:
   only:
