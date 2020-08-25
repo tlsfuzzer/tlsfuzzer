@@ -13,6 +13,7 @@ import csv
 import getopt
 import sys
 import multiprocessing as mp
+import shutil
 from os.path import join
 from collections import namedtuple
 from itertools import combinations, repeat, chain
@@ -24,6 +25,7 @@ import pandas as pd
 import matplotlib as mpl
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+
 
 TestPair = namedtuple('TestPair', 'index1  index2')
 mpl.use('Agg')
@@ -75,7 +77,7 @@ def main():
         raise ValueError("Missing -o option!")
 
 
-class Analysis:
+class Analysis(object):
     """Analyse extracted timing information from csv file."""
 
     def __init__(self, output, draw_ecdf_plot=True, draw_scatter_plot=True,
@@ -87,12 +89,90 @@ class Analysis:
         self.draw_scatter_plot = draw_scatter_plot
         self.draw_conf_interval_plot = draw_conf_interval_plot
 
-    def load_data(self):
-        """Loads data into pandas Dataframe for generating plots and stats."""
+    def _convert_to_binary(self):
+        timing_bin_path = join(self.output, "timing.bin")
+        timing_csv_path = join(self.output, "timing.csv")
+        legend_csv_path = join(self.output, "legend.csv")
+        timing_bin_shape_path = join(self.output, "timing.bin.shape")
+        if os.path.isfile(timing_bin_path) and \
+                os.path.isfile(legend_csv_path) and \
+                os.path.isfile(timing_bin_shape_path) and \
+                os.path.getmtime(timing_csv_path) < \
+                os.path.getmtime(timing_bin_path):
+            return
+
+        for chunk in pd.read_csv(timing_csv_path, chunksize=1,
+                                 dtype=np.float64):
+            self.class_names = list(chunk)
+            self._write_legend()
+            break
+
+        ncol = len(self.class_names)
+
+        rows_written = 0
+
         # as we're dealing with 9 digits of precision (nanosecond range)
         # and the responses can be assumed to take less than a second,
         # we need to use the double precision IEEE floating point numbers
-        data = pd.read_csv(join(self.output, "timing.csv"), dtype=np.float64)
+
+        # load 512000 rows at a time so that we don't use more than 2000MiB
+        # (including pandas overhead) of memory at a time to process a file
+        # with 256 columns
+        csv_reader = pd.read_csv(timing_csv_path, chunksize=512000,
+                                 dtype=np.float64)
+        chunk = next(csv_reader)
+        timing_bin = np.memmap(timing_bin_path, dtype=np.float64,
+                               mode="w+",
+                               shape=(len(chunk.index), ncol),
+                               order="C")
+        timing_bin[:, :] = chunk.iloc[:, :]
+        rows_written += len(chunk.index)
+        del timing_bin
+
+        for chunk in csv_reader:
+            timing_bin = np.memmap(timing_bin_path, dtype=np.float64,
+                                   mode="r+",
+                                   shape=(rows_written + len(chunk.index),
+                                          ncol),
+                                   order="C")
+            timing_bin[rows_written:, :] = chunk.iloc[:, :]
+            rows_written += len(chunk.index)
+
+            del timing_bin
+
+        with open(timing_bin_shape_path, "w") as f:
+            writer = csv.writer(f)
+            writer.writerow(["nrow", "ncol"])
+            writer.writerow([rows_written, ncol])
+
+    def load_data(self):
+        """Loads data into pandas Dataframe for generating plots and stats."""
+        self._convert_to_binary()
+        timing_bin_path = join(self.output, "timing.bin")
+        legend_csv_path = join(self.output, "legend.csv")
+        timing_bin_shape_path = join(self.output, "timing.bin.shape")
+
+        with open(timing_bin_shape_path, "r") as f:
+            reader = csv.reader(f)
+            if next(reader) != ["nrow", "ncol"]:
+                raise ValueError("Malformed {0} file, delete it and try again"
+                                 .format(timing_bin_shape_path))
+            nrow, ncol = next(reader)
+            nrow = int(nrow)
+            ncol = int(ncol)
+
+        legend = pd.read_csv(legend_csv_path)
+
+        if len(legend.index) != ncol:
+            raise ValueError("Inconsistent {0} and {1} files, delete and try "
+                             "again".format(legend_csv_path,
+                                            timing_bin_shape_path))
+        columns = list(legend.iloc[:, 1])
+
+        timing_bin = np.memmap(timing_bin_path, dtype=np.float64,
+                               mode="r", shape=(nrow, ncol), order="C")
+
+        data = pd.DataFrame(timing_bin, columns=columns, copy=False)
         return data
 
     def _box_test(self, interval1, interval2, quantile_start, quantile_end):
@@ -147,6 +227,26 @@ class Analysis:
             results[TestPair(index1, index2)] = pval
         return results
 
+    def _calc_percentiles(self):
+        try:
+            quantiles_file_name = join(self.output, ".quantiles.tmp")
+            shutil.copyfile(join(self.output, "timing.bin"),
+                            quantiles_file_name)
+            quant_in = np.memmap(quantiles_file_name,
+                                 dtype=np.float64,
+                                 mode="r+",
+                                 shape=self.data.shape)
+            percentiles = np.quantile(quant_in,
+                                      [0.05, 0.25, 0.5, 0.75, 0.95],
+                                      overwrite_input=True,
+                                      axis=0)
+            percentiles = pd.DataFrame(percentiles, columns=list(self.data),
+                                       copy=False)
+            return percentiles
+        finally:
+            del quant_in
+            os.remove(quantiles_file_name)
+
     def box_plot(self):
         """Generate box plot for the test classes."""
         fig = Figure(figsize=(16, 12))
@@ -159,8 +259,7 @@ class Analysis:
         # the memory usage significantly
         # so calculate the values externally and just provide the computed
         # quantiles to the boxplot drawing function
-        percentiles = self.data.quantile([0.05, 0.25, 0.5, 0.75, 0.95])
-
+        percentiles = self._calc_percentiles()
         boxes = []
         for name in percentiles:
             vals = [i for i in percentiles.loc[:, name]]
@@ -259,6 +358,7 @@ class Analysis:
             cent_tend = list(pool.imap_unordered(
                 self._mean_of_random_sample,
                 chain(repeat(job_size, reps//job_size), [reps % job_size])))
+        _diffs = None
         return [i for sublist in cent_tend for i in sublist]
 
     def calc_diff_conf_int(self, pair, reps=5000, ci=0.95):
