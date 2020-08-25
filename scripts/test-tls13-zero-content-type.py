@@ -135,6 +135,7 @@ def main():
 
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
+    node.add_child(ExpectClose())
     conversations["sanity"] = conversation
 
     # Record with zero content type after handshake.
@@ -439,9 +440,10 @@ def main():
     print("TLS 1.3 zero-value content type")
     print("Check if handling of records with an internal content type of zero is ")
     print("correct.\n")
-    print("version: {0}\n".format(version))
 
     print("Test end")
+    print(20 * '=')
+    print("version: {0}".format(version))
     print(20 * '=')
     print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
