@@ -256,6 +256,11 @@ def main():
     node = node.add_child(ExpectFinished())
     node = node.add_child(RawMessageGenerator(content_type=0, data=bytearray(0)))
 
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.unexpected_message))
     node = node.add_child(ExpectClose())
@@ -292,6 +297,11 @@ def main():
     node = node.add_child(ExpectCertificateVerify())
     node = node.add_child(ExpectFinished())
     node = node.add_child(RawMessageGenerator(content_type=0, data=bytearray(42)))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
 
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.unexpected_message))
