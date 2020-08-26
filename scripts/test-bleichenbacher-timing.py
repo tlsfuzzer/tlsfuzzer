@@ -802,7 +802,9 @@ def main():
     node = node.add_child(TCPBufferingEnable())
     node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1: 0xff},
                                                      padding_byte=0xff,
-                                                     client_version=(0xff, 0xff)))
+                                                     client_version=(0xff, 0xff),
+                                                     premaster_secret=
+                                                     bytearray([0xff]*48)))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
