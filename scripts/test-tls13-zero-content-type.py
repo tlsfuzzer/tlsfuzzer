@@ -28,10 +28,10 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
-from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL
+from tlsfuzzer.helpers import key_share_gen, SIG_ALL
 
 
-version = 3
+version = 1
 
 
 def help_msg():
@@ -108,11 +108,12 @@ def main():
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.ecdsa_secp256r1_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
+        .create(SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -154,11 +155,12 @@ def main():
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.ecdsa_secp256r1_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
+        .create(SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -196,11 +198,12 @@ def main():
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.ecdsa_secp256r1_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
+        .create(SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -238,11 +241,12 @@ def main():
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.ecdsa_secp256r1_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
+        .create(SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -274,11 +278,12 @@ def main():
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.ecdsa_secp256r1_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
+        .create(SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -310,11 +315,12 @@ def main():
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.ecdsa_secp256r1_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
+        .create(SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -353,11 +359,12 @@ def main():
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.ecdsa_secp256r1_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
+        .create(SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
