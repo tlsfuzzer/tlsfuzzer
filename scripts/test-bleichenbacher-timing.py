@@ -29,7 +29,7 @@ from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.helpers import SIG_ALL, RSA_PKCS1_ALL
 
 
-version = 9
+version = 10
 
 
 def help_msg():
@@ -788,6 +788,32 @@ def main():
 
     conversations["very low Hamming weight RSA plaintext"] = conversation
 
+    # low Hamming weight:
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [cipher]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=cln_extensions))
+    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1: 1},
+                                                     padding_byte=1,
+                                                     client_version=(1, 1),
+                                                     premaster_secret=
+                                                     bytearray([1]*48)))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(level,
+                                      alert))
+    node.add_child(ExpectClose())
+
+    conversations["low Hamming weight RSA plaintext"] = conversation
+
     # test for Hamming weight sensitivity:
     # very high Hamming weight:
     conversation = Connect(host, port)
@@ -967,7 +993,9 @@ place where the timing leak happens:
     are all zero bytes
   - 'very high Hamming weight RSA plaintext' - padding, padding separator, TLS
     version and PMS are all 0xff bytes
-  - 'use PKCS#1 padding type 1' - here the padding will be all 0xff bytes""")
+  - 'use PKCS#1 padding type 1' - here the padding will be all 0xff bytes
+  - 'low Hamming weight RSA plaintext' - padding, padding separator, TLS
+    version and PMS are all 0x01 bytes""")
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
