@@ -261,9 +261,9 @@ def main():
     node = node.add_child(cycle)
     node.add_child(cycle)
 
-    node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                      AlertDescription.unexpected_message))
-    node = node.add_child(ExpectClose())
+    node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                    AlertDescription.unexpected_message)
+    node.next_sibling.add_child(ExpectClose())
 
     conversations["zero content type during handshake"] = conversation
 
@@ -303,9 +303,9 @@ def main():
     node = node.add_child(cycle)
     node.add_child(cycle)
 
-    node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                      AlertDescription.unexpected_message))
-    node = node.add_child(ExpectClose())
+    node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                    AlertDescription.unexpected_message)
+    node.next_sibling.add_child(ExpectClose())
 
     conversations["zero content type with padding during handshake"] = conversation
 
