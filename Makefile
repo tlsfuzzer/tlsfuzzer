@@ -1,5 +1,6 @@
 .PHONY : default
 PYTHON=$(or $(shell which python3),$(shell which python))
+EXPECTED_SIZE=$(shell $(PYTHON) -c 'import sys; print(1845 + len(sys.version.split()[0]))')
 default:
 	@echo "To install run \"./setup.py install\" or \"make install\""
 	@echo "To test sanity of code run \"make test\""
@@ -34,4 +35,4 @@ test: docs
 
 test-scripts:
 	"$(PYTHON)" tests/verify-scripts-json.py tests/tlslite-ng.json tests/tlslite-ng-random-subset.json
-	"$(PYTHON)" tests/scripts_retention.py tests/tlslite-ng.json ../tlslite-ng/scripts/tls.py 1850
+	"$(PYTHON)" tests/scripts_retention.py tests/tlslite-ng.json ../tlslite-ng/scripts/tls.py $(EXPECTED_SIZE)
