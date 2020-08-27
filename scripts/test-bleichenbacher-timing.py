@@ -1018,8 +1018,10 @@ place where the timing leak happens:
     elif timing:
         # if regular tests passed, run timing collection and analysis
         if TimingRunner.check_tcpdump():
-            timing_runner = TimingRunner("{0}_{1}".format(sys.argv[0],
-                                                          CipherSuite.ietfNames[cipher]),
+            timing_runner = TimingRunner("{0}_v{1}_{2}".format(
+                                            sys.argv[0],
+                                            version,
+                                            CipherSuite.ietfNames[cipher]),
                                          sampled_tests,
                                          outdir,
                                          host,

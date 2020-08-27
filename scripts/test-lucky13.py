@@ -446,9 +446,11 @@ def main():
         elif timing:
             # if regular tests passed, run timing collection and analysis
             if TimingRunner.check_tcpdump():
-                timing_runner = TimingRunner("{0}_{1}_{2}".format(sys.argv[0],
-                                                                  group_name,
-                                                                  CipherSuite.ietfNames[cipher]),
+                timing_runner = TimingRunner("{0}_v{1}_{2}_{3}".format(
+                                                sys.argv[0],
+                                                version,
+                                                group_name,
+                                                CipherSuite.ietfNames[cipher]),
                                              sampled_tests,
                                              outdir,
                                              host,
