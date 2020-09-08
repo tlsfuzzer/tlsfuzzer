@@ -14,7 +14,7 @@ import sys
 
 failed_import = False
 try:
-    from tlsfuzzer.analysis import Analysis, main, TestPair, help_msg
+    from tlsfuzzer.analysis import Analysis, main, TestPair, help_msg, _DATA
     import pandas as pd
     import numpy as np
 except ImportError:
@@ -99,6 +99,14 @@ class TestReport(unittest.TestCase):
             self.assertEqual(len(res), 3)
             for index, result in res.items():
                 self.assertGreaterEqual(result, 0.25)
+
+    def test__wilcox_test(self):
+        with mock.patch("tlsfuzzer.analysis._DATA", self.neq_data):
+
+            ret = Analysis._wilcox_test((0, 1))
+            pair, pval = ret
+            self.assertEqual(pair, (0, 1))
+            self.assertGreaterEqual(0.05, pval)
 
     def test_box_test(self):
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):

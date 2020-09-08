@@ -32,6 +32,7 @@ mpl.use('Agg')
 
 
 _diffs = None
+_DATA = None
 
 
 def help_msg():
@@ -216,15 +217,33 @@ class Analysis(object):
             results[TestPair(index1, index2)] = result
         return results
 
+    @staticmethod
+    def _wilcox_test(pair):
+        # we're using global variable so that the data shared between
+        # worker threads isn't serialised and deserialised over and over again
+        # pylint: disable=global-statement
+        global _DATA
+        # pylint: enable=global-statement
+        index1, index2 = pair
+        data1 = _DATA.iloc[:, index1]
+        data2 = _DATA.iloc[:, index2]
+        _, pval = stats.wilcoxon(data1, data2)
+        return pair, pval
+
     def wilcoxon_test(self):
         """Cross-test all classes with the Wilcoxon signed-rank test"""
-        results = {}
-        comb = combinations(list(range(len(self.class_names))), 2)
-        for index1, index2 in comb:
-            data1 = self.data.iloc[:, index1]
-            data2 = self.data.iloc[:, index2]
-            _, pval = stats.wilcoxon(data1, data2)
-            results[TestPair(index1, index2)] = pval
+        comb = list(combinations(list(range(len(self.class_names))), 2))
+        # we're using global variable so that the data shared between
+        # worker threads isn't serialised and deserialised over and over again
+        # pylint: disable=global-statement
+        global _DATA
+        # pylint: enable=global-statement
+        _DATA = self.data
+        job_size = max(len(comb) // os.cpu_count(), 1)
+        with mp.Pool() as pool:
+            pvals = list(pool.imap_unordered(self._wilcox_test, comb,
+                                             job_size))
+        results = dict(pvals)
         return results
 
     def _calc_percentiles(self):
