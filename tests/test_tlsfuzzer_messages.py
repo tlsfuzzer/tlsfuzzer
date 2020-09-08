@@ -3419,6 +3419,15 @@ class TestFuzzPKCS1Padding(unittest.TestCase):
         self.assertEqual(len(data), len(expected))
         self.assertEqual(data, expected)
 
+    def test_with_padding_byte(self):
+        fuzz_pkcs1_padding(self.key, substitutions={1:2}, padding_byte=0xaa)
+        for_signing = bytearray(range(5, 21))
+        data = self.key._addPKCS1Padding(for_signing, 2)
+
+        expected = bytearray([0, 2] + [0xaa] * 109 + [0x00] + list(range(5, 21)))
+        self.assertEqual(len(data), len(expected))
+        self.assertEqual(data, expected)
+
 
 class TestReplacePlaintext(unittest.TestCase):
     def test_replace(self):
