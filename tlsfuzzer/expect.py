@@ -935,6 +935,8 @@ class ExpectCertificate(ExpectHandshake):
         super(ExpectCertificate, self).__init__(ContentType.handshake,
                                                 HandshakeType.certificate)
         self.cert_type = cert_type
+        self._old_cert = None
+        self._old_cert_bytes = None
 
     def process(self, state, msg):
         """
@@ -942,15 +944,22 @@ class ExpectCertificate(ExpectHandshake):
         """
         assert msg.contentType == ContentType.handshake
 
-        parser = Parser(msg.write())
-        hs_type = parser.get(1)
-        assert hs_type == HandshakeType.certificate
+        msg_bytes = msg.write()
+        if self._old_cert_bytes is not None and \
+                msg_bytes == self._old_cert_bytes:
+            cert = self._old_cert
+        else:
+            parser = Parser(msg_bytes)
+            hs_type = parser.get(1)
+            assert hs_type == HandshakeType.certificate
 
-        cert = Certificate(self.cert_type, state.version)
-        cert.parse(parser)
+            cert = Certificate(self.cert_type, state.version)
+            cert.parse(parser)
+            self._old_cert_bytes = msg_bytes
+            self._old_cert = cert
 
         state.handshake_messages.append(cert)
-        state.handshake_hashes.update(msg.write())
+        state.handshake_hashes.update(msg_bytes)
 
 
 class ExpectCertificateVerify(ExpectHandshake):
