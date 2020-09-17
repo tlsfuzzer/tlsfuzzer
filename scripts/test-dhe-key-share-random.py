@@ -242,7 +242,8 @@ def main():
                         bad += 1
                         failed.append(c_name)
 
-    failed_tests = uniqueness_check(variables_check, good + bad)
+    failed_tests = uniqueness_check(variables_check, good + bad + xfail +
+                                                     xpass)
     if failed_tests:
         print("\n".join(failed_tests))
     else:
