@@ -298,6 +298,33 @@ class Analysis(object):
         canvas.print_figure(join(self.output, "scatter_plot.png"),
                             bbox_inches="tight")
 
+    def diff_scatter_plot(self):
+        """Generate scatter plot showing differences between samples."""
+        if not self.draw_scatter_plot:
+            return None
+        fig = Figure(figsize=(16, 12))
+        canvas = FigureCanvas(fig)
+        ax = fig.add_subplot(1, 1, 1)
+
+        classnames = iter(self.data)
+        base = next(classnames)
+        base_data = self.data.loc[:, base]
+
+        data = pd.DataFrame()
+        for ctr, name in enumerate(classnames, start=1):
+            diff = self.data.loc[:, name] - base_data
+            data["{0}-0".format(ctr)] = diff
+
+        ax.plot(data, ".", fillstyle='none', alpha=0.6)
+
+        ax.set_title("Scatter plot of class differences")
+        ax.set_ylabel("Time [s]")
+        ax.set_xlabel("Sample index")
+        ax.set_ylim(np.quantile(data, [0.01, 0.99]))
+        ax.legend(data, ncol=6, loc='upper center', bbox_to_anchor=(0.5, -0.15))
+        canvas.print_figure(join(self.output, "diff_scatter_plot.png"),
+                            bbox_inches="tight")
+
     def ecdf_plot(self):
         """Generate ECDF plot comparing distributions of the test classes."""
         if not self.draw_ecdf_plot:
@@ -574,6 +601,11 @@ class Analysis(object):
         if proc.exitcode != 0:
             raise Exception("graph generation failed")
         proc = mp.Process(target=self.diff_ecdf_plot)
+        proc.start()
+        proc.join()
+        if proc.exitcode != 0:
+            raise Exception("graph generation failed")
+        proc = mp.Process(target=self.diff_scatter_plot)
         proc.start()
         proc.join()
         if proc.exitcode != 0:
