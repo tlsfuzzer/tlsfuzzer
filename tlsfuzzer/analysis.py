@@ -325,6 +325,9 @@ class Analysis(object):
         self.make_legend(ax)
         canvas.print_figure(join(self.output, "scatter_plot.png"),
                             bbox_inches="tight")
+        ax.set_ylim(np.quantile(self.data, [0.005, 0.95]))
+        canvas.print_figure(join(self.output, "scatter_plot_zoom_in.png"),
+                            bbox_inches="tight")
 
     def diff_scatter_plot(self):
         """Generate scatter plot showing differences between samples."""
@@ -370,6 +373,9 @@ class Analysis(object):
         ax.set_xlabel("Time [s]")
         ax.set_ylabel("Cumulative probability")
         canvas.print_figure(join(self.output, "ecdf_plot.png"),
+                            bbox_inches="tight")
+        ax.set_xlim(np.quantile(self.data, [0.01, 0.95]))
+        canvas.print_figure(join(self.output, "ecdf_plot_zoom_in.png"),
                             bbox_inches="tight")
 
     def diff_ecdf_plot(self):

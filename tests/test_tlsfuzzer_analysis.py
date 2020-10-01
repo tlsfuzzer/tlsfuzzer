@@ -357,7 +357,9 @@ class TestPlots(unittest.TestCase):
         with mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure",
                         mock.Mock()) as mock_save:
             self.analysis.ecdf_plot()
-            mock_save.assert_called_once()
+            self.assertEqual(mock_save.call_args_list,
+                [mock.call('/tmp/ecdf_plot.png', bbox_inches='tight'),
+                 mock.call('/tmp/ecdf_plot_zoom_in.png', bbox_inches='tight')])
 
     def test_diff_ecdf_plot(self):
         with mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure",
@@ -369,7 +371,10 @@ class TestPlots(unittest.TestCase):
         with mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure",
                         mock.Mock()) as mock_save:
             self.analysis.scatter_plot()
-            mock_save.assert_called_once()
+            self.assertEqual(mock_save.call_args_list,
+                [mock.call('/tmp/scatter_plot.png', bbox_inches='tight'),
+                 mock.call('/tmp/scatter_plot_zoom_in.png',
+                           bbox_inches='tight')])
 
     def test_diff_scatter_plot(self):
         with mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure",
