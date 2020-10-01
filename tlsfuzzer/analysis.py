@@ -326,6 +326,34 @@ class Analysis(object):
         canvas.print_figure(join(self.output, "scatter_plot.png"),
                             bbox_inches="tight")
 
+    def diff_scatter_plot(self):
+        """Generate scatter plot showing differences between samples."""
+        if not self.draw_scatter_plot:
+            return
+        fig = Figure(figsize=(16, 12))
+        canvas = FigureCanvas(fig)
+        axes = fig.add_subplot(1, 1, 1)
+
+        classnames = iter(self.data)
+        base = next(classnames)
+        base_data = self.data.loc[:, base]
+
+        data = pd.DataFrame()
+        for ctr, name in enumerate(classnames, start=1):
+            diff = self.data.loc[:, name] - base_data
+            data["{0}-0".format(ctr)] = diff
+
+        axes.plot(data, ".", fillstyle='none', alpha=0.6)
+
+        axes.set_title("Scatter plot of class differences")
+        axes.set_ylabel("Time [s]")
+        axes.set_xlabel("Sample index")
+        axes.set_ylim(np.quantile(data, [0.01, 0.99]))
+        axes.legend(data, ncol=6, loc='upper center',
+                    bbox_to_anchor=(0.5, -0.15))
+        canvas.print_figure(join(self.output, "diff_scatter_plot.png"),
+                            bbox_inches="tight")
+
     def ecdf_plot(self):
         """Generate ECDF plot comparing distributions of the test classes."""
         if not self.draw_ecdf_plot:
@@ -639,6 +667,10 @@ class Analysis(object):
         processes.append(
             self._start_thread(self.diff_ecdf_plot,
                                "Generation of ECDF graph of differences "
+                               "failed"))
+        processes.append(
+            self._start_thread(self.diff_scatter_plot,
+                               "Generation of scatter plot of differences "
                                "failed"))
 
         self._write_legend()
