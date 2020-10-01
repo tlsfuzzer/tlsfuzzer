@@ -316,6 +316,41 @@ class Analysis(object):
         canvas.print_figure(join(self.output, "ecdf_plot.png"),
                             bbox_inches="tight")
 
+    def diff_ecdf_plot(self):
+        """Generate ECDF plot of differences between test classes."""
+        if not self.draw_ecdf_plot:
+            return None
+        fig = Figure(figsize=(16, 12))
+        canvas = FigureCanvas(fig)
+        ax = fig.add_subplot(1, 1, 1)
+        classnames = iter(self.data)
+        base = next(classnames)
+        base_data = self.data.loc[:, base]
+
+        low_end, high_end = np.quantile(base_data, [0.01, 0.99])
+
+        for classname in classnames:
+            data = self.data.loc[:, classname]
+            levels = np.linspace(1. / len(data), 1, len(data))
+            values = sorted(data-base_data)
+            ax.step(values, levels, where='post')
+            new_low_end, new_high_end = np.quantile(values, [0.01, 0.99])
+            low_end = min(low_end, new_low_end)
+            high_end = max(high_end, new_high_end)
+
+        fig.legend(list("{0}-0".format(i)
+                   for i in range(1, len(list(self.data)))),
+                   ncol=6,
+                   loc='upper center',
+                   bbox_to_anchor=(0.5, -0.05))
+        ax.set_title("Empirical Cumulative Distribution Function of "
+                     "class differences")
+        ax.set_xlabel("Time [s]")
+        ax.set_ylabel("Cumulative probability")
+        ax.set_xlim([low_end, high_end])
+        canvas.print_figure(join(self.output, "diff_ecdf_plot.png"),
+                            bbox_inches="tight")
+
     def make_legend(self, fig):
         """Generate common legend for plots that need it."""
         header = list(range(len(list(self.data))))
@@ -534,6 +569,11 @@ class Analysis(object):
         if proc.exitcode != 0:
             raise Exception("graph generation failed")
         proc = mp.Process(target=self.ecdf_plot)
+        proc.start()
+        proc.join()
+        if proc.exitcode != 0:
+            raise Exception("graph generation failed")
+        proc = mp.Process(target=self.diff_ecdf_plot)
         proc.start()
         proc.join()
         if proc.exitcode != 0:
