@@ -389,16 +389,20 @@ class Analysis(object):
         base = next(classnames)
         base_data = self.data.loc[:, base]
 
-        low_end, high_end = np.quantile(base_data, [0.01, 0.99])
+        low_end, high_end = float("inf"), float("-inf")
+        zoom_low_end, zoom_high_end = float("inf"), float("-inf")
 
         for classname in classnames:
             data = self.data.loc[:, classname]
             levels = np.linspace(1. / len(data), 1, len(data))
             values = sorted(data-base_data)
             axes.step(values, levels, where='post')
-            new_low_end, new_high_end = np.quantile(values, [0.01, 0.99])
+            new_low_end, new_zoom_low_end, new_zoom_high_end, new_high_end = \
+                np.quantile(values, [0.01, 0.33, 0.66, 0.99])
+            zoom_low_end = min(zoom_low_end, new_zoom_low_end)
             low_end = min(low_end, new_low_end)
             high_end = max(high_end, new_high_end)
+            zoom_high_end = max(zoom_high_end, new_zoom_high_end)
 
         fig.legend(list("{0}-0".format(i)
                         for i in range(1, len(list(self.data)))),
@@ -410,7 +414,13 @@ class Analysis(object):
         axes.set_xlabel("Time [s]")
         axes.set_ylabel("Cumulative probability")
         axes.set_xlim([low_end, high_end])
+        formatter = mpl.ticker.EngFormatter('s')
+        axes.get_xaxis().set_major_formatter(formatter)
         canvas.print_figure(join(self.output, "diff_ecdf_plot.png"),
+                            bbox_inches="tight")
+        axes.set_xlim([zoom_low_end, zoom_high_end])
+        axes.set_ylim([0.33, 0.66])
+        canvas.print_figure(join(self.output, "diff_ecdf_plot_zoom_in.png"),
                             bbox_inches="tight")
 
     def make_legend(self, fig):
