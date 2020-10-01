@@ -397,7 +397,7 @@ class Analysis(object):
         fig = Figure(figsize=(16, 12))
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(1, 1, 1)
-        ax.violinplot(data.T, widths=0.7, showmeans=True, showextrema=True)
+        ax.violinplot(data, widths=0.7, showmeans=True, showextrema=True)
         ax.set_xticks(list(range(len(data.columns)+1)))
         ax.set_xticklabels([' '] + list(data.columns))
         formatter = mpl.ticker.EngFormatter('s')
