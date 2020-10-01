@@ -344,6 +344,41 @@ class Analysis(object):
         canvas.print_figure(join(self.output, "ecdf_plot.png"),
                             bbox_inches="tight")
 
+    def diff_ecdf_plot(self):
+        """Generate ECDF plot of differences between test classes."""
+        if not self.draw_ecdf_plot:
+            return
+        fig = Figure(figsize=(16, 12))
+        canvas = FigureCanvas(fig)
+        axes = fig.add_subplot(1, 1, 1)
+        classnames = iter(self.data)
+        base = next(classnames)
+        base_data = self.data.loc[:, base]
+
+        low_end, high_end = np.quantile(base_data, [0.01, 0.99])
+
+        for classname in classnames:
+            data = self.data.loc[:, classname]
+            levels = np.linspace(1. / len(data), 1, len(data))
+            values = sorted(data-base_data)
+            axes.step(values, levels, where='post')
+            new_low_end, new_high_end = np.quantile(values, [0.01, 0.99])
+            low_end = min(low_end, new_low_end)
+            high_end = max(high_end, new_high_end)
+
+        fig.legend(list("{0}-0".format(i)
+                        for i in range(1, len(list(self.data)))),
+                   ncol=6,
+                   loc='upper center',
+                   bbox_to_anchor=(0.5, -0.05))
+        axes.set_title("Empirical Cumulative Distribution Function of "
+                       "class differences")
+        axes.set_xlabel("Time [s]")
+        axes.set_ylabel("Cumulative probability")
+        axes.set_xlim([low_end, high_end])
+        canvas.print_figure(join(self.output, "diff_ecdf_plot.png"),
+                            bbox_inches="tight")
+
     def make_legend(self, fig):
         """Generate common legend for plots that need it."""
         header = list(range(len(list(self.data))))
@@ -601,6 +636,10 @@ class Analysis(object):
         processes.append(
             self._start_thread(self.conf_interval_plot,
                                "Conf interval graph generation failed"))
+        processes.append(
+            self._start_thread(self.diff_ecdf_plot,
+                               "Generation of ECDF graph of differences "
+                               "failed"))
 
         self._write_legend()
 
