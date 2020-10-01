@@ -488,6 +488,11 @@ class Analysis(object):
         return [mean_quant[0], mean, mean_quant[1],
                 median_quant[0], median, median_quant[1]]
 
+    def median_difference(self, pair):
+        """Calculate median difference between samples."""
+        diffs = self.data.iloc[:, pair.index1] - self.data.iloc[:, pair.index2]
+        return abs(np.median(diffs))
+
     def conf_interval_plot(self):
         """Generate the confidence inteval for differences between samples."""
         if not self.draw_conf_interval_plot:
@@ -537,6 +542,7 @@ class Analysis(object):
                              "Wilcoxon signed-rank test"])
             worst_pair = None
             worst_p = None
+            worst_median_difference = None
             for pair, result in box_results.items():
                 index1 = pair.index1
                 index2 = pair.index2
@@ -559,6 +565,7 @@ class Analysis(object):
                     difference = 1
 
                 wilcox_p = wilcox_results[pair]
+                median_difference = self.median_difference(pair)
                 row = [self.class_names[index1],
                        self.class_names[index2],
                        box_write,
@@ -568,9 +575,12 @@ class Analysis(object):
 
                 p_vals.append(wilcox_p)
 
-                if worst_pair is None or wilcox_p < worst_p:
+                if worst_pair is None or wilcox_p < worst_p or \
+                        worst_median_difference is None or \
+                        worst_median_difference < median_difference:
                     worst_pair = pair
                     worst_p = wilcox_p
+                    worst_median_difference = median_difference
 
         return difference, p_vals, worst_pair, worst_p
 
