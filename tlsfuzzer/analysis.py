@@ -227,6 +227,17 @@ class Analysis(object):
             results[TestPair(index1, index2)] = pval
         return results
 
+    def friedman_test(self):
+        """
+        Test all classes using Friedman chi-square test.
+
+        Note, as the scipy stats package uses a chisquare approximation, the
+        test results are valid only when we have more than 10 samples.
+        """
+        _, pval = stats.friedmanchisquare(
+            *(self.data.iloc[:, i] for i in range(len(self.class_names))))
+        return pval
+
     def _calc_percentiles(self):
         try:
             quantiles_file_name = join(self.output, ".quantiles.tmp")
@@ -558,7 +569,8 @@ class Analysis(object):
             for num, name in enumerate(self.class_names):
                 writer.writerow([num, name])
 
-    def _write_summary(self, difference, p_vals, worst_pair, worst_p):
+    def _write_summary(self, difference, p_vals, worst_pair, worst_p,
+            friedman_p):
         """Write the report.txt file and print summary."""
         report_filename = join(self.output, "report.csv")
         text_report_filename = join(self.output, "report.txt")
@@ -574,8 +586,19 @@ class Analysis(object):
             print(txt)
             txt_file.write(txt)
             txt_file.write('\n')
-
             if p < 0.05:
+                difference = 1
+
+            txt = "Friedman test (chisquare approximation) for all samples"
+            print(txt)
+            txt_file.write(txt)
+            txt_file.write('\n')
+
+            txt = "p-value: {}".format(friedman_p)
+            print(txt)
+            txt_file.write(txt)
+            txt_file.write('\n')
+            if friedman_p < 0.05:
                 difference = 1
 
             txt = "Worst pair: {}({}), {}({})".format(
@@ -643,11 +666,13 @@ class Analysis(object):
             raise Exception("graph generation failed")
         self._write_legend()
 
+        friedman_result = self.friedman_test()
+
         difference, p_vals, worst_pair, worst_p = \
             self._write_individual_results()
 
         difference = self._write_summary(difference, p_vals, worst_pair,
-                                         worst_p)
+                                         worst_p, friedman_result)
 
         return difference
 
