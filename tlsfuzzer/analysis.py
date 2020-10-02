@@ -556,6 +556,29 @@ class Analysis(object):
             txt_file.write('\n')
         return difference
 
+    def _start_thread(self, method, err_desc):
+        """Start a thread, wait for end with self.multithreaded_graph set."""
+        proc = mp.Process(target=method)
+        proc.start()
+        if not self.multithreaded_graph:
+            self._stop_thread(proc, err_desc)
+        return (proc, err_desc)
+
+    @staticmethod
+    def _stop_thread(proc, err_desc):
+        """Wait for thread completion, raise Exception on error."""
+        proc.join()
+        if proc.exitcode != 0:
+            raise Exception(err_desc)
+
+    def _stop_all_threads(self, threads):
+        """Wait for completion of threads, raise Exception on error."""
+        if not self.multithreaded_graph:
+            return
+
+        for proc, err_desc in threads:
+            self._stop_thread(proc, err_desc)
+
     def generate_report(self):
         """
         Compiles a report consisting of statistical tests and plots.
@@ -564,30 +587,19 @@ class Analysis(object):
         """
         # plot in separate processes so that the matplotlib memory leaks are
         # not cumulative, see https://stackoverflow.com/q/28516828/462370
-        proc1 = mp.Process(target=self.box_plot)
-        proc1.start()
-        if not self.multithreaded_graph:
-            proc1.join()
-            if proc1.exitcode != 0:
-                raise Exception("Box plot graph generation failed")
-        proc2 = mp.Process(target=self.scatter_plot)
-        proc2.start()
-        if not self.multithreaded_graph:
-            proc2.join()
-            if proc2.exitcode != 0:
-                raise Exception("Scatter plot graph generation failed")
-        proc3 = mp.Process(target=self.ecdf_plot)
-        proc3.start()
-        if not self.multithreaded_graph:
-            proc3.join()
-            if proc3.exitcode != 0:
-                raise Exception("ECDF graph generation failed")
-        proc4 = mp.Process(target=self.conf_interval_plot)
-        proc4.start()
-        if not self.multithreaded_graph:
-            proc4.join()
-            if proc4.exitcode != 0:
-                raise Exception("Conf interval graph generation failed")
+        processes = []
+        processes.append(
+            self._start_thread(self.box_plot,
+                               "Box plot graph generation failed"))
+        processes.append(
+            self._start_thread(self.scatter_plot,
+                               "Scatter plot graph generation failed"))
+        processes.append(
+            self._start_thread(self.ecdf_plot,
+                               "ECDF graph generation failed"))
+        processes.append(
+            self._start_thread(self.conf_interval_plot,
+                               "Conf interval graph generation failed"))
 
         self._write_legend()
 
@@ -597,19 +609,7 @@ class Analysis(object):
         difference = self._write_summary(difference, p_vals, worst_pair,
                                          worst_p)
 
-        if self.multithreaded_graph:
-            proc1.join()
-            if proc1.exitcode != 0:
-                raise Exception("Box plot graph generation failed")
-            proc2.join()
-            if proc2.exitcode != 0:
-                raise Exception("Scatter plot graph generation failed")
-            proc3.join()
-            if proc3.exitcode != 0:
-                raise Exception("ECDF graph generation failed")
-            proc4.join()
-            if proc4.exitcode != 0:
-                raise Exception("Conf interval graph generation failed")
+        self._stop_all_threads(processes)
 
         return difference
 
