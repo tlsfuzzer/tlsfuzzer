@@ -154,7 +154,8 @@ class TestReport(unittest.TestCase):
                 vals = analysis._mean_of_random_sample(10)
 
                 self.assertEqual(len(vals), 10)
-                avg = sum(vals)/len(vals)
+                means = [i for i, _ in vals]
+                avg = sum(means)/len(means)
                 self.assertLessEqual(avg, 8)
                 self.assertLessEqual(2, avg)
 

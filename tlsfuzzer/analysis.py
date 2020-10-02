@@ -346,14 +346,14 @@ class Analysis(object):
 
     @staticmethod
     def _mean_of_random_sample(reps=100):
-        """Calculate a mean with a single instance of bootstrapping."""
+        """Calculate mean and median with bootstrapping."""
         ret = []
         global _diffs
         diffs = _diffs
 
         for _ in range(reps):
             boot = np.random.choice(diffs, replace=True, size=len(diffs))
-            ret.append(np.mean(boot, 0))
+            ret.append((np.mean(boot, 0), np.median(boot, 0)))
         return ret
 
     def _bootstrap_differences(self, pair, reps=5000):
@@ -387,11 +387,17 @@ class Analysis(object):
             mean of differences of observations
         """
         cent_tend = self._bootstrap_differences(pair, reps)
-        mean = np.mean(self.data.iloc[:, pair.index1] -
-                       self.data.iloc[:, pair.index2])
+        mean_values = [i for i, _ in cent_tend]
+        median_values = [i for _, i in cent_tend]
+        diff = self.data.iloc[:, pair.index1] - self.data.iloc[:, pair.index2]
+        mean = np.mean(diff)
+        median = np.median(diff)
 
-        quant = np.quantile(cent_tend, [(1-ci)/2, 1-(1-ci)/2])
-        return [quant[0], mean, quant[1]]
+        mean_quant = np.quantile(mean_values, [(1-ci)/2, 1-(1-ci)/2])
+        median_quant = np.quantile(median_values, [(1-ci)/2, 1-(1-ci)/2])
+
+        return [mean_quant[0], mean, mean_quant[1],
+                median_quant[0], median, median_quant[1]]
 
     def conf_interval_plot(self):
         """Generate the confidence inteval for differences between samples."""
@@ -404,6 +410,7 @@ class Analysis(object):
         for i in range(1, len(self.class_names)):
             pair = TestPair(i, 0)
             diffs = self._bootstrap_differences(pair, reps)
+            diffs = [i for i, _ in diffs]
             data['{}-0'.format(i)] = diffs
 
         with open(join(self.output, "bootstrapped_means.csv"), "w") as f:
@@ -516,12 +523,20 @@ class Analysis(object):
             txt_file.write(txt)
             txt_file.write('\n')
 
-            low, med, high = self.calc_diff_conf_int(worst_pair)
+            low_mean, mean, high_mean, low_median, median, high_median = \
+                self.calc_diff_conf_int(worst_pair)
             # use 95% CI as that translates to 2 standard deviations, making
             # it easy to estimate higher CIs
             txt = "Mean difference: {:.5e}s, 95% CI: {:.5e}s, {:.5e}s"\
                 " (±{:.3e}s)".\
-                format(med, low, high, (high-low)/2)
+                format(mean, low_mean, high_mean, (high_mean-low_mean)/2)
+            print(txt)
+            txt_file.write(txt)
+            txt_file.write('\n')
+            txt = "Median difference: {:.5e}s, 95% CI: {:.5e}s, {:.5e}s"\
+                " (±{:.3e}s)".\
+                format(median, low_median, high_median,
+                       (high_median-low_median)/2)
             print(txt)
             txt_file.write(txt)
             txt_file.write('\n')
