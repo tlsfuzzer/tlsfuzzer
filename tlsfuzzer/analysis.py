@@ -402,8 +402,9 @@ class Analysis(object):
         mean = np.mean(diff)
         median = np.median(diff)
 
-        mean_quant = np.quantile(mean_values, [(1-ci)/2, 1-(1-ci)/2])
-        median_quant = np.quantile(median_values, [(1-ci)/2, 1-(1-ci)/2])
+        quantiles = [(1-ci)/2, 1-(1-ci)/2]
+        mean_quant = np.quantile(mean_values, quantiles)
+        median_quant = np.quantile(median_values, quantiles)
 
         return [mean_quant[0], mean, mean_quant[1],
                 median_quant[0], median, median_quant[1]]
