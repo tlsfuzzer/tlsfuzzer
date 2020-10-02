@@ -255,6 +255,23 @@ class Analysis(object):
         results = dict(pvals)
         return results
 
+    def sign_test(self, med=0.0):
+        """
+        Cross-test all classes using the sign test.
+
+        med: expected median value
+        """
+        results = {}
+        comb = combinations(list(range(len(self.class_names))), 2)
+        for index1, index2, in comb:
+            data1 = self.data.iloc[:, index1]
+            data2 = self.data.iloc[:, index2]
+
+            diff = data2 - data1
+            pval = stats.binom_test([sum(diff < med), sum(diff > med)], p=0.5)
+            results[TestPair(index1, index2)] = pval
+        return results
+
     def friedman_test(self):
         """
         Test all classes using Friedman chi-square test.
@@ -544,13 +561,15 @@ class Analysis(object):
         # create a report with statistical tests
         box_results = self.box_test()
         wilcox_results = self.wilcoxon_test()
+        sign_results = self.sign_test()
 
         report_filename = join(self.output, "report.csv")
         p_vals = []
+        sign_p_vals = []
         with open(report_filename, 'w') as file:
             writer = csv.writer(file)
             writer.writerow(["Class 1", "Class 2", "Box test",
-                             "Wilcoxon signed-rank test"])
+                             "Wilcoxon signed-rank test", "Sign test"])
             worst_pair = None
             worst_p = None
             worst_median_difference = None
@@ -570,21 +589,27 @@ class Analysis(object):
                                                                     index2))
                 print("Wilcoxon signed-rank test {} vs {}: {}"
                       .format(index1, index2, wilcox_results[pair]))
-                # if both tests found a difference
+                print("Sign test {} vs {}: {}"
+                      .format(index1, index2, sign_results[pair]))
+                # if both tests or the sign test found a difference
                 # consider it a possible side-channel
-                if result and wilcox_results[pair] < 0.05:
+                if result and wilcox_results[pair] < 0.05 or \
+                        sign_results[pair] < 0.05:
                     difference = 1
 
                 wilcox_p = wilcox_results[pair]
+                sign_p = sign_results[pair]
                 median_difference = self.median_difference(pair)
                 row = [self.class_names[index1],
                        self.class_names[index2],
                        box_write,
-                       wilcox_p
+                       wilcox_p,
+                       sign_p
                        ]
                 writer.writerow(row)
 
                 p_vals.append(wilcox_p)
+                sign_p_vals.append(sign_p)
 
                 if worst_pair is None or wilcox_p < worst_p or \
                         worst_median_difference is None or \
@@ -593,7 +618,7 @@ class Analysis(object):
                     worst_p = wilcox_p
                     worst_median_difference = median_difference
 
-        return difference, p_vals, worst_pair, worst_p
+        return difference, p_vals, sign_p_vals, worst_pair, worst_p
 
     def _write_legend(self):
         """Write the legend.csv file."""
@@ -604,8 +629,8 @@ class Analysis(object):
             for num, name in enumerate(self.class_names):
                 writer.writerow([num, name])
 
-    def _write_summary(self, difference, p_vals, worst_pair, worst_p,
-            friedman_p):
+    def _write_summary(self, difference, p_vals, sign_p_vals, worst_pair,
+                       worst_p, friedman_p):
         """Write the report.txt file and print summary."""
         report_filename = join(self.output, "report.csv")
         text_report_filename = join(self.output, "report.txt")
@@ -622,6 +647,28 @@ class Analysis(object):
             txt_file.write(txt)
             txt_file.write('\n')
             if p < 0.05:
+                difference = 1
+
+            _, p = stats.kstest(sign_p_vals, 'uniform')
+            txt = "KS-test for uniformity of p-values from sign test "
+            print(txt)
+            txt_file.write(txt)
+            txt_file.write('\n')
+
+            txt = "p-value: {}".format(p)
+            print(txt)
+            txt_file.write(txt)
+            txt_file.write('\n')
+
+            txt = ("Sign test mean p-value: {}, median p-value: {}"
+                   .format(np.mean(sign_p_vals), np.median(sign_p_vals)))
+            print(txt)
+            txt_file.write(txt)
+            txt_file.write('\n')
+
+            # fail the overall test only when p-values from sign test
+            # are not uniform AND are skewed to the left
+            if p < 0.05 and np.mean(sign_p_vals) < 0.5:
                 difference = 1
 
             txt = "Friedman test (chisquare approximation) for all samples"
@@ -726,10 +773,11 @@ class Analysis(object):
 
         friedman_result = self.friedman_test()
 
-        difference, p_vals, worst_pair, worst_p = \
+        difference, p_vals, sign_p_vals, worst_pair, worst_p = \
             self._write_individual_results()
 
-        difference = self._write_summary(difference, p_vals, worst_pair,
+        difference = self._write_summary(difference, p_vals, sign_p_vals,
+                                         worst_pair,
                                          worst_p, friedman_result)
 
         self._stop_all_threads(processes)
