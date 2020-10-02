@@ -99,7 +99,7 @@ And the general requirements to collect and analyse timing results:
    Because the tests use packet capture to collect timing information and
    they buffer the messages until all of them have been created, the use
    of ``m2crypto``, ``gmpy`` and ``gmpy2`` does not have an effect on collected
-   data point, using them will only make tlsfuzzer run the tests at a higher
+   data points, using them will only make tlsfuzzer run the tests at a higher
    frequency.
 
 Testing theory
@@ -122,7 +122,7 @@ The one used in the scripts is called
 <https://en.wikipedia.org/wiki/Wilcoxon_signed-rank_test>`_.
 After executing it against two sets of observations (samples), it outputs
 a "p-value"—a probability of getting such samples, if they were taken from
-populations having the same distribution.
+the same population.
 A high p-value (close to 1) means that the samples likely came from the
 same source while a small value (close to 0, smaller than 0.05) means
 that it's unlikely that they came from the same source distribution.
@@ -159,6 +159,9 @@ That is, to detect a 0.1% difference between expected values of samples, the
 samples must have at least 1000 observations each.
 The actual number depends on multiple factors (including the particular
 samples in question), but it's a good starting point.
+Also, it means that if you wish to decrease the reported confidence interval
+by a factor of 10, you must execute the script with 100 times as many
+repetitions (as 10²=100).
 
 Note that this effect size is proportional to magnitude of any single
 observation, at the same time things like size of pre master secret
@@ -356,8 +359,8 @@ a self check on the results of those tests.
 If that self test fails, you should inspect the individual test p-values.
 
 If one particular set of tests consistently scores low when compared to
-other tests (e.g. "invalid MAC in Finished on pos 0",
-"invalid MAC in Finished on pos -1" and "invalid padding_length in Finished"
+other tests (e.g. "very long (96-byte) pre master secret" and
+"very long (124-byte) pre master secret"
 from ``test-bleichenbacher-timing.py``) but high when compared with each-other,
 that strongly points to a timing side-channel in the system under test.
 
@@ -366,9 +369,16 @@ slower than another set by 10%), then you can also use the generated
 ``box_plot.png`` graph.
 For small differences with large sample sizes, the differences will be
 statistically detectable, even if not obvious from from the box plot.
+You can use the ``conf_interval_plot.png`` graph to see the average difference
+between samples and the first sample together with the 95% confidence
+interval for them.
 
-Using R you can also generate a graph with median of differences between
-samples, but note that this will take about an hour for 21 tests and
+The script prints the numerical value for confidence interval for mean and
+median for differences of the pair of two most dissimilar probes.
+It also writes it to the ``report.txt`` file.
+
+Using R you can also manually generate ``conf_interval_plot.png`` graph,
+but note that this will take about an hour for 21 tests and
 samples with 1 million observations each on a 4 core/8 thread 2GHz CPU:
 
 .. code::
