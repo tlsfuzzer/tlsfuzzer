@@ -43,6 +43,9 @@ def help_msg():
  --no-ecdf-plot Don't create the ecdf_plot.png file
  --no-scatter-plot Don't create the scatter_plot.png file
  --no-conf-interval-plot Don't create the conf_interval_plot.png file
+ --multithreaded-graph Create graph and calculate statistical tests at the
+                same time. Note: this increases memory usage of analysis by
+                a factor of 8.
  --help         Display this message""")
 
 
@@ -52,10 +55,12 @@ def main():
     ecdf_plot = True
     scatter_plot = True
     conf_int_plot = True
+    multithreaded_graph = False
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "o:",
                                ["help", "no-ecdf-plot", "no-scatter-plot",
-                                "no-conf-interval-plot"])
+                                "no-conf-interval-plot",
+                                "multithreaded-graph"])
 
     for opt, arg in opts:
         if opt == '-o':
@@ -69,9 +74,12 @@ def main():
             scatter_plot = False
         elif opt == "--no-conf-interval-plot":
             conf_int_plot = False
+        elif opt == "--multithreaded-graph":
+            multithreaded_graph = True
 
     if output:
-        analysis = Analysis(output, ecdf_plot, scatter_plot, conf_int_plot)
+        analysis = Analysis(output, ecdf_plot, scatter_plot, conf_int_plot,
+                            multithreaded_graph)
         ret = analysis.generate_report()
         return ret
     else:
@@ -82,13 +90,14 @@ class Analysis(object):
     """Analyse extracted timing information from csv file."""
 
     def __init__(self, output, draw_ecdf_plot=True, draw_scatter_plot=True,
-                 draw_conf_interval_plot=True):
+                 draw_conf_interval_plot=True, multithreaded_graph=False):
         self.output = output
         self.data = self.load_data()
         self.class_names = list(self.data)
         self.draw_ecdf_plot = draw_ecdf_plot
         self.draw_scatter_plot = draw_scatter_plot
         self.draw_conf_interval_plot = draw_conf_interval_plot
+        self.multithreaded_graph = multithreaded_graph
 
     def _convert_to_binary(self):
         timing_bin_path = join(self.output, "timing.bin")
@@ -555,26 +564,31 @@ class Analysis(object):
         """
         # plot in separate processes so that the matplotlib memory leaks are
         # not cumulative, see https://stackoverflow.com/q/28516828/462370
-        proc = mp.Process(target=self.box_plot)
-        proc.start()
-        proc.join()
-        if proc.exitcode != 0:
-            raise Exception("graph generation failed")
-        proc = mp.Process(target=self.scatter_plot)
-        proc.start()
-        proc.join()
-        if proc.exitcode != 0:
-            raise Exception("graph generation failed")
-        proc = mp.Process(target=self.ecdf_plot)
-        proc.start()
-        proc.join()
-        if proc.exitcode != 0:
-            raise Exception("graph generation failed")
-        proc = mp.Process(target=self.conf_interval_plot)
-        proc.start()
-        proc.join()
-        if proc.exitcode != 0:
-            raise Exception("graph generation failed")
+        proc1 = mp.Process(target=self.box_plot)
+        proc1.start()
+        if not self.multithreaded_graph:
+            proc1.join()
+            if proc1.exitcode != 0:
+                raise Exception("Box plot graph generation failed")
+        proc2 = mp.Process(target=self.scatter_plot)
+        proc2.start()
+        if not self.multithreaded_graph:
+            proc2.join()
+            if proc2.exitcode != 0:
+                raise Exception("Scatter plot graph generation failed")
+        proc3 = mp.Process(target=self.ecdf_plot)
+        proc3.start()
+        if not self.multithreaded_graph:
+            proc3.join()
+            if proc3.exitcode != 0:
+                raise Exception("ECDF graph generation failed")
+        proc4 = mp.Process(target=self.conf_interval_plot)
+        proc4.start()
+        if not self.multithreaded_graph:
+            proc4.join()
+            if proc4.exitcode != 0:
+                raise Exception("Conf interval graph generation failed")
+
         self._write_legend()
 
         difference, p_vals, worst_pair, worst_p = \
@@ -582,6 +596,20 @@ class Analysis(object):
 
         difference = self._write_summary(difference, p_vals, worst_pair,
                                          worst_p)
+
+        if self.multithreaded_graph:
+            proc1.join()
+            if proc1.exitcode != 0:
+                raise Exception("Box plot graph generation failed")
+            proc2.join()
+            if proc2.exitcode != 0:
+                raise Exception("Scatter plot graph generation failed")
+            proc3.join()
+            if proc3.exitcode != 0:
+                raise Exception("ECDF graph generation failed")
+            proc4.join()
+            if proc4.exitcode != 0:
+                raise Exception("Conf interval graph generation failed")
 
         return difference
 
