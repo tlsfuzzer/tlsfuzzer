@@ -353,7 +353,11 @@ class Analysis(object):
         self.make_legend(ax)
         canvas.print_figure(join(self.output, "scatter_plot.png"),
                             bbox_inches="tight")
-        ax.set_ylim(np.quantile(self.data, [0.005, 0.95]))
+        quant = np.quantile(self.data, [0.005, 0.95])
+        # make sure the quantile point is visible on the graph
+        quant[0] *= 0.98
+        quant[1] *= 1.02
+        ax.set_ylim(quant)
         canvas.print_figure(join(self.output, "scatter_plot_zoom_in.png"),
                             bbox_inches="tight")
 
@@ -379,7 +383,10 @@ class Analysis(object):
         axes.set_title("Scatter plot of class differences")
         axes.set_ylabel("Time [s]")
         axes.set_xlabel("Sample index")
-        axes.set_ylim(np.quantile(data, [0.01, 0.99]))
+        quant = np.quantile(data, [0.01, 0.99])
+        quant[0] *= 0.98
+        quant[1] *= 1.02
+        axes.set_ylim(quant)
         axes.legend(data, ncol=6, loc='upper center',
                     bbox_to_anchor=(0.5, -0.15))
         canvas.print_figure(join(self.output, "diff_scatter_plot.png"),
@@ -402,7 +409,10 @@ class Analysis(object):
         ax.set_ylabel("Cumulative probability")
         canvas.print_figure(join(self.output, "ecdf_plot.png"),
                             bbox_inches="tight")
-        ax.set_xlim(np.quantile(self.data, [0.01, 0.95]))
+        quant = np.quantile(self.data, [0.01, 0.95])
+        quant[0] *= 0.98
+        quant[1] *= 1.02
+        ax.set_xlim(quant)
         canvas.print_figure(join(self.output, "ecdf_plot_zoom_in.png"),
                             bbox_inches="tight")
 
@@ -441,12 +451,12 @@ class Analysis(object):
                        "class differences")
         axes.set_xlabel("Time [s]")
         axes.set_ylabel("Cumulative probability")
-        axes.set_xlim([low_end, high_end])
         formatter = mpl.ticker.EngFormatter('s')
         axes.get_xaxis().set_major_formatter(formatter)
+        axes.set_xlim([low_end*0.98, high_end*1.02])
         canvas.print_figure(join(self.output, "diff_ecdf_plot.png"),
                             bbox_inches="tight")
-        axes.set_xlim([zoom_low_end, zoom_high_end])
+        axes.set_xlim([zoom_low_end*0.98, zoom_high_end*1.02])
         axes.set_ylim([0.33, 0.66])
         canvas.print_figure(join(self.output, "diff_ecdf_plot_zoom_in.png"),
                             bbox_inches="tight")
