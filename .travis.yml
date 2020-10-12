@@ -174,7 +174,7 @@ script:
       if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]]; then
         export REPLY_SIZE=1850
       elif [[ $TRAVIS_PYTHON_VERSION == '3.9-dev' ]]; then
-        export REPLY_SIZE=1853  # Server: SimpleHTTP/0.6 Python/3.9.0rc1+
+        export REPLY_SIZE=1850  # Server: SimpleHTTP/0.6 Python/3.9.0r
       elif [[ $TRAVIS_PYTHON_VERSION == 'nightly' ]]; then
         export REPLY_SIZE=1852  # Server: SimpleHTTP/0.6 Python/3.10.0a0
       else
