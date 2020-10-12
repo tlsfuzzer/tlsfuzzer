@@ -32,6 +32,7 @@ mpl.use('Agg')
 
 
 _diffs = None
+_DATA = None
 
 
 def help_msg():
@@ -42,6 +43,9 @@ def help_msg():
  --no-ecdf-plot Don't create the ecdf_plot.png file
  --no-scatter-plot Don't create the scatter_plot.png file
  --no-conf-interval-plot Don't create the conf_interval_plot.png file
+ --multithreaded-graph Create graph and calculate statistical tests at the
+                same time. Note: this increases memory usage of analysis by
+                a factor of 8.
  --help         Display this message""")
 
 
@@ -51,10 +55,12 @@ def main():
     ecdf_plot = True
     scatter_plot = True
     conf_int_plot = True
+    multithreaded_graph = False
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "o:",
                                ["help", "no-ecdf-plot", "no-scatter-plot",
-                                "no-conf-interval-plot"])
+                                "no-conf-interval-plot",
+                                "multithreaded-graph"])
 
     for opt, arg in opts:
         if opt == '-o':
@@ -68,9 +74,12 @@ def main():
             scatter_plot = False
         elif opt == "--no-conf-interval-plot":
             conf_int_plot = False
+        elif opt == "--multithreaded-graph":
+            multithreaded_graph = True
 
     if output:
-        analysis = Analysis(output, ecdf_plot, scatter_plot, conf_int_plot)
+        analysis = Analysis(output, ecdf_plot, scatter_plot, conf_int_plot,
+                            multithreaded_graph)
         ret = analysis.generate_report()
         return ret
     else:
@@ -81,13 +90,14 @@ class Analysis(object):
     """Analyse extracted timing information from csv file."""
 
     def __init__(self, output, draw_ecdf_plot=True, draw_scatter_plot=True,
-                 draw_conf_interval_plot=True):
+                 draw_conf_interval_plot=True, multithreaded_graph=False):
         self.output = output
         self.data = self.load_data()
         self.class_names = list(self.data)
         self.draw_ecdf_plot = draw_ecdf_plot
         self.draw_scatter_plot = draw_scatter_plot
         self.draw_conf_interval_plot = draw_conf_interval_plot
+        self.multithreaded_graph = multithreaded_graph
 
     def _convert_to_binary(self):
         timing_bin_path = join(self.output, "timing.bin")
@@ -216,15 +226,33 @@ class Analysis(object):
             results[TestPair(index1, index2)] = result
         return results
 
+    @staticmethod
+    def _wilcox_test(pair):
+        # we're using global variable so that the data shared between
+        # worker threads isn't serialised and deserialised over and over again
+        # pylint: disable=global-statement
+        global _DATA
+        # pylint: enable=global-statement
+        index1, index2 = pair
+        data1 = _DATA.iloc[:, index1]
+        data2 = _DATA.iloc[:, index2]
+        _, pval = stats.wilcoxon(data1, data2)
+        return pair, pval
+
     def wilcoxon_test(self):
         """Cross-test all classes with the Wilcoxon signed-rank test"""
-        results = {}
-        comb = combinations(list(range(len(self.class_names))), 2)
-        for index1, index2 in comb:
-            data1 = self.data.iloc[:, index1]
-            data2 = self.data.iloc[:, index2]
-            _, pval = stats.wilcoxon(data1, data2)
-            results[TestPair(index1, index2)] = pval
+        comb = list(combinations(list(range(len(self.class_names))), 2))
+        # we're using global variable so that the data shared between
+        # worker threads isn't serialised and deserialised over and over again
+        # pylint: disable=global-statement
+        global _DATA
+        # pylint: enable=global-statement
+        _DATA = self.data
+        job_size = max(len(comb) // os.cpu_count(), 1)
+        with mp.Pool() as pool:
+            pvals = list(pool.imap_unordered(self._wilcox_test, comb,
+                                             job_size))
+        results = dict(pvals)
         return results
 
     def _calc_percentiles(self):
@@ -327,19 +355,14 @@ class Analysis(object):
 
     @staticmethod
     def _mean_of_random_sample(reps=100):
-        """Calculate a mean with a single instance of bootstrapping."""
+        """Calculate mean and median with bootstrapping."""
         ret = []
         global _diffs
         diffs = _diffs
 
         for _ in range(reps):
             boot = np.random.choice(diffs, replace=True, size=len(diffs))
-            # use trimmed mean as the pairing of samples in not perfect:
-            # the noise source could get activated in the middle of testing
-            # of the test set, causing some results to be unusable
-            # discard 50% of samples total (cut 25% from the median) to exclude
-            # non central modes
-            ret.append(stats.trim_mean(boot, 0.25))
+            ret.append((np.mean(boot, 0), np.median(boot, 0)))
         return ret
 
     def _bootstrap_differences(self, pair, reps=5000):
@@ -369,12 +392,22 @@ class Analysis(object):
         :param int reps: how many bootstraping repetitions to perform
         :param float ci: confidence interval for the low and high estimate.
             0.95, i.e. "2 sigma", by default
-        :return: tuple with low estimate, median, and high estimate of
-            truncated mean of differences of observations
+        :return: tuple with low estimate, mean, and high estimate of
+            mean of differences of observations
         """
         cent_tend = self._bootstrap_differences(pair, reps)
+        mean_values = [i for i, _ in cent_tend]
+        median_values = [i for _, i in cent_tend]
+        diff = self.data.iloc[:, pair.index1] - self.data.iloc[:, pair.index2]
+        mean = np.mean(diff)
+        median = np.median(diff)
 
-        return np.quantile(cent_tend, [(1-ci)/2, 0.5, 1-(1-ci)/2])
+        quantiles = [(1-ci)/2, 1-(1-ci)/2]
+        mean_quant = np.quantile(mean_values, quantiles)
+        median_quant = np.quantile(median_values, quantiles)
+
+        return [mean_quant[0], mean, mean_quant[1],
+                median_quant[0], median, median_quant[1]]
 
     def conf_interval_plot(self):
         """Generate the confidence inteval for differences between samples."""
@@ -387,6 +420,7 @@ class Analysis(object):
         for i in range(1, len(self.class_names)):
             pair = TestPair(i, 0)
             diffs = self._bootstrap_differences(pair, reps)
+            diffs = [i for i, _ in diffs]
             data['{}-0'.format(i)] = diffs
 
         with open(join(self.output, "bootstrapped_means.csv"), "w") as f:
@@ -403,7 +437,7 @@ class Analysis(object):
         formatter = mpl.ticker.EngFormatter('s')
         ax.get_yaxis().set_major_formatter(formatter)
 
-        ax.set_title("Confidence intervals for truncated mean of differences")
+        ax.set_title("Confidence intervals for mean of differences")
         ax.set_xlabel("Class pairs")
         ax.set_ylabel("Mean of differences")
         canvas.print_figure(join(self.output, "conf_interval_plot.png"),
@@ -499,12 +533,20 @@ class Analysis(object):
             txt_file.write(txt)
             txt_file.write('\n')
 
-            low, med, high = self.calc_diff_conf_int(worst_pair)
+            low_mean, mean, high_mean, low_median, median, high_median = \
+                self.calc_diff_conf_int(worst_pair)
             # use 95% CI as that translates to 2 standard deviations, making
             # it easy to estimate higher CIs
+            txt = "Mean difference: {:.5e}s, 95% CI: {:.5e}s, {:.5e}s"\
+                " (±{:.3e}s)".\
+                format(mean, low_mean, high_mean, (high_mean-low_mean)/2)
+            print(txt)
+            txt_file.write(txt)
+            txt_file.write('\n')
             txt = "Median difference: {:.5e}s, 95% CI: {:.5e}s, {:.5e}s"\
                 " (±{:.3e}s)".\
-                format(med, low, high, (high-low)/2)
+                format(median, low_median, high_median,
+                       (high_median-low_median)/2)
             print(txt)
             txt_file.write(txt)
             txt_file.write('\n')
@@ -515,6 +557,29 @@ class Analysis(object):
             txt_file.write('\n')
         return difference
 
+    def _start_thread(self, method, err_desc):
+        """Start a thread, wait for end with self.multithreaded_graph set."""
+        proc = mp.Process(target=method)
+        proc.start()
+        if not self.multithreaded_graph:
+            self._stop_thread(proc, err_desc)
+        return (proc, err_desc)
+
+    @staticmethod
+    def _stop_thread(proc, err_desc):
+        """Wait for thread completion, raise Exception on error."""
+        proc.join()
+        if proc.exitcode != 0:
+            raise Exception(err_desc)
+
+    def _stop_all_threads(self, threads):
+        """Wait for completion of threads, raise Exception on error."""
+        if not self.multithreaded_graph:
+            return
+
+        for proc, err_desc in threads:
+            self._stop_thread(proc, err_desc)
+
     def generate_report(self):
         """
         Compiles a report consisting of statistical tests and plots.
@@ -523,26 +588,20 @@ class Analysis(object):
         """
         # plot in separate processes so that the matplotlib memory leaks are
         # not cumulative, see https://stackoverflow.com/q/28516828/462370
-        proc = mp.Process(target=self.box_plot)
-        proc.start()
-        proc.join()
-        if proc.exitcode != 0:
-            raise Exception("graph generation failed")
-        proc = mp.Process(target=self.scatter_plot)
-        proc.start()
-        proc.join()
-        if proc.exitcode != 0:
-            raise Exception("graph generation failed")
-        proc = mp.Process(target=self.ecdf_plot)
-        proc.start()
-        proc.join()
-        if proc.exitcode != 0:
-            raise Exception("graph generation failed")
-        proc = mp.Process(target=self.conf_interval_plot)
-        proc.start()
-        proc.join()
-        if proc.exitcode != 0:
-            raise Exception("graph generation failed")
+        processes = []
+        processes.append(
+            self._start_thread(self.box_plot,
+                               "Box plot graph generation failed"))
+        processes.append(
+            self._start_thread(self.scatter_plot,
+                               "Scatter plot graph generation failed"))
+        processes.append(
+            self._start_thread(self.ecdf_plot,
+                               "ECDF graph generation failed"))
+        processes.append(
+            self._start_thread(self.conf_interval_plot,
+                               "Conf interval graph generation failed"))
+
         self._write_legend()
 
         difference, p_vals, worst_pair, worst_p = \
@@ -550,6 +609,8 @@ class Analysis(object):
 
         difference = self._write_summary(difference, p_vals, worst_pair,
                                          worst_p)
+
+        self._stop_all_threads(processes)
 
         return difference
 
