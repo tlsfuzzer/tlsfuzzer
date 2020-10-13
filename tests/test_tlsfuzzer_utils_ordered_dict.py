@@ -39,14 +39,14 @@ class TestOrderedDict(unittest.TestCase):
         d[6] = "f"
         d[7] = "g"
 
-        self.assertEqual([1, 2, 3, 4, 5, 6, 7], d.keys())
-        self.assertEqual(["a", "b", "c", "d", "e", "f", "g"], d.values())
+        self.assertEqual([1, 2, 3, 4, 5, 6, 7], list(d.keys()))
+        self.assertEqual(["a", "b", "c", "d", "e", "f", "g"], list(d.values()))
 
     def test_del(self):
         del self.d[2]
 
-        self.assertEqual([1, 3], self.d.keys())
-        self.assertEqual(["a", "c"], self.d.values())
+        self.assertEqual([1, 3], list(self.d.keys()))
+        self.assertEqual(["a", "c"], list(self.d.values()))
 
     def test_iter(self):
         self.assertEqual([1, 2, 3], list(iter(self.d)))
@@ -56,8 +56,8 @@ class TestOrderedDict(unittest.TestCase):
 
         self.assertEqual(n, 3)
         self.assertEqual(v, "c")
-        self.assertEqual([1, 2], self.d.keys())
-        self.assertEqual(["a", "b"], self.d.values())
+        self.assertEqual([1, 2], list(self.d.keys()))
+        self.assertEqual(["a", "b"], list(self.d.values()))
 
     def test_popitem_on_empty(self):
         d = OrderedDict()
@@ -66,25 +66,34 @@ class TestOrderedDict(unittest.TestCase):
             d.popitem()
 
     def test_popitem_first(self):
-        n, v = self.d.popitem(last=False)
+        if type(self.d) is dict:
+            self.skipTest("not popitem(last=False) in dict")
+        else:
+            n, v = self.d.popitem(last=False)
 
-        self.assertEqual(n, 1)
-        self.assertEqual(v, "a")
-        self.assertEqual([2, 3], self.d.keys())
-        self.assertEqual(["b", "c"], self.d.values())
+            self.assertEqual(n, 1)
+            self.assertEqual(v, "a")
+            self.assertEqual([2, 3], list(self.d.keys()))
+            self.assertEqual(["b", "c"], list(self.d.values()))
 
     def test_items(self):
-        self.assertEqual([(1, "a"), (2, "b"), (3, "c")], self.d.items())
+        self.assertEqual([(1, "a"), (2, "b"), (3, "c")], list(self.d.items()))
 
     def test_iterkeys(self):
-        self.assertEqual(list(self.d.iterkeys()), list(iter(self.d)))
+        if type(self.d) is dict:
+            self.skipTest("no iterkeys in dict")
+        else:
+            self.assertEqual(list(self.d.iterkeys()), list(iter(self.d)))
 
     def test_clear(self):
         self.d.clear()
-        self.assertEqual([], self.d.items())
+        self.assertEqual([], list(self.d.items()))
 
     def test_itervalues(self):
-        self.assertEqual(list(self.d.itervalues()), self.d.values())
+        if type(self.d) is dict:
+            self.skipTest("no itervalues in dict")
+        else:
+            self.assertEqual(list(self.d.itervalues()), self.d.values())
 
     def test_update_with_too_many_args(self):
         with self.assertRaises(TypeError):
@@ -94,13 +103,13 @@ class TestOrderedDict(unittest.TestCase):
         self.d.update({0: None})
 
         self.assertEqual([(1, "a"), (2, "b"), (3, "c"), (0, None)],
-                         self.d.items())
+                         list(self.d.items()))
 
     def test_update_with_list_of_tuples(self):
         d = OrderedDict()
         d.update([(3, "c"), (2, "b"), (1, "a")])
-        self.assertEqual([3, 2, 1], d.keys())
-        self.assertEqual(["c", "b", "a"], d.values())
+        self.assertEqual([3, 2, 1], list(d.keys()))
+        self.assertEqual(["c", "b", "a"], list(d.values()))
 
     def test_update_with_keyword_args(self):
         d = OrderedDict()
@@ -112,31 +121,46 @@ class TestOrderedDict(unittest.TestCase):
         v = self.d.pop(2)
         self.assertEqual(v, "b")
 
-        self.assertEqual([(1, "a"), (3, "c")], self.d.items())
+        self.assertEqual([(1, "a"), (3, "c")], list(self.d.items()))
 
     def test_pop_non_existent(self):
         with self.assertRaises(KeyError):
             self.d.pop(4)
 
     def test_pop_with_default(self):
-        a = self.d.pop(0, default="foo")
-        self.assertEqual(a, "foo")
+        if type(self.d) is dict:
+            a = self.d.pop(0, "foo")
+            self.assertEqual(a, "foo")
+        else:
+            a = self.d.pop(0, default="foo")
+            self.assertEqual(a, "foo")
 
     def test_repr(self):
-        self.assertEqual("OrderedDict([(1, 'a'), (2, 'b'), (3, 'c')])",
-                         repr(self.d))
+        if type(self.d) is dict:
+            self.assertEqual("{1: 'a', 2: 'b', 3: 'c'}",
+                             repr(self.d))
+        else:
+            self.assertEqual("OrderedDict([(1, 'a'), (2, 'b'), (3, 'c')])",
+                             repr(self.d))
 
     def test_repr_with_circular_dependancy(self):
         del self.d[2]
         self.d[2] = self.d
 
-        self.assertEqual("OrderedDict([(1, 'a'), (3, 'c'), (2, ...)])",
-                         repr(self.d))
+        if type(self.d) is dict:
+            self.assertEqual("{1: 'a', 3: 'c', 2: {...}}",
+                             repr(self.d))
+        else:
+            self.assertEqual("OrderedDict([(1, 'a'), (3, 'c'), (2, ...)])",
+                             repr(self.d))
 
     def test_repr_with_empty(self):
         d = OrderedDict()
 
-        self.assertEqual("OrderedDict()", repr(d))
+        if type(self.d) is dict:
+            self.assertEqual("{}", repr(d))
+        else:
+            self.assertEqual("OrderedDict()", repr(d))
 
     def test_compare_different_order(self):
         d2 = OrderedDict()
@@ -144,4 +168,4 @@ class TestOrderedDict(unittest.TestCase):
         d2[3] = "c"
         d2[2] = "b"
 
-        self.assertNotEqual(self.d, d2)
+        self.assertNotEqual(list(self.d.items()), list(d2.items()))
