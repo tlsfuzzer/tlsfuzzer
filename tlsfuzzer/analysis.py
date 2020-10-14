@@ -279,6 +279,8 @@ class Analysis(object):
         Note, as the scipy stats package uses a chisquare approximation, the
         test results are valid only when we have more than 10 samples.
         """
+        if len(self.class_names) < 3:
+            return 1
         _, pval = stats.friedmanchisquare(
             *(self.data.iloc[:, i] for i in range(len(self.class_names))))
         return pval
