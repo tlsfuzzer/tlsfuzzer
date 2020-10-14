@@ -9,6 +9,8 @@ import os
 import time
 import subprocess
 import sys
+import time
+import math
 from threading import Thread
 from itertools import chain, repeat
 
@@ -78,6 +80,49 @@ class TimingRunner:
 
         self.log.write()
 
+    @staticmethod
+    def _format_seconds(sec):  # pragma: no cover
+        elems = []
+        ms, sec = math.modf(sec)
+        sec = int(sec)
+        days, rem = divmod(sec, 60*60*24)
+        if days:
+            elems.append("{0}d".format(days))
+        hours, rem = divmod(rem, 60*60)
+        if hours:
+            elems.append("{0}h".format(hours))
+        minutes, sec = divmod(rem, 60)
+        if minutes:
+            elems.append("{0}m".format(minutes))
+        elems.append("{0:.2f}s".format(sec+ms))
+        return " ".join(elems)
+
+    @staticmethod
+    def _report_progress(status):  # pragma: no cover
+        # technically that should be time.monotonic(), but it's not supported
+        # on python2.7
+        start_exec = time.time()
+        delay = 2.0
+        while status[2]:
+            old_exec = status[0]
+            time.sleep(delay)
+            elapsed = time.time()-start_exec
+            elapsed_str = TimingRunner._format_seconds(elapsed)
+            done = status[0]*100.0/status[1]
+            remaining = (1-done/100.0)*elapsed/(done/100.0)
+            remaining_str = TimingRunner._format_seconds(remaining)
+            eta = time.strftime("%H:%M:%S %d-%m-%Y",
+                                time.localtime(time.time()+remaining))
+            print("Done: {0:6.2f}%, elapsed: {1}, speed: {2:.2f}conn/s, "
+                  "avg speed: {3:.2f}conn/s, remaining: {4}, ETA: {5}{6}"
+                  .format(
+                      done, elapsed_str,
+                      (status[0] - old_exec)/delay,
+                      status[0]/elapsed,
+                      remaining_str,
+                      eta,
+                      " " * 4), end="\r")
+
     def run(self):
         """
         Run test the specified number of times and start analysis
@@ -94,14 +139,15 @@ class TimingRunner:
             test_classes = self.log.get_classes()
             # prepend the conversations with few warm-up ones
             exp_len = WARM_UP + sum(1 for _ in self.log.iterate_log())
+            status = [0, exp_len, True]
+            progress = Thread(target=self._report_progress, args=(status,))
+            progress.start()
             self.log.read_log()
             queries = chain(repeat(0, WARM_UP), self.log.iterate_log())
             print("Starting timing info collection. "
                   "This might take a while...")
             for executed, index in enumerate(queries):
-                if executed % 20 == 0:
-                    print("Done: {0:6.2f}%".format(executed*100.0/exp_len),
-                          end="\r")
+                status[0] = executed
                 if self.tcpdump_running:
                     c_name = test_classes[index]
                     c_test = self.tests[c_name]
@@ -123,9 +169,11 @@ class TimingRunner:
         finally:
             # stop sniffing and give tcpdump time to write all buffered packets
             self.tcpdump_running = False
+            status[2] = False
             time.sleep(2)
             sniffer.terminate()
             sniffer.wait()
+            progress.join()
 
         # start extraction and analysis
         print("Starting extraction...")
