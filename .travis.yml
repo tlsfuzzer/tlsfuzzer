@@ -141,6 +141,10 @@ before_install:
 
 install:
   - pip list
+  - if [[ $TRAVIS_PYTHON_VERSION == '2.6' ]]; then
+        curl -o get-pip.py https://bootstrap.pypa.io/2.6/get-pip.py;
+        python get-pip.py;
+    fi
   - if [[ -e build-requirements-${TRAVIS_PYTHON_VERSION}.txt ]]; then travis_retry pip install -r build-requirements-${TRAVIS_PYTHON_VERSION}.txt; else travis_retry pip install -r build-requirements.txt; fi
   - |
       if [[ $EXTRACT_DEP == 'true' ]]; then
