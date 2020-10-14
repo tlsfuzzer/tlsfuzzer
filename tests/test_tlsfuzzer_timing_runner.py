@@ -220,3 +220,16 @@ class TestRunner(unittest.TestCase):
                                 with mock.patch('tlsfuzzer.timing_runner.Runner') as runner:
                                     runner.return_value.run.side_effect = raise_error
                                     self.assertRaises(AssertionError, self.runner.run)
+
+    def test__format_seconds_with_seconds(self):
+        self.assertEqual(TimingRunner._format_seconds(12.5), "12.50s")
+
+    def test__format_seconds_with_minutes(self):
+        self.assertEqual(TimingRunner._format_seconds(60*35), "35m 0.00s")
+
+    def test__format_seconds_with_hours(self):
+        self.assertEqual(TimingRunner._format_seconds(60*60), "1h 0m 0.00s")
+
+    def test__format_seconds_with_days(self):
+        self.assertEqual(TimingRunner._format_seconds(24*60*60*2),
+                         "2d 0h 0m 0.00s")
