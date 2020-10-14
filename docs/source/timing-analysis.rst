@@ -117,9 +117,12 @@ That means that the scripts need to use statistical tests to check if the
 observations differ significantly or not.
 
 Most statistical tests work in terms of hypothesis testing.
-The one used in the scripts is called
+Scripts use
 `Wilcoxon signed-rank test
-<https://en.wikipedia.org/wiki/Wilcoxon_signed-rank_test>`_.
+<https://en.wikipedia.org/wiki/Wilcoxon_signed-rank_test>`_
+and the
+`Sign test
+<https://en.wikipedia.org/wiki/Sign_test>`_ to compare samples.
 After executing it against two sets of observations (samples), it outputs
 a "p-value"—a probability of getting such samples, if they were taken from
 the same population.
@@ -149,11 +152,11 @@ p-values occur less often).
 The scripts perform the
 `Kolmogorov–Smirnov test
 <https://en.wikipedia.org/wiki/Kolmogorov%E2%80%93Smirnov_test>`_ to test
-the uniformity of p-values of the Wilcoxon tests.
+the uniformity of p-values of the Wilcoxon tests and the sign test.
 
 The test scripts allow setting the sample size as it has impact on the smallest
 effect size that the test can detect.
-Generally, with Wilcoxon signed-rank test, the sample size must be proportional
+Generally, with both of the used tests, the sample size must be proportional
 to 1/e² to detect effect of size e.
 That is, to detect a 0.1% difference between expected values of samples, the
 samples must have at least 1000 observations each.
@@ -352,11 +355,73 @@ After combining the ``timing.csv`` files, execute analysis as usual.
 Interpreting the results
 ========================
 
-As mentioned previously, the script executes tests in two stages, one
-is the Wilcoxon signed-rank test between all the samples and then it performs
-a self check on the results of those tests.
+You should start the inspection of test results with the ``scatter_plot.png``
+graph. It plots all of the collected connection times. There is also a
+zoomed-in version that will be much more readable in case of much larger
+outliers. You can find it in the ``scatter_plot_zoom_in.png`` file.
+If you can see that there is a periodicity to the collected measurements, or
+the values can be collected in similarly looking groups, that means that
+the data is
+`autocorrelated
+<https://en.wikipedia.org/wiki/Autocorrelation>`_ (or, in other words,
+not-independent) and simple summary statistics like
+mean, median, or quartiles are not representative of the samples.
 
-If that self test fails, you should inspect the individual test p-values.
+The next set of graphs show the overall shape of the samples.
+The ``box_plot.png`` shows the 5th
+`percentile
+<https://en.wikipedia.org/wiki/Percentile>`_, 1st `quartile
+<https://en.wikipedia.org/wiki/Quartile>`_, median, 3rd
+quartile and 95th percentile.
+The ``ecdf_plot.png`` shows the `measured (that is, empirical) cumulative
+distribution function
+<https://en.wikipedia.org/wiki/Empirical_distribution_function>`_.
+The ``ecdf_plot_zoom_in.png`` shows only the values between 1st and 95th
+percentile, useful in case of few very large outliers.
+The "steps" visible in the graph inform us if the distibution is
+unimodal (like the common normal distribution) or if it is
+`multimodal
+<https://en.wikipedia.org/wiki/Multimodal_distribution>`_.
+Multimodality is another property that makes simple summary statistics
+like mean or median not representative of the sample.
+
+To compare autocorrelated samples we need to compare the differences
+between pairs of samples.
+The ``diff_scatter_plot.png`` shows the differences of all the samples
+when compared to the first sample (numbered 0).
+The ``diff_ecdf_plot.png`` is the ECDF counterpart to the scatter plot.
+Here, if the graph is
+`symmetrical
+<https://en.wikipedia.org/wiki/Symmetric_probability_distribution>`_ then the
+results from the Wilcoxon signed-rank test are meaningful. If the graph
+is asymmetric focus on sign test results.
+The ``diff_ecdf_plot_zoom_in.png`` shows just the central 33 percentiles
+of the graph (to make estimating small differences between samples easier).
+
+Finally, the ``conf_interval_plot.png`` shows the mean of differences between
+samples together with
+`bootstrapped
+<https://en.wikipedia.org/wiki/Bootstrapping_(statistics)>`_ confidence
+interval for them.
+For an implementation without a timing side channel present, all the graphs
+should intersect with the horizonal 0 line.
+If a graph does not intersect with the 0 line, then the number of heights
+of it from the 0 line suggests how strong is the confidence in the
+presence of side channel on an exponential scale.
+
+As mentioned previously, the script executes tests in three stages, first
+is the Wilcoxon signed-rank test and sign test between all the samples,
+second is the uniformity test of those results, third is the Friedman test.
+
+.. warning::
+
+   The implementation of Friedman test uses an approximation using Chi-squared
+   distribution. That means the results of it are reliable only with many
+   samples (at least 5, optimally 10). You should ignore it for such small
+   runs. It's also invalid in case of just two samples (used conversations).
+
+If either the KS-tests of uniformity of p-values, or the Friedman test fails,
+you should inspect the individual test p-values.
 
 If one particular set of tests consistently scores low when compared to
 other tests (e.g. "very long (96-byte) pre master secret" and
@@ -366,7 +431,7 @@ that strongly points to a timing side-channel in the system under test.
 
 If the timing signal has a high relative magnitude (one set of tests
 slower than another set by 10%), then you can also use the generated
-``box_plot.png`` graph.
+``box_plot.png`` graph to see it.
 For small differences with large sample sizes, the differences will be
 statistically detectable, even if not obvious from from the box plot.
 You can use the ``conf_interval_plot.png`` graph to see the average difference

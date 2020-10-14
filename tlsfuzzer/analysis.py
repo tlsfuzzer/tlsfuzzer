@@ -255,6 +255,36 @@ class Analysis(object):
         results = dict(pvals)
         return results
 
+    def sign_test(self, med=0.0):
+        """
+        Cross-test all classes using the sign test.
+
+        med: expected median value
+        """
+        results = {}
+        comb = combinations(list(range(len(self.class_names))), 2)
+        for index1, index2, in comb:
+            data1 = self.data.iloc[:, index1]
+            data2 = self.data.iloc[:, index2]
+
+            diff = data2 - data1
+            pval = stats.binom_test([sum(diff < med), sum(diff > med)], p=0.5)
+            results[TestPair(index1, index2)] = pval
+        return results
+
+    def friedman_test(self):
+        """
+        Test all classes using Friedman chi-square test.
+
+        Note, as the scipy stats package uses a chisquare approximation, the
+        test results are valid only when we have more than 10 samples.
+        """
+        if len(self.class_names) < 3:
+            return 1
+        _, pval = stats.friedmanchisquare(
+            *(self.data.iloc[:, i] for i in range(len(self.class_names))))
+        return pval
+
     def _calc_percentiles(self):
         try:
             quantiles_file_name = join(self.output, ".quantiles.tmp")
@@ -325,6 +355,44 @@ class Analysis(object):
         self.make_legend(ax)
         canvas.print_figure(join(self.output, "scatter_plot.png"),
                             bbox_inches="tight")
+        quant = np.quantile(self.data, [0.005, 0.95])
+        # make sure the quantile point is visible on the graph
+        quant[0] *= 0.98
+        quant[1] *= 1.02
+        ax.set_ylim(quant)
+        canvas.print_figure(join(self.output, "scatter_plot_zoom_in.png"),
+                            bbox_inches="tight")
+
+    def diff_scatter_plot(self):
+        """Generate scatter plot showing differences between samples."""
+        if not self.draw_scatter_plot:
+            return
+        fig = Figure(figsize=(16, 12))
+        canvas = FigureCanvas(fig)
+        axes = fig.add_subplot(1, 1, 1)
+
+        classnames = iter(self.data)
+        base = next(classnames)
+        base_data = self.data.loc[:, base]
+
+        data = pd.DataFrame()
+        for ctr, name in enumerate(classnames, start=1):
+            diff = self.data.loc[:, name] - base_data
+            data["{0}-0".format(ctr)] = diff
+
+        axes.plot(data, ".", fillstyle='none', alpha=0.6)
+
+        axes.set_title("Scatter plot of class differences")
+        axes.set_ylabel("Time [s]")
+        axes.set_xlabel("Sample index")
+        quant = np.quantile(data, [0.01, 0.99])
+        quant[0] *= 0.98
+        quant[1] *= 1.02
+        axes.set_ylim(quant)
+        axes.legend(data, ncol=6, loc='upper center',
+                    bbox_to_anchor=(0.5, -0.15))
+        canvas.print_figure(join(self.output, "diff_scatter_plot.png"),
+                            bbox_inches="tight")
 
     def ecdf_plot(self):
         """Generate ECDF plot comparing distributions of the test classes."""
@@ -342,6 +410,57 @@ class Analysis(object):
         ax.set_xlabel("Time [s]")
         ax.set_ylabel("Cumulative probability")
         canvas.print_figure(join(self.output, "ecdf_plot.png"),
+                            bbox_inches="tight")
+        quant = np.quantile(self.data, [0.01, 0.95])
+        quant[0] *= 0.98
+        quant[1] *= 1.02
+        ax.set_xlim(quant)
+        canvas.print_figure(join(self.output, "ecdf_plot_zoom_in.png"),
+                            bbox_inches="tight")
+
+    def diff_ecdf_plot(self):
+        """Generate ECDF plot of differences between test classes."""
+        if not self.draw_ecdf_plot:
+            return
+        fig = Figure(figsize=(16, 12))
+        canvas = FigureCanvas(fig)
+        axes = fig.add_subplot(1, 1, 1)
+        classnames = iter(self.data)
+        base = next(classnames)
+        base_data = self.data.loc[:, base]
+
+        low_end, high_end = float("inf"), float("-inf")
+        zoom_low_end, zoom_high_end = float("inf"), float("-inf")
+
+        for classname in classnames:
+            data = self.data.loc[:, classname]
+            levels = np.linspace(1. / len(data), 1, len(data))
+            values = sorted(data-base_data)
+            axes.step(values, levels, where='post')
+            new_low_end, new_zoom_low_end, new_zoom_high_end, new_high_end = \
+                np.quantile(values, [0.01, 0.33, 0.66, 0.99])
+            zoom_low_end = min(zoom_low_end, new_zoom_low_end)
+            low_end = min(low_end, new_low_end)
+            high_end = max(high_end, new_high_end)
+            zoom_high_end = max(zoom_high_end, new_zoom_high_end)
+
+        fig.legend(list("{0}-0".format(i)
+                        for i in range(1, len(list(self.data)))),
+                   ncol=6,
+                   loc='upper center',
+                   bbox_to_anchor=(0.5, -0.05))
+        axes.set_title("Empirical Cumulative Distribution Function of "
+                       "class differences")
+        axes.set_xlabel("Time [s]")
+        axes.set_ylabel("Cumulative probability")
+        formatter = mpl.ticker.EngFormatter('s')
+        axes.get_xaxis().set_major_formatter(formatter)
+        axes.set_xlim([low_end*0.98, high_end*1.02])
+        canvas.print_figure(join(self.output, "diff_ecdf_plot.png"),
+                            bbox_inches="tight")
+        axes.set_xlim([zoom_low_end*0.98, zoom_high_end*1.02])
+        axes.set_ylim([0.33, 0.66])
+        canvas.print_figure(join(self.output, "diff_ecdf_plot_zoom_in.png"),
                             bbox_inches="tight")
 
     def make_legend(self, fig):
@@ -409,6 +528,11 @@ class Analysis(object):
         return [mean_quant[0], mean, mean_quant[1],
                 median_quant[0], median, median_quant[1]]
 
+    def median_difference(self, pair):
+        """Calculate median difference between samples."""
+        diffs = self.data.iloc[:, pair.index1] - self.data.iloc[:, pair.index2]
+        return abs(np.median(diffs))
+
     def conf_interval_plot(self):
         """Generate the confidence inteval for differences between samples."""
         if not self.draw_conf_interval_plot:
@@ -449,15 +573,18 @@ class Analysis(object):
         # create a report with statistical tests
         box_results = self.box_test()
         wilcox_results = self.wilcoxon_test()
+        sign_results = self.sign_test()
 
         report_filename = join(self.output, "report.csv")
         p_vals = []
+        sign_p_vals = []
         with open(report_filename, 'w') as file:
             writer = csv.writer(file)
             writer.writerow(["Class 1", "Class 2", "Box test",
-                             "Wilcoxon signed-rank test"])
+                             "Wilcoxon signed-rank test", "Sign test"])
             worst_pair = None
             worst_p = None
+            worst_median_difference = None
             for pair, result in box_results.items():
                 index1 = pair.index1
                 index2 = pair.index2
@@ -474,26 +601,36 @@ class Analysis(object):
                                                                     index2))
                 print("Wilcoxon signed-rank test {} vs {}: {}"
                       .format(index1, index2, wilcox_results[pair]))
-                # if both tests found a difference
+                print("Sign test {} vs {}: {}"
+                      .format(index1, index2, sign_results[pair]))
+                # if both tests or the sign test found a difference
                 # consider it a possible side-channel
-                if result and wilcox_results[pair] < 0.05:
+                if result and wilcox_results[pair] < 0.05 or \
+                        sign_results[pair] < 0.05:
                     difference = 1
 
                 wilcox_p = wilcox_results[pair]
+                sign_p = sign_results[pair]
+                median_difference = self.median_difference(pair)
                 row = [self.class_names[index1],
                        self.class_names[index2],
                        box_write,
-                       wilcox_p
+                       wilcox_p,
+                       sign_p
                        ]
                 writer.writerow(row)
 
                 p_vals.append(wilcox_p)
+                sign_p_vals.append(sign_p)
 
-                if worst_pair is None or wilcox_p < worst_p:
+                if worst_pair is None or wilcox_p < worst_p or \
+                        worst_median_difference is None or \
+                        worst_median_difference < median_difference:
                     worst_pair = pair
                     worst_p = wilcox_p
+                    worst_median_difference = median_difference
 
-        return difference, p_vals, worst_pair, worst_p
+        return difference, p_vals, sign_p_vals, worst_pair, worst_p
 
     def _write_legend(self):
         """Write the legend.csv file."""
@@ -504,7 +641,8 @@ class Analysis(object):
             for num, name in enumerate(self.class_names):
                 writer.writerow([num, name])
 
-    def _write_summary(self, difference, p_vals, worst_pair, worst_p):
+    def _write_summary(self, difference, p_vals, sign_p_vals, worst_pair,
+                       worst_p, friedman_p):
         """Write the report.txt file and print summary."""
         report_filename = join(self.output, "report.csv")
         text_report_filename = join(self.output, "report.txt")
@@ -520,8 +658,41 @@ class Analysis(object):
             print(txt)
             txt_file.write(txt)
             txt_file.write('\n')
-
             if p < 0.05:
+                difference = 1
+
+            _, p = stats.kstest(sign_p_vals, 'uniform')
+            txt = "KS-test for uniformity of p-values from sign test "
+            print(txt)
+            txt_file.write(txt)
+            txt_file.write('\n')
+
+            txt = "p-value: {}".format(p)
+            print(txt)
+            txt_file.write(txt)
+            txt_file.write('\n')
+
+            txt = ("Sign test mean p-value: {}, median p-value: {}"
+                   .format(np.mean(sign_p_vals), np.median(sign_p_vals)))
+            print(txt)
+            txt_file.write(txt)
+            txt_file.write('\n')
+
+            # fail the overall test only when p-values from sign test
+            # are not uniform AND are skewed to the left
+            if p < 0.05 and np.mean(sign_p_vals) < 0.5:
+                difference = 1
+
+            txt = "Friedman test (chisquare approximation) for all samples"
+            print(txt)
+            txt_file.write(txt)
+            txt_file.write('\n')
+
+            txt = "p-value: {}".format(friedman_p)
+            print(txt)
+            txt_file.write(txt)
+            txt_file.write('\n')
+            if friedman_p < 0.05:
                 difference = 1
 
             txt = "Worst pair: {}({}), {}({})".format(
@@ -601,14 +772,25 @@ class Analysis(object):
         processes.append(
             self._start_thread(self.conf_interval_plot,
                                "Conf interval graph generation failed"))
+        processes.append(
+            self._start_thread(self.diff_ecdf_plot,
+                               "Generation of ECDF graph of differences "
+                               "failed"))
+        processes.append(
+            self._start_thread(self.diff_scatter_plot,
+                               "Generation of scatter plot of differences "
+                               "failed"))
 
         self._write_legend()
 
-        difference, p_vals, worst_pair, worst_p = \
+        friedman_result = self.friedman_test()
+
+        difference, p_vals, sign_p_vals, worst_pair, worst_p = \
             self._write_individual_results()
 
-        difference = self._write_summary(difference, p_vals, worst_pair,
-                                         worst_p)
+        difference = self._write_summary(difference, p_vals, sign_p_vals,
+                                         worst_pair,
+                                         worst_p, friedman_result)
 
         self._stop_all_threads(processes)
 
