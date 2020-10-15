@@ -29,7 +29,7 @@ from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.helpers import SIG_ALL, RSA_PKCS1_ALL
 
 
-version = 10
+version = 11
 
 
 def help_msg():
@@ -439,7 +439,7 @@ def main():
     conversations["no null separator in padding"] = conversation
 
     # check if no null separator in padding is detected
-    # but with PMS set to non-zero
+    # but with PMS bytes set to non-zero
     conversation = Connect(host, port)
     node = conversation
     ciphers = [cipher]
@@ -461,6 +461,31 @@ def main():
     node.add_child(ExpectClose())
 
     conversations["no null separator in encrypted value"] = conversation
+
+    # completely random plaintext
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [cipher]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=cln_extensions))
+    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1: 0xaf,
+                                                                   0: 0x27,
+                                                                   1: 0x09},
+                                                     premaster_secret=bytearray([3, 3])))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(level,
+                                      alert))
+    node.add_child(ExpectClose())
+
+    conversations["random plaintext"] = conversation
 
     # check if too short PMS is detected
     conversation = Connect(host, port)
@@ -942,6 +967,9 @@ place where the timing leak happens:
   - 'fuzzed pre master secret' - this will end up with random
     plaintexts in record with Finished, most resembling a randomly
     selected PMS by the server
+  - 'random plaintext' - this will end up with a completely random
+    plaintext after RSA decryption, most resembling a ciphertext
+    for which the Bleichenbacher oracle needs a negative result
 - padding type verification:
   - 'set PKCS#1 padding type to 3'
   - 'set PKCS#1 padding type to 1'
