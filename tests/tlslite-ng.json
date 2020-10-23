@@ -40,6 +40,8 @@
          },
          {"name" : "test-atypical-padding.py" },
          {"name" : "test-bleichenbacher-timing.py"},
+         {"name" : "test-bleichenbacher-timing.py",
+          "arguments" : ["--static-enc"]},
          {"name" : "test-bleichenbacher-workaround.py",
           "arguments" : ["-t", "0.01"],
           "comment" : "test over loopback so 10ms RTT is entirely reasonable"},
