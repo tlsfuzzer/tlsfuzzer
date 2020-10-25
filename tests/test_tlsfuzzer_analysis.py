@@ -309,7 +309,7 @@ class TestReport(unittest.TestCase):
             for index, result in res.items():
                 self.assertEqual(result, None)
 
-    def test__mean_of_random_sample(self):
+    def test__cent_tend_of_random_sample(self):
         diffs = [1, 2, 3, 4, 5, 6, 7, 8, 9]
         timings = pd.DataFrame(data=self.neq_data_overlap)
         mock_read_csv = mock.Mock()
@@ -317,15 +317,15 @@ class TestReport(unittest.TestCase):
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", mock_read_csv):
             with mock.patch("tlsfuzzer.analysis._diffs", diffs):
                 analysis = Analysis("/tmp")
-                vals = analysis._mean_of_random_sample(10)
+                vals = analysis._cent_tend_of_random_sample(10)
 
                 self.assertEqual(len(vals), 10)
-                means = [i for i, _ in vals]
+                means = [i[0] for i in vals]
                 avg = sum(means)/len(means)
                 self.assertLessEqual(avg, 8)
                 self.assertLessEqual(2, avg)
 
-    def test__mean_of_random_sample_with_no_reps(self):
+    def test__cent_tend_of_random_sample_with_no_reps(self):
         diffs = [1, 2, 3, 4, 5, 6, 7, 8, 9]
         timings = pd.DataFrame(data=self.neq_data_overlap)
         mock_read_csv = mock.Mock()
@@ -333,7 +333,7 @@ class TestReport(unittest.TestCase):
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", mock_read_csv):
             with mock.patch("tlsfuzzer.analysis._diffs", diffs):
                 analysis = Analysis("/tmp")
-                vals = analysis._mean_of_random_sample(0)
+                vals = analysis._cent_tend_of_random_sample(0)
 
                 self.assertEqual(len(vals), 0)
                 self.assertEqual(vals, [])
