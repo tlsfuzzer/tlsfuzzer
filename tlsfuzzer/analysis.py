@@ -436,18 +436,22 @@ class Analysis(object):
 
         low_end, high_end = float("inf"), float("-inf")
         zoom_low_end, zoom_high_end = float("inf"), float("-inf")
+        central_low_end, central_high_end = float("inf"), float("-inf")
 
         for classname in classnames:
             data = self.data.loc[:, classname]
             levels = np.linspace(1. / len(data), 1, len(data))
             values = sorted(data-base_data)
             axes.step(values, levels, where='post')
-            new_low_end, new_zoom_low_end, new_zoom_high_end, new_high_end = \
-                np.quantile(values, [0.01, 0.33, 0.66, 0.99])
+            new_low_end, new_zoom_low_end, new_zoom_high_end, new_high_end, \
+                new_central_low_end, new_central_high_end = \
+                np.quantile(values, [0.01, 0.33, 0.66, 0.99, 0.45, 0.55])
             zoom_low_end = min(zoom_low_end, new_zoom_low_end)
             low_end = min(low_end, new_low_end)
             high_end = max(high_end, new_high_end)
             zoom_high_end = max(zoom_high_end, new_zoom_high_end)
+            central_low_end = min(central_low_end, new_central_low_end)
+            central_high_end = max(central_high_end, new_central_high_end)
 
         fig.legend(list("{0}-0".format(i)
                         for i in range(1, len(list(self.data)))),
@@ -456,16 +460,22 @@ class Analysis(object):
                    bbox_to_anchor=(0.5, -0.05))
         axes.set_title("Empirical Cumulative Distribution Function of "
                        "class differences")
-        axes.set_xlabel("Time [s]")
+        axes.set_xlabel("Time")
         axes.set_ylabel("Cumulative probability")
         formatter = mpl.ticker.EngFormatter('s')
         axes.get_xaxis().set_major_formatter(formatter)
-        axes.set_xlim([low_end*0.98, high_end*1.02])
         canvas.print_figure(join(self.output, "diff_ecdf_plot.png"),
+                            bbox_inches="tight")
+        axes.set_xlim([low_end*0.98, high_end*1.02])
+        canvas.print_figure(join(self.output, "diff_ecdf_plot_zoom_in.png"),
                             bbox_inches="tight")
         axes.set_xlim([zoom_low_end*0.98, zoom_high_end*1.02])
         axes.set_ylim([0.33, 0.66])
-        canvas.print_figure(join(self.output, "diff_ecdf_plot_zoom_in.png"),
+        canvas.print_figure(join(self.output, "diff_ecdf_plot_zoom_in_33.png"),
+                            bbox_inches="tight")
+        axes.set_xlim([central_low_end*0.98, central_high_end*1.02])
+        axes.set_ylim([0.45, 0.55])
+        canvas.print_figure(join(self.output, "diff_ecdf_plot_zoom_in_10.png"),
                             bbox_inches="tight")
 
     def make_legend(self, fig):

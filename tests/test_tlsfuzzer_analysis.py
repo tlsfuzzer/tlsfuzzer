@@ -370,6 +370,10 @@ class TestPlots(unittest.TestCase):
             self.assertEqual(mock_save.call_args_list,
                 [mock.call('/tmp/diff_ecdf_plot.png', bbox_inches='tight'),
                  mock.call('/tmp/diff_ecdf_plot_zoom_in.png',
+                            bbox_inches='tight'),
+                 mock.call('/tmp/diff_ecdf_plot_zoom_in_33.png',
+                            bbox_inches='tight'),
+                 mock.call('/tmp/diff_ecdf_plot_zoom_in_10.png',
                             bbox_inches='tight')])
 
     def test_scatter_plot(self):
