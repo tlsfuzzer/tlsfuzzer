@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # Author: Jan Koscielniak, (c) 2020
+# Author: Hubert Kario, (c) 2020
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 
@@ -34,7 +35,7 @@ TestPair = namedtuple('TestPair', 'index1  index2')
 mpl.use('Agg')
 
 
-VERSION = 3
+VERSION = 4
 
 
 _diffs = None
@@ -587,33 +588,57 @@ class Analysis(object):
             return
 
         reps = 5000
-        data = pd.DataFrame()
+        boots = {"mean": pd.DataFrame(),
+                 "median": pd.DataFrame(),
+                 "trim mean (5%)": pd.DataFrame(),
+                 "trim mean (25%)": pd.DataFrame(),
+                 "trimean": pd.DataFrame()}
 
         for i in range(1, len(self.class_names)):
             pair = TestPair(i, 0)
             diffs = self._bootstrap_differences(pair, reps)
-            diffs = [i[0] for i in diffs]
-            data['{}-0'.format(i)] = diffs
+            means = [i[0] for i in diffs]
+            medians = [i[1] for i in diffs]
+            trim_mean_05 = [i[2] for i in diffs]
+            trim_mean_25 = [i[3] for i in diffs]
+            trimeans = [i[4] for i in diffs]
+            boots["mean"]['{}-0'.format(i)] = means
+            boots["median"]['{}-0'.format(i)] = medians
+            boots["trim mean (5%)"]['{}-0'.format(i)] = trim_mean_05
+            boots["trim mean (25%)"]['{}-0'.format(i)] = trim_mean_25
+            boots["trimean"]['{}-0'.format(i)] = trimeans
 
-        with open(join(self.output, "bootstrapped_means.csv"), "w") as f:
-            writer = csv.writer(f)
-            writer.writerow(data.columns)
-            writer.writerows(data.itertuples(index=False))
+        for name, data in boots.items():
+            fig = Figure(figsize=(16, 12))
+            canvas = FigureCanvas(fig)
+            ax = fig.add_subplot(1, 1, 1)
+            ax.violinplot(data, widths=0.7, showmeans=True, showextrema=True)
+            ax.set_xticks(list(range(len(data.columns)+1)))
+            ax.set_xticklabels([' '] + list(data.columns))
+            formatter = mpl.ticker.EngFormatter('s')
+            ax.get_yaxis().set_major_formatter(formatter)
 
-        fig = Figure(figsize=(16, 12))
-        canvas = FigureCanvas(fig)
-        ax = fig.add_subplot(1, 1, 1)
-        ax.violinplot(data, widths=0.7, showmeans=True, showextrema=True)
-        ax.set_xticks(list(range(len(data.columns)+1)))
-        ax.set_xticklabels([' '] + list(data.columns))
-        formatter = mpl.ticker.EngFormatter('s')
-        ax.get_yaxis().set_major_formatter(formatter)
+            ax.set_title("Confidence intervals for {0} of differences"
+                         .format(name))
+            ax.set_xlabel("Class pairs")
+            ax.set_ylabel("{0} of differences".format(name))
 
-        ax.set_title("Confidence intervals for mean of differences")
-        ax.set_xlabel("Class pairs")
-        ax.set_ylabel("Mean of differences")
-        canvas.print_figure(join(self.output, "conf_interval_plot.png"),
-                            bbox_inches="tight")
+            if name == "trim mean (5%)":
+                name = "trim_mean_05"
+            elif name == "trim mean (25%)":
+                name = "trim_mean_25"
+
+            with open(join(self.output,
+                           "bootstrapped_{0}.csv".format(name)),
+                      "w") as f:
+                writer = csv.writer(f)
+                writer.writerow(data.columns)
+                writer.writerows(data.itertuples(index=False))
+
+            canvas.print_figure(join(self.output,
+                                     "conf_interval_plot_{0}.png"
+                                     .format(name)),
+                                bbox_inches="tight")
 
     @staticmethod
     def _write_stats(name, low, med, high, txt_file):
