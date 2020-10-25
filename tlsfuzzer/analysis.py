@@ -31,7 +31,7 @@ TestPair = namedtuple('TestPair', 'index1  index2')
 mpl.use('Agg')
 
 
-VERSION = 2
+VERSION = 3
 
 
 _diffs = None
@@ -476,15 +476,24 @@ class Analysis(object):
                    )
 
     @staticmethod
-    def _mean_of_random_sample(reps=100):
-        """Calculate mean and median with bootstrapping."""
+    def _cent_tend_of_random_sample(reps=100):
+        """
+        Calculate mean, median, truncated means (5% and 25%) and trimean with
+        bootstrapping.
+        """
         ret = []
         global _diffs
         diffs = _diffs
 
         for _ in range(reps):
             boot = np.random.choice(diffs, replace=True, size=len(diffs))
-            ret.append((np.mean(boot, 0), np.median(boot, 0)))
+
+            q1, median, q3 = np.quantile(boot, [0.25, 0.5, 0.75])
+            ret.append((np.mean(boot, 0),
+                        median,
+                        stats.trim_mean(boot, 0.05, 0),
+                        stats.trim_mean(boot, 0.25, 0),
+                        (q1+2*median+q3)/4))
         return ret
 
     def _bootstrap_differences(self, pair, reps=5000):
@@ -501,7 +510,7 @@ class Analysis(object):
 
         with mp.Pool() as pool:
             cent_tend = list(pool.imap_unordered(
-                self._mean_of_random_sample,
+                self._cent_tend_of_random_sample,
                 chain(repeat(job_size, reps//job_size), [reps % job_size])))
         _diffs = None
         return [i for sublist in cent_tend for i in sublist]
@@ -514,22 +523,36 @@ class Analysis(object):
         :param int reps: how many bootstraping repetitions to perform
         :param float ci: confidence interval for the low and high estimate.
             0.95, i.e. "2 sigma", by default
-        :return: tuple with low estimate, mean, and high estimate of
-            mean of differences of observations
+        :return: tuple with low estimate, estimate, and high estimate of
+            mean, median, trimmed mean (5% and 25%) and trimean of differences
+            of observations
         """
         cent_tend = self._bootstrap_differences(pair, reps)
-        mean_values = [i for i, _ in cent_tend]
-        median_values = [i for _, i in cent_tend]
+        mean_values = [i[0] for i in cent_tend]
+        median_values = [i[1] for i in cent_tend]
+        trim_mean_05_values = [i[2] for i in cent_tend]
+        trim_mean_25_values = [i[3] for i in cent_tend]
+        trimean_values = [i[4] for i in cent_tend]
         diff = self.data.iloc[:, pair.index1] - self.data.iloc[:, pair.index2]
         mean = np.mean(diff)
-        median = np.median(diff)
+        q1, median, q3 = np.quantile(diff, [0.25, 0.5, 0.75])
+        trim_mean_05 = stats.trim_mean(diff, 0.05, 0)
+        trim_mean_25 = stats.trim_mean(diff, 0.25, 0)
+        trimean = (q1 + 2*median + q3)/4
 
         quantiles = [(1-ci)/2, 1-(1-ci)/2]
         mean_quant = np.quantile(mean_values, quantiles)
         median_quant = np.quantile(median_values, quantiles)
+        trim_mean_05_quant = np.quantile(trim_mean_05_values, quantiles)
+        trim_mean_25_quant = np.quantile(trim_mean_25_values, quantiles)
+        trimean_quant = np.quantile(trimean_values, quantiles)
 
+        # TODO: change to dict
         return [mean_quant[0], mean, mean_quant[1],
-                median_quant[0], median, median_quant[1]]
+                median_quant[0], median, median_quant[1],
+                trim_mean_05_quant[0], trim_mean_05, trim_mean_05_quant[1],
+                trim_mean_25_quant[0], trim_mean_25, trim_mean_25_quant[1],
+                trimean_quant[0], trimean, trimean_quant[1]]
 
     def median_difference(self, pair):
         """Calculate median difference between samples."""
@@ -547,7 +570,7 @@ class Analysis(object):
         for i in range(1, len(self.class_names)):
             pair = TestPair(i, 0)
             diffs = self._bootstrap_differences(pair, reps)
-            diffs = [i for i, _ in diffs]
+            diffs = [i[0] for i in diffs]
             data['{}-0'.format(i)] = diffs
 
         with open(join(self.output, "bootstrapped_means.csv"), "w") as f:
@@ -569,6 +592,13 @@ class Analysis(object):
         ax.set_ylabel("Mean of differences")
         canvas.print_figure(join(self.output, "conf_interval_plot.png"),
                             bbox_inches="tight")
+
+    @staticmethod
+    def _write_stats(name, low, med, high, txt_file):
+        txt = "{} of differences: {:.5e}s, 95% CI: {:.5e}s, {:5e}s (±{:.3e}s)"\
+            .format(name, med, low, high, (high-low)/2)
+        print(txt)
+        txt_file.write(txt + "\n")
 
     def _write_individual_results(self):
         """Write results to report.csv"""
@@ -711,23 +741,25 @@ class Analysis(object):
             txt_file.write(txt)
             txt_file.write('\n')
 
-            low_mean, mean, high_mean, low_median, median, high_median = \
-                self.calc_diff_conf_int(worst_pair)
+            low_mean, mean, high_mean, \
+                low_median, median, high_median, \
+                low_trim_mean_05, trim_mean_05, high_trim_mean_05, \
+                low_trim_mean_25, trim_mean_25, high_trim_mean_25, \
+                low_trimean, trimean, high_trimean \
+                = self.calc_diff_conf_int(worst_pair)
             # use 95% CI as that translates to 2 standard deviations, making
             # it easy to estimate higher CIs
-            txt = "Mean difference: {:.5e}s, 95% CI: {:.5e}s, {:.5e}s"\
-                " (±{:.3e}s)".\
-                format(mean, low_mean, high_mean, (high_mean-low_mean)/2)
-            print(txt)
-            txt_file.write(txt)
-            txt_file.write('\n')
-            txt = "Median difference: {:.5e}s, 95% CI: {:.5e}s, {:.5e}s"\
-                " (±{:.3e}s)".\
-                format(median, low_median, high_median,
-                       (high_median-low_median)/2)
-            print(txt)
-            txt_file.write(txt)
-            txt_file.write('\n')
+            self._write_stats("Mean", low_mean, mean, high_mean, txt_file)
+            self._write_stats(
+                "Median", low_median, median, high_median, txt_file)
+            self._write_stats(
+                "Trimmed mean (5%)", low_trim_mean_05, trim_mean_05,
+                high_trim_mean_05, txt_file)
+            self._write_stats(
+                "Trimmed mean (25%)", low_trim_mean_25, trim_mean_25,
+                high_trim_mean_25, txt_file)
+            self._write_stats(
+                "Trimean", low_trimean, trimean, high_trimean, txt_file)
 
             txt = "For detailed report see {}".format(report_filename)
             print(txt)
