@@ -30,7 +30,7 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         SetPaddingCallback, replace_plaintext, ch_cookie_handler, \
         ch_key_share_handler, SetRecordVersion, CopyVariables, \
         ResetWriteConnectionState, HeartbeatGenerator, Certificate, \
-        KeyUpdateGenerator, ClearContext
+        KeyUpdateGenerator, ClearContext, RawSocketWriteGenerator
 from tlsfuzzer.helpers import psk_ext_gen, psk_ext_updater, \
         psk_session_ext_gen, AutoEmptyExtension
 from tlsfuzzer.runner import ConnectionState
@@ -422,6 +422,43 @@ class TestSetRecordVersion(unittest.TestCase):
         msg_gen.process(state)
 
         self.assertEqual(state.msg_sock.version, (3, 2))
+
+
+class TestRawSocketWriteGenerator(unittest.TestCase):
+    def test___init__(self):
+        msg_gen = RawSocketWriteGenerator(bytearray(b'some data'))
+
+        self.assertIsNotNone(msg_gen)
+        self.assertTrue(msg_gen.is_command())
+        self.assertFalse(msg_gen.is_expect())
+        self.assertFalse(msg_gen.is_generator())
+
+    def test___repr__(self):
+        msg_gen = RawSocketWriteGenerator(bytearray(b'some data'))
+
+        self.assertEqual(repr(msg_gen),
+                         "RawSocketWriteGenerator(data=bytearray(b'some data'))")
+
+    def test___repr___with_description(self):
+        msg_gen = RawSocketWriteGenerator(bytearray(b'some data'),
+                                          description="STARTTLS")
+
+        self.assertEqual(repr(msg_gen),
+                         "RawSocketWriteGenerator("
+                         "data=bytearray(b'some data'), "
+                         "description='STARTTLS')")
+
+    def test_process(self):
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        msg_gen = RawSocketWriteGenerator(b'some data')
+
+        msg_gen.process(state)
+
+        self.assertTrue(
+            state.msg_sock._recordSocket.
+            sock.send.called_once_with(b'some data'))
 
 
 class TestPlaintextMessageGenerator(unittest.TestCase):

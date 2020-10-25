@@ -376,6 +376,33 @@ class CopyVariables(Command):
                 val.append(state.key[name])
 
 
+class RawSocketWriteGenerator(Command):
+    """
+    Send a plaintext data irrespective of encryption state.
+
+    Does not update handshake hashes, record layer state, does not fragment,
+    etc.
+
+    :ivar bytearray ~.data: data to send
+    :ivar str ~.description: identifier to print when processing of the node
+        fails
+    """
+
+    def __init__(self, data, description=None):
+        """Set the record layer type and payload to send."""
+        super(RawSocketWriteGenerator, self).__init__()
+        self.data = data
+        self.description = description
+
+    def __repr__(self):
+        """Return human readable representation of the object."""
+        return self._repr(["data", "description"])
+
+    def process(self, state):
+        """Send the message over the socket."""
+        state.msg_sock._recordSocket.sock.send(self.data)
+
+
 class PlaintextMessageGenerator(Command):
     """
     Send a plaintext data record irrespective of encryption state.
