@@ -426,7 +426,17 @@ class TestPlots(unittest.TestCase):
             with mock.patch("__main__.__builtins__.open", mock.mock_open())\
                     as mock_open:
                 self.analysis.conf_interval_plot()
-                mock_save.assert_called_once()
+                self.assertEqual(mock_save.call_args_list,
+                    [mock.call('/tmp/conf_interval_plot_mean.png',
+                               bbox_inches='tight'),
+                     mock.call('/tmp/conf_interval_plot_median.png',
+                               bbox_inches='tight'),
+                     mock.call('/tmp/conf_interval_plot_trim_mean_05.png',
+                               bbox_inches='tight'),
+                     mock.call('/tmp/conf_interval_plot_trim_mean_25.png',
+                               bbox_inches='tight'),
+                     mock.call('/tmp/conf_interval_plot_trimean.png',
+                               bbox_inches='tight')])
 
 
 @unittest.skipIf(failed_import,
