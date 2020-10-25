@@ -388,13 +388,15 @@ class Analysis(object):
         axes.set_title("Scatter plot of class differences")
         axes.set_ylabel("Time [s]")
         axes.set_xlabel("Sample index")
-        quant = np.quantile(data, [0.01, 0.99])
-        quant[0] *= 0.98
-        quant[1] *= 1.02
-        axes.set_ylim(quant)
         axes.legend(data, ncol=6, loc='upper center',
                     bbox_to_anchor=(0.5, -0.15))
         canvas.print_figure(join(self.output, "diff_scatter_plot.png"),
+                            bbox_inches="tight")
+        quant = np.quantile(data, [0.25, 0.75])
+        quant[0] *= 0.98
+        quant[1] *= 1.02
+        axes.set_ylim(quant)
+        canvas.print_figure(join(self.output, "diff_scatter_plot_zoom_in.png"),
                             bbox_inches="tight")
 
     def ecdf_plot(self):
