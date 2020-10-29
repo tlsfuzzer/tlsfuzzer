@@ -158,7 +158,8 @@ install:
               travis_retry pip install "dpkt>=1.9.2";
           fi
       fi
-  - if [[ $ANALYSIS_DEP == 'true' ]]; then travis_retry pip install -r build-requirements-analysis.txt; fi
+  # kiwisolver requires new pip for its wheel files so ensure we're running the newest one
+  - if [[ $ANALYSIS_DEP == 'true' ]]; then travis_retry pip install --upgrade pip; travis_retry pip install -r build-requirements-analysis.txt; fi
   - travis_retry pip install -r requirements.txt
   # install optional tlslite-ng requirementes to speed up testing
   - if [[ $TRAVIS_PYTHON_VERSION != '3.3' ]]; then travis_retry pip install m2crypto; fi
