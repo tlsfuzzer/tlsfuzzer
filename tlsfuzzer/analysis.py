@@ -607,11 +607,6 @@ class Analysis(object):
                 trim_mean_25_quant[0], trim_mean_25, trim_mean_25_quant[1],
                 trimean_quant[0], trimean, trimean_quant[1]]
 
-    def median_difference(self, pair):
-        """Calculate median difference between samples."""
-        diffs = self.data.iloc[:, pair.index1] - self.data.iloc[:, pair.index2]
-        return abs(np.median(diffs))
-
     def conf_interval_plot(self):
         """Generate the confidence inteval for differences between samples."""
         if not self.draw_conf_interval_plot:
@@ -670,6 +665,25 @@ class Analysis(object):
                                      .format(name)),
                                 bbox_inches="tight")
 
+    def desc_stats(self):
+        """Calculate the descriptive statistics for sample differences."""
+        results = {}
+        comb = combinations(list(range(len(self.class_names))), 2)
+        for index1, index2, in comb:
+            data1 = self.data.iloc[:, index1]
+            data2 = self.data.iloc[:, index2]
+
+            diff = data2 - data1
+
+            diff_stats = {}
+            diff_stats["mean"] = np.mean(diff)
+            diff_stats["SD"] = np.std(diff)
+            quantiles = np.quantile(diff, [0.25, 0.5, 0.75])
+            diff_stats["median"] = quantiles[1]
+            diff_stats["IQR"] = quantiles[2] - quantiles[1]
+            diff_stats["MAD"] = stats.median_abs_deviation(diff)
+            results[TestPair(index1, index2)] = diff_stats
+        return results
     @staticmethod
     def _write_stats(name, low, med, high, txt_file):
         txt = "{} of differences: {:.5e}s, 95% CI: {:.5e}s, {:5e}s (±{:.3e}s)"\
@@ -685,6 +699,7 @@ class Analysis(object):
         wilcox_results = self.wilcoxon_test()
         sign_results = self.sign_test()
         ttest_results = self.rel_t_test()
+        desc_stats = self.desc_stats()
 
         report_filename = join(self.output, "report.csv")
         p_vals = []
@@ -693,13 +708,15 @@ class Analysis(object):
             writer = csv.writer(file)
             writer.writerow(["Class 1", "Class 2", "Box test",
                              "Wilcoxon signed-rank test", "Sign test",
-                             "paired t-test"])
+                             "paired t-test", "mean", "SD",
+                             "median", "IQR", "MAD"])
             worst_pair = None
             worst_p = None
             worst_median_difference = None
             for pair, result in box_results.items():
                 index1 = pair.index1
                 index2 = pair.index2
+                diff_stats = desc_stats[pair]
                 box_write = "="
                 if result:
                     smaller, bigger = result
@@ -717,6 +734,12 @@ class Analysis(object):
                       .format(index1, index2, sign_results[pair]))
                 print("Dependent t-test for paired samples {} vs {}: {}"
                       .format(index1, index2, ttest_results[pair]))
+                print("{} vs {} stats: mean: {:.3}, SD: {:.3}, median: {:.3}, "
+                      "IQR: {:.3}, MAD: {:.3}".format(
+                          index1, index2, diff_stats["mean"], diff_stats["SD"],
+                          diff_stats["median"], diff_stats["IQR"],
+                          diff_stats["MAD"]))
+
                 # if both tests or the sign test found a difference
                 # consider it a possible side-channel
                 if result and wilcox_results[pair] < 0.05 or \
@@ -726,18 +749,23 @@ class Analysis(object):
                 wilcox_p = wilcox_results[pair]
                 sign_p = sign_results[pair]
                 ttest_p = ttest_results[pair]
-                median_difference = self.median_difference(pair)
                 row = [self.class_names[index1],
                        self.class_names[index2],
                        box_write,
                        wilcox_p,
                        sign_p,
-                       ttest_p
+                       ttest_p,
+                       diff_stats["mean"],
+                       diff_stats["SD"],
+                       diff_stats["median"],
+                       diff_stats["IQR"],
+                       diff_stats["MAD"]
                        ]
                 writer.writerow(row)
 
                 p_vals.append(wilcox_p)
                 sign_p_vals.append(sign_p)
+                median_difference = abs(diff_stats["median"])
 
                 if worst_pair is None or wilcox_p < worst_p or \
                         worst_median_difference is None or \
