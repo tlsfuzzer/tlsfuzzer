@@ -274,6 +274,24 @@ class TestReport(unittest.TestCase):
             self.assertEqual(pair, (0, 1))
             self.assertGreaterEqual(0.05, pval)
 
+    def test_rel_t_test(self):
+        with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
+            analysis = Analysis("/tmp")
+            self.mock_read_csv.assert_called_once()
+
+            res = analysis.rel_t_test()
+            self.assertEqual(len(res), 3)
+            for index, result in res.items():
+                self.assertGreaterEqual(result, 0.25)
+
+    def test__rel_t_test(self):
+        with mock.patch("tlsfuzzer.analysis._DATA", self.neq_data):
+
+            ret = Analysis._rel_t_test((0, 1))
+            pair, pval = ret
+            self.assertEqual(pair, (0, 1))
+            self.assertGreaterEqual(0.05, pval)
+
     def test_box_test(self):
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
             analysis = Analysis("/tmp")
