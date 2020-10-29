@@ -786,6 +786,20 @@ class Analysis(object):
             for num, name in enumerate(self.class_names):
                 writer.writerow([num, name])
 
+    def _write_sample_stats(self):
+        """Write summary statistics of samples to sample_stats.csv file."""
+        stats_filename = join(self.output, "sample_stats.csv")
+        with open(stats_filename, "w") as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerow(['Name', 'mean', 'median', 'MAD'])
+            for num, name in enumerate(self.class_names):
+                sample = self.data.iloc[:, num]
+                writer.writerow([
+                    name,
+                    np.mean(sample),
+                    np.median(sample),
+                    stats.median_abs_deviation(sample)])
+
     def _write_summary(self, difference, p_vals, sign_p_vals, worst_pair,
                        worst_p, friedman_p):
         """Write the report.txt file and print summary."""
@@ -933,6 +947,8 @@ class Analysis(object):
                                "failed"))
 
         self._write_legend()
+
+        self._write_sample_stats()
 
         friedman_result = self.friedman_test()
 
