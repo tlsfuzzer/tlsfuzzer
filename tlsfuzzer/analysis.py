@@ -684,6 +684,7 @@ class Analysis(object):
             diff_stats["MAD"] = stats.median_abs_deviation(diff)
             results[TestPair(index1, index2)] = diff_stats
         return results
+
     @staticmethod
     def _write_stats(name, low, med, high, txt_file):
         txt = "{} of differences: {:.5e}s, 95% CI: {:.5e}s, {:5e}s (±{:.3e}s)"\
@@ -728,11 +729,11 @@ class Analysis(object):
                 else:
                     print("Box test {} vs {}: No difference".format(index1,
                                                                     index2))
-                print("Wilcoxon signed-rank test {} vs {}: {}"
+                print("Wilcoxon signed-rank test {} vs {}: {:.3}"
                       .format(index1, index2, wilcox_results[pair]))
-                print("Sign test {} vs {}: {}"
+                print("Sign test {} vs {}: {:.3}"
                       .format(index1, index2, sign_results[pair]))
-                print("Dependent t-test for paired samples {} vs {}: {}"
+                print("Dependent t-test for paired samples {} vs {}: {:.3}"
                       .format(index1, index2, ttest_results[pair]))
                 print("{} vs {} stats: mean: {:.3}, SD: {:.3}, median: {:.3}, "
                       "IQR: {:.3}, MAD: {:.3}".format(
