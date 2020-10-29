@@ -261,6 +261,36 @@ class Analysis(object):
         results = dict(pvals)
         return results
 
+    @staticmethod
+    def _rel_t_test(pair):
+        # we're using global variable so that the data shared between
+        # worker threads isn't serialised and deserialised over and over again
+        # pylint: disable=global-statement
+        global _DATA
+        # pylint: enable=global-statement
+        index1, index2 = pair
+        data1 = _DATA.iloc[:, index1]
+        data2 = _DATA.iloc[:, index2]
+        _, pval = stats.ttest_rel(data1, data2)
+        return pair, pval
+
+    def rel_t_test(self):
+        """Cross-test all classes using the t-test for dependent, paired
+        samples."""
+        comb = list(combinations(list(range(len(self.class_names))), 2))
+        # we're using global variable so that the data shared between
+        # worker threads isn't serialised and deserialised over and over again
+        # pylint: disable=global-statement
+        global _DATA
+        # pylint: enable=global-statement
+        _DATA = self.data
+        job_size = max(len(comb) // os.cpu_count(), 1)
+        with mp.Pool() as pool:
+            pvals = list(pool.imap_unordered(self._rel_t_test, comb,
+                                             job_size))
+        results = dict(pvals)
+        return results
+
     def sign_test(self, med=0.0):
         """
         Cross-test all classes using the sign test.
@@ -650,6 +680,7 @@ class Analysis(object):
         box_results = self.box_test()
         wilcox_results = self.wilcoxon_test()
         sign_results = self.sign_test()
+        ttest_results = self.rel_t_test()
 
         report_filename = join(self.output, "report.csv")
         p_vals = []
@@ -657,7 +688,8 @@ class Analysis(object):
         with open(report_filename, 'w') as file:
             writer = csv.writer(file)
             writer.writerow(["Class 1", "Class 2", "Box test",
-                             "Wilcoxon signed-rank test", "Sign test"])
+                             "Wilcoxon signed-rank test", "Sign test",
+                             "paired t-test"])
             worst_pair = None
             worst_p = None
             worst_median_difference = None
@@ -679,6 +711,8 @@ class Analysis(object):
                       .format(index1, index2, wilcox_results[pair]))
                 print("Sign test {} vs {}: {}"
                       .format(index1, index2, sign_results[pair]))
+                print("Dependent t-test for paired samples {} vs {}: {}"
+                      .format(index1, index2, ttest_results[pair]))
                 # if both tests or the sign test found a difference
                 # consider it a possible side-channel
                 if result and wilcox_results[pair] < 0.05 or \
@@ -687,12 +721,14 @@ class Analysis(object):
 
                 wilcox_p = wilcox_results[pair]
                 sign_p = sign_results[pair]
+                ttest_p = ttest_results[pair]
                 median_difference = self.median_difference(pair)
                 row = [self.class_names[index1],
                        self.class_names[index2],
                        box_write,
                        wilcox_p,
-                       sign_p
+                       sign_p,
+                       ttest_p
                        ]
                 writer.writerow(row)
 
