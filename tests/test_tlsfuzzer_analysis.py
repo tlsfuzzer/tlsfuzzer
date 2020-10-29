@@ -64,9 +64,9 @@ class TestReport(unittest.TestCase):
                                                 #mock_ecdf.assert_called_once()
                                                 #mock_box.assert_called_once()
                                                 #mock_scatter.assert_called_once()
-                                                # we're writing to report.csv, legend.csv, and
-                                                # report.txt
-                                                self.assertEqual(mock_open.call_count, 3)
+                                                # we're writing to report.csv, legend.csv,
+                                                # sample_stats.csv, and report.txt
+                                                self.assertEqual(mock_open.call_count, 4)
                                                 self.assertEqual(ret, 0)
 
     def test_report_multithreaded(self):
@@ -88,9 +88,9 @@ class TestReport(unittest.TestCase):
                                                 #mock_ecdf.assert_called_once()
                                                 #mock_box.assert_called_once()
                                                 #mock_scatter.assert_called_once()
-                                                # we're writing to report.csv, legend.csv, and
-                                                # report.txt
-                                                self.assertEqual(mock_open.call_count, 3)
+                                                # we're writing to report.csv, legend.csv,
+                                                # sample_stats.csv, and report.txt
+                                                self.assertEqual(mock_open.call_count, 4)
                                                 self.assertEqual(ret, 0)
 
     def test_report_neq(self):
@@ -116,8 +116,8 @@ class TestReport(unittest.TestCase):
                                                 #mock_box.assert_called_once()
                                                 #mock_scatter.assert_called_once()
                                                 # we're writing to report.csv, legend.csv,
-                                                # and report.txt
-                                                self.assertEqual(mock_open.call_count, 3)
+                                                # sample_stats.csv, and report.txt
+                                                self.assertEqual(mock_open.call_count, 4)
                                                 self.assertEqual(ret, 1)
 
     def test_report_error_in_box_plot(self):
