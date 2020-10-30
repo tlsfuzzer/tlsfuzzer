@@ -14,6 +14,7 @@ import getopt
 import sys
 import multiprocessing as mp
 import shutil
+from itertools import chain
 from os.path import join
 from collections import namedtuple
 from itertools import combinations, repeat, chain
@@ -25,6 +26,8 @@ import pandas as pd
 import matplotlib as mpl
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+
+from tlsfuzzer.utils.ordered_dict import OrderedDict
 
 
 TestPair = namedtuple('TestPair', 'index1  index2')
@@ -434,24 +437,27 @@ class Analysis(object):
         base = next(classnames)
         base_data = self.data.loc[:, base]
 
-        low_end, high_end = float("inf"), float("-inf")
-        zoom_low_end, zoom_high_end = float("inf"), float("-inf")
-        central_low_end, central_high_end = float("inf"), float("-inf")
+        # parameters for the zoomed-in graphs of ecdf
+        zoom_params = OrderedDict([("98", (0.01, 0.99)),
+                                   ("33", (0.33, 0.66)),
+                                   ("10", (0.45, 0.55))])
+        zoom_values = OrderedDict((name, [float("inf"), float("-inf")])
+                                  for name in zoom_params.keys())
 
         for classname in classnames:
+            # calculate the ECDF
             data = self.data.loc[:, classname]
             levels = np.linspace(1. / len(data), 1, len(data))
             values = sorted(data-base_data)
             axes.step(values, levels, where='post')
-            new_low_end, new_zoom_low_end, new_zoom_high_end, new_high_end, \
-                new_central_low_end, new_central_high_end = \
-                np.quantile(values, [0.01, 0.33, 0.66, 0.99, 0.45, 0.55])
-            zoom_low_end = min(zoom_low_end, new_zoom_low_end)
-            low_end = min(low_end, new_low_end)
-            high_end = max(high_end, new_high_end)
-            zoom_high_end = max(zoom_high_end, new_zoom_high_end)
-            central_low_end = min(central_low_end, new_central_low_end)
-            central_high_end = max(central_high_end, new_central_high_end)
+
+            # calculate the bounds for the zoom positions
+            quantiles = np.quantile(values, list(chain(*zoom_params.values())))
+            quantiles = iter(quantiles)
+            for low, high, name in \
+                    zip(quantiles, quantiles, zoom_params.keys()):
+                zoom_values[name][0] = min(zoom_values[name][0], low)
+                zoom_values[name][1] = max(zoom_values[name][1], high)
 
         fig.legend(list("{0}-0".format(i)
                         for i in range(1, len(list(self.data)))),
@@ -462,21 +468,25 @@ class Analysis(object):
                        "class differences")
         axes.set_xlabel("Time")
         axes.set_ylabel("Cumulative probability")
+
         formatter = mpl.ticker.EngFormatter('s')
         axes.get_xaxis().set_major_formatter(formatter)
+
         canvas.print_figure(join(self.output, "diff_ecdf_plot.png"),
                             bbox_inches="tight")
-        axes.set_xlim([low_end*0.98, high_end*1.02])
-        canvas.print_figure(join(self.output, "diff_ecdf_plot_zoom_in.png"),
-                            bbox_inches="tight")
-        axes.set_xlim([zoom_low_end*0.98, zoom_high_end*1.02])
-        axes.set_ylim([0.33, 0.66])
-        canvas.print_figure(join(self.output, "diff_ecdf_plot_zoom_in_33.png"),
-                            bbox_inches="tight")
-        axes.set_xlim([central_low_end*0.98, central_high_end*1.02])
-        axes.set_ylim([0.45, 0.55])
-        canvas.print_figure(join(self.output, "diff_ecdf_plot_zoom_in_10.png"),
-                            bbox_inches="tight")
+
+        # now graph progressive zooms of the central portion
+        for name, quantiles, values in \
+                zip(zoom_params.keys(), zoom_params.values(),
+                    zoom_values.values()):
+            axes.set_ylim(quantiles)
+            # make the bounds a little weaker so that the extreme positions
+            # are visible of graph too
+            axes.set_xlim([values[0]*0.98, values[1]*1.02])
+            canvas.print_figure(join(self.output,
+                                     "diff_ecdf_plot_zoom_in_{0}.png"
+                                     .format(name)),
+                                bbox_inches="tight")
 
     def make_legend(self, fig):
         """Generate common legend for plots that need it."""
