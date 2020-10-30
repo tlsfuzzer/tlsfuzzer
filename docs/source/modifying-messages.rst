@@ -46,6 +46,11 @@ You can find a usage example in:
     If you want to send an otherwise valid message, only as plaintext, not
     encrypted, see the :ref:`clearing-encryption-settings` section.
 
+To write directly to the socket, without record layer encapsulation,
+use the :py:class:`~tlsfuzzer.messages.RawSocketWriteGenerator`.
+It accepts two parameters, one to specify the data to write and another,
+optional, used for debugging, the ``description``.
+
 Creating arbitrary messages
 ---------------------------
 
