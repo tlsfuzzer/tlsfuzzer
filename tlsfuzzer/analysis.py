@@ -31,6 +31,9 @@ TestPair = namedtuple('TestPair', 'index1  index2')
 mpl.use('Agg')
 
 
+VERSION = 2
+
+
 _diffs = None
 _DATA = None
 
@@ -647,6 +650,10 @@ class Analysis(object):
         report_filename = join(self.output, "report.csv")
         text_report_filename = join(self.output, "report.txt")
         with open(text_report_filename, 'w') as txt_file:
+            txt_file.write(
+                "tlsfuzzer analyse.py version {0} analysis\n"
+                .format(VERSION))
+
             _, p = stats.kstest(p_vals, 'uniform')
             txt = ("KS-test for uniformity of p-values from Wilcoxon "
                    "signed-rank test")
