@@ -369,7 +369,7 @@ class TestPlots(unittest.TestCase):
             self.analysis.diff_ecdf_plot()
             self.assertEqual(mock_save.call_args_list,
                 [mock.call('/tmp/diff_ecdf_plot.png', bbox_inches='tight'),
-                 mock.call('/tmp/diff_ecdf_plot_zoom_in.png',
+                 mock.call('/tmp/diff_ecdf_plot_zoom_in_98.png',
                             bbox_inches='tight'),
                  mock.call('/tmp/diff_ecdf_plot_zoom_in_33.png',
                             bbox_inches='tight'),
