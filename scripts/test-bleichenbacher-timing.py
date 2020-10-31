@@ -29,7 +29,7 @@ from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.helpers import SIG_ALL, RSA_PKCS1_ALL
 
 
-version = 11
+version = 12
 
 
 def help_msg():
@@ -75,6 +75,9 @@ def help_msg():
     print(" --cpu-list     Set the CPU affinity for the tcpdump process")
     print("                See taskset(1) man page for the syntax of this")
     print("                option. Not used by default.")
+    print(" --static-enc   Re-use once generated RSA ciphertext. This may make the")
+    print("                timing signal weaker or stronger depending on implementation.")
+    print("                By default ciphertexts that have padding will be randomised.")
     print(" --help         this message")
 
 
@@ -97,6 +100,7 @@ def main():
     outdir = "/tmp"
     cipher = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA
     affinity = None
+    reuse_rsa_ciphertext = False
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv,
@@ -105,7 +109,8 @@ def main():
                                 "no-safe-renego",
                                 "no-sni",
                                 "repeat=",
-                                "cpu-list="])
+                                "cpu-list=",
+                                "static-enc"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -149,6 +154,8 @@ def main():
             no_sni = True
         elif opt == "--cpu-list":
             affinity = arg
+        elif opt == "--static-enc":
+            reuse_rsa_ciphertext = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -250,7 +257,8 @@ def main():
     # that tlsfuzzer calculates will be incorrect
     node = node.add_child(ClientKeyExchangeGenerator(
         padding_subs={-3: 0, -2: 3, -1: 3},
-        premaster_secret=bytearray([0] * 46)))
+        premaster_secret=bytearray([0] * 46),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -272,7 +280,9 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1: 3}))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        padding_subs={1: 3},
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -294,7 +304,9 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1: 1}))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        padding_subs={1: 1},
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -316,8 +328,10 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1: 1},
-                                                     padding_byte=0xff))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        padding_subs={1: 1},
+        padding_byte=0xff,
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -339,7 +353,9 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={4: 0}))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        padding_subs={4: 0},
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -361,7 +377,9 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-2: 0}))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        padding_subs={-2: 0},
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -383,7 +401,9 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={2: 0}))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        padding_subs={2: 0},
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -405,7 +425,9 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={0: 1}))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        padding_subs={0: 1},
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -427,7 +449,9 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1: 1}))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        padding_subs={-1: 1},
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -450,8 +474,10 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1: 1},
-                                                     premaster_secret=bytearray([3, 3])))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        padding_subs={-1: 1},
+        premaster_secret=bytearray([3, 3]),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -473,10 +499,12 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1: 0xaf,
-                                                                   0: 0x27,
-                                                                   1: 0x09},
-                                                     premaster_secret=bytearray([3, 3])))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        padding_subs={-1: 0xaf,
+                      0: 0x27,
+                      1: 0x09},
+        premaster_secret=bytearray([3, 3]),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -498,7 +526,9 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1, 1])))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        premaster_secret=bytearray([1, 1]),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -522,8 +552,10 @@ def main():
     node = node.add_child(TCPBufferingEnable())
     # the TLS version is always set, so we mask the real padding separator
     # and set the last byte of PMS to 0
-    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1: 1},
-                                                     premaster_secret=bytearray([1, 1, 0])))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        padding_subs={-1: 1},
+        premaster_secret=bytearray([1, 1, 0]),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -547,8 +579,10 @@ def main():
     node = node.add_child(TCPBufferingEnable())
     # the TLS version is always set, so we mask the real padding separator
     # and set the last byte of PMS to 0
-    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1: 1},
-                                                     premaster_secret=bytearray([1, 1, 0, 3])))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        padding_subs={-1: 1},
+        premaster_secret=bytearray([1, 1, 0, 3]),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -570,7 +604,9 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([0] * 47)))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        premaster_secret=bytearray([0] * 47),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -592,7 +628,9 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([0] * 4)))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        premaster_secret=bytearray([0] * 4),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -614,7 +652,9 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([0] * 49)))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        premaster_secret=bytearray([0] * 49),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -636,7 +676,9 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([0] * 124)))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        premaster_secret=bytearray([0] * 124),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -657,7 +699,9 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([0] * 96)))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        premaster_secret=bytearray([0] * 96),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -679,7 +723,9 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(client_version=(2, 2)))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        client_version=(2, 2),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -701,7 +747,9 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(client_version=(0, 0)))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        client_version=(0, 0),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -726,7 +774,9 @@ def main():
     # move the start of the padding forward, essentially encrypting two 0 bytes
     # at the beginning of the padding, but since those are transformed into a number
     # their existence is lost and it just like the padding was too small
-    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1: 0, 2: 2}))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        padding_subs={1: 0, 2: 2},
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -753,7 +803,9 @@ def main():
     for i in range(41):
         subs[i] = 0
     subs[41] = 2
-    node = node.add_child(ClientKeyExchangeGenerator(padding_subs=subs))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        padding_subs=subs,
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -778,7 +830,9 @@ def main():
     # move the start of the padding backward, essentially encrypting no 0 bytes
     # at the beginning of the padding, but since those are transformed into a number
     # its lack is lost and it just like the padding was too big
-    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={0: 2}))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        padding_subs={0: 2},
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -801,8 +855,10 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(padding_byte=0,
-                                                     client_version=(0, 0)))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        padding_byte=0,
+        client_version=(0, 0),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -824,11 +880,12 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1: 1},
-                                                     padding_byte=1,
-                                                     client_version=(1, 1),
-                                                     premaster_secret=
-                                                     bytearray([1]*48)))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        padding_subs={-1: 1},
+        padding_byte=1,
+        client_version=(1, 1),
+        premaster_secret=bytearray([1]*48),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -851,11 +908,12 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1: 0xff},
-                                                     padding_byte=0xff,
-                                                     client_version=(0xff, 0xff),
-                                                     premaster_secret=
-                                                     bytearray([0xff]*48)))
+    node = node.add_child(ClientKeyExchangeGenerator(
+        padding_subs={-1: 0xff},
+        padding_byte=0xff,
+        client_version=(0xff, 0xff),
+        premaster_secret=bytearray([0xff]*48),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())

@@ -914,6 +914,45 @@ class TestClientKeyExchangeGenerator(unittest.TestCase):
         self.assertEqual(decrypt[:2], bytearray([3, 3]))
         self.assertEqual(decrypt[2:], bytearray([1]*8))
 
+    def test_generate_with_node_reuse_and_no_encrypted_value_reuse(self):
+        state = ConnectionState()
+        state.get_server_public_key = lambda : self.priv_key
+        cke = ClientKeyExchangeGenerator(
+                cipher=constants.CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                premaster_secret=bytearray([1]*10))
+
+        ret = cke.generate(state)
+
+        self.assertEqual(len(ret.encryptedPreMasterSecret), 128)
+        decrypt = self.priv_key.decrypt(ret.encryptedPreMasterSecret)
+
+        self.assertEqual(decrypt[:2], bytearray([3, 3]))
+        self.assertEqual(decrypt[2:], bytearray([1]*8))
+
+        ret2 = cke.generate(state)
+        self.assertNotEqual(ret.encryptedPreMasterSecret,
+                            ret2.encryptedPreMasterSecret)
+
+    def test_generate_with_node_reuse_and_encrypted_value_reuse(self):
+        state = ConnectionState()
+        state.get_server_public_key = lambda : self.priv_key
+        cke = ClientKeyExchangeGenerator(
+                cipher=constants.CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                premaster_secret=bytearray([1]*10),
+                reuse_encrypted_premaster=True)
+
+        ret = cke.generate(state)
+
+        self.assertEqual(len(ret.encryptedPreMasterSecret), 128)
+        decrypt = self.priv_key.decrypt(ret.encryptedPreMasterSecret)
+
+        self.assertEqual(decrypt[:2], bytearray([3, 3]))
+        self.assertEqual(decrypt[2:], bytearray([1]*8))
+
+        ret2 = cke.generate(state)
+        self.assertEqual(ret.encryptedPreMasterSecret,
+                         ret2.encryptedPreMasterSecret)
+
     def test_generate_with_dhe(self):
         state = ConnectionState()
         state.key_exchange = mock.MagicMock()
