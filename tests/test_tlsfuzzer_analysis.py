@@ -14,7 +14,7 @@ import sys
 
 failed_import = False
 try:
-    from tlsfuzzer.analysis import Analysis, main, TestPair, help_msg, _DATA
+    from tlsfuzzer.analysis import Analysis, main, TestPair, help_msg
     import pandas as pd
     import numpy as np
 except ImportError:
@@ -60,7 +60,7 @@ class TestReport(unittest.TestCase):
                                                 analysis = Analysis("/tmp")
                                                 ret = analysis.generate_report()
 
-                                                self.mock_read_csv.assert_called_once()
+                                                self.mock_read_csv.assert_called()
                                                 #mock_ecdf.assert_called_once()
                                                 #mock_box.assert_called_once()
                                                 #mock_scatter.assert_called_once()
@@ -84,7 +84,7 @@ class TestReport(unittest.TestCase):
                                                     multithreaded_graph=True)
                                                 ret = analysis.generate_report()
 
-                                                self.mock_read_csv.assert_called_once()
+                                                self.mock_read_csv.assert_called()
                                                 #mock_ecdf.assert_called_once()
                                                 #mock_box.assert_called_once()
                                                 #mock_scatter.assert_called_once()
@@ -111,7 +111,7 @@ class TestReport(unittest.TestCase):
                                                 analysis = Analysis("/tmp")
                                                 ret = analysis.generate_report()
 
-                                                mock_read_csv.assert_called_once()
+                                                mock_read_csv.assert_called()
                                                 #mock_ecdf.assert_called_once()
                                                 #mock_box.assert_called_once()
                                                 #mock_scatter.assert_called_once()
@@ -267,9 +267,11 @@ class TestReport(unittest.TestCase):
                 self.assertGreaterEqual(result, 0.25)
 
     def test__wilcox_test(self):
-        with mock.patch("tlsfuzzer.analysis._DATA", self.neq_data):
+        with mock.patch("tlsfuzzer.analysis.Analysis.load_data") as load_data:
+            load_data.return_value = self.neq_data
 
-            ret = Analysis._wilcox_test((0, 1))
+            analysis = Analysis("/tmp")
+            ret = analysis._wilcox_test((0, 1))
             pair, pval = ret
             self.assertEqual(pair, (0, 1))
             self.assertGreaterEqual(0.05, pval)
@@ -285,9 +287,10 @@ class TestReport(unittest.TestCase):
                 self.assertGreaterEqual(result, 0.25)
 
     def test__rel_t_test(self):
-        with mock.patch("tlsfuzzer.analysis._DATA", self.neq_data):
-
-            ret = Analysis._rel_t_test((0, 1))
+        with mock.patch("tlsfuzzer.analysis.Analysis.load_data") as load_data:
+            load_data.return_value = self.neq_data
+            analysis = Analysis("/tmp")
+            ret = analysis._rel_t_test((0, 1))
             pair, pval = ret
             self.assertEqual(pair, (0, 1))
             self.assertGreaterEqual(0.05, pval)
@@ -372,6 +375,7 @@ class TestPlots(unittest.TestCase):
         mock_read_csv.return_value = timings
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", mock_read_csv):
             self.analysis = Analysis("/tmp")
+        self.analysis.load_data = mock_read_csv
 
     def test_ecdf_plot(self):
         with mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure",
@@ -428,7 +432,7 @@ class TestPlots(unittest.TestCase):
     @mock.patch("tlsfuzzer.analysis.os.remove")
     @mock.patch("tlsfuzzer.analysis.shutil.copyfile")
     def test__calc_percentiles(self, mock_copyfile, mock_remove, mock_memmap):
-        mock_memmap.return_value = self.analysis.data.values
+        mock_memmap.return_value = self.analysis.load_data()
 
         ret = self.analysis._calc_percentiles()
 
@@ -559,11 +563,11 @@ class TestDataLoad(unittest.TestCase):
 
         a = Analysis("/tmp")
 
-        self.assertTrue(a.data.equals(self.df))
+        self.assertTrue(a.load_data().equals(self.df))
 
-        convert_mock.assert_called_once_with()
-        read_csv_mock.assert_called_once_with("/tmp/legend.csv")
-        memmap_mock.assert_called_once_with(
+        convert_mock.assert_called_with()
+        read_csv_mock.assert_called_with("/tmp/legend.csv")
+        memmap_mock.assert_called_with(
             "/tmp/timing.bin", dtype=np.float64, mode="r", shape=(10, 2),
             order="C")
 
@@ -612,14 +616,17 @@ class TestDataLoad(unittest.TestCase):
 
         a = Analysis("/tmp")
 
-        self.assertTrue(a.data.equals(self.df))
+        self.assertTrue(a.load_data().equals(self.df))
 
-        read_csv_mock.assert_called_once_with("/tmp/legend.csv")
-        memmap_mock.assert_called_once_with(
+        read_csv_mock.assert_called_with("/tmp/legend.csv")
+        memmap_mock.assert_called_with(
             "/tmp/timing.bin", dtype=np.float64, mode="r", shape=(10, 2),
             order="C")
         self.assertEqual(isfile_mock.call_args_list,
             [mock.call("/tmp/timing.bin"),
+             mock.call("/tmp/legend.csv"),
+             mock.call("/tmp/timing.bin.shape"),
+             mock.call("/tmp/timing.bin"),
              mock.call("/tmp/legend.csv"),
              mock.call("/tmp/timing.bin.shape")])
 
