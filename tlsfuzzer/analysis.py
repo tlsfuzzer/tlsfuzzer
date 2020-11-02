@@ -99,8 +99,8 @@ class Analysis(object):
     def __init__(self, output, draw_ecdf_plot=True, draw_scatter_plot=True,
                  draw_conf_interval_plot=True, multithreaded_graph=False):
         self.output = output
-        self.data = self.load_data()
-        self.class_names = list(self.data)
+        data = self.load_data()
+        self.class_names = list(data)
         self.draw_ecdf_plot = draw_ecdf_plot
         self.draw_scatter_plot = draw_scatter_plot
         self.draw_conf_interval_plot = draw_conf_interval_plot
@@ -196,18 +196,19 @@ class Analysis(object):
         """
         Internal configurable function to perform the box test.
 
-        :param int interval1: index to self.data representing first sample
-        :param int interval2: index to self.data representing second sample
+        :param int interval1: index to data representing first sample
+        :param int interval2: index to data representing second sample
         :param float quantile_start: starting quantile of the box
         :param float quantile_end: closing quantile of the box
         :return: None on no difference, int index of smaller sample if there
             is a difference
         """
-        box1_start = np.quantile(self.data.iloc[:, interval1], quantile_start)
-        box1_end = np.quantile(self.data.iloc[:, interval1], quantile_end)
+        data = self.load_data()
+        box1_start = np.quantile(data.iloc[:, interval1], quantile_start)
+        box1_end = np.quantile(data.iloc[:, interval1], quantile_end)
 
-        box2_start = np.quantile(self.data.iloc[:, interval2], quantile_start)
-        box2_end = np.quantile(self.data.iloc[:, interval2], quantile_end)
+        box2_start = np.quantile(data.iloc[:, interval2], quantile_start)
+        box2_end = np.quantile(data.iloc[:, interval2], quantile_end)
 
         if box1_start == box2_start or box1_end == box2_end:
             # can return early because the intervals overlap
@@ -233,28 +234,17 @@ class Analysis(object):
             results[TestPair(index1, index2)] = result
         return results
 
-    @staticmethod
-    def _wilcox_test(pair):
-        # we're using global variable so that the data shared between
-        # worker threads isn't serialised and deserialised over and over again
-        # pylint: disable=global-statement
-        global _DATA
-        # pylint: enable=global-statement
+    def _wilcox_test(self, pair):
+        data = self.load_data()
         index1, index2 = pair
-        data1 = _DATA.iloc[:, index1]
-        data2 = _DATA.iloc[:, index2]
+        data1 = data.iloc[:, index1]
+        data2 = data.iloc[:, index2]
         _, pval = stats.wilcoxon(data1, data2)
         return pair, pval
 
     def wilcoxon_test(self):
         """Cross-test all classes with the Wilcoxon signed-rank test"""
         comb = list(combinations(list(range(len(self.class_names))), 2))
-        # we're using global variable so that the data shared between
-        # worker threads isn't serialised and deserialised over and over again
-        # pylint: disable=global-statement
-        global _DATA
-        # pylint: enable=global-statement
-        _DATA = self.data
         job_size = max(len(comb) // os.cpu_count(), 1)
         with mp.Pool() as pool:
             pvals = list(pool.imap_unordered(self._wilcox_test, comb,
@@ -262,16 +252,11 @@ class Analysis(object):
         results = dict(pvals)
         return results
 
-    @staticmethod
-    def _rel_t_test(pair):
-        # we're using global variable so that the data shared between
-        # worker threads isn't serialised and deserialised over and over again
-        # pylint: disable=global-statement
-        global _DATA
-        # pylint: enable=global-statement
+    def _rel_t_test(self, pair):
+        data = self.load_data()
         index1, index2 = pair
-        data1 = _DATA.iloc[:, index1]
-        data2 = _DATA.iloc[:, index2]
+        data1 = data.iloc[:, index1]
+        data2 = data.iloc[:, index2]
         _, pval = stats.ttest_rel(data1, data2)
         return pair, pval
 
@@ -279,12 +264,6 @@ class Analysis(object):
         """Cross-test all classes using the t-test for dependent, paired
         samples."""
         comb = list(combinations(list(range(len(self.class_names))), 2))
-        # we're using global variable so that the data shared between
-        # worker threads isn't serialised and deserialised over and over again
-        # pylint: disable=global-statement
-        global _DATA
-        # pylint: enable=global-statement
-        _DATA = self.data
         job_size = max(len(comb) // os.cpu_count(), 1)
         with mp.Pool() as pool:
             pvals = list(pool.imap_unordered(self._rel_t_test, comb,
@@ -299,10 +278,11 @@ class Analysis(object):
         med: expected median value
         """
         results = {}
+        data = self.load_data()
         comb = combinations(list(range(len(self.class_names))), 2)
         for index1, index2, in comb:
-            data1 = self.data.iloc[:, index1]
-            data2 = self.data.iloc[:, index2]
+            data1 = data.iloc[:, index1]
+            data2 = data.iloc[:, index2]
 
             diff = data2 - data1
             pval = stats.binom_test([sum(diff < med), sum(diff > med)], p=0.5)
@@ -316,13 +296,15 @@ class Analysis(object):
         Note, as the scipy stats package uses a chisquare approximation, the
         test results are valid only when we have more than 10 samples.
         """
+        data = self.load_data()
         if len(self.class_names) < 3:
             return 1
         _, pval = stats.friedmanchisquare(
-            *(self.data.iloc[:, i] for i in range(len(self.class_names))))
+            *(data.iloc[:, i] for i in range(len(self.class_names))))
         return pval
 
     def _calc_percentiles(self):
+        data = self.load_data()
         try:
             quantiles_file_name = join(self.output, ".quantiles.tmp")
             shutil.copyfile(join(self.output, "timing.bin"),
@@ -330,12 +312,12 @@ class Analysis(object):
             quant_in = np.memmap(quantiles_file_name,
                                  dtype=np.float64,
                                  mode="r+",
-                                 shape=self.data.shape)
+                                 shape=data.shape)
             percentiles = np.quantile(quant_in,
                                       [0.05, 0.25, 0.5, 0.75, 0.95],
                                       overwrite_input=True,
                                       axis=0)
-            percentiles = pd.DataFrame(percentiles, columns=list(self.data),
+            percentiles = pd.DataFrame(percentiles, columns=list(data),
                                        copy=False)
             return percentiles
         finally:
@@ -348,7 +330,8 @@ class Analysis(object):
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(1, 1, 1)
 
-        # a simpler alternative would use self.data.boxplot() but that
+        data = self.load_data()
+        # a simpler alternative would use data.boxplot() but that
         # copies the data to the mathplot object
         # which means it doesn't keep it in a neat array.array, blowing up
         # the memory usage significantly
@@ -367,8 +350,8 @@ class Analysis(object):
                        'fliers': []}]
 
         ax.bxp(boxes, showfliers=False)
-        ax.set_xticks(list(range(len(self.data.columns)+1)))
-        ax.set_xticklabels([''] + list(range(len(self.data.columns))))
+        ax.set_xticks(list(range(len(data.columns)+1)))
+        ax.set_xticklabels([''] + list(range(len(data.columns))))
 
         ax.set_title("Box plot")
         ax.set_ylabel("Time [s]")
@@ -380,10 +363,12 @@ class Analysis(object):
         """Generate scatter plot showing how the measurement went."""
         if not self.draw_scatter_plot:
             return None
+        data = self.load_data()
+
         fig = Figure(figsize=(16, 12))
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(1, 1, 1)
-        ax.plot(self.data, ".", fillstyle='none', alpha=0.6)
+        ax.plot(data, ".", fillstyle='none', alpha=0.6)
 
         ax.set_title("Scatter plot")
         ax.set_ylabel("Time [s]")
@@ -392,7 +377,7 @@ class Analysis(object):
         self.make_legend(ax)
         canvas.print_figure(join(self.output, "scatter_plot.png"),
                             bbox_inches="tight")
-        quant = np.quantile(self.data, [0.005, 0.95])
+        quant = np.quantile(data, [0.005, 0.95])
         # make sure the quantile point is visible on the graph
         quant[0] *= 0.98
         quant[1] *= 1.02
@@ -404,29 +389,31 @@ class Analysis(object):
         """Generate scatter plot showing differences between samples."""
         if not self.draw_scatter_plot:
             return
+        data = self.load_data()
+
         fig = Figure(figsize=(16, 12))
         canvas = FigureCanvas(fig)
         axes = fig.add_subplot(1, 1, 1)
 
-        classnames = iter(self.data)
+        classnames = iter(data)
         base = next(classnames)
-        base_data = self.data.loc[:, base]
+        base_data = data.loc[:, base]
 
-        data = pd.DataFrame()
+        values = pd.DataFrame()
         for ctr, name in enumerate(classnames, start=1):
-            diff = self.data.loc[:, name] - base_data
-            data["{0}-0".format(ctr)] = diff
+            diff = data.loc[:, name] - base_data
+            values["{0}-0".format(ctr)] = diff
 
-        axes.plot(data, ".", fillstyle='none', alpha=0.6)
+        axes.plot(values, ".", fillstyle='none', alpha=0.6)
 
         axes.set_title("Scatter plot of class differences")
         axes.set_ylabel("Time [s]")
         axes.set_xlabel("Sample index")
-        axes.legend(data, ncol=6, loc='upper center',
+        axes.legend(values, ncol=6, loc='upper center',
                     bbox_to_anchor=(0.5, -0.15))
         canvas.print_figure(join(self.output, "diff_scatter_plot.png"),
                             bbox_inches="tight")
-        quant = np.quantile(data, [0.25, 0.75])
+        quant = np.quantile(values, [0.25, 0.75])
         quant[0] *= 0.98
         quant[1] *= 1.02
         axes.set_ylim(quant)
@@ -437,20 +424,21 @@ class Analysis(object):
         """Generate ECDF plot comparing distributions of the test classes."""
         if not self.draw_ecdf_plot:
             return None
+        data = self.load_data()
         fig = Figure(figsize=(16, 12))
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(1, 1, 1)
-        for classname in self.data:
-            data = self.data.loc[:, classname]
-            levels = np.linspace(1. / len(data), 1, len(data))
-            ax.step(sorted(data), levels, where='post')
+        for classname in data:
+            values = data.loc[:, classname]
+            levels = np.linspace(1. / len(values), 1, len(values))
+            ax.step(sorted(values), levels, where='post')
         self.make_legend(ax)
         ax.set_title("Empirical Cumulative Distribution Function")
         ax.set_xlabel("Time [s]")
         ax.set_ylabel("Cumulative probability")
         canvas.print_figure(join(self.output, "ecdf_plot.png"),
                             bbox_inches="tight")
-        quant = np.quantile(self.data, [0.01, 0.95])
+        quant = np.quantile(values, [0.01, 0.95])
         quant[0] *= 0.98
         quant[1] *= 1.02
         ax.set_xlim(quant)
@@ -461,12 +449,13 @@ class Analysis(object):
         """Generate ECDF plot of differences between test classes."""
         if not self.draw_ecdf_plot:
             return
+        data = self.load_data()
         fig = Figure(figsize=(16, 12))
         canvas = FigureCanvas(fig)
         axes = fig.add_subplot(1, 1, 1)
-        classnames = iter(self.data)
+        classnames = iter(data)
         base = next(classnames)
-        base_data = self.data.loc[:, base]
+        base_data = data.loc[:, base]
 
         # parameters for the zoomed-in graphs of ecdf
         zoom_params = OrderedDict([("98", (0.01, 0.99)),
@@ -477,9 +466,9 @@ class Analysis(object):
 
         for classname in classnames:
             # calculate the ECDF
-            data = self.data.loc[:, classname]
-            levels = np.linspace(1. / len(data), 1, len(data))
-            values = sorted(data-base_data)
+            values = data.loc[:, classname]
+            levels = np.linspace(1. / len(values), 1, len(values))
+            values = sorted(values-base_data)
             axes.step(values, levels, where='post')
 
             # calculate the bounds for the zoom positions
@@ -491,7 +480,7 @@ class Analysis(object):
                 zoom_values[name][1] = max(zoom_values[name][1], high)
 
         fig.legend(list("{0}-0".format(i)
-                        for i in range(1, len(list(self.data)))),
+                        for i in range(1, len(list(values)))),
                    ncol=6,
                    loc='upper center',
                    bbox_to_anchor=(0.5, -0.05))
@@ -521,7 +510,8 @@ class Analysis(object):
 
     def make_legend(self, fig):
         """Generate common legend for plots that need it."""
-        header = list(range(len(list(self.data))))
+        data = self.load_data()
+        header = list(range(len(list(data))))
         fig.legend(header,
                    ncol=6,
                    loc='upper center',
@@ -556,8 +546,9 @@ class Analysis(object):
         global _diffs
         # because the samples are not independent, we calculate mean of
         # differences not a difference of means
-        _diffs = self.data.iloc[:, pair.index1] -\
-            self.data.iloc[:, pair.index2]
+        data = self.load_data()
+        _diffs = data.iloc[:, pair.index1] -\
+            data.iloc[:, pair.index2]
 
         job_size = os.cpu_count() * 10
 
@@ -580,13 +571,14 @@ class Analysis(object):
             mean, median, trimmed mean (5% and 25%) and trimean of differences
             of observations
         """
+        data = self.load_data()
         cent_tend = self._bootstrap_differences(pair, reps)
         mean_values = [i[0] for i in cent_tend]
         median_values = [i[1] for i in cent_tend]
         trim_mean_05_values = [i[2] for i in cent_tend]
         trim_mean_25_values = [i[3] for i in cent_tend]
         trimean_values = [i[4] for i in cent_tend]
-        diff = self.data.iloc[:, pair.index1] - self.data.iloc[:, pair.index2]
+        diff = data.iloc[:, pair.index1] - data.iloc[:, pair.index2]
         mean = np.mean(diff)
         q1, median, q3 = np.quantile(diff, [0.25, 0.5, 0.75])
         trim_mean_05 = stats.trim_mean(diff, 0.05, 0)
@@ -667,11 +659,12 @@ class Analysis(object):
 
     def desc_stats(self):
         """Calculate the descriptive statistics for sample differences."""
+        data = self.load_data()
         results = {}
         comb = combinations(list(range(len(self.class_names))), 2)
         for index1, index2, in comb:
-            data1 = self.data.iloc[:, index1]
-            data2 = self.data.iloc[:, index2]
+            data1 = data.iloc[:, index1]
+            data2 = data.iloc[:, index2]
 
             diff = data2 - data1
 
@@ -788,12 +781,13 @@ class Analysis(object):
 
     def _write_sample_stats(self):
         """Write summary statistics of samples to sample_stats.csv file."""
+        data = self.load_data()
         stats_filename = join(self.output, "sample_stats.csv")
         with open(stats_filename, "w") as csv_file:
             writer = csv.writer(csv_file)
             writer.writerow(['Name', 'mean', 'median', 'MAD'])
             for num, name in enumerate(self.class_names):
-                sample = self.data.iloc[:, num]
+                sample = data.iloc[:, num]
                 writer.writerow([
                     name,
                     np.mean(sample),
