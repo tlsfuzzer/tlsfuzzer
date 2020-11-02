@@ -500,7 +500,7 @@ class Analysis(object):
     @staticmethod
     def _cent_tend_of_random_sample(reps=100):
         """
-        Calculate mean, median, truncated means (5% and 25%) and trimean with
+        Calculate mean, median, trimmed means (5% and 25%) and trimean with
         bootstrapping.
         """
         ret = []
