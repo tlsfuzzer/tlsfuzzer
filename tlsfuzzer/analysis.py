@@ -578,6 +578,9 @@ class Analysis(object):
                 chain(repeat(job_size, reps//job_size), [reps % job_size]))
 
             for values in cent_tend:
+                # handle reps % job_size == 0
+                if not values:
+                    continue
                 # transpose the results so that they can be added to lists
                 chunk = list(map(list, zip(*values)))
                 for key, i in zip(keys, range(5)):
