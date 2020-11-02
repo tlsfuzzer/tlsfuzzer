@@ -256,15 +256,15 @@ class Analysis(object):
     # statements and is tested by mt_process() coverage (we don't see it
     # because coverage can't handle multiprocessing)
     def _mt_process_runner(self, params):  # pragma: no cover
-        pair, sum_func = params
+        pair, sum_func, args = params
         data = self.load_data()
         index1, index2 = pair
         data1 = data.iloc[:, index1]
         data2 = data.iloc[:, index2]
-        ret = sum_func(data1, data2)
+        ret = sum_func(data1, data2, *args)
         return pair, ret
 
-    def mt_process(self, sum_func):
+    def mt_process(self, sum_func, args=()):
         """Calculate sum_func values for all pairs of classes in data.
 
         Uses multiprocessing for calculation
@@ -279,10 +279,16 @@ class Analysis(object):
         job_size = max(len(comb) // os.cpu_count(), 1)
         with mp.Pool() as pool:
             pvals = list(pool.imap_unordered(
-                self._mt_process_runner, zip(comb, repeat(sum_func)),
+                self._mt_process_runner,
+                zip(comb, repeat(sum_func), repeat(args)),
                 job_size))
         results = dict(pvals)
         return results
+
+    @staticmethod
+    def _sign_test(data1, data2, med):
+        diff = data2 - data1
+        return stats.binom_test([sum(diff < med), sum(diff > med)], p=0.5)
 
     def sign_test(self, med=0.0):
         """
@@ -290,17 +296,7 @@ class Analysis(object):
 
         med: expected median value
         """
-        results = {}
-        data = self.load_data()
-        comb = combinations(list(range(len(self.class_names))), 2)
-        for index1, index2, in comb:
-            data1 = data.iloc[:, index1]
-            data2 = data.iloc[:, index2]
-
-            diff = data2 - data1
-            pval = stats.binom_test([sum(diff < med), sum(diff > med)], p=0.5)
-            results[TestPair(index1, index2)] = pval
-        return results
+        return self.mt_process(self._sign_test, (med,))
 
     def friedman_test(self):
         """
