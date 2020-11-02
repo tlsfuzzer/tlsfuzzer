@@ -717,6 +717,8 @@ class Analysis(object):
         box_results = self.box_test()
         wilcox_results = self.wilcoxon_test()
         sign_results = self.sign_test()
+        sign_less_results = self.sign_test(alternative="less")
+        sign_greater_results = self.sign_test(alternative="greater")
         ttest_results = self.rel_t_test()
         desc_stats = self.desc_stats()
 
@@ -726,7 +728,9 @@ class Analysis(object):
         with open(report_filename, 'w') as file:
             writer = csv.writer(file)
             writer.writerow(["Class 1", "Class 2", "Box test",
-                             "Wilcoxon signed-rank test", "Sign test",
+                             "Wilcoxon signed-rank test",
+                             "Sign test", "Sign test less",
+                             "Sign test greater",
                              "paired t-test", "mean", "SD",
                              "median", "IQR", "MAD"])
             worst_pair = None
@@ -751,6 +755,10 @@ class Analysis(object):
                       .format(index1, index2, wilcox_results[pair]))
                 print("Sign test {} vs {}: {:.3}"
                       .format(index1, index2, sign_results[pair]))
+                print("Sign test, probability that {1} < {0}: {2:.3}"
+                      .format(index1, index2, sign_less_results[pair]))
+                print("Sign test, probability that {1} > {0}: {2:.3}"
+                      .format(index1, index2, sign_greater_results[pair]))
                 print("Dependent t-test for paired samples {} vs {}: {:.3}"
                       .format(index1, index2, ttest_results[pair]))
                 print("{} vs {} stats: mean: {:.3}, SD: {:.3}, median: {:.3}, "
@@ -773,6 +781,8 @@ class Analysis(object):
                        box_write,
                        wilcox_p,
                        sign_p,
+                       sign_less_results[pair],
+                       sign_greater_results[pair],
                        ttest_p,
                        diff_stats["mean"],
                        diff_stats["SD"],
