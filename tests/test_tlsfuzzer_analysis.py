@@ -267,14 +267,9 @@ class TestReport(unittest.TestCase):
                 self.assertGreaterEqual(result, 0.25)
 
     def test__wilcox_test(self):
-        with mock.patch("tlsfuzzer.analysis.Analysis.load_data") as load_data:
-            load_data.return_value = self.neq_data
-
-            analysis = Analysis("/tmp")
-            ret = analysis._wilcox_test((0, 1))
-            pair, pval = ret
-            self.assertEqual(pair, (0, 1))
-            self.assertGreaterEqual(0.05, pval)
+        pval = Analysis._wilcox_test(self.neq_data.iloc[:,0],
+                                     self.neq_data.iloc[:,1])
+        self.assertGreaterEqual(0.05, pval)
 
     def test_rel_t_test(self):
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
@@ -287,13 +282,9 @@ class TestReport(unittest.TestCase):
                 self.assertGreaterEqual(result, 0.25)
 
     def test__rel_t_test(self):
-        with mock.patch("tlsfuzzer.analysis.Analysis.load_data") as load_data:
-            load_data.return_value = self.neq_data
-            analysis = Analysis("/tmp")
-            ret = analysis._rel_t_test((0, 1))
-            pair, pval = ret
-            self.assertEqual(pair, (0, 1))
-            self.assertGreaterEqual(0.05, pval)
+        pval = Analysis._rel_t_test(self.neq_data.iloc[:,0],
+                                     self.neq_data.iloc[:,1])
+        self.assertGreaterEqual(0.05, pval)
 
     def test_box_test(self):
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):

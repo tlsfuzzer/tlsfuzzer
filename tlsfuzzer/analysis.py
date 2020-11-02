@@ -234,40 +234,53 @@ class Analysis(object):
             results[TestPair(index1, index2)] = result
         return results
 
-    def _wilcox_test(self, pair):
-        data = self.load_data()
-        index1, index2 = pair
-        data1 = data.iloc[:, index1]
-        data2 = data.iloc[:, index2]
-        _, pval = stats.wilcoxon(data1, data2)
-        return pair, pval
+    @staticmethod
+    def _wilcox_test(data1, data2):
+        return stats.wilcoxon(data1, data2)[1]
 
     def wilcoxon_test(self):
         """Cross-test all classes with the Wilcoxon signed-rank test"""
-        comb = list(combinations(list(range(len(self.class_names))), 2))
-        job_size = max(len(comb) // os.cpu_count(), 1)
-        with mp.Pool() as pool:
-            pvals = list(pool.imap_unordered(self._wilcox_test, comb,
-                                             job_size))
-        results = dict(pvals)
-        return results
+        return self.mt_process(self._wilcox_test)
 
-    def _rel_t_test(self, pair):
-        data = self.load_data()
-        index1, index2 = pair
-        data1 = data.iloc[:, index1]
-        data2 = data.iloc[:, index2]
-        _, pval = stats.ttest_rel(data1, data2)
-        return pair, pval
+    @staticmethod
+    def _rel_t_test(data1, data2):
+        """Calculate ttest statistic, return p-value."""
+        return stats.ttest_rel(data1, data2)[1]
 
     def rel_t_test(self):
         """Cross-test all classes using the t-test for dependent, paired
         samples."""
+        return self.mt_process(self._rel_t_test)
+
+    # skip the coverage for this method as it doesn't have conditional
+    # statements and is tested by mt_process() coverage (we don't see it
+    # because coverage can't handle multiprocessing)
+    def _mt_process_runner(self, params):  # pragma: no cover
+        pair, sum_func = params
+        data = self.load_data()
+        index1, index2 = pair
+        data1 = data.iloc[:, index1]
+        data2 = data.iloc[:, index2]
+        ret = sum_func(data1, data2)
+        return pair, ret
+
+    def mt_process(self, sum_func):
+        """Calculate sum_func values for all pairs of classes in data.
+
+        Uses multiprocessing for calculation
+
+        sum_func needs to accept two parameters, the values from first
+        and second sample.
+
+        Returns a dictionary with keys being the pairs of values and
+        values being the returns from the sum_func
+        """
         comb = list(combinations(list(range(len(self.class_names))), 2))
         job_size = max(len(comb) // os.cpu_count(), 1)
         with mp.Pool() as pool:
-            pvals = list(pool.imap_unordered(self._rel_t_test, comb,
-                                             job_size))
+            pvals = list(pool.imap_unordered(
+                self._mt_process_runner, zip(comb, repeat(sum_func)),
+                job_size))
         results = dict(pvals)
         return results
 
