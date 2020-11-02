@@ -271,6 +271,52 @@ class TestReport(unittest.TestCase):
                                      self.neq_data.iloc[:,1])
         self.assertGreaterEqual(0.05, pval)
 
+    def test_sign_test(self):
+        with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
+            analysis = Analysis("/tmp")
+            self.mock_read_csv.assert_called_once()
+
+            res = analysis.sign_test()
+            self.assertEqual(len(res), 3)
+            for index, result in res.items():
+                self.assertEqual(result, 1)
+
+    def test__sign_test(self):
+        pval = Analysis._sign_test(self.neq_data.iloc[:, 0],
+                                   self.neq_data.iloc[:, 1],
+                                   0, "two-sided")
+        self.assertLess(pval, 0.002)
+
+    def test_sign_test_with_alternative_less(self):
+        with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
+            analysis = Analysis("/tmp")
+            self.mock_read_csv.assert_called_once()
+
+            res = analysis.sign_test(alternative="less")
+            self.assertEqual(len(res), 3)
+            for index, result in res.items():
+                self.assertEqual(result, 0.5)
+
+    def test_sign_test_with_alternative_less_and_neq_data(self):
+        with mock.patch("tlsfuzzer.analysis.Analysis.load_data") as load_data:
+            load_data.return_value = self.neq_data
+            analysis = Analysis("/tmp")
+
+            res = analysis.sign_test(alternative="less")
+            self.assertEqual(len(res), 1)
+            for index, result in res.items():
+                self.assertLessEqual(result, 0.001)
+
+    def test_sign_test_with_alternative_greater_and_neq_data(self):
+        with mock.patch("tlsfuzzer.analysis.Analysis.load_data") as load_data:
+            load_data.return_value = self.neq_data
+            analysis = Analysis("/tmp")
+
+            res = analysis.sign_test(alternative="greater")
+            self.assertEqual(len(res), 1)
+            for index, result in res.items():
+                self.assertLessEqual(result, 1)
+
     def test_rel_t_test(self):
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
             analysis = Analysis("/tmp")

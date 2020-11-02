@@ -286,17 +286,25 @@ class Analysis(object):
         return results
 
     @staticmethod
-    def _sign_test(data1, data2, med):
+    def _sign_test(data1, data2, med, alternative):
         diff = data2 - data1
-        return stats.binom_test([sum(diff < med), sum(diff > med)], p=0.5)
+        return stats.binom_test([sum(diff < med), sum(diff > med)], p=0.5,
+                                alternative=alternative)
 
-    def sign_test(self, med=0.0):
+    def sign_test(self, med=0.0, alternative="two-sided"):
         """
         Cross-test all classes using the sign test.
 
         med: expected median value
+
+        alternative: the alternative hypothesis, "two-sided" by default,
+            can be "less" or "greater". If called with "less" and returned
+            p-value is much smaller than 0.05, then it's likely that the
+            *second* sample in a pair is bigger than the first one. IOW,
+            with "less" it tells the probability that second sample is smaller
+            than the first sample.
         """
-        return self.mt_process(self._sign_test, (med,))
+        return self.mt_process(self._sign_test, (med, alternative))
 
     def friedman_test(self):
         """
