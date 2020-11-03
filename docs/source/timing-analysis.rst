@@ -400,8 +400,11 @@ and ``diff_ecdf_plot_zoom_in_10.png`` show just the central 98, 33, and 10
 percentiles respectively of the graph (to make estimating small differences
 between samples easier).
 
-Finally, the ``conf_interval_plot.png`` shows the mean of differences between
-samples together with
+Finally, the ``conf_interval_plot_mean.png``,
+``conf_interval_plot_median.png``, ``conf_interval_plot_trim_mean_05.png``,
+``conf_interval_plot_trim_mean_25.png``, and ``conf_interval_plot_trimean.png``
+show the mean, median, trimmed mean (5%), trimmed mean (25%), and trimean
+respecively, of the differences between samples together with
 `bootstrapped
 <https://en.wikipedia.org/wiki/Bootstrapping_(statistics)>`_ confidence
 interval for them.
@@ -422,6 +425,28 @@ second is the uniformity test of those results, third is the Friedman test.
    samples (at least 5, optimally 10). You should ignore it for such small
    runs. It's also invalid in case of just two samples (used conversations).
 
+The sign test is performed in three different ways: the default, used for
+determining presence of the timing side-channel, is the two-sided variant,
+saved in the ``report.csv`` file as the ``Sign test``. The two other ways,
+the ``Sign test less`` and ``Sign test greater`` test the hypothesis that
+the one sample stochastically dominates the other. High p-values here aren't
+meangingful (i.e. you can get a p-value == 1 even if the alternative is not
+statistically significant even at alpha=0.05).
+Very low values of a ``Sign test less`` mean that the *second* sample
+is unlikely to be smaller than the *first* sample.
+Those tests are more sensitive than the confidence intervals for median, so
+you can use them to test the theory if the timing signal depends on some
+parameters, like the length of pre-master secret in RSA key exchange or place
+of the first mismatched byte in CBC MAC.
+
+The code also calculates the
+`dependent t-test for paired samples
+<https://en.wikipedia.org/wiki/Student%27s_t-test#Dependent_t-test_for_paired_samples>`_,
+but as the timings generally don't follow the normal distribution, it severly
+underestimates the difference between samples (it is strongly influenced by
+outliers). The results from it are not taken into account to decide failure of
+the overall timing test.
+
 If either the KS-tests of uniformity of p-values, or the Friedman test fails,
 you should inspect the individual test p-values.
 
@@ -436,15 +461,32 @@ slower than another set by 10%), then you can also use the generated
 ``box_plot.png`` graph to see it.
 For small differences with large sample sizes, the differences will be
 statistically detectable, even if not obvious from from the box plot.
-You can use the ``conf_interval_plot.png`` graph to see the average difference
+You can use the ``conf_interval_plot*.png`` graphs to see the difference
 between samples and the first sample together with the 95% confidence
 interval for them.
 
-The script prints the numerical value for confidence interval for mean and
-median for differences of the pair of two most dissimilar probes.
-It also writes it to the ``report.txt`` file.
+The script prints the numerical value for confidence interval for mean, median,
+trimmed mean (with 5% of observervations on either end ignored), trimmed mean
+(with 25% of smalles and biggest observations ignored), and trimean of
+differences of the pair of two most dissimilar probes.
+It also writes them to the ``report.txt`` file.
 
-Using R you can also manually generate ``conf_interval_plot.png`` graph,
+The ``report.csv`` file includes the exact p-values for the statistical
+tests executed as well as the calculated descriptive statistics of
+distribution of differences: the mean, standard deviation (SD), median,
+interquartile range (IQR, as well as the
+`median absolute deviation
+<https://en.wikipedia.org/wiki/Median_absolute_deviation>`_ (MAD).
+Note that the mean and SD are very sensitive to outliers, the other three
+measures are more robust. The calculated MAD already includes the conversion
+factor so for a normal distribution it can be compared directly to SD.
+
+The ``sample_stats.csv`` file include the calculated mean, median, and MAD
+for the samples themselves (i.e. not the differences between samples).
+You can use this data to estimate the smallest detectable difference between
+samples for a given sample size.
+
+Using R you can also manually generate ``conf_interval_plot_mean.png`` graph,
 but note that this will take about an hour for 21 tests and
 samples with 1 million observations each on a 4 core/8 thread 2GHz CPU:
 
