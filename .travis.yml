@@ -35,7 +35,7 @@ jobs:
    - python: 3.8
      dist: xenial
      sudo: true
-   - python: 3.9-dev
+   - python: 3.9
      dist: xenial
      sudo: true
    - python: nightly
@@ -62,7 +62,7 @@ jobs:
      dist: xenial
      sudo: true
      env: EXTRACT_DEP=true
-   - python: 3.9-dev
+   - python: 3.9
      dist: xenial
      sudo: true
      env: EXTRACT_DEP=true
@@ -81,7 +81,7 @@ jobs:
      dist: xenial
      sudo: true
      env: ANALYSIS_DEP=true
-   - python: 3.9-dev
+   - python: 3.9
      dist: xenial
      sudo: true
      env: ANALYSIS_DEP=true
@@ -100,7 +100,7 @@ jobs:
      dist: xenial
      sudo: true
      env: ANALYSIS_DEP=true EXTRACT_DEP=true CC_REPORT=true
-   - python: 3.9-dev
+   - python: 3.9
      dist: xenial
      sudo: true
      env: ANALYSIS_DEP=true EXTRACT_DEP=true CC_REPORT=true
@@ -112,9 +112,9 @@ jobs:
    # lazy-object-proxy fails to build
    - python: nightly
    # scipy fails to build
-   - python: 3.9-dev
+   - python: 3.9
      env: ANALYSIS_DEP=true
-   - python: 3.9-dev
+   - python: 3.9
      env: ANALYSIS_DEP=true EXTRACT_DEP=true CC_REPORT=true
 
 branches:
@@ -185,8 +185,6 @@ script:
   - |
       if [[ $TRAVIS_PYTHON_VERSION == '2.7' ]]; then
         export REPLY_SIZE=1850
-      elif [[ $TRAVIS_PYTHON_VERSION == '3.9-dev' ]]; then
-        export REPLY_SIZE=1850  # Server: SimpleHTTP/0.6 Python/3.9.0r
       elif [[ $TRAVIS_PYTHON_VERSION == 'nightly' ]]; then
         export REPLY_SIZE=1852  # Server: SimpleHTTP/0.6 Python/3.10.0a0
       else
