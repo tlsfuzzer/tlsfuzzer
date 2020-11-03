@@ -759,6 +759,14 @@ class Analysis(object):
                       .format(index1, index2, sign_less_results[pair]))
                 print("Sign test, probability that {1} > {0}: {2:.3}"
                       .format(index1, index2, sign_greater_results[pair]))
+                if sign_results[pair] > 0.05:
+                    sign_test_relation = "="
+                elif sign_less_results[pair] > sign_greater_results[pair]:
+                    sign_test_relation = "<"
+                else:
+                    sign_test_relation = ">"
+                print("Sign test interpretation: {} {} {}"
+                      .format(index2, sign_test_relation, index1))
                 print("Dependent t-test for paired samples {} vs {}: {:.3}"
                       .format(index1, index2, ttest_results[pair]))
                 print("{} vs {} stats: mean: {:.3}, SD: {:.3}, median: {:.3}, "
