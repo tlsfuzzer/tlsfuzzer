@@ -395,8 +395,10 @@ Here, if the graph is
 <https://en.wikipedia.org/wiki/Symmetric_probability_distribution>`_ then the
 results from the Wilcoxon signed-rank test are meaningful. If the graph
 is asymmetric focus on sign test results.
-The ``diff_ecdf_plot_zoom_in.png`` shows just the central 33 percentiles
-of the graph (to make estimating small differences between samples easier).
+The ``diff_ecdf_plot_zoom_in_98.png``, ``diff_ecdf_plot_zoom_in_33.png``,
+and ``diff_ecdf_plot_zoom_in_10.png`` show just the central 98, 33, and 10
+percentiles respectively of the graph (to make estimating small differences
+between samples easier).
 
 Finally, the ``conf_interval_plot.png`` shows the mean of differences between
 samples together with

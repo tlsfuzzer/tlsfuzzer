@@ -309,7 +309,7 @@ class TestReport(unittest.TestCase):
             for index, result in res.items():
                 self.assertEqual(result, None)
 
-    def test__mean_of_random_sample(self):
+    def test__cent_tend_of_random_sample(self):
         diffs = [1, 2, 3, 4, 5, 6, 7, 8, 9]
         timings = pd.DataFrame(data=self.neq_data_overlap)
         mock_read_csv = mock.Mock()
@@ -317,15 +317,15 @@ class TestReport(unittest.TestCase):
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", mock_read_csv):
             with mock.patch("tlsfuzzer.analysis._diffs", diffs):
                 analysis = Analysis("/tmp")
-                vals = analysis._mean_of_random_sample(10)
+                vals = analysis._cent_tend_of_random_sample(10)
 
                 self.assertEqual(len(vals), 10)
-                means = [i for i, _ in vals]
+                means = [i[0] for i in vals]
                 avg = sum(means)/len(means)
                 self.assertLessEqual(avg, 8)
                 self.assertLessEqual(2, avg)
 
-    def test__mean_of_random_sample_with_no_reps(self):
+    def test__cent_tend_of_random_sample_with_no_reps(self):
         diffs = [1, 2, 3, 4, 5, 6, 7, 8, 9]
         timings = pd.DataFrame(data=self.neq_data_overlap)
         mock_read_csv = mock.Mock()
@@ -333,7 +333,7 @@ class TestReport(unittest.TestCase):
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", mock_read_csv):
             with mock.patch("tlsfuzzer.analysis._diffs", diffs):
                 analysis = Analysis("/tmp")
-                vals = analysis._mean_of_random_sample(0)
+                vals = analysis._cent_tend_of_random_sample(0)
 
                 self.assertEqual(len(vals), 0)
                 self.assertEqual(vals, [])
@@ -369,7 +369,11 @@ class TestPlots(unittest.TestCase):
             self.analysis.diff_ecdf_plot()
             self.assertEqual(mock_save.call_args_list,
                 [mock.call('/tmp/diff_ecdf_plot.png', bbox_inches='tight'),
-                 mock.call('/tmp/diff_ecdf_plot_zoom_in.png',
+                 mock.call('/tmp/diff_ecdf_plot_zoom_in_98.png',
+                            bbox_inches='tight'),
+                 mock.call('/tmp/diff_ecdf_plot_zoom_in_33.png',
+                            bbox_inches='tight'),
+                 mock.call('/tmp/diff_ecdf_plot_zoom_in_10.png',
                             bbox_inches='tight')])
 
     def test_scatter_plot(self):
@@ -385,7 +389,10 @@ class TestPlots(unittest.TestCase):
         with mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure",
                         mock.Mock()) as mock_save:
             self.analysis.diff_scatter_plot()
-            mock_save.assert_called_once()
+            self.assertEqual(mock_save.call_args_list,
+                [mock.call('/tmp/diff_scatter_plot.png', bbox_inches='tight'),
+                 mock.call('/tmp/diff_scatter_plot_zoom_in.png',
+                           bbox_inches='tight')])
 
     def test_box_plot(self):
         with mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure",
