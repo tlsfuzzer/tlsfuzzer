@@ -993,7 +993,8 @@ class Analysis(object):
         return difference
 
 
-if __name__ == '__main__':
+# exclude from coverage as it's a). trivial, and b). not easy to test
+if __name__ == '__main__':  # pragma: no cover
     ret = main()
     print("Analysis return value: {}".format(ret))
     sys.exit(ret)
