@@ -371,8 +371,12 @@ class Analysis(object):
         ax.set_xticklabels([''] + list(range(len(data.columns))))
 
         ax.set_title("Box plot")
-        ax.set_ylabel("Time [s]")
+        ax.set_ylabel("Time")
         ax.set_xlabel("Class index")
+
+        formatter = mpl.ticker.EngFormatter('s')
+        ax.get_yaxis().set_major_formatter(formatter)
+
         canvas.print_figure(join(self.output, "box_plot.png"),
                             bbox_inches="tight")
 
@@ -388,10 +392,17 @@ class Analysis(object):
         ax.plot(data, ".", fillstyle='none', alpha=0.6)
 
         ax.set_title("Scatter plot")
-        ax.set_ylabel("Time [s]")
+        ax.set_ylabel("Time")
         ax.set_xlabel("Sample index")
+
         ax.set_yscale("log")
+
+        formatter = mpl.ticker.EngFormatter('s')
+        ax.get_yaxis().set_major_formatter(formatter)
+        ax.get_yaxis().set_minor_formatter(formatter)
+
         self.make_legend(ax)
+
         canvas.print_figure(join(self.output, "scatter_plot.png"),
                             bbox_inches="tight")
         quant = np.quantile(data, [0.005, 0.95])
@@ -424,8 +435,12 @@ class Analysis(object):
         axes.plot(values, ".", fillstyle='none', alpha=0.6)
 
         axes.set_title("Scatter plot of class differences")
-        axes.set_ylabel("Time [s]")
+        axes.set_ylabel("Time")
         axes.set_xlabel("Sample index")
+
+        formatter = mpl.ticker.EngFormatter('s')
+        axes.get_yaxis().set_major_formatter(formatter)
+
         axes.legend(values, ncol=6, loc='upper center',
                     bbox_to_anchor=(0.5, -0.15))
         canvas.print_figure(join(self.output, "diff_scatter_plot.png"),
@@ -451,8 +466,12 @@ class Analysis(object):
             ax.step(sorted(values), levels, where='post')
         self.make_legend(ax)
         ax.set_title("Empirical Cumulative Distribution Function")
-        ax.set_xlabel("Time [s]")
+        ax.set_xlabel("Time")
         ax.set_ylabel("Cumulative probability")
+
+        formatter = mpl.ticker.EngFormatter('s')
+        ax.get_xaxis().set_major_formatter(formatter)
+
         canvas.print_figure(join(self.output, "ecdf_plot.png"),
                             bbox_inches="tight")
         quant = np.quantile(values, [0.01, 0.95])
@@ -664,6 +683,9 @@ class Analysis(object):
                          .format(name))
             ax.set_xlabel("Class pairs")
             ax.set_ylabel("{0} of differences".format(name))
+
+            formatter = mpl.ticker.EngFormatter('s')
+            ax.get_yaxis().set_major_formatter(formatter)
 
             if name == "trim mean (5%)":
                 name = "trim_mean_05"
