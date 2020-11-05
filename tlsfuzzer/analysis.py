@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # Author: Jan Koscielniak, (c) 2020
+# Author: Hubert Kario, (c) 2020
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 
@@ -34,7 +35,7 @@ TestPair = namedtuple('TestPair', 'index1  index2')
 mpl.use('Agg')
 
 
-VERSION = 3
+VERSION = 5
 
 
 _diffs = None
@@ -98,8 +99,8 @@ class Analysis(object):
     def __init__(self, output, draw_ecdf_plot=True, draw_scatter_plot=True,
                  draw_conf_interval_plot=True, multithreaded_graph=False):
         self.output = output
-        self.data = self.load_data()
-        self.class_names = list(self.data)
+        data = self.load_data()
+        self.class_names = list(data)
         self.draw_ecdf_plot = draw_ecdf_plot
         self.draw_scatter_plot = draw_scatter_plot
         self.draw_conf_interval_plot = draw_conf_interval_plot
@@ -195,18 +196,19 @@ class Analysis(object):
         """
         Internal configurable function to perform the box test.
 
-        :param int interval1: index to self.data representing first sample
-        :param int interval2: index to self.data representing second sample
+        :param int interval1: index to data representing first sample
+        :param int interval2: index to data representing second sample
         :param float quantile_start: starting quantile of the box
         :param float quantile_end: closing quantile of the box
         :return: None on no difference, int index of smaller sample if there
             is a difference
         """
-        box1_start = np.quantile(self.data.iloc[:, interval1], quantile_start)
-        box1_end = np.quantile(self.data.iloc[:, interval1], quantile_end)
+        data = self.load_data()
+        box1_start = np.quantile(data.iloc[:, interval1], quantile_start)
+        box1_end = np.quantile(data.iloc[:, interval1], quantile_end)
 
-        box2_start = np.quantile(self.data.iloc[:, interval2], quantile_start)
-        box2_end = np.quantile(self.data.iloc[:, interval2], quantile_end)
+        box2_start = np.quantile(data.iloc[:, interval2], quantile_start)
+        box2_end = np.quantile(data.iloc[:, interval2], quantile_end)
 
         if box1_start == box2_start or box1_end == box2_end:
             # can return early because the intervals overlap
@@ -233,50 +235,76 @@ class Analysis(object):
         return results
 
     @staticmethod
-    def _wilcox_test(pair):
-        # we're using global variable so that the data shared between
-        # worker threads isn't serialised and deserialised over and over again
-        # pylint: disable=global-statement
-        global _DATA
-        # pylint: enable=global-statement
-        index1, index2 = pair
-        data1 = _DATA.iloc[:, index1]
-        data2 = _DATA.iloc[:, index2]
-        _, pval = stats.wilcoxon(data1, data2)
-        return pair, pval
+    def _wilcox_test(data1, data2):
+        return stats.wilcoxon(data1, data2)[1]
 
     def wilcoxon_test(self):
         """Cross-test all classes with the Wilcoxon signed-rank test"""
+        return self.mt_process(self._wilcox_test)
+
+    @staticmethod
+    def _rel_t_test(data1, data2):
+        """Calculate ttest statistic, return p-value."""
+        return stats.ttest_rel(data1, data2)[1]
+
+    def rel_t_test(self):
+        """Cross-test all classes using the t-test for dependent, paired
+        samples."""
+        return self.mt_process(self._rel_t_test)
+
+    # skip the coverage for this method as it doesn't have conditional
+    # statements and is tested by mt_process() coverage (we don't see it
+    # because coverage can't handle multiprocessing)
+    def _mt_process_runner(self, params):  # pragma: no cover
+        pair, sum_func, args = params
+        data = self.load_data()
+        index1, index2 = pair
+        data1 = data.iloc[:, index1]
+        data2 = data.iloc[:, index2]
+        ret = sum_func(data1, data2, *args)
+        return pair, ret
+
+    def mt_process(self, sum_func, args=()):
+        """Calculate sum_func values for all pairs of classes in data.
+
+        Uses multiprocessing for calculation
+
+        sum_func needs to accept two parameters, the values from first
+        and second sample.
+
+        Returns a dictionary with keys being the pairs of values and
+        values being the returns from the sum_func
+        """
         comb = list(combinations(list(range(len(self.class_names))), 2))
-        # we're using global variable so that the data shared between
-        # worker threads isn't serialised and deserialised over and over again
-        # pylint: disable=global-statement
-        global _DATA
-        # pylint: enable=global-statement
-        _DATA = self.data
         job_size = max(len(comb) // os.cpu_count(), 1)
         with mp.Pool() as pool:
-            pvals = list(pool.imap_unordered(self._wilcox_test, comb,
-                                             job_size))
+            pvals = list(pool.imap_unordered(
+                self._mt_process_runner,
+                zip(comb, repeat(sum_func), repeat(args)),
+                job_size))
         results = dict(pvals)
         return results
 
-    def sign_test(self, med=0.0):
+    @staticmethod
+    def _sign_test(data1, data2, med, alternative):
+        diff = data2 - data1
+        return stats.binom_test([sum(diff < med), sum(diff > med)], p=0.5,
+                                alternative=alternative)
+
+    def sign_test(self, med=0.0, alternative="two-sided"):
         """
         Cross-test all classes using the sign test.
 
         med: expected median value
-        """
-        results = {}
-        comb = combinations(list(range(len(self.class_names))), 2)
-        for index1, index2, in comb:
-            data1 = self.data.iloc[:, index1]
-            data2 = self.data.iloc[:, index2]
 
-            diff = data2 - data1
-            pval = stats.binom_test([sum(diff < med), sum(diff > med)], p=0.5)
-            results[TestPair(index1, index2)] = pval
-        return results
+        alternative: the alternative hypothesis, "two-sided" by default,
+            can be "less" or "greater". If called with "less" and returned
+            p-value is much smaller than 0.05, then it's likely that the
+            *second* sample in a pair is bigger than the first one. IOW,
+            with "less" it tells the probability that second sample is smaller
+            than the first sample.
+        """
+        return self.mt_process(self._sign_test, (med, alternative))
 
     def friedman_test(self):
         """
@@ -285,13 +313,15 @@ class Analysis(object):
         Note, as the scipy stats package uses a chisquare approximation, the
         test results are valid only when we have more than 10 samples.
         """
+        data = self.load_data()
         if len(self.class_names) < 3:
             return 1
         _, pval = stats.friedmanchisquare(
-            *(self.data.iloc[:, i] for i in range(len(self.class_names))))
+            *(data.iloc[:, i] for i in range(len(self.class_names))))
         return pval
 
     def _calc_percentiles(self):
+        data = self.load_data()
         try:
             quantiles_file_name = join(self.output, ".quantiles.tmp")
             shutil.copyfile(join(self.output, "timing.bin"),
@@ -299,12 +329,12 @@ class Analysis(object):
             quant_in = np.memmap(quantiles_file_name,
                                  dtype=np.float64,
                                  mode="r+",
-                                 shape=self.data.shape)
+                                 shape=data.shape)
             percentiles = np.quantile(quant_in,
                                       [0.05, 0.25, 0.5, 0.75, 0.95],
                                       overwrite_input=True,
                                       axis=0)
-            percentiles = pd.DataFrame(percentiles, columns=list(self.data),
+            percentiles = pd.DataFrame(percentiles, columns=list(data),
                                        copy=False)
             return percentiles
         finally:
@@ -317,7 +347,8 @@ class Analysis(object):
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(1, 1, 1)
 
-        # a simpler alternative would use self.data.boxplot() but that
+        data = self.load_data()
+        # a simpler alternative would use data.boxplot() but that
         # copies the data to the mathplot object
         # which means it doesn't keep it in a neat array.array, blowing up
         # the memory usage significantly
@@ -336,8 +367,8 @@ class Analysis(object):
                        'fliers': []}]
 
         ax.bxp(boxes, showfliers=False)
-        ax.set_xticks(list(range(len(self.data.columns)+1)))
-        ax.set_xticklabels([''] + list(range(len(self.data.columns))))
+        ax.set_xticks(list(range(len(data.columns)+1)))
+        ax.set_xticklabels([''] + list(range(len(data.columns))))
 
         ax.set_title("Box plot")
         ax.set_ylabel("Time [s]")
@@ -349,10 +380,12 @@ class Analysis(object):
         """Generate scatter plot showing how the measurement went."""
         if not self.draw_scatter_plot:
             return None
+        data = self.load_data()
+
         fig = Figure(figsize=(16, 12))
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(1, 1, 1)
-        ax.plot(self.data, ".", fillstyle='none', alpha=0.6)
+        ax.plot(data, ".", fillstyle='none', alpha=0.6)
 
         ax.set_title("Scatter plot")
         ax.set_ylabel("Time [s]")
@@ -361,7 +394,7 @@ class Analysis(object):
         self.make_legend(ax)
         canvas.print_figure(join(self.output, "scatter_plot.png"),
                             bbox_inches="tight")
-        quant = np.quantile(self.data, [0.005, 0.95])
+        quant = np.quantile(data, [0.005, 0.95])
         # make sure the quantile point is visible on the graph
         quant[0] *= 0.98
         quant[1] *= 1.02
@@ -373,29 +406,31 @@ class Analysis(object):
         """Generate scatter plot showing differences between samples."""
         if not self.draw_scatter_plot:
             return
+        data = self.load_data()
+
         fig = Figure(figsize=(16, 12))
         canvas = FigureCanvas(fig)
         axes = fig.add_subplot(1, 1, 1)
 
-        classnames = iter(self.data)
+        classnames = iter(data)
         base = next(classnames)
-        base_data = self.data.loc[:, base]
+        base_data = data.loc[:, base]
 
-        data = pd.DataFrame()
+        values = pd.DataFrame()
         for ctr, name in enumerate(classnames, start=1):
-            diff = self.data.loc[:, name] - base_data
-            data["{0}-0".format(ctr)] = diff
+            diff = data.loc[:, name] - base_data
+            values["{0}-0".format(ctr)] = diff
 
-        axes.plot(data, ".", fillstyle='none', alpha=0.6)
+        axes.plot(values, ".", fillstyle='none', alpha=0.6)
 
         axes.set_title("Scatter plot of class differences")
         axes.set_ylabel("Time [s]")
         axes.set_xlabel("Sample index")
-        axes.legend(data, ncol=6, loc='upper center',
+        axes.legend(values, ncol=6, loc='upper center',
                     bbox_to_anchor=(0.5, -0.15))
         canvas.print_figure(join(self.output, "diff_scatter_plot.png"),
                             bbox_inches="tight")
-        quant = np.quantile(data, [0.25, 0.75])
+        quant = np.quantile(values, [0.25, 0.75])
         quant[0] *= 0.98
         quant[1] *= 1.02
         axes.set_ylim(quant)
@@ -406,20 +441,21 @@ class Analysis(object):
         """Generate ECDF plot comparing distributions of the test classes."""
         if not self.draw_ecdf_plot:
             return None
+        data = self.load_data()
         fig = Figure(figsize=(16, 12))
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(1, 1, 1)
-        for classname in self.data:
-            data = self.data.loc[:, classname]
-            levels = np.linspace(1. / len(data), 1, len(data))
-            ax.step(sorted(data), levels, where='post')
+        for classname in data:
+            values = data.loc[:, classname]
+            levels = np.linspace(1. / len(values), 1, len(values))
+            ax.step(sorted(values), levels, where='post')
         self.make_legend(ax)
         ax.set_title("Empirical Cumulative Distribution Function")
         ax.set_xlabel("Time [s]")
         ax.set_ylabel("Cumulative probability")
         canvas.print_figure(join(self.output, "ecdf_plot.png"),
                             bbox_inches="tight")
-        quant = np.quantile(self.data, [0.01, 0.95])
+        quant = np.quantile(values, [0.01, 0.95])
         quant[0] *= 0.98
         quant[1] *= 1.02
         ax.set_xlim(quant)
@@ -430,12 +466,13 @@ class Analysis(object):
         """Generate ECDF plot of differences between test classes."""
         if not self.draw_ecdf_plot:
             return
+        data = self.load_data()
         fig = Figure(figsize=(16, 12))
         canvas = FigureCanvas(fig)
         axes = fig.add_subplot(1, 1, 1)
-        classnames = iter(self.data)
+        classnames = iter(data)
         base = next(classnames)
-        base_data = self.data.loc[:, base]
+        base_data = data.loc[:, base]
 
         # parameters for the zoomed-in graphs of ecdf
         zoom_params = OrderedDict([("98", (0.01, 0.99)),
@@ -446,9 +483,9 @@ class Analysis(object):
 
         for classname in classnames:
             # calculate the ECDF
-            data = self.data.loc[:, classname]
-            levels = np.linspace(1. / len(data), 1, len(data))
-            values = sorted(data-base_data)
+            values = data.loc[:, classname]
+            levels = np.linspace(1. / len(values), 1, len(values))
+            values = sorted(values-base_data)
             axes.step(values, levels, where='post')
 
             # calculate the bounds for the zoom positions
@@ -460,7 +497,7 @@ class Analysis(object):
                 zoom_values[name][1] = max(zoom_values[name][1], high)
 
         fig.legend(list("{0}-0".format(i)
-                        for i in range(1, len(list(self.data)))),
+                        for i in range(1, len(list(values)))),
                    ncol=6,
                    loc='upper center',
                    bbox_to_anchor=(0.5, -0.05))
@@ -490,7 +527,8 @@ class Analysis(object):
 
     def make_legend(self, fig):
         """Generate common legend for plots that need it."""
-        header = list(range(len(list(self.data))))
+        data = self.load_data()
+        header = list(range(len(list(data))))
         fig.legend(header,
                    ncol=6,
                    loc='upper center',
@@ -511,6 +549,8 @@ class Analysis(object):
             boot = np.random.choice(diffs, replace=True, size=len(diffs))
 
             q1, median, q3 = np.quantile(boot, [0.25, 0.5, 0.75])
+            # use tuple instead of a dict because tuples are much quicker
+            # to instantiate
             ret.append((np.mean(boot, 0),
                         median,
                         stats.trim_mean(boot, 0.05, 0),
@@ -519,43 +559,56 @@ class Analysis(object):
         return ret
 
     def _bootstrap_differences(self, pair, reps=5000):
-        """Return a list of bootstrapped means of differences."""
+        """Return a list of bootstrapped central tendencies of differences."""
         # don't pickle the diffs as they are read-only, use a global to pass
         # it to workers
         global _diffs
         # because the samples are not independent, we calculate mean of
         # differences not a difference of means
-        _diffs = self.data.iloc[:, pair.index1] -\
-            self.data.iloc[:, pair.index2]
+        data = self.load_data()
+        _diffs = data.iloc[:, pair.index2] -\
+            data.iloc[:, pair.index1]
 
         job_size = os.cpu_count() * 10
 
+        keys = ("mean", "median", "trim_mean_05", "trim_mean_25", "trimean")
+
+        ret = dict((k, list()) for k in keys)
+
         with mp.Pool() as pool:
-            cent_tend = list(pool.imap_unordered(
+            cent_tend = pool.imap_unordered(
                 self._cent_tend_of_random_sample,
-                chain(repeat(job_size, reps//job_size), [reps % job_size])))
+                chain(repeat(job_size, reps//job_size), [reps % job_size]))
+
+            for values in cent_tend:
+                # handle reps % job_size == 0
+                if not values:
+                    continue
+                # transpose the results so that they can be added to lists
+                chunk = list(map(list, zip(*values)))
+                for key, i in zip(keys, range(5)):
+                    ret[key].extend(chunk[i])
         _diffs = None
-        return [i for sublist in cent_tend for i in sublist]
+        return ret
 
     def calc_diff_conf_int(self, pair, reps=5000, ci=0.95):
         """
-        Bootstrap a confidence interval for the central tendency of differences
+        Bootstrap a confidence interval for the central tendencies of
+        differences.
 
-        :param TestPair pair: pairs to calculate the confidence interval
+        :param TestPair pair: identification of samples to calculate the
+            confidence interval
         :param int reps: how many bootstraping repetitions to perform
         :param float ci: confidence interval for the low and high estimate.
             0.95, i.e. "2 sigma", by default
-        :return: tuple with low estimate, estimate, and high estimate of
-            mean, median, trimmed mean (5% and 25%) and trimean of differences
-            of observations
+        :return: dictionary of tuples with low estimate, estimate, and high
+            estimate of mean, median, trimmed mean (5% and 25%) and trimean
+            of differences of observations
         """
         cent_tend = self._bootstrap_differences(pair, reps)
-        mean_values = [i[0] for i in cent_tend]
-        median_values = [i[1] for i in cent_tend]
-        trim_mean_05_values = [i[2] for i in cent_tend]
-        trim_mean_25_values = [i[3] for i in cent_tend]
-        trimean_values = [i[4] for i in cent_tend]
-        diff = self.data.iloc[:, pair.index1] - self.data.iloc[:, pair.index2]
+
+        data = self.load_data()
+        diff = data.iloc[:, pair.index2] - data.iloc[:, pair.index1]
         mean = np.mean(diff)
         q1, median, q3 = np.quantile(diff, [0.25, 0.5, 0.75])
         trim_mean_05 = stats.trim_mean(diff, 0.05, 0)
@@ -563,23 +616,17 @@ class Analysis(object):
         trimean = (q1 + 2*median + q3)/4
 
         quantiles = [(1-ci)/2, 1-(1-ci)/2]
-        mean_quant = np.quantile(mean_values, quantiles)
-        median_quant = np.quantile(median_values, quantiles)
-        trim_mean_05_quant = np.quantile(trim_mean_05_values, quantiles)
-        trim_mean_25_quant = np.quantile(trim_mean_25_values, quantiles)
-        trimean_quant = np.quantile(trimean_values, quantiles)
 
-        # TODO: change to dict
-        return [mean_quant[0], mean, mean_quant[1],
-                median_quant[0], median, median_quant[1],
-                trim_mean_05_quant[0], trim_mean_05, trim_mean_05_quant[1],
-                trim_mean_25_quant[0], trim_mean_25, trim_mean_25_quant[1],
-                trimean_quant[0], trimean, trimean_quant[1]]
+        exact_values = {"mean": mean, "median": median,
+                        "trim_mean_05": trim_mean_05,
+                        "trim_mean_25": trim_mean_25,
+                        "trimean": trimean}
 
-    def median_difference(self, pair):
-        """Calculate median difference between samples."""
-        diffs = self.data.iloc[:, pair.index1] - self.data.iloc[:, pair.index2]
-        return abs(np.median(diffs))
+        ret = {}
+        for key, value in exact_values.items():
+            calc_quant = np.quantile(cent_tend[key], quantiles)
+            ret[key] = (calc_quant[0], value, calc_quant[1])
+        return ret
 
     def conf_interval_plot(self):
         """Generate the confidence inteval for differences between samples."""
@@ -587,33 +634,74 @@ class Analysis(object):
             return
 
         reps = 5000
-        data = pd.DataFrame()
+        boots = {"mean": pd.DataFrame(),
+                 "median": pd.DataFrame(),
+                 "trim mean (5%)": pd.DataFrame(),
+                 "trim mean (25%)": pd.DataFrame(),
+                 "trimean": pd.DataFrame()}
 
         for i in range(1, len(self.class_names)):
-            pair = TestPair(i, 0)
+            pair = TestPair(0, i)
             diffs = self._bootstrap_differences(pair, reps)
-            diffs = [i[0] for i in diffs]
-            data['{}-0'.format(i)] = diffs
 
-        with open(join(self.output, "bootstrapped_means.csv"), "w") as f:
-            writer = csv.writer(f)
-            writer.writerow(data.columns)
-            writer.writerows(data.itertuples(index=False))
+            boots["mean"]['{}-0'.format(i)] = diffs["mean"]
+            boots["median"]['{}-0'.format(i)] = diffs["median"]
+            boots["trim mean (5%)"]['{}-0'.format(i)] = diffs["trim_mean_05"]
+            boots["trim mean (25%)"]['{}-0'.format(i)] = diffs["trim_mean_25"]
+            boots["trimean"]['{}-0'.format(i)] = diffs["trimean"]
 
-        fig = Figure(figsize=(16, 12))
-        canvas = FigureCanvas(fig)
-        ax = fig.add_subplot(1, 1, 1)
-        ax.violinplot(data, widths=0.7, showmeans=True, showextrema=True)
-        ax.set_xticks(list(range(len(data.columns)+1)))
-        ax.set_xticklabels([' '] + list(data.columns))
-        formatter = mpl.ticker.EngFormatter('s')
-        ax.get_yaxis().set_major_formatter(formatter)
+        for name, data in boots.items():
+            fig = Figure(figsize=(16, 12))
+            canvas = FigureCanvas(fig)
+            ax = fig.add_subplot(1, 1, 1)
+            ax.violinplot(data, widths=0.7, showmeans=True, showextrema=True)
+            ax.set_xticks(list(range(len(data.columns)+1)))
+            ax.set_xticklabels([' '] + list(data.columns))
+            formatter = mpl.ticker.EngFormatter('s')
+            ax.get_yaxis().set_major_formatter(formatter)
 
-        ax.set_title("Confidence intervals for mean of differences")
-        ax.set_xlabel("Class pairs")
-        ax.set_ylabel("Mean of differences")
-        canvas.print_figure(join(self.output, "conf_interval_plot.png"),
-                            bbox_inches="tight")
+            ax.set_title("Confidence intervals for {0} of differences"
+                         .format(name))
+            ax.set_xlabel("Class pairs")
+            ax.set_ylabel("{0} of differences".format(name))
+
+            if name == "trim mean (5%)":
+                name = "trim_mean_05"
+            elif name == "trim mean (25%)":
+                name = "trim_mean_25"
+
+            with open(join(self.output,
+                           "bootstrapped_{0}.csv".format(name)),
+                      "w") as f:
+                writer = csv.writer(f)
+                writer.writerow(data.columns)
+                writer.writerows(data.itertuples(index=False))
+
+            canvas.print_figure(join(self.output,
+                                     "conf_interval_plot_{0}.png"
+                                     .format(name)),
+                                bbox_inches="tight")
+
+    def desc_stats(self):
+        """Calculate the descriptive statistics for sample differences."""
+        data = self.load_data()
+        results = {}
+        comb = combinations(list(range(len(self.class_names))), 2)
+        for index1, index2, in comb:
+            data1 = data.iloc[:, index1]
+            data2 = data.iloc[:, index2]
+
+            diff = data2 - data1
+
+            diff_stats = {}
+            diff_stats["mean"] = np.mean(diff)
+            diff_stats["SD"] = np.std(diff)
+            quantiles = np.quantile(diff, [0.25, 0.5, 0.75])
+            diff_stats["median"] = quantiles[1]
+            diff_stats["IQR"] = quantiles[2] - quantiles[1]
+            diff_stats["MAD"] = stats.median_abs_deviation(diff)
+            results[TestPair(index1, index2)] = diff_stats
+        return results
 
     @staticmethod
     def _write_stats(name, low, med, high, txt_file):
@@ -629,6 +717,10 @@ class Analysis(object):
         box_results = self.box_test()
         wilcox_results = self.wilcoxon_test()
         sign_results = self.sign_test()
+        sign_less_results = self.sign_test(alternative="less")
+        sign_greater_results = self.sign_test(alternative="greater")
+        ttest_results = self.rel_t_test()
+        desc_stats = self.desc_stats()
 
         report_filename = join(self.output, "report.csv")
         p_vals = []
@@ -636,13 +728,18 @@ class Analysis(object):
         with open(report_filename, 'w') as file:
             writer = csv.writer(file)
             writer.writerow(["Class 1", "Class 2", "Box test",
-                             "Wilcoxon signed-rank test", "Sign test"])
+                             "Wilcoxon signed-rank test",
+                             "Sign test", "Sign test less",
+                             "Sign test greater",
+                             "paired t-test", "mean", "SD",
+                             "median", "IQR", "MAD"])
             worst_pair = None
             worst_p = None
             worst_median_difference = None
             for pair, result in box_results.items():
                 index1 = pair.index1
                 index2 = pair.index2
+                diff_stats = desc_stats[pair]
                 box_write = "="
                 if result:
                     smaller, bigger = result
@@ -654,10 +751,30 @@ class Analysis(object):
                 else:
                     print("Box test {} vs {}: No difference".format(index1,
                                                                     index2))
-                print("Wilcoxon signed-rank test {} vs {}: {}"
+                print("Wilcoxon signed-rank test {} vs {}: {:.3}"
                       .format(index1, index2, wilcox_results[pair]))
-                print("Sign test {} vs {}: {}"
+                print("Sign test {} vs {}: {:.3}"
                       .format(index1, index2, sign_results[pair]))
+                print("Sign test, probability that {1} < {0}: {2:.3}"
+                      .format(index1, index2, sign_less_results[pair]))
+                print("Sign test, probability that {1} > {0}: {2:.3}"
+                      .format(index1, index2, sign_greater_results[pair]))
+                if sign_results[pair] > 0.05:
+                    sign_test_relation = "="
+                elif sign_less_results[pair] > sign_greater_results[pair]:
+                    sign_test_relation = "<"
+                else:
+                    sign_test_relation = ">"
+                print("Sign test interpretation: {} {} {}"
+                      .format(index2, sign_test_relation, index1))
+                print("Dependent t-test for paired samples {} vs {}: {:.3}"
+                      .format(index1, index2, ttest_results[pair]))
+                print("{} vs {} stats: mean: {:.3}, SD: {:.3}, median: {:.3}, "
+                      "IQR: {:.3}, MAD: {:.3}".format(
+                          index1, index2, diff_stats["mean"], diff_stats["SD"],
+                          diff_stats["median"], diff_stats["IQR"],
+                          diff_stats["MAD"]))
+
                 # if both tests or the sign test found a difference
                 # consider it a possible side-channel
                 if result and wilcox_results[pair] < 0.05 or \
@@ -666,17 +783,26 @@ class Analysis(object):
 
                 wilcox_p = wilcox_results[pair]
                 sign_p = sign_results[pair]
-                median_difference = self.median_difference(pair)
+                ttest_p = ttest_results[pair]
                 row = [self.class_names[index1],
                        self.class_names[index2],
                        box_write,
                        wilcox_p,
-                       sign_p
+                       sign_p,
+                       sign_less_results[pair],
+                       sign_greater_results[pair],
+                       ttest_p,
+                       diff_stats["mean"],
+                       diff_stats["SD"],
+                       diff_stats["median"],
+                       diff_stats["IQR"],
+                       diff_stats["MAD"]
                        ]
                 writer.writerow(row)
 
                 p_vals.append(wilcox_p)
                 sign_p_vals.append(sign_p)
+                median_difference = abs(diff_stats["median"])
 
                 if worst_pair is None or wilcox_p < worst_p or \
                         worst_median_difference is None or \
@@ -695,6 +821,21 @@ class Analysis(object):
             writer.writerow(['ID', 'Name'])
             for num, name in enumerate(self.class_names):
                 writer.writerow([num, name])
+
+    def _write_sample_stats(self):
+        """Write summary statistics of samples to sample_stats.csv file."""
+        data = self.load_data()
+        stats_filename = join(self.output, "sample_stats.csv")
+        with open(stats_filename, "w") as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerow(['Name', 'mean', 'median', 'MAD'])
+            for num, name in enumerate(self.class_names):
+                sample = data.iloc[:, num]
+                writer.writerow([
+                    name,
+                    np.mean(sample),
+                    np.median(sample),
+                    stats.median_abs_deviation(sample)])
 
     def _write_summary(self, difference, p_vals, sign_p_vals, worst_pair,
                        worst_p, friedman_p):
@@ -763,25 +904,17 @@ class Analysis(object):
             txt_file.write(txt)
             txt_file.write('\n')
 
-            low_mean, mean, high_mean, \
-                low_median, median, high_median, \
-                low_trim_mean_05, trim_mean_05, high_trim_mean_05, \
-                low_trim_mean_25, trim_mean_25, high_trim_mean_25, \
-                low_trimean, trimean, high_trimean \
-                = self.calc_diff_conf_int(worst_pair)
+            diff_conf_int = self.calc_diff_conf_int(worst_pair)
             # use 95% CI as that translates to 2 standard deviations, making
             # it easy to estimate higher CIs
-            self._write_stats("Mean", low_mean, mean, high_mean, txt_file)
-            self._write_stats(
-                "Median", low_median, median, high_median, txt_file)
-            self._write_stats(
-                "Trimmed mean (5%)", low_trim_mean_05, trim_mean_05,
-                high_trim_mean_05, txt_file)
-            self._write_stats(
-                "Trimmed mean (25%)", low_trim_mean_25, trim_mean_25,
-                high_trim_mean_25, txt_file)
-            self._write_stats(
-                "Trimean", low_trimean, trimean, high_trimean, txt_file)
+            for name, key in (("Mean", "mean"), ("Median", "median"),
+                              ("Trimmed mean (5%)", "trim_mean_05"),
+                              ("Trimmed mean (25%)", "trim_mean_25"),
+                              ("Trimean", "trimean")):
+                self._write_stats(
+                    name,
+                    diff_conf_int[key][0], diff_conf_int[key][1],
+                    diff_conf_int[key][2], txt_file)
 
             txt = "For detailed report see {}".format(report_filename)
             print(txt)
@@ -844,6 +977,8 @@ class Analysis(object):
 
         self._write_legend()
 
+        self._write_sample_stats()
+
         friedman_result = self.friedman_test()
 
         difference, p_vals, sign_p_vals, worst_pair, worst_p = \
@@ -858,7 +993,8 @@ class Analysis(object):
         return difference
 
 
-if __name__ == '__main__':
+# exclude from coverage as it's a). trivial, and b). not easy to test
+if __name__ == '__main__':  # pragma: no cover
     ret = main()
     print("Analysis return value: {}".format(ret))
     sys.exit(ret)
