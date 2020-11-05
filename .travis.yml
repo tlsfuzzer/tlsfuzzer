@@ -99,15 +99,16 @@ jobs:
    - python: 3.8
      dist: xenial
      sudo: true
+     # Note: CC_REPORT=true can be set in only one environment
      env: ANALYSIS_DEP=true EXTRACT_DEP=true CC_REPORT=true
    - python: 3.9
      dist: xenial
      sudo: true
-     env: ANALYSIS_DEP=true EXTRACT_DEP=true CC_REPORT=true
+     env: ANALYSIS_DEP=true EXTRACT_DEP=true
    - python: nightly
      dist: xenial
      sudo: true
-     env: ANALYSIS_DEP=true EXTRACT_DEP=true CC_REPORT=true
+     env: ANALYSIS_DEP=true EXTRACT_DEP=true
  allow_failures:
    # lazy-object-proxy fails to build
    - python: nightly
@@ -115,7 +116,7 @@ jobs:
    - python: 3.9
      env: ANALYSIS_DEP=true
    - python: 3.9
-     env: ANALYSIS_DEP=true EXTRACT_DEP=true CC_REPORT=true
+     env: ANALYSIS_DEP=true EXTRACT_DEP=true
 
 branches:
   only:
