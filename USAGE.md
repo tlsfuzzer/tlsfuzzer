@@ -12,7 +12,7 @@ To run the scripts you will need 3 libraries:
 
  * [six](https://github.com/benjaminp/six) ([PyPI](https://pypi.python.org/pypi/six))
  * [ecdsa](https://github.com/warner/python-ecdsa) ([PyPI](https://pypi.python.org/pypi/ecdsa))
- * [tlslite-ng](https://github.com/tomato42/tlslite-ng) ([PyPI](https://pypi.python.org/pypi/tlslite-ng))
+ * [tlslite-ng](https://github.com/tlsfuzzer/tlslite-ng) ([PyPI](https://pypi.python.org/pypi/tlslite-ng))
 
 It's common that `six` is already installed, or is available from the operating
 system repository.
@@ -35,11 +35,11 @@ install new python, and use it for the below commands, usually switching
 In other words, if you have `six` already installed, the environment can be
 prepared by running the following commands:
 ```
-git clone https://github.com/tomato42/tlsfuzzer.git
+git clone https://github.com/tlsfuzzer/tlsfuzzer.git
 cd tlsfuzzer
 git clone https://github.com/warner/python-ecdsa .python-ecdsa
 ln -s .python-ecdsa/src/ecdsa/ ecdsa
-git clone https://github.com/tomato42/tlslite-ng .tlslite-ng
+git clone https://github.com/tlsfuzzer/tlslite-ng .tlslite-ng
 ln -s .tlslite-ng/tlslite/ tlslite
 
 ```
@@ -106,7 +106,7 @@ To be able to read the error messages of `tlsfuzzer` scripts, it's necessary to
 know a little about how it works internally.
 
 The simplest test script is the
-[test-conversation.py](https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-conversation.py),
+[test-conversation.py](https://github.com/tlsfuzzer/tlsfuzzer/blob/master/scripts/test-conversation.py),
 in it you will find a lot of boilerplate, and a single test scenario:
 ```
     conversation = Connect(host, port)
@@ -407,14 +407,14 @@ pass with default configuration and other pass with `-a 0` option set, it makes
 the server **vulnerable** to the Bleichenbacher attack). In general, the
 workaround requires the server *not* to treat the Finished message specially,
 so the alert sent *should* be the same as the one generated while running
-[test-fuzzed-MAC.py](https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-fuzzed-MAC.py).
+[test-fuzzed-MAC.py](https://github.com/tlsfuzzer/tlsfuzzer/blob/master/scripts/test-fuzzed-MAC.py).
 Also note that if setting this option is necessary, it shows that the server is
 not RFC compliant, which in turn, as you can see, makes testing it harder and
 more complex.
 
 While not testing for Bleichenbacher directly, the tests
-[test-invalid-rsa-key-exchange-messages.py](https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-invalid-rsa-key-exchange-messages.py)
-and [test-truncating-of-kRSA-client-key-exchange.py](https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-truncating-of-kRSA-client-key-exchange.py)
+[test-invalid-rsa-key-exchange-messages.py](https://github.com/tlsfuzzer/tlsfuzzer/blob/master/scripts/test-invalid-rsa-key-exchange-messages.py)
+and [test-truncating-of-kRSA-client-key-exchange.py](https://github.com/tlsfuzzer/tlsfuzzer/blob/master/scripts/test-truncating-of-kRSA-client-key-exchange.py)
 perform checks related to RSA key exchange. Failures there may be a sign of
 other problems.
 

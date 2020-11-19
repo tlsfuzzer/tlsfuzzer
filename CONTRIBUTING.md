@@ -3,7 +3,7 @@
 ## Preparation for contributing
 
 * You need a [GitHub account](https://github.com/signup/free)
-* Submit an [issue ticket](https://github.com/tomato42/tlsfuzzer/issues) for
+* Submit an [issue ticket](https://github.com/tlsfuzzer/tlsfuzzer/issues) for
   your issue if there is none yet
   * Describe the issue and include steps to reproduce if it's a bug, mention
     the earliest version that you know is affected and the version you're using.
@@ -16,18 +16,18 @@
 ## Ways to contribute
 
 * Look for issues in the
-  [projects](https://github.com/tomato42/tlsfuzzer/projects) page.
-  [TLS 1.3 coverage](https://github.com/tomato42/tlsfuzzer/projects/1) is the
+  [projects](https://github.com/tlsfuzzer/tlsfuzzer/projects) page.
+  [TLS 1.3 coverage](https://github.com/tlsfuzzer/tlsfuzzer/projects/1) is the
   highest priority project now.
 * Look for
-  [open issues](https://github.com/tomato42/tlsfuzzer/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22),
+  [open issues](https://github.com/tlsfuzzer/tlsfuzzer/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22),
   ones that have
-  [maintenance](https://github.com/tomato42/tlsfuzzer/issues?q=is%3Aissue+is%3Aopen+label%3Amaintenance)
+  [maintenance](https://github.com/tlsfuzzer/tlsfuzzer/issues?q=is%3Aissue+is%3Aopen+label%3Amaintenance)
   label and/or
-  [good first issue](https://github.com/tomato42/tlsfuzzer/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
+  [good first issue](https://github.com/tlsfuzzer/tlsfuzzer/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
   are good choices
 * Report ideas for
-  [new test scripts](https://github.com/tomato42/tlsfuzzer/issues/new?template=New_test_script.md)
+  [new test scripts](https://github.com/tlsfuzzer/tlsfuzzer/issues/new?template=New_test_script.md)
   to verify TLS implementations with
 * Run static code analyses on tlsfuzzer, report issues they found
   * Integrate them into CI or development scripts
@@ -39,7 +39,7 @@
 
 ### TL;DR
 
-1. [Fork it](https://github.com/tomato42/tlsfuzzer/fork)
+1. [Fork it](https://github.com/tlsfuzzer/tlsfuzzer/fork)
 1. Clone it
   * `git clone git@github.com:<your-github-nick>/tlsfuzzer.git`
   * `cd tlsfuzzer`
@@ -49,7 +49,7 @@
   * `pip2 install -r build-requirements.txt`
   * `pip3 install -r build-requirements.txt`
 1. Download tlslite-ng
-  * `git clone https://github.com/tomato42/tlslite-ng.git .tlslite-ng`
+  * `git clone https://github.com/tlsfuzzer/tlslite-ng.git .tlslite-ng`
   * `ln -s .tlslite-ng/tlslite tlslite`
 1. Verify installation
   * `make test`
@@ -59,7 +59,7 @@
 1. Commit your changes (`git commit -am 'Add some feature'`)
 1. Push to the branch upstream (`git push origin my-new-feature`)
 1. Create new
-   [Pull Request](https://github.com/tomato42/tlsfuzzer/pull/new/master)
+   [Pull Request](https://github.com/tlsfuzzer/tlsfuzzer/pull/new/master)
 
 ### Technical requirements
 
@@ -67,11 +67,11 @@ To be able to work on the code you will need few pieces of software installed.
 The most important is the `python` interpreter. Some development dependencies
 have additional restrictions on the versions used, so I recommend using Python
 2.7 and Python 3.4 as the lowest versions (see
-[`.travis.yml`](https://github.com/tomato42/tlsfuzzer/blob/master/.travis.yml)
+[`.travis.yml`](https://github.com/tlsfuzzer/tlsfuzzer/blob/master/.travis.yml)
 if you want to setup development environment on different versions).
 [Git client](https://git-scm.com/), [make](https://www.gnu.org/software/make/)
 (though likely other `make` implementions will work too, scripts for
-Windows are [planned](https://github.com/tomato42/tlsfuzzer/issues/22)),
+Windows are [planned](https://github.com/tlsfuzzer/tlsfuzzer/issues/22)),
 text editor and ability to install local python packages (ability to run
 `pip`).
 
@@ -144,7 +144,7 @@ require use of package like
 * Fork the tlsfuzzer project
 * Clone to your local machine your fork: `git clone git@github.com:.../tlsfuzer.git`
 * Download tlslite-ng:
-  * `git clone https://github.com/tomato42/tlslite-ng.git .tlslite-ng`
+  * `git clone https://github.com/tlsfuzzer/tlslite-ng.git .tlslite-ng`
   * `ln -s .tlslite-ng/tlslite tlslite`
 * Verify that test cases are runnable: `make test`
 * In your cloned repository, create a topic branch for your upcoming patch
@@ -184,7 +184,7 @@ require use of package like
 * Push your changes to a topic branch in your fork of the repository.
   `git push origin <example-name>`
 * Open a pull request to the original repository and choose the right original
-  branch you want to patch (that usually will be tomato42/master).
+  branch you want to patch (that usually will be tlsfuzzer/master).
 * If you posted issues previously, make sure you reference them in the opening
   commit of the pull request (e.g. 'fixes #12'). But _please do not close the
   issue yourself_. GitHub will do that automatically once the issue is merged.
@@ -220,20 +220,20 @@ might have moved forward.
 To update your copy of it, first add a "remote" that points to upstream repo:
 
 ```
-git remote add tomato42 https://github.com/tomato42/tlsfuzzer.git
+git remote add tlsfuzzer https://github.com/tlsfuzzer/tlsfuzzer.git
 ```
 
 Get changes from it:
 
 ```
-git fetch tomato42
+git fetch tlsfuzzer
 ```
 
 Update your local `master` branch:
 
 ```
 git checkout master
-git pull tomato42 master
+git pull tlsfuzzer master
 ```
 
 Upload the new `master` branch to your fork:
@@ -249,7 +249,7 @@ to undo those changes (search for `git reset`), or pull and rebase at the same
 time (instead of just `git pull`):
 
 ```
-git pull tomato42 master --rebase
+git pull tlsfuzzer master --rebase
 ```
 
 ### Additional Resources
@@ -260,7 +260,7 @@ git pull tomato42 master --rebase
 ## tlsfuzzer testing
 
 (not to be confused with testing _with_ (or _using_) tlsfuzzer, for that see
-[USAGE.md](https://github.com/tomato42/tlsfuzzer/blob/master/USAGE.md)
+[USAGE.md](https://github.com/tlsfuzzer/tlsfuzzer/blob/master/USAGE.md)
 document)
 
 The testing of tlsfuzzer happens in three main steps:
@@ -315,21 +315,21 @@ When contributing patches please follow the following guidelines:
   the [PEP 257](https://www.python.org/dev/peps/pep-0257/) style guides
 * Code should not use platform specific extensions – should be runnable on
   Linux, Windows and OSX (CI does not verify it, yet:
-  [#22](https://github.com/tomato42/tlsfuzzer/issues/22),
-  [#21](https://github.com/tomato42/tlsfuzzer/issues/21))
+  [#22](https://github.com/tlsfuzzer/tlsfuzzer/issues/22),
+  [#21](https://github.com/tlsfuzzer/tlsfuzzer/issues/21))
 * When adding new functionality unit tests need to be provided with those
   changes, see
-  [unit test checklist](https://github.com/tomato42/tlsfuzzer/wiki/Unit-test-checklist)
+  [unit test checklist](https://github.com/tlsfuzzer/tlsfuzzer/wiki/Unit-test-checklist)
   for unit test requirements
   * You can check if unittests actually cover the added code by looking at the
     coveralls.io report for a given PR
 * When creating new test scripts, use
-  [`test-conversation.py`](https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-conversation.py)
+  [`test-conversation.py`](https://github.com/tlsfuzzer/tlsfuzzer/blob/master/scripts/test-conversation.py)
   and
-  [`test-tls13-conversation.py`](https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-tls13-conversation.py)
+  [`test-tls13-conversation.py`](https://github.com/tlsfuzzer/tlsfuzzer/blob/master/scripts/test-tls13-conversation.py)
   as templates
 * When creating new test scripts, consult
-  [Test script checklist](https://github.com/tomato42/tlsfuzzer/wiki/Test-script-checklist)
+  [Test script checklist](https://github.com/tlsfuzzer/tlsfuzzer/wiki/Test-script-checklist)
 * New test scripts need to be added to `tests/tlslite-ng.json` and
   `tests/tlslite-ng-random-subset.json` files (note: they are sorted
   alphabetically)
