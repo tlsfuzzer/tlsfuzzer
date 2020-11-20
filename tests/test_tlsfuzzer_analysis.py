@@ -413,10 +413,10 @@ class TestReport(unittest.TestCase):
 class TestPlots(unittest.TestCase):
     def setUp(self):
         data = {
-            'A': [0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
-                0.000734843, 0.000754852, 0.000667378, 0.000671230, 0.000790935],
-            'B': [0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
-                0.000734843, 0.000754852, 0.000667378, 0.000671230, 0.000790935]
+            'A': [0.000758131, 0.000696718, 0.000980081, 0.000988899, 0.000875511,
+                0.000734843, 0.000754853, 0.000667378, 0.000671231, 0.000790935],
+            'B': [0.000758130, 0.000696719, 0.000980080, 0.000988900, 0.000875510,
+                0.000734844, 0.000754852, 0.000667379, 0.000671230, 0.000790936]
         }
         timings = pd.DataFrame(data=data)
         mock_read_csv = mock.Mock()
@@ -485,7 +485,7 @@ class TestPlots(unittest.TestCase):
         ret = self.analysis._calc_percentiles()
 
         self.assertIsNotNone(ret)
-        self.assertEqual(ret.values[0, 0], 0.0006691114)
+        self.assertEqual(ret.values[0, 0], 0.0006691118500000001)
         mock_copyfile.assert_called_once_with(
             "/tmp/timing.bin", "/tmp/.quantiles.tmp")
         mock_remove.assert_called_once_with("/tmp/.quantiles.tmp")
@@ -514,7 +514,7 @@ class TestPlots(unittest.TestCase):
             with mock.patch("__main__.__builtins__.open", mock.mock_open())\
                     as mock_open:
                 self.analysis.graph_worst_pair((0, 1))
-                self.assertEqual(mock_save.call_args_list,
+                self.assertEqual(list(mock_save.call_args_list),
                     [mock.call('/tmp/sample_0_heatmap.png',
                                bbox_inches='tight'),
                      mock.call('/tmp/sample_0_heatmap_zoom_in.png',
@@ -526,6 +526,8 @@ class TestPlots(unittest.TestCase):
                      mock.call('/tmp/worst_pair_diff_heatmap.png',
                                bbox_inches='tight'),
                      mock.call('/tmp/worst_pair_diff_heatmap_zoom_in.png',
+                               bbox_inches='tight'),
+                     mock.call('/tmp/worst_pair_diff_pacf.png',
                                bbox_inches='tight')])
 
 
