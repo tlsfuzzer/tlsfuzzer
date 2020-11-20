@@ -29,6 +29,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
 from tlsfuzzer.utils.ordered_dict import OrderedDict
+from tlsfuzzer.messages import div_ceil
 
 
 TestPair = namedtuple('TestPair', 'index1  index2')
@@ -858,6 +859,123 @@ class Analysis(object):
                     np.median(sample),
                     stats.median_abs_deviation(sample)])
 
+    def _graph_hist_over_time(self, data, min_lvl, max_lvl, title, file_name):
+
+        fig = Figure(figsize=(16, 12))
+        canvas = FigureCanvas(fig)
+        dpi = fig.dpi
+
+        width_ppx = 16 * dpi
+        height_ppx = 12 * dpi
+
+        sample_size = len(data)
+
+        # make sure the individual histograms have something to work with
+        # but make them at least 2 pixels wide
+        bucket_width = int(max(256, div_ceil(sample_size, (width_ppx / 2))))
+        bucket_count = div_ceil(sample_size, bucket_width)
+
+        print("bucket_count: {}, bucket_width: {}".format(bucket_count, bucket_width))
+
+        # make the rows 2 pixels high
+        bins_count = int(height_ppx / 2)
+        bin_width = (max_lvl - min_lvl) / bins_count
+
+        print("bin_count: {}, bin_width: {}".format(bins_count, bin_width))
+
+        x_indexes = list(range(
+            bucket_width // 2,
+            # we're setting the indexes in the middle of the bin, ensure that
+            # they are in the list
+            sample_size + (bucket_width // 2) - 1,
+            bucket_width))
+        y_indexes = [min_lvl + i * bin_width for i in range(bins_count)]
+        assert len(x_indexes) == bucket_count, (len(x_indexes), bucket_count)
+        assert len(y_indexes) == bins_count, (len(y_indexes), bins_count)
+
+        data_hists = pd.DataFrame(
+            np.full((bins_count, bucket_count), float("NaN")),
+            columns=x_indexes,
+            index=y_indexes)
+
+        for name, start, end in zip(
+                x_indexes,
+                range(0, sample_size, bucket_width),
+                range(bucket_width, sample_size, bucket_width)):
+            bucket = data[start:end]
+            hist = np.histogram(
+                bucket, bins=bins_count,
+                range=(min_lvl, max_lvl))[0]
+            data_hists[name] = hist
+
+        axes = fig.add_subplot(1, 1, 1)
+        pcm = axes.pcolormesh(x_indexes, y_indexes, data_hists,
+                              shading="auto")
+        axes.set_title(title)
+        axes.set_xlabel("Index")
+        axes.set_ylabel("Time")
+
+        formatter = mpl.ticker.EngFormatter('s')
+        axes.get_yaxis().set_major_formatter(formatter)
+
+        cbar = fig.colorbar(pcm, ax=axes)
+        cbar.set_label("Counts")
+
+        canvas.print_figure(join(self.output,
+                                 file_name),
+                            bbox_inches="tight")
+
+    def graph_worst_pair(self, pair):
+        """Create heatmap plots for the most dissimilar sample pair"""
+        data = self.load_data()
+        index1, index2 = pair
+
+        data1 = data.iloc[:, index1]
+        data2 = data.iloc[:, index2]
+
+        # first plot the samples individually
+
+        # we want the same scale on both graphs, so use common min and max
+        global_min = min(min(data1), min(data2))
+        global_max = max(max(data1), max(data2))
+        # same for zoomed-in data
+        data1_q1, data1_q3 = np.quantile(data1, [0.01, 0.95])
+        data2_q1, data2_q3 = np.quantile(data2, [0.01, 0.95])
+        global_q1 = min(data1_q1, data2_q1)
+        global_q3 = max(data1_q3, data2_q3)
+
+        self._graph_hist_over_time(
+            data1, global_min, global_max,
+            "Sample {} heatmap".format(index1),
+            "sample_{}_heatmap.png".format(index1))
+        self._graph_hist_over_time(
+            data1, global_q1, global_q3,
+            "Sample {} heatmap".format(index1),
+            "sample_{}_heatmap_zoom_in.png".format(index1))
+        self._graph_hist_over_time(
+            data2, global_min, global_max,
+            "Sample {} heatmap".format(index2),
+            "sample_{}_heatmap.png".format(index2))
+        self._graph_hist_over_time(
+            data2, global_q1, global_q3,
+            "Sample {} heatmap".format(index2),
+            "sample_{}_heatmap_zoom_in.png".format(index2))
+
+        # and then plot the differences
+
+        diff = data2 - data1
+        diff_min, diff_q1, diff_q3, diff_max = \
+            np.quantile(diff, [0, 0.025, 0.975, 1])
+
+        self._graph_hist_over_time(
+            diff, diff_min, diff_max,
+            "Difference plot of ({}-{})".format(index2, index1),
+            "worst_pair_diff_heatmap.png")
+        self._graph_hist_over_time(
+            diff, diff_q1, diff_q3,
+            "Difference plot of ({}-{})".format(index2, index1),
+            "worst_pair_diff_heatmap_zoom_in.png")
+
     def _write_summary(self, difference, p_vals, sign_p_vals, worst_pair,
                        worst_p, friedman_p):
         """Write the report.txt file and print summary."""
@@ -1004,6 +1122,8 @@ class Analysis(object):
 
         difference, p_vals, sign_p_vals, worst_pair, worst_p = \
             self._write_individual_results()
+
+        self.graph_worst_pair(worst_pair)
 
         difference = self._write_summary(difference, p_vals, sign_p_vals,
                                          worst_pair,
