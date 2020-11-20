@@ -37,7 +37,7 @@ TestPair = namedtuple('TestPair', 'index1  index2')
 mpl.use('Agg')
 
 
-VERSION = 5
+VERSION = 6
 
 
 _diffs = None
@@ -723,6 +723,11 @@ class Analysis(object):
             diff_stats["median"] = quantiles[1]
             diff_stats["IQR"] = quantiles[2] - quantiles[1]
             diff_stats["MAD"] = stats.median_abs_deviation(diff)
+            max_lag = min(200, len(diff) // 2 - 1)
+            ljungbox_pval = sm.stats.diagnostic.acorr_ljungbox(
+                diff, lags=[1, max_lag], return_df=True)['lb_pvalue']
+            diff_stats["Ljung-Box lag 1"] = ljungbox_pval[1]
+            diff_stats["Ljung-Box lag 200"] = ljungbox_pval[max_lag]
             results[TestPair(index1, index2)] = diff_stats
         return results
 
@@ -755,7 +760,8 @@ class Analysis(object):
                              "Sign test", "Sign test less",
                              "Sign test greater",
                              "paired t-test", "mean", "SD",
-                             "median", "IQR", "MAD"])
+                             "median", "IQR", "MAD", "Ljung-Box test lag 1",
+                             "Ljung-Box test lag 200"])
             worst_pair = None
             worst_p = None
             worst_median_difference = None
@@ -792,6 +798,10 @@ class Analysis(object):
                       .format(index2, sign_test_relation, index1))
                 print("Dependent t-test for paired samples {} vs {}: {:.3}"
                       .format(index1, index2, ttest_results[pair]))
+                print("Ljung-Box test of autocorrelation at lag 1: {:.3}"
+                      .format(diff_stats["Ljung-Box lag 1"]))
+                print("Ljung-Box test of autocorrelation at lag 200: {:.3}"
+                      .format(diff_stats["Ljung-Box lag 200"]))
                 print("{} vs {} stats: mean: {:.3}, SD: {:.3}, median: {:.3}, "
                       "IQR: {:.3}, MAD: {:.3}".format(
                           index1, index2, diff_stats["mean"], diff_stats["SD"],
@@ -819,7 +829,9 @@ class Analysis(object):
                        diff_stats["SD"],
                        diff_stats["median"],
                        diff_stats["IQR"],
-                       diff_stats["MAD"]
+                       diff_stats["MAD"],
+                       diff_stats["Ljung-Box lag 1"],
+                       diff_stats["Ljung-Box lag 200"]
                        ]
                 writer.writerow(row)
 
