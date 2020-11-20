@@ -27,6 +27,7 @@ import pandas as pd
 import matplotlib as mpl
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+import statsmodels.api as sm
 
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.messages import div_ceil
@@ -921,6 +922,24 @@ class Analysis(object):
                                  file_name),
                             bbox_inches="tight")
 
+    def _plot_pacf(self, data, title, file_name, lags=None):
+        fig = Figure(figsize=(16, 12))
+        canvas = FigureCanvas(fig)
+        axes = fig.add_subplot(1, 1, 1)
+
+        if lags is None:
+            # the maximal lag computable is for < 50% of sample size
+            # but do only up to 500 as it's computationally expensive
+            lags = min(len(data) // 2 - 1, 500)
+
+        sm.graphics.tsa.plot_pacf(data, axes, title=title, lags=lags,
+                                  zero=False)
+        axes.set_ylabel("Correlation coefficient")
+        axes.set_xlabel("Lag")
+
+        canvas.print_figure(join(self.output, file_name),
+                            bbox_inches="tight")
+
     def graph_worst_pair(self, pair):
         """Create heatmap plots for the most dissimilar sample pair"""
         data = self.load_data()
@@ -971,6 +990,12 @@ class Analysis(object):
             diff, diff_q1, diff_q3,
             "Difference plot of ({}-{})".format(index2, index1),
             "worst_pair_diff_heatmap_zoom_in.png")
+
+        self._plot_pacf(
+            diff,
+            "Partial autocorrelation function for sample ({}-{}) difference"
+            .format(index2, index1),
+            "worst_pair_diff_pacf.png")
 
     def _write_summary(self, difference, p_vals, sign_p_vals, worst_pair,
                        worst_p, friedman_p):
