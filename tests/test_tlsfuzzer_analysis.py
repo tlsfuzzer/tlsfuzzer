@@ -37,7 +37,8 @@ class TestReport(unittest.TestCase):
         self.neq_data = pd.DataFrame(data={
             'A': [0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
                 0.000734843, 0.000754852, 0.000667378, 0.000671230, 0.000790935],
-            'B': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+            'B': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+            'C': [0.11, 0.21, 0.31, 0.41, 0.51, 0.61, 0.71, 0.81, 0.91, 1.01]
         })
         self.neq_data_overlap = pd.DataFrame(data={
             'A': [0, 0, 1, 7, 7] + [7] * 95,
@@ -59,7 +60,7 @@ class TestReport(unittest.TestCase):
                                         with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
                                             with mock.patch("builtins.print"):
                                                 with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
-                                                    analysis = Analysis("/tmp")
+                                                    analysis = Analysis("/tmp", verbose=True)
                                                     ret = analysis.generate_report()
 
                                                     self.mock_read_csv.assert_called()
@@ -100,8 +101,8 @@ class TestReport(unittest.TestCase):
         timings = pd.DataFrame(data=self.neq_data)
         mock_read_csv = mock.Mock()
         mock_read_csv.return_value = timings
-        def mock_friedman(self, result):
-            result.put(0)
+        def mock_friedman(*args):
+            return None, 0.55
 
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", mock_read_csv):
             with mock.patch("tlsfuzzer.analysis.Analysis.ecdf_plot") as mock_ecdf:
@@ -111,7 +112,7 @@ class TestReport(unittest.TestCase):
                             with mock.patch("tlsfuzzer.analysis.Analysis.diff_scatter_plot"):
                                 with mock.patch("tlsfuzzer.analysis.Analysis.conf_interval_plot") as mock_conf_int:
                                     with mock.patch("tlsfuzzer.analysis.Analysis.graph_worst_pair"):
-                                        with mock.patch("tlsfuzzer.analysis.Analysis.friedman_test", mock_friedman):
+                                        with mock.patch("scipy.stats.friedmanchisquare", mock_friedman):
                                             with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
                                                 with mock.patch("builtins.print"):
                                                     analysis = Analysis("/tmp")
@@ -317,7 +318,7 @@ class TestReport(unittest.TestCase):
             analysis = Analysis("/tmp")
 
             res = analysis.sign_test(alternative="less")
-            self.assertEqual(len(res), 1)
+            self.assertEqual(len(res), 3)
             for index, result in res.items():
                 self.assertLessEqual(result, 0.001)
 
@@ -327,7 +328,7 @@ class TestReport(unittest.TestCase):
             analysis = Analysis("/tmp")
 
             res = analysis.sign_test(alternative="greater")
-            self.assertEqual(len(res), 1)
+            self.assertEqual(len(res), 3)
             for index, result in res.items():
                 self.assertLessEqual(result, 1)
 
@@ -364,7 +365,7 @@ class TestReport(unittest.TestCase):
             analysis = Analysis("/tmp")
 
             res = analysis.box_test()
-            self.assertEqual(len(res), 1)
+            self.assertEqual(len(res), 3)
             for index, result in res.items():
                 self.assertNotEqual(result, None)
 
@@ -424,10 +425,11 @@ class TestFriedmanNegative(unittest.TestCase):
         mock_read_csv = mock.Mock()
         mock_read_csv.return_value = timings
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", mock_read_csv):
-            self.analysis = Analysis("/tmp")
+            self.analysis = Analysis("/tmp", verbose=True)
         self.analysis.load_data = mock_read_csv
 
-    def test_friedman_negative(self):
+    @mock.patch("builtins.print")
+    def test_friedman_negative(self, print_fun):
         friedman_result = mp.Queue()
         self.analysis.friedman_test(friedman_result)
 
@@ -477,17 +479,21 @@ class TestPlots(unittest.TestCase):
             self.analysis = Analysis("/tmp")
         self.analysis.load_data = mock_read_csv
 
-    def test_ecdf_plot(self):
+    @mock.patch("builtins.print")
+    def test_ecdf_plot(self, print_fun):
         with mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure",
                         mock.Mock()) as mock_save:
+            self.analysis.verbose = True
             self.analysis.ecdf_plot()
             self.assertEqual(mock_save.call_args_list,
                 [mock.call('/tmp/ecdf_plot.png', bbox_inches='tight'),
                  mock.call('/tmp/ecdf_plot_zoom_in.png', bbox_inches='tight')])
 
-    def test_diff_ecdf_plot(self):
+    @mock.patch("builtins.print")
+    def test_diff_ecdf_plot(self, print_fun):
         with mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure",
                         mock.Mock()) as mock_save:
+            self.analysis.verbose = True
             self.analysis.diff_ecdf_plot()
             self.assertEqual(mock_save.call_args_list,
                 [mock.call('/tmp/diff_ecdf_plot.png', bbox_inches='tight'),
@@ -498,29 +504,35 @@ class TestPlots(unittest.TestCase):
                  mock.call('/tmp/diff_ecdf_plot_zoom_in_10.png',
                             bbox_inches='tight')])
 
-    def test_scatter_plot(self):
+    @mock.patch("builtins.print")
+    def test_scatter_plot(self, print_fun):
         with mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure",
                         mock.Mock()) as mock_save:
+            self.analysis.verbose = True
             self.analysis.scatter_plot()
             self.assertEqual(mock_save.call_args_list,
                 [mock.call('/tmp/scatter_plot.png', bbox_inches='tight'),
                  mock.call('/tmp/scatter_plot_zoom_in.png',
                            bbox_inches='tight')])
 
-    def test_diff_scatter_plot(self):
+    @mock.patch("builtins.print")
+    def test_diff_scatter_plot(self, print_fun):
         with mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure",
                         mock.Mock()) as mock_save:
+            self.analysis.verbose = True
             self.analysis.diff_scatter_plot()
             self.assertEqual(mock_save.call_args_list,
                 [mock.call('/tmp/diff_scatter_plot.png', bbox_inches='tight'),
                  mock.call('/tmp/diff_scatter_plot_zoom_in.png',
                            bbox_inches='tight')])
 
-    def test_box_plot(self):
+    @mock.patch("builtins.print")
+    def test_box_plot(self, print_fun):
         with mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure",
                         mock.Mock()) as mock_save:
             with mock.patch("tlsfuzzer.analysis.Analysis._calc_percentiles")\
                     as mock_percentiles:
+                self.analysis.verbose = True
                 mock_percentiles.return_value = pd.DataFrame(
                     data={'A': [0.05, 0.25, 0.5, 0.75, 0.95],
                           'B': [0.55, 0.75, 1, 1.25, 1.45]})
@@ -542,11 +554,13 @@ class TestPlots(unittest.TestCase):
             "/tmp/timing.bin", "/tmp/.quantiles.tmp")
         mock_remove.assert_called_once_with("/tmp/.quantiles.tmp")
 
-    def test_conf_interval_plot(self):
+    @mock.patch("builtins.print")
+    def test_conf_interval_plot(self, print_fun):
         with mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure",
                         mock.Mock()) as mock_save:
             with mock.patch("__main__.__builtins__.open", mock.mock_open())\
                     as mock_open:
+                self.analysis.verbose = True
                 self.analysis.conf_interval_plot()
                 self.assertEqual(mock_save.call_args_list,
                     [mock.call('/tmp/conf_interval_plot_mean.png',
@@ -573,10 +587,11 @@ class TestMediumPlots(unittest.TestCase):
         mock_read_csv = mock.Mock()
         mock_read_csv.return_value = timings
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", mock_read_csv):
-            self.analysis = Analysis("/tmp")
+            self.analysis = Analysis("/tmp", verbose=True)
         self.analysis.load_data = mock_read_csv
 
-    def test_graph_worst_pair(self):
+    @mock.patch("builtins.print")
+    def test_graph_worst_pair(self, print_fun):
         with mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure",
                         mock.Mock()) as mock_save:
             with mock.patch("__main__.__builtins__.open", mock.mock_open())\
@@ -654,7 +669,7 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(output, True, True,
-                                                      True, False)
+                                                      True, False, False)
 
     def test_call_with_multithreaded_plots(self):
         output = "/tmp"
@@ -667,7 +682,7 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(output, True, True,
-                                                      True, True)
+                                                      True, True, False)
 
     def test_call_with_no_plots(self):
         output = "/tmp"
@@ -681,7 +696,7 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
-                        output, False, False, False, False)
+                        output, False, False, False, False, False)
 
     def test_help(self):
         args = ["analysis.py", "--help"]
@@ -829,5 +844,27 @@ class TestDataLoad(unittest.TestCase):
 
         a = Analysis.__new__(Analysis)
         a.output = "/tmp"
+        a.verbose = False
+
+        a._convert_to_binary()
+
+    @mock.patch("tlsfuzzer.analysis.np.memmap")
+    @mock.patch("builtins.open")
+    @mock.patch("tlsfuzzer.analysis.pd.read_csv")
+    @mock.patch("tlsfuzzer.analysis.os.path.getmtime")
+    @mock.patch("tlsfuzzer.analysis.os.path.isfile")
+    @mock.patch("builtins.print")
+    def test__convert_to_binary_refresh_verbose(self, print_mock, isfile_mock,
+            getmtime_mock, read_csv_mock, open_mock, memmap_mock):
+        isfile_mock.return_value = True
+        getmtime_mock.return_value = 0
+        read_csv_mock.side_effect = lambda _, chunksize, dtype: \
+            iter(self.df[i:i+1] for i in range(self.df.shape[0]))
+        open_mock.side_effect = self.file_selector
+        memmap_mock.side_effect = self.mock_memmap
+
+        a = Analysis.__new__(Analysis)
+        a.output = "/tmp"
+        a.verbose = True
 
         a._convert_to_binary()
