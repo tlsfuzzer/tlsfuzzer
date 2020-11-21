@@ -99,6 +99,9 @@ class TestReport(unittest.TestCase):
         timings = pd.DataFrame(data=self.neq_data)
         mock_read_csv = mock.Mock()
         mock_read_csv.return_value = timings
+        def mock_friedman(self, result):
+            result.put(0)
+
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", mock_read_csv):
             with mock.patch("tlsfuzzer.analysis.Analysis.ecdf_plot") as mock_ecdf:
                 with mock.patch("tlsfuzzer.analysis.Analysis.diff_ecdf_plot") as mock_diff_ecdf:
@@ -107,10 +110,9 @@ class TestReport(unittest.TestCase):
                             with mock.patch("tlsfuzzer.analysis.Analysis.diff_scatter_plot"):
                                 with mock.patch("tlsfuzzer.analysis.Analysis.conf_interval_plot") as mock_conf_int:
                                     with mock.patch("tlsfuzzer.analysis.Analysis.graph_worst_pair"):
-                                        with mock.patch("tlsfuzzer.analysis.Analysis.friedman_test") as mock_friedman:
+                                        with mock.patch("tlsfuzzer.analysis.Analysis.friedman_test", mock_friedman):
                                             with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
                                                 with mock.patch("builtins.print"):
-                                                    mock_friedman.return_value = 0
                                                     analysis = Analysis("/tmp")
                                                     ret = analysis.generate_report()
 
