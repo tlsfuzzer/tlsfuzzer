@@ -307,7 +307,7 @@ class Analysis(object):
         """
         return self.mt_process(self._sign_test, (med, alternative))
 
-    def friedman_test(self):
+    def friedman_test(self, result):
         """
         Test all classes using Friedman chi-square test.
 
@@ -316,10 +316,11 @@ class Analysis(object):
         """
         data = self.load_data()
         if len(self.class_names) < 3:
-            return 1
+            result.put(None)
+            return
         _, pval = stats.friedmanchisquare(
             *(data.iloc[:, i] for i in range(len(self.class_names))))
-        return pval
+        result.put(pval)
 
     def _calc_percentiles(self):
         data = self.load_data()
@@ -1103,6 +1104,13 @@ class Analysis(object):
 
         :return: int 0 if no difference was detected, 1 otherwise
         """
+        # the Friedman test is fairly long running, non-multithreadable
+        # and with fairly limited memory use, so run it in background
+        # unconditionally
+        friedman_result = mp.Queue()
+        friedman_process = mp.Process(target=self.friedman_test,
+                                      args=(friedman_result, ))
+        friedman_process.start()
         # plot in separate processes so that the matplotlib memory leaks are
         # not cumulative, see https://stackoverflow.com/q/28516828/462370
         processes = []
@@ -1131,17 +1139,19 @@ class Analysis(object):
 
         self._write_sample_stats()
 
-        friedman_result = self.friedman_test()
-
         difference, p_vals, sign_p_vals, worst_pair, worst_p = \
             self._write_individual_results()
 
         self.graph_worst_pair(worst_pair)
 
+        friedman_process.join()
+
         difference = self._write_summary(difference, p_vals, sign_p_vals,
                                          worst_pair,
-                                         worst_p, friedman_result)
+                                         worst_p, friedman_result.get())
 
+        friedman_result.close()
+        friedman_result.join_thread()
         self._stop_all_threads(processes)
 
         return difference
