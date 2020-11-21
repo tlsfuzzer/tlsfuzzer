@@ -17,6 +17,7 @@ try:
     from tlsfuzzer.analysis import Analysis, main, TestPair, help_msg
     import pandas as pd
     import numpy as np
+    import multiprocessing as mp
 except ImportError:
     failed_import = True
 
@@ -99,6 +100,9 @@ class TestReport(unittest.TestCase):
         timings = pd.DataFrame(data=self.neq_data)
         mock_read_csv = mock.Mock()
         mock_read_csv.return_value = timings
+        def mock_friedman(self, result):
+            result.put(0)
+
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", mock_read_csv):
             with mock.patch("tlsfuzzer.analysis.Analysis.ecdf_plot") as mock_ecdf:
                 with mock.patch("tlsfuzzer.analysis.Analysis.diff_ecdf_plot") as mock_diff_ecdf:
@@ -107,10 +111,9 @@ class TestReport(unittest.TestCase):
                             with mock.patch("tlsfuzzer.analysis.Analysis.diff_scatter_plot"):
                                 with mock.patch("tlsfuzzer.analysis.Analysis.conf_interval_plot") as mock_conf_int:
                                     with mock.patch("tlsfuzzer.analysis.Analysis.graph_worst_pair"):
-                                        with mock.patch("tlsfuzzer.analysis.Analysis.friedman_test") as mock_friedman:
+                                        with mock.patch("tlsfuzzer.analysis.Analysis.friedman_test", mock_friedman):
                                             with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
                                                 with mock.patch("builtins.print"):
-                                                    mock_friedman.return_value = 0
                                                     analysis = Analysis("/tmp")
                                                     ret = analysis.generate_report()
 
@@ -406,6 +409,55 @@ class TestReport(unittest.TestCase):
 
                 self.assertEqual(len(vals), 0)
                 self.assertEqual(vals, [])
+
+
+@unittest.skipIf(failed_import,
+                 "Could not import analysis. Skipping related tests.")
+class TestFriedmanNegative(unittest.TestCase):
+    def setUp(self):
+        data = {
+            'A': np.random.normal(size=1000),
+            'B': np.random.normal(size=1000),
+            'C': np.random.normal(size=1000)
+        }
+        timings = pd.DataFrame(data=data)
+        mock_read_csv = mock.Mock()
+        mock_read_csv.return_value = timings
+        with mock.patch("tlsfuzzer.analysis.Analysis.load_data", mock_read_csv):
+            self.analysis = Analysis("/tmp")
+        self.analysis.load_data = mock_read_csv
+
+    def test_friedman_negative(self):
+        friedman_result = mp.Queue()
+        self.analysis.friedman_test(friedman_result)
+
+        result = friedman_result.get()
+
+        self.assertTrue(result > 1e-6)
+
+
+@unittest.skipIf(failed_import,
+                 "Could not import analysis. Skipping related tests.")
+class TestFriedmanInvalid(unittest.TestCase):
+    def setUp(self):
+        data = {
+            'A': np.random.normal(size=10),
+            'B': np.random.normal(size=10),
+        }
+        timings = pd.DataFrame(data=data)
+        mock_read_csv = mock.Mock()
+        mock_read_csv.return_value = timings
+        with mock.patch("tlsfuzzer.analysis.Analysis.load_data", mock_read_csv):
+            self.analysis = Analysis("/tmp")
+        self.analysis.load_data = mock_read_csv
+
+    def test_friedman_negative(self):
+        friedman_result = mp.Queue()
+        self.analysis.friedman_test(friedman_result)
+
+        result = friedman_result.get()
+
+        self.assertIsNone(result)
 
 
 @unittest.skipIf(failed_import,
