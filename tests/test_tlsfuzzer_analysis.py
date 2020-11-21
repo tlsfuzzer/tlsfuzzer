@@ -545,7 +545,7 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(output, True, True,
-                                                      True, False)
+                                                      True, False, False)
 
     def test_call_with_multithreaded_plots(self):
         output = "/tmp"
@@ -558,7 +558,7 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(output, True, True,
-                                                      True, True)
+                                                      True, True, False)
 
     def test_call_with_no_plots(self):
         output = "/tmp"
@@ -572,7 +572,7 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
-                        output, False, False, False, False)
+                        output, False, False, False, False, False)
 
     def test_help(self):
         args = ["analysis.py", "--help"]
@@ -720,5 +720,27 @@ class TestDataLoad(unittest.TestCase):
 
         a = Analysis.__new__(Analysis)
         a.output = "/tmp"
+        a.verbose = False
+
+        a._convert_to_binary()
+
+    @mock.patch("tlsfuzzer.analysis.np.memmap")
+    @mock.patch("builtins.open")
+    @mock.patch("tlsfuzzer.analysis.pd.read_csv")
+    @mock.patch("tlsfuzzer.analysis.os.path.getmtime")
+    @mock.patch("tlsfuzzer.analysis.os.path.isfile")
+    @mock.patch("builtins.print")
+    def test__convert_to_binary_refresh_verbose(self, print_mock, isfile_mock,
+            getmtime_mock, read_csv_mock, open_mock, memmap_mock):
+        isfile_mock.return_value = True
+        getmtime_mock.return_value = 0
+        read_csv_mock.side_effect = lambda _, chunksize, dtype: \
+            iter(self.df[i:i+1] for i in range(self.df.shape[0]))
+        open_mock.side_effect = self.file_selector
+        memmap_mock.side_effect = self.mock_memmap
+
+        a = Analysis.__new__(Analysis)
+        a.output = "/tmp"
+        a.verbose = True
 
         a._convert_to_binary()
