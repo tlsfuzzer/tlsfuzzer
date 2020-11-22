@@ -13,6 +13,7 @@ from __future__ import print_function
 import csv
 import getopt
 import sys
+import math
 import multiprocessing as mp
 import shutil
 from itertools import chain
@@ -534,8 +535,12 @@ class Analysis(object):
         ax = fig.add_subplot(1, 1, 1)
         for classname in data:
             values = data.loc[:, classname]
+            values = np.sort(values)
+            # provide only enough data points to plot a smooth graph
+            nbins = 16 * fig.dpi * 10
+            values = values[::max(len(values) // int(nbins), 1)]
             levels = np.linspace(1. / len(values), 1, len(values))
-            ax.step(sorted(values), levels, where='post')
+            ax.step(values, levels, where='post')
         self.make_legend(ax)
         ax.set_title("Empirical Cumulative Distribution Function")
         ax.set_xlabel("Time")
@@ -564,28 +569,23 @@ class Analysis(object):
             start_time = time.time()
             print("[i] Generating ECDF plots of differences")
         data = self.load_data()
-        fig = Figure(figsize=(16, 12))
-        canvas = FigureCanvas(fig)
-        axes = fig.add_subplot(1, 1, 1)
         classnames = iter(data)
         base = next(classnames)
         base_data = data.loc[:, base]
 
         # parameters for the zoomed-in graphs of ecdf
-        zoom_params = OrderedDict([("98", (0.01, 0.99)),
+        zoom_params = OrderedDict([("", (0, 1)),
+                                   ("98", (0.01, 0.99)),
                                    ("33", (0.33, 0.66)),
                                    ("10", (0.45, 0.55))])
         zoom_values = OrderedDict((name, [float("inf"), float("-inf")])
                                   for name in zoom_params.keys())
 
+        # calculate the params for ECDF graphs
         for classname in classnames:
-            # calculate the ECDF
             values = data.loc[:, classname]
-            levels = np.linspace(1. / len(values), 1, len(values))
-            values = sorted(values-base_data)
-            axes.step(values, levels, where='post')
+            values = values-base_data
 
-            # calculate the bounds for the zoom positions
             quantiles = np.quantile(values, list(chain(*zoom_params.values())))
             quantiles = iter(quantiles)
             for low, high, name in \
@@ -593,34 +593,57 @@ class Analysis(object):
                 zoom_values[name][0] = min(zoom_values[name][0], low)
                 zoom_values[name][1] = max(zoom_values[name][1], high)
 
-        fig.legend(list("{0}-0".format(i)
-                        for i in range(1, len(list(values)))),
-                   ncol=6,
-                   loc='upper center',
-                   bbox_to_anchor=(0.5, -0.05))
-        axes.set_title("Empirical Cumulative Distribution Function of "
-                       "class differences")
-        axes.set_xlabel("Time")
-        axes.set_ylabel("Cumulative probability")
 
-        formatter = mpl.ticker.EngFormatter('s')
-        axes.get_xaxis().set_major_formatter(formatter)
-
-        canvas.print_figure(join(self.output, "diff_ecdf_plot.png"),
-                            bbox_inches="tight")
-
-        # now graph progressive zooms of the central portion
-        for name, quantiles, values in \
+        for name, quantiles, zoom_val in \
                 zip(zoom_params.keys(), zoom_params.values(),
                     zoom_values.values()):
-            axes.set_ylim(quantiles)
-            # make the bounds a little weaker so that the extreme positions
-            # are visible of graph too
-            axes.set_xlim([values[0]*0.98, values[1]*1.02])
-            canvas.print_figure(join(self.output,
-                                     "diff_ecdf_plot_zoom_in_{0}.png"
-                                     .format(name)),
-                                bbox_inches="tight")
+            fig = Figure(figsize=(16, 12))
+            canvas = FigureCanvas(fig)
+            axes = fig.add_subplot(1, 1, 1)
+
+            # rewind the iterator
+            classnames = iter(data)
+            next(classnames)
+
+            for classname in classnames:
+                # calculate the ECDF
+                values = data.loc[:, classname]
+                values = np.sort(values-base_data)
+                # provide only enough data points to plot a smooth graph
+                nbins = 16 * fig.dpi
+                min_pos = int(len(values) * quantiles[0])
+                max_pos = int(math.ceil(len(values) * quantiles[1]))
+                values = values[min_pos:max_pos:
+                                max((max_pos-min_pos) // int(nbins), 1)]
+                levels = np.linspace(quantiles[0], quantiles[1],
+                                     len(values))
+                axes.step(values, levels, where='post')
+
+            fig.legend(list("{0}-0".format(i)
+                            for i in range(1, len(list(values)))),
+                       ncol=6,
+                       loc='upper center',
+                       bbox_to_anchor=(0.5, -0.05))
+            axes.set_title("Empirical Cumulative Distribution Function of "
+                           "class differences")
+            axes.set_xlabel("Time")
+            axes.set_ylabel("Cumulative probability")
+
+            formatter = mpl.ticker.EngFormatter('s')
+            axes.get_xaxis().set_major_formatter(formatter)
+
+            if not name:
+                canvas.print_figure(join(self.output, "diff_ecdf_plot.png"),
+                                    bbox_inches="tight")
+            else:
+                axes.set_ylim(quantiles)
+                # make the bounds a little weaker so that the extreme positions
+                # are visible of graph too
+                axes.set_xlim([zoom_val[0]*0.98, zoom_val[1]*1.02])
+                canvas.print_figure(join(self.output,
+                                         "diff_ecdf_plot_zoom_in_{0}.png"
+                                         .format(name)),
+                                    bbox_inches="tight")
 
         if self.verbose:
             print("[i] ECDF plots of differences done in {:.3}s".format(
