@@ -830,6 +830,9 @@ class Analysis(object):
         results = {}
         comb = combinations(list(range(len(self.class_names))), 2)
         for index1, index2, in comb:
+            if self.verbose:
+                pair_start = time.time()
+                print("[i] Calculating {}-{}".format(index2, index1))
             data1 = data.iloc[:, index1]
             data2 = data.iloc[:, index2]
 
@@ -842,12 +845,14 @@ class Analysis(object):
             diff_stats["median"] = quantiles[1]
             diff_stats["IQR"] = quantiles[2] - quantiles[1]
             diff_stats["MAD"] = stats.median_abs_deviation(diff)
-            max_lag = min(200, len(diff) // 2 - 1)
+            max_lag = min(200000, len(diff) // 2 - 1)
             ljungbox_pval = sm.stats.diagnostic.acorr_ljungbox(
-                diff, lags=[1, max_lag], return_df=True)['lb_pvalue']
+                    diff[:400000], lags=[1, 10, 100, max_lag], return_df=True)['lb_pvalue']
             diff_stats["Ljung-Box lag 1"] = ljungbox_pval[1]
-            diff_stats["Ljung-Box lag 200"] = ljungbox_pval[max_lag]
+            diff_stats["Ljung-Box lag 4"] = min(ljungbox_pval)
             results[TestPair(index1, index2)] = diff_stats
+            if self.verbose:
+                print("[i] Calculating {}-{} done in {:.3}s".format(index2, index1, time.time()-pair_start))
         if self.verbose:
             print("[i] Descriptive statistics of sample differences done in "
                   "{:.3}s".format(time.time()-start_time))
@@ -886,7 +891,7 @@ class Analysis(object):
                              "Sign test greater",
                              "paired t-test", "mean", "SD",
                              "median", "IQR", "MAD", "Ljung-Box test lag 1",
-                             "Ljung-Box test lag 200"])
+                             "Ljung-Box test lag 4"])
             worst_pair = None
             worst_p = None
             worst_median_difference = None
@@ -925,8 +930,8 @@ class Analysis(object):
                       .format(index1, index2, ttest_results[pair]))
                 print("Ljung-Box test of autocorrelation at lag 1: {:.3}"
                       .format(diff_stats["Ljung-Box lag 1"]))
-                print("Ljung-Box test of autocorrelation at lag 200: {:.3}"
-                      .format(diff_stats["Ljung-Box lag 200"]))
+                print("Ljung-Box test of autocorrelation at lag 4: {:.3}"
+                      .format(diff_stats["Ljung-Box lag 4"]))
                 print("{} vs {} stats: mean: {:.3}, SD: {:.3}, median: {:.3}, "
                       "IQR: {:.3}, MAD: {:.3}".format(
                           index1, index2, diff_stats["mean"], diff_stats["SD"],
@@ -956,7 +961,7 @@ class Analysis(object):
                        diff_stats["IQR"],
                        diff_stats["MAD"],
                        diff_stats["Ljung-Box lag 1"],
-                       diff_stats["Ljung-Box lag 200"]
+                       diff_stats["Ljung-Box lag 4"]
                        ]
                 writer.writerow(row)
 
@@ -1126,6 +1131,15 @@ class Analysis(object):
             data2, global_q1, global_q3,
             "Sample {} heatmap".format(index2),
             "sample_{}_heatmap_zoom_in.png".format(index2))
+        if len(data1) > 100000:
+            self._graph_hist_over_time(
+                    data1[:100000], global_q1, global_q3,
+                "Sample {} heatmap".format(index1),
+                "sample_{}_partial_heatmap_zoom_in.png".format(index1))
+            self._graph_hist_over_time(
+                    data2[:100000], global_q1, global_q3,
+                "Sample {} heatmap".format(index2),
+                "sample_{}_partial_heatmap_zoom_in.png".format(index2))
 
         # and then plot the differences
 
@@ -1141,9 +1155,14 @@ class Analysis(object):
             diff, diff_q1, diff_q3,
             "Difference plot of ({}-{})".format(index2, index1),
             "worst_pair_diff_heatmap_zoom_in.png")
+        if len(data1) > 100000:
+            self._graph_hist_over_time(
+                    diff[:100000], diff_q1, diff_q3,
+                "Difference plot of ({}-{})".format(index2, index1),
+                "worst_pair_diff_partial_heatmap_zoom_in.png")
 
         self._plot_pacf(
-            diff,
+                diff[:min(100000, len(diff))],
             "Partial autocorrelation function for sample ({}-{}) difference"
             .format(index2, index1),
             "worst_pair_diff_pacf.png")
