@@ -8,16 +8,22 @@
 [![Build history](https://buildstats.info/travisci/chart/tlsfuzzer/tlsfuzzer?branch=master&includeBuildsFromPullRequest=false)](https://travis-ci.org/tlsfuzzer/tlsfuzzer/builds)
 
 # tlsfuzzer
-Fuzzer and test suite for TLS (SSLv2, SSLv3, v1.0, v1.1, v1.2, v1.3) implementations.
-Early alpha version - thus no API stability guarantees.
+tlsfuzzer is a test suite for SSLv2, SSLv3, TLS 1.0, TLS 1.1, TLS 1.2, and
+TLS 1.3 implementations. It's in early stages of development, so there are
+no API stability guarantees. While it uses fuzzing techniques for testing
+(randomisation of passed in inputs), the scripts are generally written in a
+way that verifies correct error handling: unlike typical fuzzers it doesn't
+check only that the system under test didn't crash, it checks that it
+returned correct error messages.
 
-Ready-to-use scripts testing for many vulnerabilities (
+You can find ready-to-use scripts testing for many vulnerabilities (
 [ROBOT](https://robotattack.org/),
 [DROWN](https://drownattack.com/), etc.)
 and general standards conformity
 ([RFC 5246](https://tools.ietf.org/html/rfc5246),
 [RFC 7627](https://tools.ietf.org/html/rfc7627),
-[RFC 7905](https://tools.ietf.org/html/rfc7905), etc.)
+[RFC 7905](https://tools.ietf.org/html/rfc7905), etc.) in the `scripts/`
+directory.
 
 ## Dependencies
 
