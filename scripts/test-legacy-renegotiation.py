@@ -78,7 +78,7 @@ def main():
                 raise ValueError("-x has to be specified before -X")
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-d':
-            run_exclude.add(arg)
+            dhe = True
         elif opt == '-n':
             num_limit = int(arg)
         elif opt == '--help':
