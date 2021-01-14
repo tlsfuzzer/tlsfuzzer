@@ -169,7 +169,13 @@ install:
   - if [[ $ANALYSIS_DEP == 'true' ]]; then travis_retry pip install --upgrade pip; travis_retry pip install -r build-requirements-analysis.txt; fi
   - travis_retry pip install -r requirements.txt
   # install optional tlslite-ng requirementes to speed up testing
-  - if [[ $TRAVIS_PYTHON_VERSION != '3.3' ]]; then travis_retry pip install m2crypto; fi
+  - |
+    if [[ $TRAVIS_PYTHON_VERSION == 3.7 ]] || [[ $TRAVIS_PYTHON_VERSION == 3.8 ]] || [[ $TRAVIS_PYTHON_VERSION == 3.9 ]] ; then
+      travis_retry pip install m2crypto
+    elif [[ $TRAVIS_PYTHON_VERSION != '3.3' ]]; then
+      # M2Crypto 0.37.0 broke compatibility with old OpenSSL
+      travis_retry pip install 'm2crypto<0.37'
+    fi
   - travis_retry pip install gmpy2
   # codeclimate supports natively just one set of results, so use the most recent python for that
   - if [[ $CC_REPORT == 'true' ]]; then ./cc-test-reporter before-build; fi
