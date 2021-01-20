@@ -10,15 +10,15 @@ import getopt
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientMasterKeyGenerator
+        ClientMasterKeyGenerator, Close
 from tlsfuzzer.expect import ExpectAlert, ExpectClose, ExpectServerHello2, \
-        ExpectSSL2Alert
+        ExpectSSL2Alert, ExpectNoMessage
 
 from tlslite.constants import CipherSuite, AlertLevel, \
         ExtensionType, SSL2ErrorDescription
 from tlsfuzzer.utils.lists import natural_sort_keys
 
-version = 2
+version = 3
 
 def help_msg():
     """Print usage information"""
@@ -29,6 +29,7 @@ def help_msg():
     print("                may be specified multiple times")
     print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
     print("                (excluding \"sanity\" tests)")
+    print(" --no-message   expect no message when sending SSLv3 or TLS1.0 protocol version in a SSLv2 CH")
     print(" -x probe-name  expect the probe to fail. When such probe passes despite being marked like this")
     print("                it will be reported in the test summary and the whole script will fail.")
     print("                May be specified multiple times.")
@@ -43,13 +44,14 @@ def main():
     host = "localhost"
     port = 4433
     num_limit = None
+    no_message = False
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = str()
 
     argv = sys.argv[1:]
 
-    opts, argv = getopt.getopt(argv, "h:p:n:", ["help"])
+    opts, argv = getopt.getopt(argv, "h:p:n:", ["help","no-message"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -59,6 +61,8 @@ def main():
             run_exclude.add(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '--no-message':
+            no_message = True
         elif opt == '-x':
             expected_failures[arg] = None
             last_exp_tmp = str(arg)
@@ -91,7 +95,7 @@ def main():
                 CipherSuite.SSL_CK_DES_64_CBC_WITH_MD5:"DES-CBC-MD5"
                 }.items():
             # instruct RecordLayer to use SSLv2 record layer protocol (0, 2)
-            conversation = Connect(host, port, version=(0, 2))
+            conversation = Connect(host, port, version=(0, 2), timeout=5)
             node = conversation
             ciphers = [CipherSuite.SSL_CK_DES_192_EDE3_CBC_WITH_MD5,
                        CipherSuite.SSL_CK_RC4_128_WITH_MD5,
@@ -104,27 +108,31 @@ def main():
             node = node.add_child(ClientHelloGenerator(ciphers,
                                                        version=prot_vers,
                                                        ssl2=True))
-            # we can get a ServerHello with no ciphers:
-            node = node.add_child(ExpectServerHello2())
-            # or we can get an error stright away, and connection closure
-            node.next_sibling = ExpectSSL2Alert(SSL2ErrorDescription.no_cipher)
-            node.next_sibling.add_child(ExpectClose())
-            alternative = node.next_sibling
-            # or the server may close the connection right away (likely in
-            # case SSLv2 is completely disabled)
-            alternative.next_sibling = ExpectClose()
-            alternative = alternative.next_sibling
-            # or finally, we can get a TLS Alert message
-            alternative.next_sibling = ExpectAlert()
-            alternative.next_sibling.add_child(ExpectClose())
-            # in case we got ServerHello, try to force one of the ciphers
-            node = node.add_child(ClientMasterKeyGenerator(cipher=cipher_id))
-            # it should result in error
-            node = node.add_child(ExpectSSL2Alert())
-            # or connection close
-            node.next_sibling = ExpectClose()
-            # in case of error, we expect the server to close connection
-            node.add_child(ExpectClose())
+            if no_message and proto_name is not "SSLv2":
+                node = node.add_child(ExpectNoMessage(timeout=6))
+                node.add_child(Close())
+            else:
+                # we can get a ServerHello with no ciphers:
+                node = node.add_child(ExpectServerHello2())
+                # or we can get an error stright away, and connection closure
+                node.next_sibling = ExpectSSL2Alert(SSL2ErrorDescription.no_cipher)
+                node.next_sibling.add_child(ExpectClose())
+                alternative = node.next_sibling
+                # or the server may close the connection right away (likely in
+                # case SSLv2 is completely disabled)
+                alternative.next_sibling = ExpectClose()
+                alternative = alternative.next_sibling
+                # or finally, we can get a TLS Alert message
+                alternative.next_sibling = ExpectAlert()
+                alternative.next_sibling.add_child(ExpectClose())
+                # in case we got ServerHello, try to force one of the ciphers
+                node = node.add_child(ClientMasterKeyGenerator(cipher=cipher_id))
+                # it should result in error
+                node = node.add_child(ExpectSSL2Alert())
+                # or connection close
+                node.next_sibling = ExpectClose()
+                # in case of error, we expect the server to close connection
+                node.add_child(ExpectClose())
 
             conversations["Connect with {1} {0}"
                           .format(cipher_name, proto_name)] = conversation
