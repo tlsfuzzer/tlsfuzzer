@@ -1147,6 +1147,10 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             # in TLS 1.1 and earlier we do simple sha1 signatures
             self.mgf1_hash = "sha1"
 
+    # yes, we're using bad names (for API compat reasons) and we're
+    # accessing private methods (as we intentionally want to break stuff)
+    # so ignore those issues
+    # pylint: disable=invalid-name,protected-access
     def _get_rsa_sig_parameters(self):
         """Return parameters for sign() operation with rsa keys."""
         scheme = SignatureScheme.toRepr(self.sig_alg)
@@ -1163,9 +1167,9 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         if not self.mgf1_hash:
             self.mgf1_hash = hash_name
 
-        def _newRawPrivateKeyOp(self, m, original_rawPrivateKeyOp,
+        def _newRawPrivateKeyOp(self, m, original_raw_private_key_op_bytes,
                                 subs=None, xors=None):
-            sign_bytes = numberToByteArray(m, numBytes(self.n))
+            sign_bytes = m
             sign_bytes = substitute_and_xor(sign_bytes, subs, xors)
             m = bytesToNumber(sign_bytes)
             # RSA operations are defined only on numbers that are
@@ -1175,16 +1179,18 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             # it raises exception in such case)
             if m > self.n:
                 m %= self.n
-            return original_rawPrivateKeyOp(m)
+            return original_raw_private_key_op_bytes(
+                numberToByteArray(m, numBytes(self.n)))
 
-        old_private_key_op = self.private_key._rawPrivateKeyOp
-        self.private_key._rawPrivateKeyOp = \
+        old_private_key_op = self.private_key._raw_private_key_op_bytes
+        self.private_key._raw_private_key_op_bytes = \
             partial(_newRawPrivateKeyOp,
                     self.private_key,
-                    original_rawPrivateKeyOp=old_private_key_op,
+                    original_raw_private_key_op_bytes=old_private_key_op,
                     subs=self.padding_subs,
                     xors=self.padding_xors)
         return padding, old_private_key_op
+    # pylint: enable=invalid-name,protected-access
 
     def _make_signature(self, status):
         """Create signature for CertificateVerify message."""
@@ -1237,7 +1243,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                                               self.rsa_pss_salt_len)
         finally:
             # make sure the changes are undone even if the signing fails
-            self.private_key._rawPrivateKeyOp = old_private_key_op
+            self.private_key._raw_private_key_op_bytes = old_private_key_op
 
         if signature_type == "ecdsa":
             # because ECDSA signatures are ANS.1 DER objects, they
