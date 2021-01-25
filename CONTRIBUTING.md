@@ -190,7 +190,7 @@ require use of package like
   issue yourself_. GitHub will do that automatically once the issue is merged.
   * in general, fill up the questionnaire that github automatically adds to
   pull request
-* Wait for automatic checks to pass. Travis-ci check is mandatory, pull
+* Wait for automatic checks to pass. CI checks are mandatory, pull
   requests which
   fail it will not be merged. Coveralls and LGTM failures are not blocking
   but may require explanation. Going to codeclimate
@@ -279,7 +279,7 @@ Test coverage for class `Foo` from module `tlsfuzzer.bar` will thus live in
 For very complex classes, or to limit code duplication, classes may have
 multiple test classes, but all will have that same prefix.
 
-Unit tests are run after _every_ commit by the CI system in Travis.
+Unit tests are run after _every_ commit by the CI system.
 This is done to simplify eventual
 [bisection](https://git-scm.com/docs/git-bisect) when looking for root cause
 of some issue.
@@ -299,7 +299,7 @@ script.
 
 ### Static analysis
 
-To verify code quality, in Travis we're using `pylint` to verify that the
+To verify code quality, in CI we're using `pylint` to verify that the
 code follows Python standards for code formatting and antipatterns
 (`diff-quality` is used to apply those checks only on new code).
 Additionally we use CodeClimate and lgtm CI services to provide similar checks.

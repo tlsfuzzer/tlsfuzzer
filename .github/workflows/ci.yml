@@ -1,0 +1,322 @@
+name: GitHub CI
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: py2.6
+            os: ubuntu-latest
+            container: centos:6
+            python-version: 2.6
+          - name: py2.7
+            os: ubuntu-16.04
+            python-version: 2.7
+          - name: py3.3
+            os: ubuntu-18.04
+            python-version: 3.3
+          - name: py3.4
+            os: ubuntu-18.04
+            python-version: 3.4
+          - name: py3.5
+            os: ubuntu-18.04
+            python-version: 3.5
+          - name: py3.6
+            os: ubuntu-18.04
+            python-version: 3.6
+          - name: py3.7
+            os: ubuntu-latest
+            python-version: 3.7
+          - name: py3.8
+            os: ubuntu-latest
+            python-version: 3.8
+          - name: py3.9
+            os: ubuntu-latest
+            python-version: 3.9
+          # also test with extraction tooling installed
+          - name: py2.6 with extract
+            os: ubuntu-latest
+            container: centos:6
+            python-version: 2.6
+            opt-deps: ['extract']
+          - name: py2.7 with extract
+            os: ubuntu-16.04
+            python-version: 2.7
+            opt-deps: ['extract']
+          - name: py3.3 with extract
+            os: ubuntu-18.04
+            python-version: 3.3
+            opt-deps: ['extract']
+          - name: py3.4 with extract
+            os: ubuntu-18.04
+            python-version: 3.4
+            opt-deps: ['extract']
+          - name: py3.5 with extract
+            os: ubuntu-18.04
+            python-version: 3.5
+            opt-deps: ['extract']
+          - name: py3.6 with extract
+            os: ubuntu-18.04
+            python-version: 3.6
+            opt-deps: ['extract']
+          - name: py3.7 with extract
+            os: ubuntu-latest
+            python-version: 3.7
+            opt-deps: ['extract']
+          - name: py3.8 with extract
+            os: ubuntu-latest
+            python-version: 3.8
+            opt-deps: ['extract']
+          - name: py3.9 with extract
+            os: ubuntu-latest
+            python-version: 3.9
+            opt-deps: ['extract']
+          # also test with just analysis tooling installed
+          - name: py3.6 with analysis
+            os: ubuntu-18.04
+            python-version: 3.6
+            opt-deps: ['analysis']
+          - name: py3.7 with analysis
+            os: ubuntu-latest
+            python-version: 3.7
+            opt-deps: ['analysis']
+          - name: py3.8 with analysis
+            os: ubuntu-latest
+            python-version: 3.8
+            opt-deps: ['analysis']
+          - name: py3.9 with analysis
+            os: ubuntu-latest
+            python-version: 3.9
+            opt-deps: ['analysis']
+          # and with both extract and analysis
+          - name: py3.6 with extract and analysis
+            os: ubuntu-18.04
+            python-version: 3.6
+            opt-deps: ['extract', 'analysis']
+          - name: py3.7 with extract and analysis
+            os: ubuntu-latest
+            python-version: 3.7
+            opt-deps: ['extract', 'analysis']
+          - name: py3.8 with extract and analysis
+            os: ubuntu-latest
+            python-version: 3.8
+            opt-deps: ['extract', 'analysis']
+          - name: py3.9 with extract and analysis
+            os: ubuntu-latest
+            python-version: 3.9
+            # note: codeclimate can be specified in only one environment
+            opt-deps: ['extract', 'analysis', 'codeclimate']
+    steps:
+      - uses: actions/checkout@v2
+        if: ${{ !matrix.container }}
+        with:
+          fetch-depth: 50
+      - uses: actions/checkout@v1
+        # centos 6 doesn't have glibc new enough for the nodejs used by v2
+        if: ${{ matrix.container }}
+        with:
+          fetch-depth: 50
+      - name: Ensure dependencies on CentOS
+        if: ${{ matrix.container }}
+        run: |
+          ls /etc/yum.repos.d/
+          cat /etc/yum.repos.d/CentOS-Base.repo
+          rm /etc/yum.repos.d/CentOS-Base.repo
+          cat > /etc/yum.repos.d/CentOS-Base.repo <<EOF
+          [base]
+          name=CentOS-$releasever - Base
+          baseurl=https://vault.centos.org/6.10/os/x86_64/
+          gpgcheck=1
+          gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-6
+
+          [updates]
+          name=CentOS-$releasever - Updates
+          baseurl=https://vault.centos.org/6.10/updates/x86_64/
+          gpgcheck=1
+          gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-6
+
+          [extras]
+          name=CentOS-$releasever - Extras
+          baseurl=https://vault.centos.org/6.10/extras/x86_64/
+          gpgcheck=1
+          gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-6
+
+          EOF
+          echo installing
+          yum clean all
+          yum repolist all
+          yum install -y git make python curl gcc libffi-devel python-devel glibc-devel openssl-devel tcpdump
+      - name: Verify git status
+        run: |
+          git status
+          git remote -v
+      - name: Ensure we have baseline branch for quality coverage
+        run: git fetch origin master:refs/remotes/origin/master
+      - name: Set up Python ${{ matrix.python-version }}
+        # we use containers to use the native python version from them
+        if: ${{ !matrix.container }}
+        uses: actions/setup-python@v2
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Display Python version
+        run: python -c "import sys; print(sys.version)"
+      - name: Display installed python package versions
+        run: |
+          pip list || :
+      - name: Ensure working pip on 3.3
+        if: ${{ matrix.python-version == '3.3' }}
+        run: |
+          curl -o get-pip.py https://bootstrap.pypa.io/3.3/get-pip.py;
+          python get-pip.py
+      - name: Ensure working pip on 2.6
+        if: ${{ matrix.python-version == '2.6' }}
+        run: |
+          curl -o get-pip.py https://bootstrap.pypa.io/2.6/get-pip.py;
+          python get-pip.py
+          pip list
+          pip install setuptools==28.8.0 wheel==0.30.0a0
+      # gmpy2 and m2crypto are not necessary but make tlslite-ng much faster
+      - name: Install gmpy2 dependencies
+        if: ${{ !matrix.container }}
+        run: sudo apt-get install -y libmpfr-dev libmpc-dev libgmp-dev
+      - name: Install gmpy2
+        if: ${{ !matrix.container }}
+        run: pip install gmpy2
+      - name: Install M2Crypto dependencies
+        if: ${{ !matrix.container }}
+        run: sudo apt-get install -y swig libssl-dev
+      - name: Install M2Crypto (py2.7+)
+        if: ${{ !matrix.container && matrix.python-version != '3.3' && matrix.python-version != '3.4'}}
+        run: pip install m2crypto
+      - name: Install M2Crypto (py2.6)
+        if: ${{ matrix.container }}
+        run: yum install -y m2crypto
+      - name: Install build dependencies
+        run: |
+          if [[ -e build-requirements-${{ matrix.python-version }}.txt ]]; then
+            pip install -r build-requirements-${{ matrix.python-version }}.txt;
+          else
+            pip install -r build-requirements.txt;
+          fi
+          if [[ ${{ matrix.python-version }} == "3.3" ]]; then
+            pip install --ignore-requires-python https://files.pythonhosted.org/packages/05/d2/f94e68be6b17f46d2c353564da56e6fb89ef09faeeff3313a046cb810ca9/mock-3.0.5-py2.py3-none-any.whl
+          fi
+      - name: Install extract dependencies on py2.6
+        if: ${{ contains(matrix.opt-deps, 'extract') && matrix.python-version == '2.6' }}
+        run: |
+          pip install 'dpkt==1.9.2'
+      - name: Install extract dependencies on py2.7+
+        if: ${{ contains(matrix.opt-deps, 'extract') && matrix.python-version != '2.6' }}
+        run: |
+          pip install 'dpkt>=1.9.2'
+      - name: Install analysis dependencies
+        if: ${{ contains(matrix.opt-deps, 'analysis') }}
+        run: |
+          # kiwisolver requires new pip for its wheel files so ensure we're running the newest one
+          pip install --upgrade pip
+          pip install -r build-requirements-analysis.txt
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Display installed python package versions
+        run: pip list
+      - name: Prepare Codeclimate environment
+        if: ${{ contains(matrix.opt-deps, 'codeclimate') }}
+        env:
+          CC_TEST_REPORTER_ID: ${{ secrets.CC_TEST_REPORTER_ID }}
+        run: |
+          curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+          chmod +x ./cc-test-reporter
+          ./cc-test-reporter before-build
+      - name: Run unit tests (py2.6)
+        if: ${{ matrix.python-version == '2.6' }}
+        run: coverage run --branch --source tlsfuzzer -m unittest2 discover
+      - name: Run unit tests (py2.7+)
+        if: ${{ matrix.python-version != '2.6' }}
+        run: coverage run --branch --source tlsfuzzer -m unittest discover
+      - name: Log branch coverage
+        run: coverage report -m
+      - name: Publish coverage to CodeClimate
+        if: ${{ contains(matrix.opt-deps, 'codeclimate') }}
+        env:
+          CC_TEST_REPORTER_ID: ${{ secrets.CC_TEST_REPORTER_ID }}
+        run: |
+          coverage xml
+          ./cc-test-reporter after-build
+      - name: Publish coverage to Coveralls
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COVERALLS_FLAG_NAME: ${{ matrix.name }}
+          COVERALLS_PARALLEL: true
+          COVERALLS_SERVICE_NAME: github
+        run: coveralls
+      - name: Ensure that json files include all test scripts
+        run: python tests/verify-scripts-json.py tests/tlslite-ng-random-subset.json tests/tlslite-ng.json
+      - name: Verify that all scripts pass against tlslite-ng
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+        run: |
+          # the HTTP header includes python version, since "2.7.15" is longer than "2.6.9", the reply itself is longer too
+          # more generally, it should be `1845 + len(sys.version.split()[0])`,
+          # as http.server uses `sys_version = "Python/" + sys.version.split()[0]`
+          # https://github.com/python/cpython/blob/2c050e52f1ccf5db03819e4ed70690521d67e9fa/Lib/http/server.py#L253
+          if [[ $PYTHON_VERSION == '2.7' || $PYTHON_VERSION == '3.4' || $PYTHON_VERSION == '3.5' || $PYTHON_VERSION == '3.6' ]]; then
+            export REPLY_SIZE=1850
+          elif [[ $PYTHON_VERSION == 'nightly' ]]; then
+            export REPLY_SIZE=1852  # Server: SimpleHTTP/0.6 Python/3.10.0a0
+          else
+            export REPLY_SIZE=1849  # Server: SimpleHTTP/0.6 Python/3.7.6
+          fi
+          python tests/scripts_retention.py tests/tlslite-ng-random-subset.json `which tls.py` $REPLY_SIZE
+      - name: Linter
+        # pylint doesn't work on 2.6: https://bitbucket.org/logilab/pylint/issue/390/py26-compatiblity-broken
+        if: ${{ matrix.python-version != 2.6 }}
+        run: |
+          pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" tlsfuzzer > pylint_report.txt || :
+          diff-quality --violations=pylint --fail-under=90 pylint_report.txt
+      - name: Verify that intermediate commits are testable
+        if: ${{ github.event.pull_request }}
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          BASE_DIR="$(pwd)"
+          echo "BASE_REF:" $BASE_REF
+          echo "GITHUB_SHA:" $GITHUB_SHA
+          echo "GITHUB_REF:" $GITHUB_REF
+          git fetch origin $BASE_REF
+          COMMIT_RANGE=origin/$BASE_REF..HEAD
+          echo "COMMIT_RANGE:" $COMMIT_RANGE
+          echo "Will test the following commits:"
+          git log --oneline --reverse $COMMIT_RANGE
+          for i in $(git log --pretty=format:%H --reverse $COMMIT_RANGE); do
+            git checkout $i
+            #make clean
+            if [[ $PYTHON_VERSION == '2.6' ]]; then
+              unit2 discover || exit 1
+            else
+              python -m unittest discover || exit 1
+            fi
+            cd "$BASE_DIR"
+          done
+  coveralls:
+    name: Indicate completion to coveralls.io
+    needs: test
+    runs-on: ubuntu-latest
+    container: python:3-slim
+    steps:
+      - name: Install coveralls
+        run: |
+          pip3 install --upgrade coveralls
+      - name: Send "finished" signal to coveralls
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COVERALLS_SERVICE_NAME: github
+        run: |
+          coveralls --finish

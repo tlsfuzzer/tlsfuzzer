@@ -1,5 +1,5 @@
 coverage
 git+https://github.com/tomato42/coveralls-python.git@add-py26#egg=coveralls
 pylint
-diff_cover<4.0.0
+diff_cover
 mock>2.0.0
