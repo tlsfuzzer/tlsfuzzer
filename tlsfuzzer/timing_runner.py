@@ -270,7 +270,13 @@ class TimingRunner:
             subprocess.check_call(['tcpdump', '--version'],
                                   stderr=subprocess.PIPE)
         except subprocess.CalledProcessError:
-            return False
+            # --version is not supported on RHEL-6 version of tcpdump
+            # so actually try to do a packet capture to check if we can run it
+            try:
+                subprocess.check_call(['tcpdump', '-c', '1'],
+                                      stderr=subprocess.PIPE)
+            except subprocess.CalledProcessError:
+                return False
         return True
 
     def tcpdump_status(self, process):

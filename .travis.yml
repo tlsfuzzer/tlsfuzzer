@@ -20,6 +20,8 @@ addons:
     - libopenblas-dev
     - liblapack-dev
     - cython
+    # needed for test coverage
+    - tcpdump
 
 before_cache:
   - rm -f $HOME/.cache/pip/log/debug.log
