@@ -245,7 +245,7 @@ jobs:
       - name: Publish coverage to CodeClimate
         if: ${{ contains(matrix.opt-deps, 'codeclimate') }}
         env:
-          CC_TEST_REPORTER_ID: ${{ secrets.CC_TEST_REPORTER_ID }}
+          CC_TEST_REPORTER_ID: 1b11fe8cca47f31f58c5d27de82688a26bbcb432bfa3607d561b816489bed9bd
         run: |
           coverage xml
           ./cc-test-reporter after-build
