@@ -342,6 +342,8 @@
                          "-c", "tests/clientRSAPSSCert.pem"]
           },
          {"name" : "test-certificate-verify-malformed-sig.py"},
+         {"name" : "test-certificate-verify-malformed-sig.py",
+          "arguments" : ["-d"]},
          {"name" : "test-certificate-verify-malformed.py"},
          {"name" : "test-certificate-verify.py"},
          {"name" : "test-certificate-verify.py",
