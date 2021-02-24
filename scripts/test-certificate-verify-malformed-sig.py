@@ -29,7 +29,9 @@ from tlslite.x509certchain import X509CertChain
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import RSA_SIG_ALL
 
-version = 2
+
+version = 3
+
 
 def help_msg():
     print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
@@ -239,7 +241,8 @@ def main():
 
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throughout
-    sanity_tests = []
+    sanity_tests = [(k, v) for k, v in conversations.items() if
+                    k.startswith('sanity')]
     if run_only:
         if num_limit > len(run_only):
             num_limit = len(run_only)
