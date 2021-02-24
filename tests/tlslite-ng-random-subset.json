@@ -363,6 +363,8 @@
           },
          {"name" : "test-extended-master-secret-extension-with-client-cert.py"},
          {"name" : "test-rsa-sigs-on-certificate-verify.py"},
+         {"name" : "test-rsa-sigs-on-certificate-verify.py",
+          "arguments" : ["-d"]},
          {"name" : "test-tls13-certificate-request.py"},
          {"name" : "test-tls13-certificate-request.py",
           "comment": "Test with additional extensions",

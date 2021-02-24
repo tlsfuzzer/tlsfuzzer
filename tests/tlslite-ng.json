@@ -362,6 +362,8 @@
           },
          {"name" : "test-extended-master-secret-extension-with-client-cert.py"},
          {"name" : "test-rsa-sigs-on-certificate-verify.py"},
+         {"name" : "test-rsa-sigs-on-certificate-verify.py",
+          "arguments" : ["-d"]},
          {"name" : "test-tls13-certificate-request.py"},
          {"name" : "test-tls13-certificate-request.py",
           "arguments" : ["-E", "status_request:CH:CT key_share:SH supported_versions:SH"],
