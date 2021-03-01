@@ -14,7 +14,8 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, \
         CertificateGenerator, CertificateVerifyGenerator, \
-        AlertGenerator
+        AlertGenerator, TCPBufferingEnable, TCPBufferingDisable, \
+        TCPBufferingFlush
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectCertificateRequest, \
@@ -30,7 +31,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import RSA_SIG_ALL
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -146,6 +147,7 @@ def main():
             node = node.add_child(ExpectServerKeyExchange())
         node = node.add_child(ExpectCertificateRequest())
         node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
         node = node.add_child(CertificateGenerator(X509CertChain([cert])))
         node = node.add_child(ClientKeyExchangeGenerator())
         sig_type = (getattr(HashAlgorithm, hash_alg), SignatureAlgorithm.rsa)
@@ -154,6 +156,8 @@ def main():
                                                          ))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectFinished())
         node = node.add_child(ApplicationDataGenerator(b"GET / HTTP/1.0\n\n"))
@@ -199,6 +203,7 @@ def main():
             node = node.add_child(ExpectServerKeyExchange())
         node = node.add_child(ExpectCertificateRequest())
         node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
         node = node.add_child(CertificateGenerator(X509CertChain([cert])))
         node = node.add_child(ClientKeyExchangeGenerator())
         sig_type = (signature, SignatureAlgorithm.rsa)
@@ -207,16 +212,14 @@ def main():
                                                          msg_alg=msg_type,
                                                          sig_alg=sig_type
                                                          ))
-        # the other side can close connection right away, add options to handle it
-        node.next_sibling = ExpectClose()
         node = node.add_child(ChangeCipherSpecGenerator())
-        node.next_sibling = ExpectClose()
         node = node.add_child(FinishedGenerator())
-        node.next_sibling = ExpectClose()
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
         # we expect closure or Alert and then closure of socket
-        node = node.add_child(ExpectClose())
-        node.next_sibling = ExpectAlert()
-        node.next_sibling.add_child(ExpectClose())
+        node = node.add_child(ExpectAlert(
+            description=AlertDescription.decrypt_error))
+        node.add_child(ExpectClose())
 
         conversations[name] = conversation
 
@@ -250,6 +253,7 @@ def main():
         node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectCertificateRequest())
     node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(ClientKeyExchangeGenerator())
     msg_alg = (HashAlgorithm.sha1, SignatureAlgorithm.rsa)
@@ -257,16 +261,13 @@ def main():
                                                      msg_alg=msg_alg,
                                                      sig_version=(3, 2)
                                                      ))
-    # the other side can close connection right away, add options to handle it
-    node.next_sibling = ExpectClose()
     node = node.add_child(ChangeCipherSpecGenerator())
-    node.next_sibling = ExpectClose()
     node = node.add_child(FinishedGenerator())
-    node.next_sibling = ExpectClose()
-    # we expect closure or Alert and then closure of socket
-    node = node.add_child(ExpectClose())
-    node.next_sibling = ExpectAlert()
-    node.next_sibling.add_child(ExpectClose())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(
+        description=AlertDescription.decrypt_error))
+    node.add_child(ExpectClose())
 
     conversations["TLSv1.1 signature in SHA-1 TLSv1.2 envelope"] = conversation
 
@@ -341,6 +342,11 @@ def main():
                 failed.append(c_name)
 
     print("CertificateVerify malformed signatures test\n")
+    print("Note, that if one of the sanity tests fail, like the SHA-1")
+    print("then the server most likely doesn't allow SHA-1 signatures in")
+    print("CertificateVerify. If CertificateRequest doesn't list those")
+    print("algorithms then CertificateVerify with SHA-1 should be rejected")
+    print("using the illegal_parameter alert\n")
 
     print("Test end")
     print(20 * '=')
