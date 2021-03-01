@@ -66,6 +66,7 @@
          {"name" : "test-cve-2016-2107.py"},
          {"name" : "test-cve-2016-6309.py"},
          {"name" : "test-cve-2016-7054.py"},
+         {"name" : "test-cve-2020-25648.py"},
          {"name" : "test-dhe-key-share-random.py",
           "arguments" : ["--repeat=15",
                          "-e", "Protocol (3, 0)",
