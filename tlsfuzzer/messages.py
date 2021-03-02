@@ -17,7 +17,7 @@ from tlslite.extensions import TLSExtension, RenegotiationInfoExtension, \
         ClientKeyShareExtension, StatusRequestExtension
 from tlslite.messagesocket import MessageSocket
 from tlslite.defragmenter import Defragmenter
-from tlslite.mathtls import calcMasterSecret, calcFinished, \
+from tlslite.mathtls import calc_key, \
         calcExtendedMasterSecret
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.utils.codec import Writer
@@ -1347,12 +1347,14 @@ class ChangeCipherSpecGenerator(MessageGenerator):
                                              status.key['premaster_secret'],
                                              hh)
             else:
-                master_secret = calcMasterSecret(
+                master_secret = calc_key(
                     status.version,
-                    cipher_suite,
                     status.key['premaster_secret'],
-                    status.client_random,
-                    status.server_random)
+                    cipher_suite,
+                    b'master secret',
+                    client_random=status.client_random,
+                    server_random=status.server_random,
+                    output_length=48)
 
             status.key['master_secret'] = master_secret
 
@@ -1411,11 +1413,13 @@ class FinishedGenerator(HandshakeProtocolMessageGenerator):
             status.msg_sock.changeReadState()
         elif self.protocol <= (3, 3):
             finished = Finished(self.protocol)
-            verify_data = calcFinished(status.version,
-                                       status.key['master_secret'],
-                                       status.cipher,
-                                       status.handshake_hashes,
-                                       status.client)
+            verify_data = calc_key(status.version,
+                                   status.key['master_secret'],
+                                   status.cipher,
+                                   b'client finished' if status.client
+                                   else b'server finished',
+                                   status.handshake_hashes,
+                                   output_length=12)
         else:  # TLS 1.3
             finished = Finished(self.protocol, status.prf_size)
             if self.context:
