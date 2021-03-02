@@ -128,7 +128,7 @@ class ConnectionState(object):
         certificates = (msg for msg in self.handshake_messages if\
                         isinstance(msg, Certificate))
         cert_message = next(certificates)
-        return cert_message.certChain.getEndEntityPublicKey()
+        return cert_message.cert_chain.getEndEntityPublicKey()
 
     def get_last_message_of_type(self, msg_type):
         """Returns last handshake message of provided type"""
