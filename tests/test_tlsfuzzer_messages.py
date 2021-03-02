@@ -1214,7 +1214,7 @@ class TestCertificateGenerator(unittest.TestCase):
         msg = certg.generate(state)
 
         self.assertIsInstance(msg, messages.Certificate)
-        self.assertIsNone(msg.certChain)
+        self.assertIsNone(msg.cert_chain)
         self.assertEqual(msg.certificateType,
                          constants.CertificateType.x509)
 
@@ -1233,7 +1233,7 @@ class TestCertificateGenerator(unittest.TestCase):
         msg = certg.generate(state)
 
         self.assertIsInstance(msg, messages.Certificate)
-        self.assertIsNone(msg.certChain)
+        self.assertIsNone(msg.cert_chain)
         self.assertEqual(msg.certificateType,
                          constants.CertificateType.x509)
         self.assertEqual(msg.certificate_request_context, b'zesty')
