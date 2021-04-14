@@ -841,6 +841,17 @@ class TestExpectServerHello(unittest.TestCase):
 
         self.assertFalse(exp.is_match(msg))
 
+    def test_str_with_no_description(self):
+        exp = ExpectServerHello()
+
+        self.assertEqual("ExpectServerHello()", str(exp))
+
+    def test_str_with_description(self):
+        exp = ExpectServerHello(description="SH message")
+
+        self.assertEqual("ExpectServerHello(description=\'SH message\')",
+                         str(exp))
+
     def test_process_with_extensions(self):
         extension_process = mock.MagicMock()
         exp = ExpectServerHello(extensions={ExtensionType.renegotiation_info:

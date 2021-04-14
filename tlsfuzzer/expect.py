@@ -527,10 +527,14 @@ class ExpectServerHello(_ExpectExtensionsMessage):
       ``server_handshake_traffic_secret``
       is derived and record layer is configured to expect encrypted records
       on the *receiving* side.
+
+    :ivar str ~.description: identifier to print when processing of the
+        node fails
     """
 
     def __init__(self, extensions=None, version=None, resume=False,
-                 cipher=None, server_max_protocol=None):
+                 cipher=None, server_max_protocol=None,
+                 description=None):
         """
         Initialize the object
 
@@ -568,6 +572,14 @@ class ExpectServerHello(_ExpectExtensionsMessage):
         self.version = version
         self.resume = resume
         self.srv_max_prot = server_max_protocol
+        self.description = description
+
+    def __str__(self):
+        """Return human redable representation of the object."""
+        if self.description:
+            return "ExpectServerHello(description={0!r})"\
+                   .format(self.description)
+        return "ExpectServerHello()"
 
     @staticmethod
     def _get_autohandler(ext_id):
