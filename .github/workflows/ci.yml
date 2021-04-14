@@ -211,7 +211,7 @@ jobs:
       - name: Install extract dependencies on py2.6
         if: ${{ contains(matrix.opt-deps, 'extract') && matrix.python-version == '2.6' }}
         run: |
-          pip install 'dpkt==1.9.2'
+          pip install -vvv 'dpkt==1.9.2'
       - name: Install extract dependencies on py2.7+
         if: ${{ contains(matrix.opt-deps, 'extract') && matrix.python-version != '2.6' }}
         run: |
@@ -223,7 +223,7 @@ jobs:
           pip install --upgrade pip
           pip install -r build-requirements-analysis.txt
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -vvv -r requirements.txt
       - name: Display installed python package versions
         run: pip list
       - name: Prepare Codeclimate environment
@@ -281,7 +281,10 @@ jobs:
           pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" tlsfuzzer > pylint_report.txt || :
           diff-quality --violations=pylint --fail-under=90 pylint_report.txt
       - name: Verify that intermediate commits are testable
-        if: ${{ github.event.pull_request }}
+        # for some reason this takes a lot of time on Python 2.6, on the other
+        # hand, it's highly unlikely that anybody will bisect code on
+        # 2.6, so let's just skip it there
+        if: ${{ github.event.pull_request && matrix.python-version != '2.6' }}
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
