@@ -152,7 +152,7 @@ jobs:
           echo installing
           yum clean all
           yum repolist all
-          yum install -y git make python curl gcc libffi-devel python-devel glibc-devel openssl-devel tcpdump
+          yum install -y git make python curl gcc libffi-devel python-devel glibc-devel openssl-devel tcpdump wget
       - name: Verify git status
         run: |
           git status
@@ -178,10 +178,18 @@ jobs:
       - name: Ensure working pip on 2.6
         if: ${{ matrix.python-version == '2.6' }}
         run: |
-          curl -o get-pip.py https://bootstrap.pypa.io/pip/2.6/get-pip.py;
-          python get-pip.py
+          # pypi deprecated SNI-less access to the CDN, so we have to download
+          # the packages manually
+          curl -o get-pip.py https://bootstrap.pypa.io/pip/2.6/get-pip.py
+          wget https://files.pythonhosted.org/packages/ac/95/a05b56bb975efa78d3557efa36acaf9cf5d2fd0ee0062060493687432e03/pip-9.0.3-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/27/f6/fabfc9c71c9b1b99d2ec4768a6e1f73b2e924f51c89d436302b8c2a25459/setuptools-36.8.0-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/8a/e9/8468cd68b582b06ef554be0b96b59f59779627131aad48f8a5bce4b13450/wheel-0.29.0-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/f2/94/3af39d34be01a24a6e65433d19e107099374224905f1e0cc6bbe1fd22a2f/argparse-1.4.0-py2.py3-none-any.whl
+          python get-pip.py pip-9.0.3-py2.py3-none-any.whl setuptools-36.8.0-py2.py3-none-any.whl wheel-0.29.0-py2.py3-none-any.whl argparse-1.4.0-py2.py3-none-any.whl
           pip list
-          pip install setuptools==28.8.0 wheel==0.30.0a0
+          wget https://files.pythonhosted.org/packages/3b/7e/293d19ccd106119e35db4bf3e111b1895098f618b455b758aa636496cf03/setuptools-28.8.0-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/83/53/e120833aa2350db333df89a40dea3b310dd9dabf6f29eaa18934a597dc79/wheel-0.30.0a0-py2.py3-none-any.whl
+          pip install setuptools-28.8.0-py2.py3-none-any.whl wheel-0.30.0a0-py2.py3-none-any.whl
       # gmpy2 and m2crypto are not necessary but make tlslite-ng much faster
       - name: Install gmpy2 dependencies
         if: ${{ !matrix.container }}
@@ -198,7 +206,48 @@ jobs:
       - name: Install M2Crypto (py2.6)
         if: ${{ matrix.container }}
         run: yum install -y m2crypto
+      - name: Install build dependencies (2.6)
+        if: ${{ matrix.python-version == '2.6' }}
+        run: |
+          wget https://files.pythonhosted.org/packages/a9/83/ca1c7737c9a43a3e5bd2b9954add88700267801415310395d4191e5ff8e3/isort-4.2.15-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/d9/9d/077582a4c6d771e3b742631e6c1d3688f48210626de488e032776242b3f2/inflect-0.3.0-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/79/db/7c0cfe4aa8341a5fab4638952520d8db6ab85ff84505e12c00ea311c3516/pyOpenSSL-17.5.0-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/2d/bf/960e5a422db3ac1a5e612cb35ca436c3fc985ed4b7ed13a1b4879006f450/cffi-1.13.2.tar.gz
+          wget https://files.pythonhosted.org/packages/72/20/7f0f433060a962200b7272b8c12ba90ef5b903e218174301d0abfd523813/unittest2-1.1.0-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/85/d5/818d0e603685c4a613d56f065a721013e942088047ff1027a632948bdae6/coverage-4.5.4.tar.gz
+          wget https://files.pythonhosted.org/packages/f8/86/410d53faff049641f34951843245d168261512aea787a1f9f05c3fa025a0/pylint-1.7.6-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/81/a6/d076eeb83f383ac7a25e030709abebc6781bcf930d67316be6d47641637e/diff_cover-4.0.0-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/8c/2d/aad7f16146f4197a11f8e91fb81df177adcc2073d36a17b1491fd09df6ed/pycparser-2.18.tar.gz
+          wget https://files.pythonhosted.org/packages/4b/2a/0276479a4b3caeb8a8c1af2f8e4355746a97fab05a372e4a2c6a6b876165/idna-2.7-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/e6/35/f187bdf23be87092bd0f1200d43d23076cee4d0dec109f195173fd3ebc79/mock-2.0.0-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/65/26/32b8464df2a97e6dd1b656ed26b2c194606c16fe163c695a992b36c11cdf/six-1.13.0-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/78/c5/7188f15a92413096c93053d5304718e1f6ba88b818357d05d19250ebff85/cryptography-2.1.4.tar.gz
+          wget https://files.pythonhosted.org/packages/17/0a/6ac05a3723017a967193456a2efa0aa9ac4b51456891af1e2353bb9de21e/traceback2-1.4.0-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/a2/55/8f8cab2afd404cf578136ef2cc5dfb50baa1761b68c9da1fb1e4eed343c9/docopt-0.6.2.tar.gz
+          wget https://files.pythonhosted.org/packages/65/47/7e02164a2a3db50ed6d8a6ab1d6d60b69c4c3fdf57a284257925dfc12bda/requests-2.19.1-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/9a/a7/d8155abf1c58457f1c65a20208ff128ec403d810dd55c40a39047f1bbddd/astroid-1.5.3-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/87/89/479dc97e18549e21354893e4ee4ef36db1d237534982482c3681ee6e7b57/mccabe-0.6.1-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/7a/12/2b10635e91ec4007e2a287812b1a1c8649cf68686ff2d69ed97553cf8a7a/singledispatch-3.6.1-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/40/26/e6a6d7741076ea1bcfac02821e744fc40fa4cbb07e870b7dd969f4af8721/jinja2_pluralize-0.3.0-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/65/e0/eb35e762802015cab1ccee04e8a277b03f1d8e53da3ec3106882ec42558b/Jinja2-2.10.3-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/13/e5/6d710c9cf96c31ac82657bcfb441df328b22df8564d58d0c4cd62612674c/Pygments-2.3.1-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/4d/d1/e478b8a33230f85f38e35b386376fbd115219de2a2c4c8783610851ad1c3/pluggy-0.5.2-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/69/cb/f5be453359271714c01b9bd06126eaf2e368f1fddfff30818754b5ac2328/funcsigs-1.0.2-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/fb/48/69046506f6ac61c1eaa9a0d42d22d54673b69e176d30ca98e3f61513e980/pbr-5.5.1-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/b5/a8/56be92dcd4a5bf1998705a9b4028249fe7c9a035b955fe93b6a3e5b829f8/asn1crypto-1.4.0-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/6f/2c/a9386903ece2ea85e9807e0e062174dc26fdce8b05f216d00491be29fad5/enum34-1.1.10-py2-none-any.whl
+          wget https://files.pythonhosted.org/packages/c2/f8/49697181b1651d8347d24c095ce46c7346c37335ddc7d255833e7cde674d/ipaddress-1.0.23-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/c7/a3/c5da2a44c85bfbb6eebcfc1dde24933f8704441b98fdde6528f4831757a6/linecache2-1.0.0-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/bc/a9/01ffebfb562e4274b6487b4bb1ddec7ca55ec7510b22e4c51f14098443b8/chardet-3.0.4-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/bd/c9/6fdd990019071a4a32a5e7cb78a1d92c53851ef4f56f62a3486e6a7d8ffb/urllib3-1.23-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/5e/a0/5f06e1e1d463903cf0c0eebeb751791119ed7a4b3737fdc9a77f1cdfb51f/certifi-2020.12.5-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/8d/08/00aab975c99d156aec2d47e9e7a947ac3af3efab5065f666c8b157acc7a8/lazy_object_proxy-1.3.1-cp26-cp26mu-manylinux1_x86_64.whl
+          wget https://files.pythonhosted.org/packages/82/f7/e43cefbe88c5fd371f4cf0cf5eb3feccd07515af9fd6cf7dbf1d1793a797/wrapt-1.12.1.tar.gz
+          wget https://files.pythonhosted.org/packages/e5/c1/1a48a4bb9b515480d6c666977eeca9243be9fa9e6fb5a34be0ad9627f737/backports.functools_lru_cache-1.6.4-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/4d/de/32d741db316d8fdb7680822dd37001ef7a448255de9699ab4bfcbdf4172b/MarkupSafe-1.0.tar.gz
+          pip install pycparser-2.18.tar.gz isort-4.2.15-py2.py3-none-any.whl inflect-0.3.0-py2.py3-none-any.whl pyOpenSSL-17.5.0-py2.py3-none-any.whl cffi-1.13.2.tar.gz unittest2-1.1.0-py2.py3-none-any.whl coverage-4.5.4.tar.gz pylint-1.7.6-py2.py3-none-any.whl diff_cover-4.0.0-py2.py3-none-any.whl idna-2.7-py2.py3-none-any.whl mock-2.0.0-py2.py3-none-any.whl six-1.13.0-py2.py3-none-any.whl cryptography-2.1.4.tar.gz traceback2-1.4.0-py2.py3-none-any.whl docopt-0.6.2.tar.gz requests-2.19.1-py2.py3-none-any.whl astroid-1.5.3-py2.py3-none-any.whl mccabe-0.6.1-py2.py3-none-any.whl singledispatch-3.6.1-py2.py3-none-any.whl jinja2_pluralize-0.3.0-py2.py3-none-any.whl Jinja2-2.10.3-py2.py3-none-any.whl Pygments-2.3.1-py2.py3-none-any.whl pluggy-0.5.2-py2.py3-none-any.whl funcsigs-1.0.2-py2.py3-none-any.whl pbr-5.5.1-py2.py3-none-any.whl asn1crypto-1.4.0-py2.py3-none-any.whl enum34-1.1.10-py2-none-any.whl ipaddress-1.0.23-py2.py3-none-any.whl linecache2-1.0.0-py2.py3-none-any.whl chardet-3.0.4-py2.py3-none-any.whl urllib3-1.23-py2.py3-none-any.whl certifi-2020.12.5-py2.py3-none-any.whl lazy_object_proxy-1.3.1-cp26-cp26mu-manylinux1_x86_64.whl wrapt-1.12.1.tar.gz backports.functools_lru_cache-1.6.4-py2.py3-none-any.whl MarkupSafe-1.0.tar.gz git+https://github.com/tomato42/coveralls-python.git@add-py26#egg=coveralls
       - name: Install build dependencies
+        if: ${{ matrix.python-version != '2.6' }}
         run: |
           if [[ -e build-requirements-${{ matrix.python-version }}.txt ]]; then
             pip install -r build-requirements-${{ matrix.python-version }}.txt;
@@ -211,7 +260,8 @@ jobs:
       - name: Install extract dependencies on py2.6
         if: ${{ contains(matrix.opt-deps, 'extract') && matrix.python-version == '2.6' }}
         run: |
-          pip install -vvv 'dpkt==1.9.2'
+          wget https://files.pythonhosted.org/packages/1c/25/0aebea939ea70d31a7ff8884e5ca577eddb9cfeac626398fe782d4e2f6a2/dpkt-1.9.2.tar.gz
+          pip install dpkt-1.9.2.tar.gz
       - name: Install extract dependencies on py2.7+
         if: ${{ contains(matrix.opt-deps, 'extract') && matrix.python-version != '2.6' }}
         run: |
@@ -222,8 +272,15 @@ jobs:
           # kiwisolver requires new pip for its wheel files so ensure we're running the newest one
           pip install --upgrade pip
           pip install -r build-requirements-analysis.txt
+      - name: Install dependencies (2.6)
+        if: ${{ matrix.python-version == '2.6' }}
+        run: |
+          wget https://files.pythonhosted.org/packages/7b/1d/912505e143a60c9d14ca475ebef6c3f7c421051f2a65eb1aafa3879df823/tlslite-ng-0.8.0-alpha40.tar.gz
+          wget https://files.pythonhosted.org/packages/98/16/70be2716e24eaf5d81074bb3c05429d60292c2a96613a78ac3d69526ad2a/ecdsa-0.16.1-py2.py3-none-any.whl
+          pip install tlslite-ng-0.8.0-alpha40.tar.gz ecdsa-0.16.1-py2.py3-none-any.whl
       - name: Install dependencies
-        run: pip install -vvv -r requirements.txt
+        if: ${{ matrix.python-version != '2.6' }}
+        run: pip install -r requirements.txt
       - name: Display installed python package versions
         run: pip list
       - name: Prepare Codeclimate environment
