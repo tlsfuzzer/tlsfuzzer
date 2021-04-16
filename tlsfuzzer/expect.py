@@ -1791,11 +1791,12 @@ class ExpectSSL2Alert(ExpectHandshake):
 class ExpectApplicationData(Expect):
     """Processing Application Data message"""
 
-    def __init__(self, data=None, size=None):
+    def __init__(self, data=None, size=None, output=None):
         super(ExpectApplicationData, self).\
                 __init__(ContentType.application_data)
         self.data = data
         self.size = size
+        self.output = output
 
     def process(self, state, msg):
         assert msg.contentType == ContentType.application_data
@@ -1806,6 +1807,10 @@ class ExpectApplicationData(Expect):
         if self.size and len(data) != self.size:
             raise AssertionError("ApplicationData of unexpected size: {0}, "
                                  "expected: {1}".format(len(data), self.size))
+        if self.output:
+            self.output.write("ExpectApplicationData received payload:\n")
+            self.output.write(data)
+            self.output.write("ExpectApplicationData end of payload.\n")
 
 
 class ExpectHeartbeat(ExpectMessage):
