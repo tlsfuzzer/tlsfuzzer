@@ -67,6 +67,8 @@ class ConnectionState(object):
         self.key = {}
         self.key['premaster_secret'] = bytearray(0)
 
+        self.key['client handshake traffic secret'] = bytearray(0)
+
         # negotiated value for master secret
         self.key['master_secret'] = bytearray(0)
 
