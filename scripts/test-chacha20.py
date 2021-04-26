@@ -20,9 +20,15 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerKeyExchange
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ContentType
+        ContentType, ExtensionType, GroupName
+from tlslite.extensions import SupportedGroupsExtension, \
+        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
-version = 2
+from tlsfuzzer.helpers import SIG_ALL
+
+
+version = 3
+
 
 def help_msg():
     print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
@@ -41,6 +47,7 @@ def help_msg():
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" -n num         run 'num' or all(if 0) tests instead of default(50)")
     print("                (excluding \"sanity\" tests)")
+    print(" --extra-exts   Send extensions to indicate support for SHA-2 and specific curves")
     print(" --help         this message")
 
 
@@ -51,9 +58,10 @@ def main():
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
+    extra_exts = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:", ["help", "extra-exts"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -70,6 +78,8 @@ def main():
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '--extra-exts':
+            extra_exts = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -85,10 +95,23 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
+    if not extra_exts:
+        exts = None
+    else:
+        exts = {}
+        exts[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create([GroupName.secp256r1, GroupName.ffdhe2048,
+                     GroupName.x25519])
+        exts[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(SIG_ALL)
+        exts[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(SIG_ALL)
+
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers))
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=exts))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
@@ -114,7 +137,8 @@ def main():
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 2)))
+    node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 2),
+                                               extensions=exts))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.handshake_failure))
     node.add_child(ExpectClose())
@@ -126,7 +150,8 @@ def main():
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers))
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=exts))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
@@ -153,7 +178,8 @@ def main():
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers))
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=exts))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
@@ -181,7 +207,8 @@ def main():
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers))
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=exts))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
@@ -215,7 +242,8 @@ def main():
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers))
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=exts))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
@@ -242,7 +270,8 @@ def main():
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers))
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=exts))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
@@ -269,7 +298,8 @@ def main():
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers))
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=exts))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
@@ -298,7 +328,8 @@ def main():
             ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                        CipherSuite.TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-            node = node.add_child(ClientHelloGenerator(ciphers))
+            node = node.add_child(ClientHelloGenerator(ciphers,
+                                                       extensions=exts))
             node = node.add_child(ExpectServerHello())
             node = node.add_child(ExpectCertificate())
             node = node.add_child(ExpectServerKeyExchange())
@@ -324,7 +355,8 @@ def main():
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                    CipherSuite.TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        node = node.add_child(ClientHelloGenerator(ciphers))
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions=exts))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerKeyExchange())
