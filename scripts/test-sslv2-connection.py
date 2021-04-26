@@ -156,7 +156,7 @@ def main():
                 good+=1
                 print("OK\n")
             else:
-                xfail+=1
+                bad+=1
 
     print("Note: This test verifies that an implementation implements and")
     print("      will negotiate SSLv2 protocol. This is a BAD configuration.")
