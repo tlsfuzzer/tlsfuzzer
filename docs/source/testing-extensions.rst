@@ -145,3 +145,10 @@ The list of cases to consider for inclusion in a script:
     peers must reject recognised extensions in unexpected messages (like
     ``cookie`` in CertificateRequest) with ``illegal_parameter``. Verify that
     peer behaves in this way.
+27. **duplicated messages**: does sending the same message multiple times,
+    or a message of the same type is detected and rejected? Does the peer
+    send ``unexpected_message`` alert then?
+28. **repeated interactions**: does the test verify that repeated interactions
+    (renegotiations, resumptions, key updates, etc.) are handled correctly
+    and don't cause misbehaviour on the other side (including C's undefined
+    behaviour or memory leaks, like with CVE-2016-6304)
