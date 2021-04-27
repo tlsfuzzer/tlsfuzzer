@@ -632,7 +632,7 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
             elif ext_id in (ExtensionType.client_hello_padding,
                             ExtensionType.encrypt_then_mac,
                             ExtensionType.extended_master_secret,
-                            35,  # session_ticket
+                            ExtensionType.session_ticket,
                             49,  # post_handshake_auth
                             52):  # transparency_info
                 ext = TLSExtension().create(ext_id, bytearray())
