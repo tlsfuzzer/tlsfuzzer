@@ -8,7 +8,7 @@ from tlslite.constants import HashAlgorithm, SignatureAlgorithm, \
         SignatureScheme, ClientCertificateType, ExtensionType
 
 from tlslite.extensions import KeyShareEntry, PreSharedKeyExtension, \
-        PskIdentity, ClientKeyShareExtension
+        PskIdentity, ClientKeyShareExtension, SessionTicketExtension
 from tlslite.handshakehelpers import HandshakeHelpers
 from .handshake_helpers import kex_for_group
 
@@ -18,7 +18,8 @@ __all__ = ['sig_algs_to_ids', 'key_share_gen', 'psk_ext_gen',
            'key_share_ext_gen', 'uniqueness_check', 'RSA_SIG_ALL',
            'ECDSA_SIG_ALL', 'RSA_PKCS1_ALL', 'RSA_PSS_PSS_ALL',
            'RSA_PSS_RSAE_ALL', 'ECDSA_SIG_TLS1_3_ALL', 'SIG_ALL',
-           'AutoEmptyExtension', 'client_cert_types_to_ids']
+           'AutoEmptyExtension', 'client_cert_types_to_ids',
+           'session_ticket_ext_gen']
 
 
 RSA_SIG_ALL = [(getattr(HashAlgorithm, x), SignatureAlgorithm.rsa) for x in
@@ -319,6 +320,25 @@ def psk_session_ext_gen(psk_settings=None):
     :return: extension generator
     """
     return partial(_psk_session_ext_gen, psk_settings=psk_settings)
+
+
+def session_ticket_ext_gen(which=-1):
+    """
+    Create a session_ticket extension based on ticket from server.
+
+    Session needs to have processed tickets with ExpectNewSessionTicket
+    nodes before. By default the last ticket will be used.
+
+    :param int which: the subscript to use for selecting the ticket in session
+        `-1` for last, `0` for first, `1` for second, etc.
+    :return: extension generator
+    """
+    def _session_ticket_ext_gen(state, which=which):
+        if not state.session_tickets:
+            raise ValueError("No New Session Ticket messages in session")
+        nst = state.session_tickets[which]
+        return SessionTicketExtension().create(nst.ticket)
+    return _session_ticket_ext_gen
 
 
 def _psk_ext_updater(state, client_hello, psk_settings):
