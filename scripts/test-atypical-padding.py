@@ -11,22 +11,21 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, \
-        fuzz_padding, AlertGenerator
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, \
+    fuzz_padding, AlertGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectClose, ExpectApplicationData, \
-        ExpectServerKeyExchange
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectClose, ExpectApplicationData, \
+    ExpectServerKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import RSA_SIG_ALL, AutoEmptyExtension
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        GroupName, ExtensionType
+    GroupName, ExtensionType
 from tlslite.extensions import SupportedGroupsExtension, \
-        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
+    SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlslite.utils.compat import compatAscii2Bytes
-
 
 version = 5
 
@@ -58,13 +57,12 @@ def help_msg():
 def add_dhe_extensions(extensions):
     groups = [GroupName.secp256r1,
               GroupName.ffdhe2048]
-    extensions[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    extensions[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     extensions[ExtensionType.signature_algorithms] = \
         SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
     extensions[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-
 
 
 def main():
@@ -217,8 +215,8 @@ def main():
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    extensions = {ExtensionType.encrypt_then_mac:None,
-                  ExtensionType.renegotiation_info:None}
+    extensions = {ExtensionType.encrypt_then_mac: None,
+                  ExtensionType.renegotiation_info: None}
     node = node.add_child(ExpectServerHello(extensions=extensions))
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -278,7 +276,7 @@ def main():
     node = node.add_child(ExpectClose())
 
     conversations["256 bytes of padding"] = \
-            conversation
+        conversation
 
     # maximum size of padding with SHA256
     conversation = Connect(host, port)
@@ -320,7 +318,7 @@ def main():
     node = node.add_child(ExpectClose())
 
     conversations["256 bytes of padding with SHA256"] = \
-            conversation
+        conversation
 
     # ... and SHA384
     conversation = Connect(host, port)
@@ -328,7 +326,7 @@ def main():
     ext = {}
     groups = [GroupName.secp256r1,
               GroupName.ffdhe2048]
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     ext[ExtensionType.signature_algorithms] = \
         SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
@@ -359,7 +357,7 @@ def main():
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
     conversations["256 bytes of padding with SHA384"] = \
-            conversation
+        conversation
 
     # longest possible padding with max size Application data
     conversation = Connect(host, port)
@@ -391,11 +389,11 @@ def main():
                 b"a" * (4096 - 9) + b"\r\n"
     text += b"X-ba3: " + b"a" * (4096 - 37) + b"\r\n"
     text += b"\r\n"
-    assert len(text) == 2**14, len(text)
+    assert len(text) == 2 ** 14, len(text)
     node = node.add_child(fuzz_padding(ApplicationDataGenerator(text),
                                        min_length=252))
     if echo:
-        node = node.add_child(ExpectApplicationData(size=2**14))
+        node = node.add_child(ExpectApplicationData(size=2 ** 14))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -405,7 +403,7 @@ def main():
     node = node.add_child(ExpectClose())
 
     conversations["2^14 bytes of AppData with 253 bytes of padding (SHA1)"] = \
-            conversation
+        conversation
 
     # longest possible padding with max size Application data (and EtM)
     conversation = Connect(host, port)
@@ -420,8 +418,8 @@ def main():
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    extensions = {ExtensionType.encrypt_then_mac:None,
-                  ExtensionType.renegotiation_info:None}
+    extensions = {ExtensionType.encrypt_then_mac: None,
+                  ExtensionType.renegotiation_info: None}
     node = node.add_child(ExpectServerHello(extensions=extensions))
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -438,11 +436,11 @@ def main():
                 b"a" * (4096 - 9) + b"\r\n"
     text += b"X-ba3: " + b"a" * (4096 - 37) + b"\r\n"
     text += b"\r\n"
-    assert len(text) == 2**14, len(text)
+    assert len(text) == 2 ** 14, len(text)
     node = node.add_child(fuzz_padding(ApplicationDataGenerator(text),
                                        min_length=255))
     if echo:
-        node = node.add_child(ExpectApplicationData(size=2**14))
+        node = node.add_child(ExpectApplicationData(size=2 ** 14))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -453,7 +451,7 @@ def main():
 
     conversations["2^14 bytes of AppData with 256 bytes of padding (SHA1 "
                   "+ Encrypt then MAC)"] = \
-            conversation
+        conversation
 
     # longest possible padding with max size Application data with SHA256
     conversation = Connect(host, port)
@@ -485,11 +483,11 @@ def main():
                 b"a" * (4096 - 9) + b"\r\n"
     text += b"X-ba3: " + b"a" * (4096 - 37) + b"\r\n"
     text += b"\r\n"
-    assert len(text) == 2**14, len(text)
+    assert len(text) == 2 ** 14, len(text)
     node = node.add_child(fuzz_padding(ApplicationDataGenerator(text),
                                        min_length=255))
     if echo:
-        node = node.add_child(ExpectApplicationData(size=2**14))
+        node = node.add_child(ExpectApplicationData(size=2 ** 14))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -499,7 +497,7 @@ def main():
     node = node.add_child(ExpectClose())
 
     conversations["2^14 bytes of AppData with 256 bytes of padding (SHA256)"] = \
-            conversation
+        conversation
 
     conversation = Connect(host, port)
     node = conversation
@@ -523,18 +521,18 @@ def main():
                 b"a" * (4096 - 9) + b"\r\n"
     text += b"X-ba3: " + b"a" * (4096 - 37) + b"\r\n"
     text += b"\r\n"
-    assert len(text) == 2**14, len(text)
+    assert len(text) == 2 ** 14, len(text)
     node = node.add_child(fuzz_padding(ApplicationDataGenerator(text),
                                        min_length=255))
     if echo:
-        node = node.add_child(ExpectApplicationData(size=2**14))
+        node = node.add_child(ExpectApplicationData(size=2 ** 14))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
     conversations["2^14 bytes of AppData with 256 bytes of padding (SHA384)"] = \
-            conversation
+        conversation
 
     # run the conversation
     good = 0
@@ -553,7 +551,7 @@ def main():
         if num_limit > len(run_only):
             num_limit = len(run_only)
         regular_tests = [(k, v) for k, v in conversations.items() if
-                          k in run_only]
+                         k in run_only]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
                          (k != 'sanity') and k not in run_exclude]
@@ -583,12 +581,12 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
@@ -608,14 +606,14 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -624,6 +622,7 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

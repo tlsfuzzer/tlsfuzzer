@@ -11,19 +11,20 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        ResetHandshakeHashes, SetMaxRecordSize
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+    ResetHandshakeHashes, SetMaxRecordSize
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectApplicationData, ExpectClose
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType
+    ExtensionType
 from tlslite.extensions import TLSExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 version = 2
+
 
 def help_msg():
     print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
@@ -43,6 +44,7 @@ def help_msg():
     print("                execution of preceding expected failure probe")
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" --help         this message")
+
 
 def main():
     #
@@ -95,7 +97,7 @@ def main():
     ext = {21: TLSExtension().create(21, bytearray(10))}
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext))
-    node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info: None}))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
@@ -121,28 +123,28 @@ def main():
     # maximum - 2**14
 
     for name, ext_len, record_len in [
-                                ("small hello", 20, None),
-                                ("medium hello", 1024, None),
-                                ("medium hello, pow2 fragmentation", 1024, 127),
-                                ("medium hello, pow2 fragmentation", 1024, 128),
-                                ("medium hello, pow2 fragmentation", 1024, 128),
-                                ("medium hello, pow2 fragmentation", 1024, 255),
-                                ("medium hello, pow2 fragmentation", 1024, 256),
-                                ("medium hello, pow2 fragmentation", 1024, 257),
-                                ("big, non fragmented", 2**12, None),
-                                ("big, needs fragmentation", 2**14-49, None),
-                                ("big, needs fragmentation", 2**14-48, None),
-                                ("big, needs fragmentation", 2**15, None),
-                                ("maximum size", 2**16-5, None),
-                                ("small, reasonable fragmentation", 20, 1024),
-                                ("medium, reasonable fragmentation", 1024, 1024),
-                                ("big, reasonable fragmentation", 2**12, 1024),
-                                ("small, excessive fragmentation", 20, 20),
-                                ("medium, excessive fragmentation", 1024, 20),
-                                ("big, excessive fragmentation", 2**12, 20),
-                                ("small, maximum fragmentation", 20, 1),
-                                ("medium, maximum fragmentation", 1024, 1),
-                                ("maximum size without fragmentation", 2**14-53, None)]:
+        ("small hello", 20, None),
+        ("medium hello", 1024, None),
+        ("medium hello, pow2 fragmentation", 1024, 127),
+        ("medium hello, pow2 fragmentation", 1024, 128),
+        ("medium hello, pow2 fragmentation", 1024, 128),
+        ("medium hello, pow2 fragmentation", 1024, 255),
+        ("medium hello, pow2 fragmentation", 1024, 256),
+        ("medium hello, pow2 fragmentation", 1024, 257),
+        ("big, non fragmented", 2 ** 12, None),
+        ("big, needs fragmentation", 2 ** 14 - 49, None),
+        ("big, needs fragmentation", 2 ** 14 - 48, None),
+        ("big, needs fragmentation", 2 ** 15, None),
+        ("maximum size", 2 ** 16 - 5, None),
+        ("small, reasonable fragmentation", 20, 1024),
+        ("medium, reasonable fragmentation", 1024, 1024),
+        ("big, reasonable fragmentation", 2 ** 12, 1024),
+        ("small, excessive fragmentation", 20, 20),
+        ("medium, excessive fragmentation", 1024, 20),
+        ("big, excessive fragmentation", 2 ** 12, 20),
+        ("small, maximum fragmentation", 20, 1),
+        ("medium, maximum fragmentation", 1024, 1),
+        ("maximum size without fragmentation", 2 ** 14 - 53, None)]:
 
         conversation = Connect(host, port)
         node = conversation
@@ -152,7 +154,7 @@ def main():
         ext = {21: TLSExtension().create(21, bytearray(ext_len))}
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions=ext))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info: None}))
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(ClientKeyExchangeGenerator())
@@ -175,11 +177,11 @@ def main():
                       str(ext_len) + "B extension"] = conversation
 
     # check if records bigger than TLSPlaintext limit are rejected
-    padding_extension = TLSExtension().create(21, bytearray(2**14-52))
+    padding_extension = TLSExtension().create(21, bytearray(2 ** 14 - 52))
 
     conversation = Connect(host, port)
     node = conversation
-    node = node.add_child(SetMaxRecordSize(2**16-1))
+    node = node.add_child(SetMaxRecordSize(2 ** 16 - 1))
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -187,8 +189,8 @@ def main():
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
 
-    conversations["non fragmented, over fragmentation limit: " + str(2**16-1) +
-                  " fragment - " + str(2**14-52) + "B extension"] = conversation
+    conversations["non fragmented, over fragmentation limit: " + str(2 ** 16 - 1) +
+                  " fragment - " + str(2 ** 14 - 52) + "B extension"] = conversation
 
     # run the conversation
     good = 0
@@ -207,7 +209,7 @@ def main():
         if num_limit > len(run_only):
             num_limit = len(run_only)
         regular_tests = [(k, v) for k, v in conversations.items() if
-                          k in run_only]
+                         k in run_only]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
                          (k != 'sanity') and k not in run_exclude]
@@ -237,12 +239,12 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
@@ -258,14 +260,14 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -274,6 +276,7 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

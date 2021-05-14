@@ -11,27 +11,26 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, \
-        CertificateGenerator, CertificateVerifyGenerator, \
-        AlertGenerator, TCPBufferingEnable, TCPBufferingDisable, \
-        TCPBufferingFlush
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, \
+    CertificateGenerator, CertificateVerifyGenerator, \
+    AlertGenerator, TCPBufferingEnable, TCPBufferingDisable, \
+    TCPBufferingFlush
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectClose, ExpectCertificateRequest, \
-        ExpectApplicationData, ExpectServerKeyExchange
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectClose, ExpectCertificateRequest, \
+    ExpectApplicationData, ExpectServerKeyExchange
 from tlslite.extensions import SignatureAlgorithmsExtension, \
-        SignatureAlgorithmsCertExtension, SupportedGroupsExtension, \
-        ECPointFormatsExtension
+    SignatureAlgorithmsCertExtension, SupportedGroupsExtension, \
+    ECPointFormatsExtension
 from tlslite.constants import CipherSuite, AlertDescription, \
-        HashAlgorithm, SignatureAlgorithm, ExtensionType, GroupName, \
-        ECPointFormat, AlertLevel, AlertDescription
+    HashAlgorithm, SignatureAlgorithm, ExtensionType, GroupName, \
+    ECPointFormat, AlertLevel, AlertDescription
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import RSA_SIG_ALL, ECDSA_SIG_ALL
-
 
 version = 3
 
@@ -122,15 +121,15 @@ def main():
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create(ECDSA_SIG_ALL + RSA_SIG_ALL),
-           ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(ECDSA_SIG_ALL + RSA_SIG_ALL),
-           ExtensionType.supported_groups :
-           SupportedGroupsExtension().create([
-               GroupName.secp256r1, GroupName.secp384r1, GroupName.secp521r1]),
-           ExtensionType.ec_point_formats :
-           ECPointFormatsExtension().create([ECPointFormat.uncompressed])}
+    ext = {ExtensionType.signature_algorithms:
+               SignatureAlgorithmsExtension().create(ECDSA_SIG_ALL + RSA_SIG_ALL),
+           ExtensionType.signature_algorithms_cert:
+               SignatureAlgorithmsCertExtension().create(ECDSA_SIG_ALL + RSA_SIG_ALL),
+           ExtensionType.supported_groups:
+               SupportedGroupsExtension().create([
+                   GroupName.secp256r1, GroupName.secp384r1, GroupName.secp521r1]),
+           ExtensionType.ec_point_formats:
+               ECPointFormatsExtension().create([ECPointFormat.uncompressed])}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())
@@ -159,15 +158,15 @@ def main():
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create(ECDSA_SIG_ALL + RSA_SIG_ALL),
-           ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(ECDSA_SIG_ALL + RSA_SIG_ALL),
-           ExtensionType.supported_groups :
-           SupportedGroupsExtension().create([
-               GroupName.secp256r1, GroupName.secp384r1, GroupName.secp521r1]),
-           ExtensionType.ec_point_formats :
-           ECPointFormatsExtension().create([ECPointFormat.uncompressed])}
+    ext = {ExtensionType.signature_algorithms:
+               SignatureAlgorithmsExtension().create(ECDSA_SIG_ALL + RSA_SIG_ALL),
+           ExtensionType.signature_algorithms_cert:
+               SignatureAlgorithmsCertExtension().create(ECDSA_SIG_ALL + RSA_SIG_ALL),
+           ExtensionType.supported_groups:
+               SupportedGroupsExtension().create([
+                   GroupName.secp256r1, GroupName.secp384r1, GroupName.secp521r1]),
+           ExtensionType.ec_point_formats:
+               ECPointFormatsExtension().create([ECPointFormat.uncompressed])}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())
@@ -200,19 +199,19 @@ def main():
             ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                        CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-            ext = {ExtensionType.signature_algorithms :
-                   SignatureAlgorithmsExtension().create(ECDSA_SIG_ALL +
-                                                         RSA_SIG_ALL),
-                   ExtensionType.signature_algorithms_cert :
-                   SignatureAlgorithmsCertExtension().create(ECDSA_SIG_ALL +
+            ext = {ExtensionType.signature_algorithms:
+                       SignatureAlgorithmsExtension().create(ECDSA_SIG_ALL +
                                                              RSA_SIG_ALL),
-                   ExtensionType.supported_groups :
-                   SupportedGroupsExtension().create([
-                       GroupName.secp256r1, GroupName.secp384r1,
-                       GroupName.secp521r1]),
-                   ExtensionType.ec_point_formats :
-                   ECPointFormatsExtension().create([
-                       ECPointFormat.uncompressed])}
+                   ExtensionType.signature_algorithms_cert:
+                       SignatureAlgorithmsCertExtension().create(ECDSA_SIG_ALL +
+                                                                 RSA_SIG_ALL),
+                   ExtensionType.supported_groups:
+                       SupportedGroupsExtension().create([
+                           GroupName.secp256r1, GroupName.secp384r1,
+                           GroupName.secp521r1]),
+                   ExtensionType.ec_point_formats:
+                       ECPointFormatsExtension().create([
+                           ECPointFormat.uncompressed])}
             node = node.add_child(ClientHelloGenerator(ciphers,
                                                        extensions=ext))
             node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -244,7 +243,7 @@ def main():
                 node.next_sibling.add_child(ExpectClose())
 
                 conversations["make {0}+ecdsa signature in CertificateVerify"
-                              .format(h_alg)] = conversation
+                    .format(h_alg)] = conversation
             else:
                 node = node.add_child(TCPBufferingEnable())
                 node = node.add_child(CertificateVerifyGenerator(
@@ -261,7 +260,7 @@ def main():
                 node = node.add_child(ExpectClose())
                 conversations["make {0}+ecdsa signature, advertise it as "
                               "{1}+ecdsa in CertificateVerify"
-                              .format(h_alg, real_h_alg)] = conversation
+                    .format(h_alg, real_h_alg)] = conversation
 
     # run the conversation
     good = 0
@@ -307,12 +306,12 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
@@ -330,14 +329,14 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -345,6 +344,7 @@ def main():
         print("FAILED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

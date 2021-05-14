@@ -12,16 +12,17 @@ import getopt
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, \
-        ClientMasterKeyGenerator, Close
+    FinishedGenerator, ApplicationDataGenerator, \
+    ClientMasterKeyGenerator, Close
 from tlsfuzzer.expect import ExpectFinished, ExpectApplicationData, \
-        ExpectServerHello2, ExpectVerify
+    ExpectServerHello2, ExpectVerify
 
 from tlslite.constants import CipherSuite, AlertLevel, \
-        ExtensionType
+    ExtensionType
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 version = 2
+
 
 def help_msg():
     """Print usage information"""
@@ -39,6 +40,7 @@ def help_msg():
     print("                execution of preceding expected failure probe")
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" --help        this message")
+
 
 def main():
     """Test if the server supports some of the SSLv2 ciphers"""
@@ -79,10 +81,10 @@ def main():
         raise ValueError("Unknown options: {0}".format(argv))
 
     for cipher_id, cipher_name in {
-            CipherSuite.SSL_CK_DES_192_EDE3_CBC_WITH_MD5:"DES-CBC3-MD5",
-            CipherSuite.SSL_CK_RC4_128_WITH_MD5:"RC4-MD5",
-            CipherSuite.SSL_CK_RC4_128_EXPORT40_WITH_MD5:"EXP-RC4-MD5"
-            }.items():
+        CipherSuite.SSL_CK_DES_192_EDE3_CBC_WITH_MD5: "DES-CBC3-MD5",
+        CipherSuite.SSL_CK_RC4_128_WITH_MD5: "RC4-MD5",
+        CipherSuite.SSL_CK_RC4_128_EXPORT40_WITH_MD5: "EXP-RC4-MD5"
+    }.items():
         # instruct RecordLayer to use SSLv2 record layer protocol (0, 2)
         conversation = Connect(host, port, version=(0, 2))
         node = conversation
@@ -106,7 +108,7 @@ def main():
         node.add_child(Close())
 
         conversations["Connect with SSLv2 {0}"
-                      .format(cipher_name)] = conversation
+            .format(cipher_name)] = conversation
 
     good = 0
     bad = 0
@@ -142,21 +144,21 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
         else:
             if res:
-                good+=1
+                good += 1
                 print("OK\n")
             else:
-                xfail+=1
+                xfail += 1
 
     print("Note: This test verifies that an implementation implements and")
     print("      will negotiate SSLv2 protocol. This is a BAD configuration.")
@@ -179,7 +181,7 @@ def main():
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -188,6 +190,7 @@ def main():
 
     if good > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

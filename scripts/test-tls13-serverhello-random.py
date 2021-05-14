@@ -10,25 +10,24 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        CopyVariables
+    ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+    CopyVariables
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose, \
-        ExpectEncryptedExtensions, ExpectCertificateVerify, \
-        ExpectNewSessionTicket
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectApplicationData, ExpectClose, \
+    ExpectEncryptedExtensions, ExpectCertificateVerify, \
+    ExpectNewSessionTicket
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme
+    TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme
 from tlslite.keyexchange import ECDHKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlslite.extensions import KeyShareEntry, \
-        SupportedVersionsExtension, SupportedGroupsExtension, \
-        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
+    SupportedVersionsExtension, SupportedGroupsExtension, \
+    SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL, key_share_ext_gen, \
-        uniqueness_check
-
+    uniqueness_check
 
 version = 3
 
@@ -99,9 +98,9 @@ def main():
     collected_key_shares = []
     variables_check = \
         {'ServerHello.random':
-         collected_randoms,
+             collected_randoms,
          'ServerHello.extensions.key_share.key_exchange':
-         collected_key_shares}
+             collected_key_shares}
 
     conversations = {}
 
@@ -113,15 +112,15 @@ def main():
     groups = [GroupName.secp256r1]
     key_shares = []
     ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
@@ -142,7 +141,7 @@ def main():
 
     node.next_sibling = ExpectApplicationData()
     node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                       AlertDescription.close_notify))
+                                                      AlertDescription.close_notify))
 
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
@@ -158,15 +157,15 @@ def main():
         groups = [group]
         key_shares = []
         ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
             .create([TLS_1_3_DRAFT, (3, 3)])
-        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
             .create(groups)
         sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                     SignatureScheme.rsa_pss_pss_sha256]
-        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
             .create(sig_algs)
-        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
             .create(RSA_SIG_ALL)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
@@ -187,7 +186,7 @@ def main():
 
         node.next_sibling = ExpectApplicationData()
         node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                           AlertDescription.close_notify))
+                                                          AlertDescription.close_notify))
 
         node = node.add_child(ExpectAlert())
         node.next_sibling = ExpectClose()
@@ -211,7 +210,7 @@ def main():
         if num_limit > len(run_only):
             num_limit = len(run_only)
         regular_tests = [(k, v) for k, v in conversations.items() if
-                          k in run_only]
+                         k in run_only]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
                          (k != 'sanity') and k not in run_exclude]
@@ -242,22 +241,22 @@ def main():
                     xpassed.append(c_name)
                     print("XPASS-expected failure but test passed\n")
                 else:
-                    if expected_failures[c_name] is not None and  \
-                        expected_failures[c_name] not in str(exception):
-                            bad += 1
-                            failed.append(c_name)
-                            print("Expected error message: {0}\n"
-                                .format(expected_failures[c_name]))
+                    if expected_failures[c_name] is not None and \
+                            expected_failures[c_name] not in str(exception):
+                        bad += 1
+                        failed.append(c_name)
+                        print("Expected error message: {0}\n"
+                              .format(expected_failures[c_name]))
                     else:
                         xfail += 1
                         print("OK-expected failure\n")
             else:
-                    if res:
-                        good += 1
-                        print("OK\n")
-                    else:
-                        bad += 1
-                        failed.append(c_name)
+                if res:
+                    good += 1
+                    print("OK\n")
+                else:
+                    bad += 1
+                    failed.append(c_name)
 
     failed_tests = uniqueness_check(variables_check, good + bad)
     if failed_tests:
@@ -273,14 +272,14 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -289,6 +288,7 @@ def main():
 
     if bad > 0 or failed_tests:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

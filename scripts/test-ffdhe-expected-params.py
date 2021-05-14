@@ -11,22 +11,21 @@ from itertools import chain
 from random import sample
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType
+    ExtensionType
 from tlslite.extensions import \
-        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
+    SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlslite.mathtls import FFDHE_PARAMETERS
 import tlslite.dh as dh
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, AlertGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectClose, ExpectServerKeyExchange, \
-        ExpectApplicationData
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectClose, ExpectServerKeyExchange, \
+    ExpectApplicationData
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import RSA_SIG_ALL
-
 
 version = 1
 
@@ -110,9 +109,9 @@ def main():
     except KeyError as e:
         raise ValueError(
             "Unrecognised group name: {0}, known names: {1}"
-            .format(str(e),
-                ", ".join("'{0}'".format(i) for i in
-                          FFDHE_PARAMETERS.keys())))
+                .format(str(e),
+                        ", ".join("'{0}'".format(i) for i in
+                                  FFDHE_PARAMETERS.keys())))
 
     if dh_file:
         with open(dh_file, "r") as f:
@@ -134,7 +133,7 @@ def main():
         SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(extensions={ExtensionType.
-                                                        renegotiation_info:None}))
+                                            renegotiation_info: None}))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
@@ -168,7 +167,7 @@ def main():
         SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(extensions={ExtensionType.
-                                                        renegotiation_info:None}))
+                                            renegotiation_info: None}))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange(valid_params=valid_params))
     node = node.add_child(ExpectServerHelloDone())
@@ -258,7 +257,7 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
@@ -274,6 +273,7 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

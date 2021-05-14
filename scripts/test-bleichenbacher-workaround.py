@@ -10,20 +10,21 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        TCPBufferingEnable, TCPBufferingDisable, TCPBufferingFlush
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+    TCPBufferingEnable, TCPBufferingDisable, TCPBufferingFlush
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectClose, ExpectApplicationData, ExpectNoMessage
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectClose, ExpectApplicationData, ExpectNoMessage
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType
+    ExtensionType
 from tlslite.utils.dns_utils import is_valid_hostname
 from tlslite.extensions import SNIExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 version = 2
+
 
 def help_msg():
     print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
@@ -69,13 +70,13 @@ def main():
     timeout = 1.0
     alert = AlertDescription.bad_record_mac
     level = AlertLevel.fatal
-    srv_extensions = {ExtensionType.renegotiation_info:None}
+    srv_extensions = {ExtensionType.renegotiation_info: None}
     no_sni = False
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "h:p:e:x:X:t:n:a:l:", ["help",
-                                                        "no-safe-renego",
-                                                        "no-sni"])
+                                                            "no-safe-renego",
+                                                            "no-sni"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -113,10 +114,10 @@ def main():
     else:
         run_only = None
 
-    cln_extensions = {ExtensionType.renegotiation_info:None}
+    cln_extensions = {ExtensionType.renegotiation_info: None}
     if is_valid_hostname(host) and not no_sni:
         cln_extensions[ExtensionType.server_name] = \
-                SNIExtension().create(bytearray(host, 'ascii'))
+            SNIExtension().create(bytearray(host, 'ascii'))
 
     conversations = {}
 
@@ -186,7 +187,7 @@ def main():
                                         AlertDescription.handshake_failure)
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={2:1}))
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={2: 1}))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectChangeCipherSpec())
@@ -199,7 +200,8 @@ def main():
         node.next_sibling = ExpectClose()
         node = node.add_child(ExpectClose())
 
-        conversations["static non-zero byte in random padding - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations[
+            "static non-zero byte in random padding - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
 
         # set 2nd byte of padding to 3 (invalid value)
         conversation = Connect(host, port)
@@ -215,7 +217,7 @@ def main():
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(TCPBufferingEnable())
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1:3}))
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1: 3}))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
@@ -240,7 +242,7 @@ def main():
                                         AlertDescription.handshake_failure)
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1:3}))
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1: 3}))
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(ExpectNoMessage(timeout))
@@ -249,7 +251,8 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["set PKCS#1 padding type to 3 - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations[
+            "set PKCS#1 padding type to 3 - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
 
         # set 2nd byte of padding to 1 (signing)
         conversation = Connect(host, port)
@@ -265,7 +268,7 @@ def main():
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(TCPBufferingEnable())
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1:1}))
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1: 1}))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
@@ -290,7 +293,7 @@ def main():
                                         AlertDescription.handshake_failure)
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1:1}))
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1: 1}))
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(ExpectNoMessage(timeout))
@@ -299,7 +302,8 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["set PKCS#1 padding type to 1 - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations[
+            "set PKCS#1 padding type to 1 - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
 
         # test early zero in random data
         conversation = Connect(host, port)
@@ -315,7 +319,7 @@ def main():
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(TCPBufferingEnable())
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={4:0}))
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={4: 0}))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
@@ -340,7 +344,7 @@ def main():
                                         AlertDescription.handshake_failure)
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={4:0}))
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={4: 0}))
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(ExpectNoMessage(timeout))
@@ -349,7 +353,8 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["zero byte in random padding - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations[
+            "zero byte in random padding - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
 
         # check if early padding separator is detected
         conversation = Connect(host, port)
@@ -365,7 +370,7 @@ def main():
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(TCPBufferingEnable())
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-2:0}))
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-2: 0}))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
@@ -375,7 +380,8 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["zero byte in last byte of random padding - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations[
+            "zero byte in last byte of random padding - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
 
         # check if early padding separator is detected
         conversation = Connect(host, port)
@@ -390,7 +396,7 @@ def main():
                                         AlertDescription.handshake_failure)
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-2:0}))
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-2: 0}))
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(ExpectNoMessage(timeout))
@@ -399,7 +405,8 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["zero byte in last byte of random padding - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations["zero byte in last byte of random padding - with wait - {0}".format(
+            CipherSuite.ietfNames[cipher])] = conversation
 
         # check if separator without any random padding is detected
         conversation = Connect(host, port)
@@ -415,7 +422,7 @@ def main():
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(TCPBufferingEnable())
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={2:0}))
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={2: 0}))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
@@ -425,7 +432,8 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["zero byte in first byte of random padding - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations[
+            "zero byte in first byte of random padding - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
 
         # check if separator without any random padding is detected
         conversation = Connect(host, port)
@@ -440,7 +448,7 @@ def main():
                                         AlertDescription.handshake_failure)
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={2:0}))
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={2: 0}))
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(ExpectNoMessage(timeout))
@@ -449,7 +457,8 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["zero byte in first byte of random padding - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations["zero byte in first byte of random padding - with wait - {0}".format(
+            CipherSuite.ietfNames[cipher])] = conversation
 
         # check if invalid first byte of encoded value is correctly detecte
         conversation = Connect(host, port)
@@ -465,7 +474,7 @@ def main():
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(TCPBufferingEnable())
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={0:1}))
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={0: 1}))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
@@ -490,7 +499,7 @@ def main():
                                         AlertDescription.handshake_failure)
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={0:1}))
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={0: 1}))
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(ExpectNoMessage(timeout))
@@ -499,7 +508,8 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["invalid version number in padding - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations[
+            "invalid version number in padding - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
 
         # check if no null separator in padding is detected
         conversation = Connect(host, port)
@@ -515,7 +525,7 @@ def main():
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(TCPBufferingEnable())
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1:1}))
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1: 1}))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
@@ -540,7 +550,7 @@ def main():
                                         AlertDescription.handshake_failure)
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1:1}))
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1: 1}))
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(ExpectNoMessage(timeout))
@@ -549,7 +559,8 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["no null separator in padding - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations[
+            "no null separator in padding - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
 
         # check if no null separator in padding is detected
         # but with PMS set to non-zero
@@ -566,8 +577,8 @@ def main():
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(TCPBufferingEnable())
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1:1},
-                                                         premaster_secret=bytearray([1]*48)))
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1: 1},
+                                                         premaster_secret=bytearray([1] * 48)))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
@@ -593,8 +604,8 @@ def main():
                                         AlertDescription.handshake_failure)
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1:1},
-                                                         premaster_secret=bytearray([1]*48)))
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1: 1},
+                                                         premaster_secret=bytearray([1] * 48)))
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(ExpectNoMessage(timeout))
@@ -603,7 +614,8 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["no null separator in encrypted value - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations["no null separator in encrypted value - with wait - {0}".format(
+            CipherSuite.ietfNames[cipher])] = conversation
 
         # check if too short PMS is detected
         conversation = Connect(host, port)
@@ -653,7 +665,8 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["two byte long PMS (TLS version only) - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations["two byte long PMS (TLS version only) - with wait - {0}".format(
+            CipherSuite.ietfNames[cipher])] = conversation
 
         # check if no encrypted payload is detected
         conversation = Connect(host, port)
@@ -671,7 +684,7 @@ def main():
         node = node.add_child(TCPBufferingEnable())
         # the TLS version is always set, so we mask the real padding separator
         # and set the last byte of PMS to 0
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1:1},
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1: 1},
                                                          premaster_secret=bytearray([1, 1, 0])))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
@@ -699,7 +712,7 @@ def main():
         node = node.add_child(ExpectServerHelloDone())
         # the TLS version is always set, so we mask the real padding separator
         # and set the last byte of PMS to 0
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1:1},
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1: 1},
                                                          premaster_secret=bytearray([1, 1, 0])))
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(ChangeCipherSpecGenerator())
@@ -727,7 +740,7 @@ def main():
         node = node.add_child(TCPBufferingEnable())
         # the TLS version is always set, so we mask the real padding separator
         # and set the last byte of PMS to 0
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1:1},
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1: 1},
                                                          premaster_secret=bytearray([1, 1, 0, 3])))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
@@ -755,7 +768,7 @@ def main():
         node = node.add_child(ExpectServerHelloDone())
         # the TLS version is always set, so we mask the real padding separator
         # and set the last byte of PMS to 0
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1:1},
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={-1: 1},
                                                          premaster_secret=bytearray([1, 1, 0, 3])))
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(ChangeCipherSpecGenerator())
@@ -781,7 +794,7 @@ def main():
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(TCPBufferingEnable())
-        node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1]*47)))
+        node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1] * 47)))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
@@ -791,7 +804,8 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["too short (47-byte) pre master secret - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations[
+            "too short (47-byte) pre master secret - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
 
         # check if too short PMS is detected
         conversation = Connect(host, port)
@@ -806,7 +820,7 @@ def main():
                                         AlertDescription.handshake_failure)
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1]*47)))
+        node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1] * 47)))
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(ExpectNoMessage(timeout))
@@ -815,7 +829,8 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["too short (47-byte) pre master secret - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations["too short (47-byte) pre master secret - with wait - {0}".format(
+            CipherSuite.ietfNames[cipher])] = conversation
 
         # check if too short PMS is detected
         conversation = Connect(host, port)
@@ -831,7 +846,7 @@ def main():
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(TCPBufferingEnable())
-        node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1]*4)))
+        node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1] * 4)))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
@@ -841,7 +856,8 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["very short (4-byte) pre master secret - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations[
+            "very short (4-byte) pre master secret - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
 
         # check if too short PMS is detected
         conversation = Connect(host, port)
@@ -856,7 +872,7 @@ def main():
                                         AlertDescription.handshake_failure)
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1]*4)))
+        node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1] * 4)))
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(ExpectNoMessage(timeout))
@@ -865,8 +881,8 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["very short (4-byte) pre master secret - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
-
+        conversations["very short (4-byte) pre master secret - with wait - {0}".format(
+            CipherSuite.ietfNames[cipher])] = conversation
 
         # check if too long PMS is detected
         conversation = Connect(host, port)
@@ -882,7 +898,7 @@ def main():
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(TCPBufferingEnable())
-        node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1]*49)))
+        node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1] * 49)))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
@@ -907,7 +923,7 @@ def main():
                                         AlertDescription.handshake_failure)
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1]*49)))
+        node = node.add_child(ClientKeyExchangeGenerator(premaster_secret=bytearray([1] * 49)))
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(ExpectNoMessage(timeout))
@@ -916,7 +932,8 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["too long (49-byte) pre master secret - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations["too long (49-byte) pre master secret - with wait - {0}".format(
+            CipherSuite.ietfNames[cipher])] = conversation
 
         # check if wrong TLS version number is rejected
         conversation = Connect(host, port)
@@ -942,7 +959,8 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["wrong TLS version (2, 2) in pre master secret - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations[
+            "wrong TLS version (2, 2) in pre master secret - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
 
         # check if wrong TLS version number is rejected
         conversation = Connect(host, port)
@@ -966,7 +984,8 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["wrong TLS version (2, 2) in pre master secret - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations["wrong TLS version (2, 2) in pre master secret - with wait - {0}".format(
+            CipherSuite.ietfNames[cipher])] = conversation
 
         # check if wrong TLS version number is rejected
         conversation = Connect(host, port)
@@ -992,7 +1011,8 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["wrong TLS version (0, 0) in pre master secret - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations[
+            "wrong TLS version (0, 0) in pre master secret - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
 
         # check if wrong TLS version number is rejected
         conversation = Connect(host, port)
@@ -1016,7 +1036,8 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["wrong TLS version (0, 0) in pre master secret - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+        conversations["wrong TLS version (0, 0) in pre master secret - with wait - {0}".format(
+            CipherSuite.ietfNames[cipher])] = conversation
 
         # check if too short PKCS padding is detected
         conversation = Connect(host, port)
@@ -1035,7 +1056,7 @@ def main():
         # move the start of the padding forward, essentially encrypting two 0 bytes
         # at the beginning of the padding, but since those are transformed into a number
         # their existence is lost and it just like the padding was too small
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1:0, 2:2}))
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1: 0, 2: 2}))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
@@ -1063,7 +1084,7 @@ def main():
         # move the start of the padding forward, essentially encrypting two 0 bytes
         # at the beginning of the padding, but since those are transformed into a number
         # their existence is lost and it just like the padding was too small
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1:0, 2:2}))
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={1: 0, 2: 2}))
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(ExpectNoMessage(timeout))
@@ -1091,7 +1112,7 @@ def main():
         # move the start of the padding backward, essentially encrypting no 0 bytes
         # at the beginning of the padding, but since those are transformed into a number
         # its lack is lost and it just like the padding was too big
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={0:2}))
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={0: 2}))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
@@ -1119,7 +1140,7 @@ def main():
         # move the start of the padding backward, essentially encrypting no 0 bytes
         # at the beginning of the padding, but since those are transformed into a number
         # its lack is lost and it just like the padding was too big
-        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={0:2}))
+        node = node.add_child(ClientKeyExchangeGenerator(padding_subs={0: 2}))
         node = node.add_child(ExpectNoMessage(timeout))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(ExpectNoMessage(timeout))
@@ -1174,12 +1195,12 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
@@ -1195,14 +1216,14 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -1211,6 +1232,7 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

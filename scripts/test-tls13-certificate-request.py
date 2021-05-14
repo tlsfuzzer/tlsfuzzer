@@ -12,29 +12,28 @@ from itertools import chain
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, \
-        CertificateGenerator, CertificateVerifyGenerator, \
-        AlertGenerator
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, \
+    CertificateGenerator, CertificateVerifyGenerator, \
+    AlertGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectClose, ExpectCertificateRequest, \
-        ExpectApplicationData, ExpectEncryptedExtensions, \
-        ExpectCertificateVerify, ExpectNewSessionTicket
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectClose, ExpectCertificateRequest, \
+    ExpectApplicationData, ExpectEncryptedExtensions, \
+    ExpectCertificateVerify, ExpectNewSessionTicket
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import key_share_gen, sig_algs_to_ids, RSA_SIG_ALL, \
-        expected_ext_parser, dict_update_non_present
+    expected_ext_parser, dict_update_non_present
 from tlslite.extensions import SignatureAlgorithmsExtension, \
-        SignatureAlgorithmsCertExtension, ClientKeyShareExtension, \
-        SupportedVersionsExtension, SupportedGroupsExtension, \
-        StatusRequestExtension
+    SignatureAlgorithmsCertExtension, ClientKeyShareExtension, \
+    SupportedVersionsExtension, SupportedGroupsExtension, \
+    StatusRequestExtension
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        HashAlgorithm, SignatureAlgorithm, ExtensionType, SignatureScheme, \
-        GroupName
+    HashAlgorithm, SignatureAlgorithm, ExtensionType, SignatureScheme, \
+    GroupName
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
-
 
 version = 7
 
@@ -192,7 +191,7 @@ def main():
     node = node.add_child(CertificateGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ApplicationDataGenerator(
-    bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
 
     # This message is optional and may show up 0 to many times
     cycle = ExpectNewSessionTicket()
@@ -201,7 +200,7 @@ def main():
 
     node.next_sibling = ExpectApplicationData()
     node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                       AlertDescription.close_notify))
+                                                      AlertDescription.close_notify))
 
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
@@ -245,7 +244,7 @@ def main():
         node = node.add_child(CertificateVerifyGenerator(private_key))
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
         # This message is optional and may show up 0 to many times
         cycle = ExpectNewSessionTicket()
         node = node.add_child(cycle)
@@ -253,7 +252,7 @@ def main():
 
         node.next_sibling = ExpectApplicationData()
         node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                           AlertDescription.close_notify))
+                                                          AlertDescription.close_notify))
 
         node = node.add_child(ExpectAlert())
         node.next_sibling = ExpectClose()
@@ -296,14 +295,14 @@ def main():
     node = node.add_child(CertificateGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ApplicationDataGenerator(
-    bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     # This message is optional and may show up 0 to many times
     cycle = ExpectNewSessionTicket()
     node = node.add_child(cycle)
     node.add_child(cycle)
     node.next_sibling = ExpectApplicationData()
     node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                       AlertDescription.close_notify))
+                                                      AlertDescription.close_notify))
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
 
@@ -338,7 +337,7 @@ def main():
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectEncryptedExtensions())
     ext = {ExtensionType.signature_algorithms:
-           SignatureAlgorithmsExtension().create(sigalgs)}
+               SignatureAlgorithmsExtension().create(sigalgs)}
     ext = dict_update_non_present(ext, ext_spec['CR'])
     node = node.add_child(ExpectCertificateRequest(extensions=ext))
     node = node.add_child(ExpectCertificate())
@@ -347,14 +346,14 @@ def main():
     node = node.add_child(CertificateGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ApplicationDataGenerator(
-    bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     # This message is optional and may show up 0 to many times
     cycle = ExpectNewSessionTicket()
     node = node.add_child(cycle)
     node.add_child(cycle)
     node.next_sibling = ExpectApplicationData()
     node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                       AlertDescription.close_notify))
+                                                      AlertDescription.close_notify))
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
 
@@ -377,7 +376,7 @@ def main():
         if num_limit > len(run_only):
             num_limit = len(run_only)
         regular_tests = [(k, v) for k, v in conversations.items() if
-                          k in run_only]
+                         k in run_only]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
                          (k != 'sanity') and k not in run_exclude]
@@ -407,12 +406,12 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
@@ -432,14 +431,14 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -448,6 +447,7 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

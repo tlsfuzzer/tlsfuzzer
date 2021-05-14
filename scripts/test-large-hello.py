@@ -11,19 +11,20 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        split_message, FlushMessageList
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+    split_message, FlushMessageList
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectApplicationData, ExpectClose
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType
+    ExtensionType
 from tlslite.extensions import PaddingExtension, TLSExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 version = 2
+
 
 def help_msg():
     print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
@@ -114,12 +115,12 @@ def main():
 
     # send client hello with large padding extension
     for i in chain(range(10), range(0x3f00, 0x4010), range(0x1ff0, 0x2010),
-                   range(0x8ff0, 0x9010), range(0xff00, 0xffff-4)):
+                   range(0x8ff0, 0x9010), range(0xff00, 0xffff - 4)):
         conversation = Connect(host, port)
         node = conversation
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        ext = {ExtensionType.client_hello_padding:PaddingExtension().create(i)}
+        ext = {ExtensionType.client_hello_padding: PaddingExtension().create(i)}
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
@@ -140,12 +141,12 @@ def main():
 
     # send large extension from unallocated range
     for i in chain(range(10), range(0x3f00, 0x4010), range(0x1ff0, 0x2010),
-                   range(0x8ff0, 0x9010), range(0xff00, 0xffff-4)):
+                   range(0x8ff0, 0x9010), range(0xff00, 0xffff - 4)):
         conversation = Connect(host, port)
         node = conversation
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        ext = {80:TLSExtension(extType=80).create(bytearray(i))}
+        ext = {80: TLSExtension(extType=80).create(bytearray(i))}
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
@@ -168,12 +169,12 @@ def main():
     # changing size
     for i in chain(range(10), range(0x2f00, 0x3010),
                    range(0x3f00, 0x4010), range(0x1ff0, 0x2010),
-                   range(0x8ff0, 0x9010), range(0xef00, 0xefff-8)):
+                   range(0x8ff0, 0x9010), range(0xef00, 0xefff - 8)):
         conversation = Connect(host, port)
         node = conversation
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        ext = {80:TLSExtension(extType=80).create(bytearray(i)),
+        ext = {80: TLSExtension(extType=80).create(bytearray(i)),
                ExtensionType.client_hello_padding:
                    PaddingExtension().create(0x1000)}
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -195,9 +196,9 @@ def main():
         conversations["two ext, #80 {0} bytes".format(i)] = conversation
 
     # send client hello messages with multiple extensions
-    for i in chain(range(10//4), range(0x3f00//4, 0x4010//4),
-                   range(0x1ff0//4, 0x2010//4),
-                   range(0x8ff0//4, 0x9010//4), range(0xff00//4, 0x10000//4)):
+    for i in chain(range(10 // 4), range(0x3f00 // 4, 0x4010 // 4),
+                   range(0x1ff0 // 4, 0x2010 // 4),
+                   range(0x8ff0 // 4, 0x9010 // 4), range(0xff00 // 4, 0x10000 // 4)):
         conversation = Connect(host, port)
         node = conversation
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
@@ -208,11 +209,11 @@ def main():
         # increase the count if some extension points will be skipped because
         # they are meaningful
         for num in high_num_ext:
-            if i+min_ext > num:
-                i+=1
+            if i + min_ext > num:
+                i += 1
         ext = dict((j, TLSExtension(extType=j))
-                    for j in range(min_ext, min_ext+i)
-                    if j not in high_num_ext)
+                   for j in range(min_ext, min_ext + i)
+                   if j not in high_num_ext)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
@@ -233,9 +234,9 @@ def main():
 
     # send client hello with large number of ciphersuites but overall
     # even length
-    for i in chain(range(1, 10//2), range(0x3f00//2, 0x4010//2),
-                   range(0x1ff0//2, 0x2010//2),
-                   range(0x8ff0//2, 0x9010//2), range(0xff00//2, 0xffff//2-2)):
+    for i in chain(range(1, 10 // 2), range(0x3f00 // 2, 0x4010 // 2),
+                   range(0x1ff0 // 2, 0x2010 // 2),
+                   range(0x8ff0 // 2, 0x9010 // 2), range(0xff00 // 2, 0xffff // 2 - 2)):
         conversation = Connect(host, port)
         node = conversation
         if i < 0x5600 - 0x0100:
@@ -266,9 +267,9 @@ def main():
 
     # send client hello with large number of ciphersuites but overall
     # odd length
-    for i in chain(range(1, 10//2), range(0x3f00//2, 0x4010//2),
-                   range(0x1ff0//2, 0x2010//2),
-                   range(0x8ff0//2, 0x9010//2), range(0xff00//2, 0xffff//2-2)):
+    for i in chain(range(1, 10 // 2), range(0x3f00 // 2, 0x4010 // 2),
+                   range(0x1ff0 // 2, 0x2010 // 2),
+                   range(0x8ff0 // 2, 0x9010 // 2), range(0xff00 // 2, 0xffff // 2 - 2)):
         conversation = Connect(host, port)
         node = conversation
         if i < 0x5600 - 0x0100:
@@ -302,13 +303,13 @@ def main():
 
     # hello split over at least two records, first very small (2B)
     for i in chain(range(10), range(0x3f00, 0x4010), range(0x1ff0, 0x2010),
-                   range(0x8ff0, 0x9010), range(0xff00, 0xffff-4)):
+                   range(0x8ff0, 0x9010), range(0xff00, 0xffff - 4)):
         fragment_list = []
         conversation = Connect(host, port)
         node = conversation
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        ext = {ExtensionType.client_hello_padding:PaddingExtension().create(i)}
+        ext = {ExtensionType.client_hello_padding: PaddingExtension().create(i)}
         hello_gen = ClientHelloGenerator(ciphers, extensions=ext)
         node = node.add_child(split_message(hello_gen, fragment_list, 2))
         node = node.add_child(FlushMessageList(fragment_list))
@@ -368,7 +369,7 @@ def main():
     ciphers += [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
                 CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     # the 4 bytes subtracted from 0xffff are for ext ID and ext len
-    ext = {80:TLSExtension(extType=80).create(bytearray(0xffff-4))}
+    ext = {80: TLSExtension(extType=80).create(bytearray(0xffff - 4))}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
@@ -431,12 +432,12 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
@@ -452,14 +453,14 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -468,6 +469,7 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

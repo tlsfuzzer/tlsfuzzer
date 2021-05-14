@@ -12,29 +12,28 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, \
-        CertificateGenerator, CertificateVerifyGenerator, \
-        AlertGenerator
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, \
+    CertificateGenerator, CertificateVerifyGenerator, \
+    AlertGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectClose, ExpectCertificateRequest, \
-        ExpectApplicationData, ExpectEncryptedExtensions, \
-        ExpectCertificateVerify, ExpectNewSessionTicket
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectClose, ExpectCertificateRequest, \
+    ExpectApplicationData, ExpectEncryptedExtensions, \
+    ExpectCertificateVerify, ExpectNewSessionTicket
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import key_share_ext_gen, sig_algs_to_ids, RSA_SIG_ALL
 from tlslite.extensions import SignatureAlgorithmsExtension, \
-        SignatureAlgorithmsCertExtension, ClientKeyShareExtension, \
-        SupportedVersionsExtension, SupportedGroupsExtension
+    SignatureAlgorithmsCertExtension, ClientKeyShareExtension, \
+    SupportedVersionsExtension, SupportedGroupsExtension
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        HashAlgorithm, SignatureAlgorithm, ExtensionType, SignatureScheme, \
-        GroupName
+    HashAlgorithm, SignatureAlgorithm, ExtensionType, SignatureScheme, \
+    GroupName
 from tlslite.utils import tlshashlib
 from tlslite.utils.cryptomath import numBytes
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
-
 
 version = 6
 
@@ -111,7 +110,7 @@ def sigalg_select(alg_type, hash_pref, supported=None, cert_type=None):
     raise ValueError(
         "Couldn't find a supported Signature Algorithm that  matches the" +
         " provided parameters: {0}, {1}, {3}".format(alg_type, hash_pref,
-                                                    cert_type))
+                                                     cert_type))
 
 
 def main():
@@ -231,7 +230,7 @@ def main():
     node = node.add_child(CertificateVerifyGenerator(private_key))
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ApplicationDataGenerator(
-    bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     # This message is optional and may show up 0 to many times
     cycle = ExpectNewSessionTicket()
     node = node.add_child(cycle)
@@ -239,7 +238,7 @@ def main():
 
     node.next_sibling = ExpectApplicationData()
     node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                       AlertDescription.close_notify))
+                                                      AlertDescription.close_notify))
 
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
@@ -272,14 +271,14 @@ def main():
     node = node.add_child(CertificateGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ApplicationDataGenerator(
-    bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     # This message is optional and may show up 0 to many times
     cycle = ExpectNewSessionTicket()
     node = node.add_child(cycle)
     node.add_child(cycle)
     node.next_sibling = ExpectApplicationData()
     node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                       AlertDescription.close_notify))
+                                                      AlertDescription.close_notify))
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
 
@@ -290,14 +289,14 @@ def main():
         # advertisement and forbidden algorithms
         expectPass = True
         if certType == "rsa" and sigalg in (
-            SignatureScheme.rsa_pss_pss_sha256,
-            SignatureScheme.rsa_pss_pss_sha384,
-            SignatureScheme.rsa_pss_pss_sha512):
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.rsa_pss_pss_sha384,
+                SignatureScheme.rsa_pss_pss_sha512):
             expectPass = False
         elif certType == "rsa-pss" and sigalg in (
-            SignatureScheme.rsa_pss_rsae_sha256,
-            SignatureScheme.rsa_pss_rsae_sha384,
-            SignatureScheme.rsa_pss_rsae_sha512):
+                SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_rsae_sha384,
+                SignatureScheme.rsa_pss_rsae_sha512):
             expectPass = False
         # also verify that pkcs1 signatures are unconditionally refused
         if sigalg in ((HashAlgorithm.md5, SignatureAlgorithm.rsa),
@@ -337,14 +336,14 @@ def main():
         node = node.add_child(CertificateGenerator(X509CertChain([cert])))
         # force sigalg
         node = node.add_child(CertificateVerifyGenerator(private_key, msg_alg=
-            sigalg))
+        sigalg))
         node = node.add_child(FinishedGenerator())
 
         result = "works"
         # only signatures of matching certificate type should work
         if expectPass:
             node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+                bytearray(b"GET / HTTP/1.0\r\n\r\n")))
             # This message is optional and may show up 0 to many times
             cycle = ExpectNewSessionTicket()
             node = node.add_child(cycle)
@@ -365,7 +364,7 @@ def main():
             result = "is refused"
 
         conversations["check {0} signature {1}".format(
-                      SignatureScheme.toStr(sigalg), result)] = conversation
+            SignatureScheme.toStr(sigalg), result)] = conversation
 
     # verify that rsa-pss signatures with empty, too short or too long
     # salt fail
@@ -406,7 +405,7 @@ def main():
         node.add_child(ExpectClose())
 
         conversations["check signature with salt length {0}".format(
-                      saltlen)] = conversation
+            saltlen)] = conversation
 
     # verify that a rsa-pkcs1 signature in a rsa-pss ID envelope fails
     sigalg = sigalg_select("rsa_pkcs1", hashalgs)
@@ -559,7 +558,7 @@ def main():
             node = node.add_child(ExpectFinished())
             node = node.add_child(CertificateGenerator(X509CertChain([cert])))
             node = node.add_child(CertificateVerifyGenerator(
-                private_key, padding_xors={pos:xor}))
+                private_key, padding_xors={pos: xor}))
             node = node.add_child(FinishedGenerator())
             node = node.add_child(ExpectAlert(
                 AlertLevel.fatal, AlertDescription.decrypt_error))
@@ -568,8 +567,7 @@ def main():
             scheme = SignatureScheme.toRepr(sigalg)
             conversations_long["check that fuzzed signatures are rejected." +
                                " Malformed {0} - xor {1} at {2}".format(
-                               certType, hex(xor), pos)] = conversation
-
+                                   certType, hex(xor), pos)] = conversation
 
     # run the conversation
     good = 0
@@ -587,14 +585,14 @@ def main():
     sanity_tests = [('sanity', conversations['sanity'])]
     if run_only:
         short_tests = [(k, v) for k, v in conversations.items() if
-                        (k != 'sanity') and k in run_only]
+                       (k != 'sanity') and k in run_only]
         long_tests = [(k, v) for k, v in conversations_long.items() if
-                        k in run_only]
+                      k in run_only]
     else:
         short_tests = [(k, v) for k, v in conversations.items() if
-                         (k != 'sanity') and k not in run_exclude]
+                       (k != 'sanity') and k not in run_exclude]
         long_tests = [(k, v) for k, v in conversations_long.items() if
-                        k not in run_exclude]
+                      k not in run_exclude]
     sampled_tests = sample(long_tests, min(num_limit, len(long_tests)))
     ordered_tests = chain(sanity_tests, short_tests, sampled_tests, sanity_tests)
 
@@ -621,12 +619,12 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
@@ -647,14 +645,14 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + len(short_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + len(short_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -663,6 +661,7 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

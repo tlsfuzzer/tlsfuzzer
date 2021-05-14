@@ -10,27 +10,26 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        KeyUpdateGenerator, split_message, \
-        FlushMessageList, truncate_handshake, \
-        pad_handshake
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+    KeyUpdateGenerator, split_message, \
+    FlushMessageList, truncate_handshake, \
+    pad_handshake
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose, \
-        ExpectEncryptedExtensions, ExpectCertificateVerify, \
-        ExpectNewSessionTicket, ExpectKeyUpdate
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectApplicationData, ExpectClose, \
+    ExpectEncryptedExtensions, ExpectCertificateVerify, \
+    ExpectNewSessionTicket, ExpectKeyUpdate
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme, \
-        KeyUpdateMessageType, ContentType
+    TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme, \
+    KeyUpdateMessageType, ContentType
 from tlslite.keyexchange import ECDHKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
-        SupportedVersionsExtension, SupportedGroupsExtension, \
-        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
+    SupportedVersionsExtension, SupportedGroupsExtension, \
+    SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL, key_share_ext_gen
-
 
 version = 3
 
@@ -110,15 +109,15 @@ def main():
     for group in groups:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
@@ -138,7 +137,7 @@ def main():
 
     node.next_sibling = ExpectApplicationData()
     node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                       AlertDescription.close_notify))
+                                                      AlertDescription.close_notify))
 
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
@@ -154,15 +153,15 @@ def main():
     for group in groups:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
@@ -186,7 +185,7 @@ def main():
         message_type=KeyUpdateMessageType.update_not_requested)
     node = node.next_sibling.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
-                          AlertDescription.close_notify))
+                                         AlertDescription.close_notify))
 
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
@@ -202,15 +201,15 @@ def main():
     for group in groups:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
@@ -232,7 +231,7 @@ def main():
 
     node.next_sibling = ExpectApplicationData()
     node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                      AlertDescription.close_notify))
+                                                      AlertDescription.close_notify))
 
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
@@ -248,15 +247,15 @@ def main():
     for group in groups:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
@@ -291,15 +290,15 @@ def main():
     for group in groups:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
@@ -328,19 +327,19 @@ def main():
         conversation = Connect(host, port)
         node = conversation
         ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {}
         groups = [GroupName.secp256r1]
         ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
             .create([TLS_1_3_DRAFT, (3, 3)])
-        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
             .create(groups)
         sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                     SignatureScheme.rsa_pss_pss_sha256]
-        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
             .create(sig_algs)
-        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
             .create(RSA_SIG_ALL)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
@@ -374,15 +373,15 @@ def main():
     for group in groups:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
@@ -408,7 +407,7 @@ def main():
         bytearray(b" / HTTP/1.0\r\n\r\n")))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
-                          AlertDescription.close_notify))
+                                         AlertDescription.close_notify))
 
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
@@ -424,15 +423,15 @@ def main():
     for group in groups:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
@@ -454,7 +453,6 @@ def main():
     node = node.add_child(cycle)
     node.add_child(cycle)
 
-
     node.next_sibling = ExpectKeyUpdate(
         message_type=KeyUpdateMessageType.update_not_requested)
     node = node.next_sibling
@@ -467,7 +465,7 @@ def main():
 
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
-                          AlertDescription.close_notify))
+                                         AlertDescription.close_notify))
 
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
@@ -483,15 +481,15 @@ def main():
     for group in groups:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
@@ -518,7 +516,7 @@ def main():
         message_type=KeyUpdateMessageType.update_not_requested)
     node = node.next_sibling.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
-                          AlertDescription.close_notify))
+                                         AlertDescription.close_notify))
 
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
@@ -535,15 +533,15 @@ def main():
         for group in groups:
             key_shares.append(key_share_gen(group))
         ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
             .create([TLS_1_3_DRAFT, (3, 3)])
-        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
             .create(groups)
         sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                     SignatureScheme.rsa_pss_pss_sha256]
-        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
             .create(sig_algs)
-        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
             .create(RSA_SIG_ALL)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
@@ -572,7 +570,7 @@ def main():
                                         AlertDescription.unexpected_message)
         node.next_sibling.add_child(ExpectClose())
         conversations["{0}/{1} fragmented keyupdate msg, appdata between"
-                      .format(fragment_len, 5-fragment_len)] = conversation
+            .format(fragment_len, 5 - fragment_len)] = conversation
 
     # run the conversation
     good = 0
@@ -618,12 +616,12 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
@@ -650,7 +648,7 @@ def main():
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -659,6 +657,7 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

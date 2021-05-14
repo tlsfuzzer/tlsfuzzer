@@ -11,26 +11,25 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        CertificateGenerator, CertificateVerifyGenerator, \
-        TCPBufferingEnable, TCPBufferingDisable, TCPBufferingFlush
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+    CertificateGenerator, CertificateVerifyGenerator, \
+    TCPBufferingEnable, TCPBufferingDisable, TCPBufferingFlush
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose, \
-        ExpectServerKeyExchange, ExpectCertificateRequest
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectApplicationData, ExpectClose, \
+    ExpectServerKeyExchange, ExpectCertificateRequest
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import sig_algs_to_ids, RSA_SIG_ALL
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType, HashAlgorithm, SignatureAlgorithm, SignatureScheme
+    ExtensionType, HashAlgorithm, SignatureAlgorithm, SignatureScheme
 from tlslite.extensions import SignatureAlgorithmsExtension, TLSExtension, \
-        SignatureAlgorithmsCertExtension
+    SignatureAlgorithmsCertExtension
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 from tlslite.utils.cryptomath import numBytes
-
 
 version = 6
 
@@ -162,9 +161,9 @@ def main():
             (HashAlgorithm.sha224, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -210,9 +209,9 @@ def main():
             SignatureScheme.rsa_pss_pss_sha512
             ]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -251,9 +250,9 @@ def main():
             SignatureScheme.rsa_pss_pss_sha512
             ]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -307,9 +306,9 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha512
                 ]
         ext = {ExtensionType.signature_algorithms:
-                SignatureAlgorithmsExtension().create(sigs),
+                   SignatureAlgorithmsExtension().create(sigs),
                ExtensionType.signature_algorithms_cert:
-                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+                   SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -337,7 +336,7 @@ def main():
                                               AlertDescription.decrypt_error))
         node = node.add_child(ExpectClose())
         conversations["{0} in CertificateVerify with {1} key"
-                      .format(SignatureScheme.toRepr(scheme), cert.certAlg)] = conversation
+            .format(SignatureScheme.toRepr(scheme), cert.certAlg)] = conversation
 
     # check if CertificateVerify can be signed with any algorithm
     for scheme in schemes:
@@ -351,9 +350,9 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha512
                 ]
         ext = {ExtensionType.signature_algorithms:
-                SignatureAlgorithmsExtension().create(sigs),
+                   SignatureAlgorithmsExtension().create(sigs),
                ExtensionType.signature_algorithms_cert:
-                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+                   SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -381,7 +380,7 @@ def main():
         node.next_sibling = ExpectClose()
         node = node.add_child(ExpectClose())
         conversations["{0} in CertificateVerify with {1} key"
-                      .format(SignatureScheme.toRepr(scheme), cert.certAlg)] = conversation
+            .format(SignatureScheme.toRepr(scheme), cert.certAlg)] = conversation
 
     # check if CertificateVerify with wrong salt size is rejected
     for scheme in schemes:
@@ -395,9 +394,9 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha512
                 ]
         ext = {ExtensionType.signature_algorithms:
-                SignatureAlgorithmsExtension().create(sigs),
+                   SignatureAlgorithmsExtension().create(sigs),
                ExtensionType.signature_algorithms_cert:
-                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+                   SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -422,7 +421,7 @@ def main():
                                           AlertDescription.decrypt_error))
         node = node.add_child(ExpectClose())
         conversations["{0} in CertificateVerify with incorrect salt len"
-                      .format(SignatureScheme.toRepr(scheme))] = conversation
+            .format(SignatureScheme.toRepr(scheme))] = conversation
 
     # check if CertificateVerify with wrong salt size is rejected
     for pos in range(numBytes(private_key.n)):
@@ -437,9 +436,9 @@ def main():
                     SignatureScheme.rsa_pss_pss_sha512
                     ]
             ext = {ExtensionType.signature_algorithms:
-                    SignatureAlgorithmsExtension().create(sigs),
+                       SignatureAlgorithmsExtension().create(sigs),
                    ExtensionType.signature_algorithms_cert:
-                    SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+                       SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
             ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                        CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -459,7 +458,7 @@ def main():
                 scheme = SignatureScheme.rsa_pss_pss_sha256
             node = node.add_child(CertificateVerifyGenerator(private_key,
                                                              msg_alg=scheme,
-                                                             padding_xors={pos:xor}))
+                                                             padding_xors={pos: xor}))
             node = node.add_child(ChangeCipherSpecGenerator())
             node = node.add_child(FinishedGenerator())
             node = node.add_child(TCPBufferingDisable())
@@ -468,7 +467,7 @@ def main():
                                               AlertDescription.decrypt_error))
             node = node.add_child(ExpectClose())
             conversations_long["malformed {0} in CertificateVerify - xor {1} at {2}"
-                               .format(cert.certAlg, hex(xor), pos)] = conversation
+                .format(cert.certAlg, hex(xor), pos)] = conversation
 
     if cert.certAlg == "rsa-pss":
         conversation = Connect(host, port)
@@ -481,9 +480,9 @@ def main():
                 SignatureScheme.rsa_pss_pss_sha512
                 ]
         ext = {ExtensionType.signature_algorithms:
-                SignatureAlgorithmsExtension().create(sigs),
+                   SignatureAlgorithmsExtension().create(sigs),
                ExtensionType.signature_algorithms_cert:
-                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+                   SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -524,9 +523,9 @@ def main():
             SignatureScheme.rsa_pss_pss_sha512
             ]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -563,7 +562,7 @@ def main():
                                           AlertDescription.decrypt_error))
     node = node.add_child(ExpectClose())
     conversations["{0} signature in CertificateVerify with rsa_pkcs1_sha256 id"
-                  .format(SignatureScheme.toRepr(sig_alg))] = conversation
+        .format(SignatureScheme.toRepr(sig_alg))] = conversation
 
     conversation = Connect(host, port)
     node = conversation
@@ -575,9 +574,9 @@ def main():
             SignatureScheme.rsa_pss_pss_sha512
             ]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -607,7 +606,7 @@ def main():
                                       AlertDescription.decrypt_error))
     node = node.add_child(ExpectClose())
     conversations["short sig with {0} id".format(
-                  SignatureScheme.toRepr(scheme))] = conversation
+        SignatureScheme.toRepr(scheme))] = conversation
 
     # run the conversation
     good = 0
@@ -629,9 +628,9 @@ def main():
         short_tests = [(k, v) for k, v in conversations.items() if (k != 'sanity') and k in run_only]
     else:
         long_tests = [(k, v) for k, v in conversations_long.items() if
-                        k not in run_exclude]
+                      k not in run_exclude]
         short_tests = [(k, v) for k, v in conversations.items() if
-                        (k != 'sanity') and k not in run_exclude]
+                       (k != 'sanity') and k not in run_exclude]
     sampled_tests = sample(long_tests, min(num_limit, len(long_tests)))
     ordered_tests = chain(sanity_tests, short_tests, sampled_tests, sanity_tests)
 
@@ -656,12 +655,12 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
@@ -684,14 +683,14 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + len(short_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + len(short_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -700,6 +699,7 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

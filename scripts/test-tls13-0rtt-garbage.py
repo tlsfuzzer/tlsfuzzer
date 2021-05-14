@@ -10,32 +10,31 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        SetRecordVersion, TCPBufferingEnable, TCPBufferingDisable, \
-        TCPBufferingFlush, ch_cookie_handler, split_message, \
-        PlaintextMessageGenerator
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+    SetRecordVersion, TCPBufferingEnable, TCPBufferingDisable, \
+    TCPBufferingFlush, ch_cookie_handler, split_message, \
+    PlaintextMessageGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose, \
-        ExpectEncryptedExtensions, ExpectCertificateVerify, \
-        ExpectNewSessionTicket, ExpectHelloRetryRequest, \
-        ExpectServerKeyExchange
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectApplicationData, ExpectClose, \
+    ExpectEncryptedExtensions, ExpectCertificateVerify, \
+    ExpectNewSessionTicket, ExpectHelloRetryRequest, \
+    ExpectServerKeyExchange
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme, \
-        PskKeyExchangeMode, ContentType
+    TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme, \
+    PskKeyExchangeMode, ContentType
 from tlslite.utils.cryptomath import getRandomNumber, getRandomBytes
 from tlslite.keyexchange import ECDHKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
-        SupportedVersionsExtension, SupportedGroupsExtension, \
-        SignatureAlgorithmsExtension, PskKeyExchangeModesExtension, \
-        PreSharedKeyExtension, PskIdentity, TLSExtension, \
-        SignatureAlgorithmsCertExtension
+    SupportedVersionsExtension, SupportedGroupsExtension, \
+    SignatureAlgorithmsExtension, PskKeyExchangeModesExtension, \
+    PreSharedKeyExtension, PskIdentity, TLSExtension, \
+    SignatureAlgorithmsCertExtension
 from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL
 from tlsfuzzer.utils.ordered_dict import OrderedDict
-
 
 version = 4
 
@@ -71,13 +70,13 @@ def main():
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
-    num_bytes = 2**14
+    num_bytes = 2 ** 14
     cookie = False
     dhe = False
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "h:p:e:x:X:n:d", ["help", "num-bytes=",
-                                                  "cookie"])
+                                                       "cookie"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -124,15 +123,15 @@ def main():
     for group in groups:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
@@ -152,7 +151,7 @@ def main():
 
     node.next_sibling = ExpectApplicationData()
     node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                       AlertDescription.close_notify))
+                                                      AlertDescription.close_notify))
 
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
@@ -169,17 +168,17 @@ def main():
     for group in groups:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
-    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension() \
         .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
     iden = PskIdentity().create(getRandomBytes(320), 0)
     bind = getRandomBytes(32)
@@ -203,7 +202,7 @@ def main():
 
     node.next_sibling = ExpectApplicationData()
     node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                       AlertDescription.close_notify))
+                                                      AlertDescription.close_notify))
 
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
@@ -216,24 +215,24 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = OrderedDict()
     groups = [0x1300, GroupName.secp256r1]
-    key_shares = [KeyShareEntry().create(0x1300, bytearray(b'\xab'*32))]
+    key_shares = [KeyShareEntry().create(0x1300, bytearray(b'\xab' * 32))]
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
-    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension() \
         .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
     iden = PskIdentity().create(getRandomBytes(320),
-                                getRandomNumber(2**30, 2**32))
+                                getRandomNumber(2 ** 30, 2 ** 32))
     bind = getRandomBytes(32)
     ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
         [iden], [bind])
@@ -257,17 +256,17 @@ def main():
     for group in [GroupName.secp256r1]:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     if cookie:
         ext[ExtensionType.cookie] = ch_cookie_handler
-    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension() \
         .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
     ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
         [iden], [getRandomBytes(32)])
@@ -291,7 +290,7 @@ def main():
     node.next_sibling = ExpectAlert(AlertLevel.fatal,
                                     AlertDescription.bad_record_mac)
     node.next_sibling.add_child(ExpectClose())
-    conversations["handshake with 0-RTT, HRR and early data after 2nd Client Hello"]\
+    conversations["handshake with 0-RTT, HRR and early data after 2nd Client Hello"] \
         = conversation
 
     # fake 0-RTT resumption with HRR
@@ -301,24 +300,24 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = OrderedDict()
     groups = [0x1300, GroupName.secp256r1]
-    key_shares = [KeyShareEntry().create(0x1300, bytearray(b'\xab'*32))]
+    key_shares = [KeyShareEntry().create(0x1300, bytearray(b'\xab' * 32))]
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
-    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension() \
         .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
     iden = PskIdentity().create(getRandomBytes(320),
-                                getRandomNumber(2**30, 2**32))
+                                getRandomNumber(2 ** 30, 2 ** 32))
     bind = getRandomBytes(32)
     ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
         [iden], [bind])
@@ -342,17 +341,17 @@ def main():
     for group in [GroupName.secp256r1]:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     if cookie:
         ext[ExtensionType.cookie] = ch_cookie_handler
-    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension() \
         .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
     ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
         [iden], [getRandomBytes(32)])
@@ -375,7 +374,7 @@ def main():
 
     node.next_sibling = ExpectApplicationData()
     node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                       AlertDescription.close_notify))
+                                                      AlertDescription.close_notify))
 
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
@@ -392,22 +391,22 @@ def main():
     for group in groups:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
-    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension() \
         .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
     iden = PskIdentity().create(getRandomBytes(320),
-                                getRandomNumber(2**30, 2**32))
+                                getRandomNumber(2 ** 30, 2 ** 32))
     bind = getRandomBytes(32)
     ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
         [iden], [bind])
@@ -437,11 +436,11 @@ def main():
 
     node.next_sibling = ExpectApplicationData()
     node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                       AlertDescription.close_notify))
+                                                      AlertDescription.close_notify))
 
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
-    conversations["handshake with invalid 0-RTT with fragmented early data"]\
+    conversations["handshake with invalid 0-RTT with fragmented early data"] \
         = conversation
 
     # fake 0-RTT and early data spliced into the Finished message
@@ -455,22 +454,22 @@ def main():
     for group in groups:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
-    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension() \
         .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
     iden = PskIdentity().create(getRandomBytes(320),
-                                getRandomNumber(2**30, 2**32))
+                                getRandomNumber(2 ** 30, 2 ** 32))
     bind = getRandomBytes(32)
     ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
         [iden], [bind])
@@ -504,7 +503,7 @@ def main():
                                     AlertDescription.bad_record_mac)
 
     node.next_sibling.add_child(ExpectClose())
-    conversations["undecryptable record later in handshake together with early_data"]\
+    conversations["undecryptable record later in handshake together with early_data"] \
         = conversation
 
     # fake 0-RTT resumption and CCS between fake early data
@@ -518,22 +517,22 @@ def main():
     for group in groups:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
-    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension() \
         .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
     iden = PskIdentity().create(getRandomBytes(320),
-                                getRandomNumber(2**30, 2**32))
+                                getRandomNumber(2 ** 30, 2 ** 32))
     bind = getRandomBytes(32)
     ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
         [iden], [bind])
@@ -541,10 +540,10 @@ def main():
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(SetRecordVersion((3, 3)))
     node = node.add_child(
-        ApplicationDataGenerator(getRandomBytes(num_bytes//2)))
+        ApplicationDataGenerator(getRandomBytes(num_bytes // 2)))
     node = node.add_child(ChangeCipherSpecGenerator(fake=True))
     node = node.add_child(
-        ApplicationDataGenerator(getRandomBytes(num_bytes//2)))
+        ApplicationDataGenerator(getRandomBytes(num_bytes // 2)))
     node = node.add_child(TCPBufferingDisable())
     node = node.add_child(TCPBufferingFlush())
     node = node.add_child(ExpectServerHello())
@@ -564,11 +563,11 @@ def main():
 
     node.next_sibling = ExpectApplicationData()
     node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                       AlertDescription.close_notify))
+                                                      AlertDescription.close_notify))
 
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
-    conversations["handshake with invalid 0-RTT and CCS between early data records"]\
+    conversations["handshake with invalid 0-RTT and CCS between early data records"] \
         = conversation
 
     # fake 0-RTT resumption and CCS
@@ -582,22 +581,22 @@ def main():
     for group in groups:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
-    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension() \
         .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
     iden = PskIdentity().create(getRandomBytes(320),
-                                getRandomNumber(2**30, 2**32))
+                                getRandomNumber(2 ** 30, 2 ** 32))
     bind = getRandomBytes(32)
     ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
         [iden], [bind])
@@ -625,7 +624,7 @@ def main():
 
     node.next_sibling = ExpectApplicationData()
     node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                       AlertDescription.close_notify))
+                                                      AlertDescription.close_notify))
 
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
@@ -650,22 +649,22 @@ def main():
     for group in groups:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([(3, 5), (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
-    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension() \
         .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
     iden = PskIdentity().create(getRandomBytes(320),
-                                getRandomNumber(2**30, 2**32))
+                                getRandomNumber(2 ** 30, 2 ** 32))
     bind = getRandomBytes(32)
     ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
         [iden], [bind])
@@ -700,22 +699,22 @@ def main():
     for group in groups:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
-    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension() \
         .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
     iden = PskIdentity().create(getRandomBytes(320),
-                                getRandomNumber(2**30, 2**32))
+                                getRandomNumber(2 ** 30, 2 ** 32))
     bind = getRandomBytes(32)
     ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
         [iden], [bind])
@@ -742,12 +741,11 @@ def main():
 
     node.next_sibling = ExpectApplicationData()
     node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                       AlertDescription.close_notify))
+                                                      AlertDescription.close_notify))
 
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
     conversations["handshake with invalid 0-RTT"] = conversation
-
 
     # run the conversation
     good = 0
@@ -766,7 +764,7 @@ def main():
         if num_limit > len(run_only):
             num_limit = len(run_only)
         regular_tests = [(k, v) for k, v in conversations.items() if
-                          k in run_only]
+                         k in run_only]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
                          (k != 'sanity') and k not in run_exclude]
@@ -796,12 +794,12 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
@@ -821,14 +819,14 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -837,6 +835,7 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

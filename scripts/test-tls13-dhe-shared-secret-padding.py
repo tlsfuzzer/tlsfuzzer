@@ -10,25 +10,23 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        CopyVariables
+    FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+    CopyVariables
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose, \
-        ExpectEncryptedExtensions, ExpectCertificateVerify, \
-        ExpectNewSessionTicket
+    ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectApplicationData, ExpectClose, \
+    ExpectEncryptedExtensions, ExpectCertificateVerify, \
+    ExpectNewSessionTicket
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import RSA_SIG_ALL, key_share_ext_gen
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme
+    TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme
 from tlslite.extensions import \
-        SupportedVersionsExtension, SupportedGroupsExtension, \
-        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
-
+    SupportedVersionsExtension, SupportedGroupsExtension, \
+    SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 
 """Script to verify that the DH keys are computed correctly."""
-
 
 version = 5
 
@@ -100,9 +98,9 @@ def main():
     collected_key_shares = []
     variables_check = \
         {'DH shared secret':
-         collected_shared_secrets,
+             collected_shared_secrets,
          'ServerHello.extensions.key_share.key_exchange':
-         collected_key_shares}
+             collected_key_shares}
 
     conversations = {}
 
@@ -113,15 +111,15 @@ def main():
     ext = {}
     groups = [GroupName.secp256r1]
     ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
@@ -158,15 +156,15 @@ def main():
         ext = {}
         groups = [group]
         ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
             .create([TLS_1_3_DRAFT, (3, 3)])
-        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
             .create(groups)
         sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                     SignatureScheme.rsa_pss_pss_sha256]
-        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
             .create(sig_algs)
-        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
             .create(RSA_SIG_ALL)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
@@ -212,7 +210,7 @@ def main():
         if num_limit > len(run_only):
             num_limit = len(run_only)
         regular_tests = [(k, v) for k, v in conversations.items() if
-                          k in run_only]
+                         k in run_only]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
                          (k != 'sanity') and k not in run_exclude]
@@ -252,12 +250,12 @@ def main():
                     xpassed.append(c_name)
                     print("XPASS-expected failure but test passed\n")
                 else:
-                    if expected_failures[c_name] is not None and  \
-                        expected_failures[c_name] not in str(exception):
-                            bad += 1
-                            failed.append(c_name)
-                            print("Expected error message: {0}\n"
-                                .format(expected_failures[c_name]))
+                    if expected_failures[c_name] is not None and \
+                            expected_failures[c_name] not in str(exception):
+                        bad += 1
+                        failed.append(c_name)
+                        print("Expected error message: {0}\n"
+                              .format(expected_failures[c_name]))
                     else:
                         xfail += 1
                         print("OK-expected failure\n")
@@ -268,13 +266,13 @@ def main():
                     if collected_shared_secrets[-1][:min_zeros] == \
                             bytearray(min_zeros):
                         print("Got shared secret with {0} most significant "
-                                "bytes equal to zero."
-                                .format(min_zeros))
+                              "bytes equal to zero."
+                              .format(min_zeros))
                         break_shared = True
                     # ECDSA key shares have a constant first byte indicating
                     # the point encoding
                     if "secp" in c_name:
-                        if collected_key_shares[-1][:min_zeros+1] == \
+                        if collected_key_shares[-1][:min_zeros + 1] == \
                                 bytearray(b'\x04') + bytearray(min_zeros):
                             print("Got key share with {0} most significant bytes equal"
                                   " to zero.".format(min_zeros))
@@ -304,14 +302,14 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -320,6 +318,7 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

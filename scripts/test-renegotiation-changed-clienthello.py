@@ -10,26 +10,24 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        ResetHandshakeHashes
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+    ResetHandshakeHashes
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose, \
-        ExpectServerKeyExchange, ExpectCertificateStatus
-
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectApplicationData, ExpectClose, \
+    ExpectServerKeyExchange, ExpectCertificateStatus
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        GroupName, ExtensionType, PskKeyExchangeMode, ECPointFormat
+    GroupName, ExtensionType, PskKeyExchangeMode, ECPointFormat
 from tlslite.extensions import SupportedGroupsExtension, \
-        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension, \
-        PskKeyExchangeModesExtension, ECPointFormatsExtension, \
-        StatusRequestExtension, ALPNExtension, SupportedVersionsExtension
+    SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension, \
+    PskKeyExchangeModesExtension, ECPointFormatsExtension, \
+    StatusRequestExtension, ALPNExtension, SupportedVersionsExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.helpers import SIG_ALL, psk_ext_gen, AutoEmptyExtension, \
-        key_share_ext_gen, psk_session_ext_gen, psk_ext_updater
-
+    key_share_ext_gen, psk_session_ext_gen, psk_ext_updater
 
 version = 1
 
@@ -130,7 +128,7 @@ def main():
         ext = {}
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
-        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
             .create(groups)
         ext[ExtensionType.signature_algorithms] = \
             SignatureAlgorithmsExtension().create(SIG_ALL)
@@ -175,7 +173,7 @@ def main():
         SignatureAlgorithmsCertExtension().create(SIG_ALL)
     groups = [GroupName.secp256r1,
               GroupName.ffdhe2048]
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     ext[ExtensionType.key_share] = key_share_ext_gen([GroupName.secp256r1])
@@ -192,7 +190,7 @@ def main():
         StatusRequestExtension().create()
     ext[ExtensionType.post_handshake_auth] = AutoEmptyExtension()
     # yes, don't include TLS 1.3, as we want to be able to renegotiate...
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([(3, 3), (3, 2)])
     ext[ExtensionType.psk_key_exchange_modes] = \
         PskKeyExchangeModesExtension().create(
@@ -265,18 +263,18 @@ def main():
     # signature_algorithms and signature_algorithms_cert are covered
     # by the test-sig-algs-renegotiation-resumption.py
     for drop_ext, exp_result in [
-            (ExtensionType.supported_groups, None),
-            (ExtensionType.extended_master_secret,
-             AlertDescription.handshake_failure),
-            (ExtensionType.key_share, None),
-            (ExtensionType.alpn, None),
-            (ExtensionType.ec_point_formats, None),
-            (18, None),  # signed_certificate_timestamp
-            (ExtensionType.status_request, None),
-            (ExtensionType.post_handshake_auth, None),
-            (ExtensionType.supported_versions, None),
-            (ExtensionType.psk_key_exchange_modes, None),
-            (ExtensionType.pre_shared_key, None)]:
+        (ExtensionType.supported_groups, None),
+        (ExtensionType.extended_master_secret,
+         AlertDescription.handshake_failure),
+        (ExtensionType.key_share, None),
+        (ExtensionType.alpn, None),
+        (ExtensionType.ec_point_formats, None),
+        (18, None),  # signed_certificate_timestamp
+        (ExtensionType.status_request, None),
+        (ExtensionType.post_handshake_auth, None),
+        (ExtensionType.supported_versions, None),
+        (ExtensionType.psk_key_exchange_modes, None),
+        (ExtensionType.pre_shared_key, None)]:
         conversation = Connect(host, port)
         node = conversation
         ext = OrderedDict()
@@ -286,7 +284,7 @@ def main():
             SignatureAlgorithmsCertExtension().create(SIG_ALL)
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
-        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
             .create(groups)
         ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         ext[ExtensionType.key_share] = key_share_ext_gen([GroupName.secp256r1])
@@ -303,7 +301,7 @@ def main():
             StatusRequestExtension().create()
         ext[ExtensionType.post_handshake_auth] = AutoEmptyExtension()
         # yes, don't include TLS 1.3, as we want to be able to renegotiate...
-        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
             .create([(3, 3), (3, 2)])
         ext[ExtensionType.psk_key_exchange_modes] = \
             PskKeyExchangeModesExtension().create(
@@ -372,7 +370,7 @@ def main():
             node = node.add_child(ExpectAlert())
             node.next_sibling = ExpectClose()
         conversations["drop {0} in renegotiation"
-                      .format(ExtensionType.toStr(drop_ext))] = conversation
+            .format(ExtensionType.toStr(drop_ext))] = conversation
 
     # run the conversation
     good = 0
@@ -418,12 +416,12 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
@@ -446,14 +444,14 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -462,6 +460,7 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

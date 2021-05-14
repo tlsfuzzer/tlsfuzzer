@@ -12,17 +12,16 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, AlertGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectClose, \
-        ExpectApplicationData
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectClose, \
+    ExpectApplicationData
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType
+    ExtensionType
 from tlsfuzzer.utils.lists import natural_sort_keys
-
 
 version = 4
 
@@ -93,12 +92,12 @@ def main():
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions={ExtensionType.
-                                                   renegotiation_info:None}))
+                                               renegotiation_info: None}))
     node = node.add_child(ExpectServerHello(version=(3, 3),
                                             extensions={ExtensionType.
-                                                     renegotiation_info:None}))
+                                            renegotiation_info: None}))
     node = node.add_child(ExpectCertificate())
-    #node = node.add_child(ExpectServerKeyExchange())
+    # node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -122,12 +121,12 @@ def main():
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                version=(3, 2),
                                                extensions={ExtensionType.
-                                                   renegotiation_info:None}))
+                                               renegotiation_info: None}))
     node = node.add_child(ExpectServerHello(version=(3, 2),
                                             extensions={ExtensionType.
-                                                     renegotiation_info:None}))
+                                            renegotiation_info: None}))
     node = node.add_child(ExpectCertificate())
-    #node = node.add_child(ExpectServerKeyExchange())
+    # node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -152,13 +151,13 @@ def main():
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    version=(3, 2),
                                                    extensions={ExtensionType.
-                                                       renegotiation_info:None}))
+                                                   renegotiation_info: None}))
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                           AlertDescription.handshake_failure))
         node.add_child(ExpectClose())
 
-        conversations[CipherSuite.ietfNames[cipher] + " in TLSv1.1"] =\
-                conversation
+        conversations[CipherSuite.ietfNames[cipher] + " in TLSv1.1"] = \
+            conversation
 
     # run the conversation
     good = 0
@@ -177,7 +176,7 @@ def main():
         if num_limit > len(run_only):
             num_limit = len(run_only)
         regular_tests = [(k, v) for k, v in conversations.items() if
-                          k in run_only]
+                         k in run_only]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
                          (k != 'sanity') and k not in run_exclude]
@@ -207,12 +206,12 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
@@ -231,14 +230,14 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -247,6 +246,7 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

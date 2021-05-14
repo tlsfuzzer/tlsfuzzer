@@ -11,19 +11,20 @@ import getopt
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        ClientMasterKeyGenerator
+    ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+    ClientMasterKeyGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, \
-        ExpectAlert, ExpectClose, ExpectApplicationData, ExpectServerHello2, \
-        ExpectVerify, ExpectSSL2Alert
+    ExpectServerHelloDone, ExpectChangeCipherSpec, \
+    ExpectAlert, ExpectClose, ExpectApplicationData, ExpectServerHello2, \
+    ExpectVerify, ExpectSSL2Alert
 
 from tlslite.constants import CipherSuite, AlertLevel, \
-        ExtensionType, SSL2ErrorDescription
+    ExtensionType, SSL2ErrorDescription
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 version = 2
+
 
 def help_msg():
     """Usage information"""
@@ -41,6 +42,7 @@ def help_msg():
     print("                execution of preceding expected failure probe")
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" --help        this message")
+
 
 def main():
     """
@@ -85,13 +87,13 @@ def main():
         raise ValueError("Unknown options: {0}".format(argv))
 
     for prot_vers, proto_name in {
-            (0, 2):"SSLv2",
-            (3, 0):"SSLv3",
-            (3, 1):"TLSv1.0"
-            }.items():
+        (0, 2): "SSLv2",
+        (3, 0): "SSLv3",
+        (3, 1): "TLSv1.0"
+    }.items():
         for cipher_id, cipher_name in {
-                CipherSuite.SSL_CK_DES_192_EDE3_CBC_WITH_MD5:"DES-CBC3-MD5"
-                }.items():
+            CipherSuite.SSL_CK_DES_192_EDE3_CBC_WITH_MD5: "DES-CBC3-MD5"
+        }.items():
             # instruct RecordLayer to use SSLv2 record layer protocol (0, 2)
             conversation = Connect(host, port, version=(0, 2))
             node = conversation
@@ -129,7 +131,7 @@ def main():
             node.add_child(ExpectClose())
 
             conversations["Connect with {1} {0}"
-                          .format(cipher_name, proto_name)] = conversation
+                .format(cipher_name, proto_name)] = conversation
 
     good = 0
     bad = 0
@@ -166,23 +168,23 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
         else:
             if res:
-                good+=1
+                good += 1
                 print("OK\n")
             else:
-                bad+=1
+                bad += 1
                 failed.append(c_name)
-    
+
     print("Note: SSLv2 was officially deprecated (MUST NOT use) in 2011, see")
     print("      RFC 6176.")
     print("      If one or more of the tests fails because of error in form of")
@@ -207,7 +209,7 @@ def main():
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -216,6 +218,7 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

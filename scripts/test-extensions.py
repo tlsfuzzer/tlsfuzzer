@@ -11,20 +11,21 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        fuzz_message
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+    fuzz_message
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectApplicationData, ExpectClose
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType
+    ExtensionType
 from tlslite.extensions import TLSExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 version = 2
+
 
 def help_msg():
     print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
@@ -140,7 +141,7 @@ def main():
                           for i in range(90, 90 + ext_n - 1))
         if ExtensionType.supports_npn in ext:
             del ext[ExtensionType.supports_npn]
-            ext[90+ext_n] = TLSExtension(extType=90+ext_n)
+            ext[90 + ext_n] = TLSExtension(extType=90 + ext_n)
         ext[ExtensionType.renegotiation_info] = None
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         ext = {ExtensionType.renegotiation_info: None}
@@ -170,7 +171,7 @@ def main():
                           for i in range(91, 90 + ext_n - 1))
         if ExtensionType.supports_npn in ext:
             del ext[ExtensionType.supports_npn]
-            ext[90+ext_n] = TLSExtension(extType=90+ext_n)
+            ext[90 + ext_n] = TLSExtension(extType=90 + ext_n)
         ext[ExtensionType.renegotiation_info] = None
         ext[90] = TLSExtension(extType=90)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -200,11 +201,11 @@ def main():
             ((j, TLSExtension(extType=j)) for j in range(90, 99)),
             [(ExtensionType.renegotiation_info, None)]))
         hello = ClientHelloGenerator(ciphers, extensions=ext)
-        node = node.add_child(fuzz_message(hello, xors={-42:i}))
+        node = node.add_child(fuzz_message(hello, xors={-42: i}))
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                           AlertDescription.decode_error))
         node = node.add_child(ExpectClose())
-        conversations["fuzz ext length to {0}".format(41^i)] = conversation
+        conversations["fuzz ext length to {0}".format(41 ^ i)] = conversation
 
     # run the conversation
     good = 0
@@ -223,7 +224,7 @@ def main():
         if num_limit > len(run_only):
             num_limit = len(run_only)
         regular_tests = [(k, v) for k, v in conversations.items() if
-                          k in run_only]
+                         k in run_only]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
                          (k != 'sanity') and k not in run_exclude]
@@ -253,35 +254,35 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
         else:
             if res:
-                good+=1
+                good += 1
                 print("OK")
             else:
-                bad+=1
+                bad += 1
                 failed.append(c_name)
 
     print("Test end")
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -290,6 +291,7 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

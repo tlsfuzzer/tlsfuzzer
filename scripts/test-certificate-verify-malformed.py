@@ -11,21 +11,21 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, \
-        CertificateGenerator, CertificateVerifyGenerator, \
-        AlertGenerator, pad_handshake, TCPBufferingEnable, \
-        TCPBufferingDisable, TCPBufferingFlush, truncate_handshake, \
-        fuzz_message
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, \
+    CertificateGenerator, CertificateVerifyGenerator, \
+    AlertGenerator, pad_handshake, TCPBufferingEnable, \
+    TCPBufferingDisable, TCPBufferingFlush, truncate_handshake, \
+    fuzz_message
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectClose, ExpectCertificateRequest, \
-        ExpectApplicationData
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectClose, ExpectCertificateRequest, \
+    ExpectApplicationData
 from tlslite.extensions import SignatureAlgorithmsExtension, \
-        SignatureAlgorithmsCertExtension
+    SignatureAlgorithmsCertExtension
 from tlslite.constants import CipherSuite, AlertDescription, \
-        HashAlgorithm, SignatureAlgorithm, ExtensionType, AlertLevel, \
-        AlertDescription, ContentType
+    HashAlgorithm, SignatureAlgorithm, ExtensionType, AlertLevel, \
+    AlertDescription, ContentType
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
@@ -55,7 +55,6 @@ def help_msg():
     print(" -k file.pem    file with private key for client")
     print(" -c file.pem    file with certificate for client")
     print(" --help         this message")
-
 
 
 def main():
@@ -120,13 +119,13 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([
-             (getattr(HashAlgorithm, x),
-              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1', 'md5']]),
-           ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext = {ExtensionType.signature_algorithms:
+        SignatureAlgorithmsExtension().create([
+            (getattr(HashAlgorithm, x),
+             SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                               'sha224', 'sha1', 'md5']]),
+        ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())
@@ -153,13 +152,13 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([
-             (getattr(HashAlgorithm, x),
-              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1', 'md5']]),
-           ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext = {ExtensionType.signature_algorithms:
+        SignatureAlgorithmsExtension().create([
+            (getattr(HashAlgorithm, x),
+             SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                               'sha224', 'sha1', 'md5']]),
+        ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())
@@ -185,13 +184,13 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([
-             (getattr(HashAlgorithm, x),
-              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1', 'md5']]),
-           ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext = {ExtensionType.signature_algorithms:
+        SignatureAlgorithmsExtension().create([
+            (getattr(HashAlgorithm, x),
+             SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                               'sha224', 'sha1', 'md5']]),
+        ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())
@@ -219,13 +218,13 @@ def main():
         node = conversation
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        ext = {ExtensionType.signature_algorithms :
-               SignatureAlgorithmsExtension().create([
-                 (getattr(HashAlgorithm, x),
-                  SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                    'sha224', 'sha1', 'md5']]),
-               ExtensionType.signature_algorithms_cert :
-               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+        ext = {ExtensionType.signature_algorithms:
+            SignatureAlgorithmsExtension().create([
+                (getattr(HashAlgorithm, x),
+                 SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                   'sha224', 'sha1', 'md5']]),
+            ExtensionType.signature_algorithms_cert:
+                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello(version=(3, 3)))
         node = node.add_child(ExpectCertificate())
@@ -245,7 +244,7 @@ def main():
         node = node.add_child(ExpectClose())
 
         conversations["{0} byte sig in CertificateVerify"
-                      .format(i)] = conversation
+            .format(i)] = conversation
 
     # empty CertificateVerify
     for i in range(1, 5):
@@ -253,13 +252,13 @@ def main():
         node = conversation
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        ext = {ExtensionType.signature_algorithms :
-               SignatureAlgorithmsExtension().create([
-                 (getattr(HashAlgorithm, x),
-                  SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                    'sha224', 'sha1', 'md5']]),
-               ExtensionType.signature_algorithms_cert :
-               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+        ext = {ExtensionType.signature_algorithms:
+            SignatureAlgorithmsExtension().create([
+                (getattr(HashAlgorithm, x),
+                 SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                   'sha224', 'sha1', 'md5']]),
+            ExtensionType.signature_algorithms_cert:
+                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello(version=(3, 3)))
         node = node.add_child(ExpectCertificate())
@@ -281,7 +280,7 @@ def main():
         node = node.add_child(ExpectClose())
 
         conversations["CertificateVerify truncated to {0} bytes"
-                      .format(4 - i)] = conversation
+            .format(4 - i)] = conversation
 
     # fuzz length
     for i in range(1, 0x100):
@@ -289,13 +288,13 @@ def main():
         node = conversation
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        ext = {ExtensionType.signature_algorithms :
-               SignatureAlgorithmsExtension().create([
-                 (getattr(HashAlgorithm, x),
-                  SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                    'sha224', 'sha1', 'md5']]),
-               ExtensionType.signature_algorithms_cert :
-               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+        ext = {ExtensionType.signature_algorithms:
+            SignatureAlgorithmsExtension().create([
+                (getattr(HashAlgorithm, x),
+                 SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                   'sha224', 'sha1', 'md5']]),
+            ExtensionType.signature_algorithms_cert:
+                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello(version=(3, 3)))
         node = node.add_child(ExpectCertificate())
@@ -333,13 +332,12 @@ def main():
         if num_limit > len(run_only):
             num_limit = len(run_only)
         regular_tests = [(k, v) for k, v in conversations.items() if
-                          k in run_only]
+                         k in run_only]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
                          (k != 'sanity') and k not in run_exclude]
     sampled_tests = sample(regular_tests, min(num_limit, len(regular_tests)))
     ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
-
 
     for c_name, c_test in ordered_tests:
         if run_only and c_name not in run_only or c_name in run_exclude:
@@ -364,12 +362,12 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
@@ -386,14 +384,14 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -402,6 +400,7 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

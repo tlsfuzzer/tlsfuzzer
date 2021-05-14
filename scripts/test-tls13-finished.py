@@ -10,24 +10,23 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        fuzz_message
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+    fuzz_message
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose, \
-        ExpectEncryptedExtensions, ExpectCertificateVerify, \
-        ExpectNewSessionTicket, ExpectNoMessage
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectApplicationData, ExpectClose, \
+    ExpectEncryptedExtensions, ExpectCertificateVerify, \
+    ExpectNewSessionTicket, ExpectNoMessage
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme
+    TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme
 from tlslite.keyexchange import ECDHKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
-        SupportedVersionsExtension, SupportedGroupsExtension, \
-        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
+    SupportedVersionsExtension, SupportedGroupsExtension, \
+    SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.helpers import RSA_SIG_ALL, key_share_ext_gen
-
 
 version = 5
 
@@ -99,17 +98,17 @@ def main():
     ext = {}
     groups = [GroupName.secp256r1]
     ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256,
                 SignatureScheme.rsa_pss_rsae_sha384,
                 SignatureScheme.rsa_pss_pss_sha384]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
@@ -129,7 +128,7 @@ def main():
 
     node.next_sibling = ExpectApplicationData()
     node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                       AlertDescription.close_notify))
+                                                      AlertDescription.close_notify))
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
     conversations["sanity"] = conversation
@@ -145,17 +144,17 @@ def main():
         ext = {}
         groups = [GroupName.secp256r1]
         ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
             .create([TLS_1_3_DRAFT, (3, 3)])
-        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
             .create(groups)
         sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                     SignatureScheme.rsa_pss_pss_sha256,
                     SignatureScheme.rsa_pss_rsae_sha384,
                     SignatureScheme.rsa_pss_pss_sha384]
-        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
             .create(sig_algs)
-        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
             .create(RSA_SIG_ALL)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
@@ -178,13 +177,13 @@ def main():
                                         AlertDescription.decode_error)
         node = node.next_sibling.add_child(ExpectClose())
         conversations["empty - cipher %s" \
-                         % (CipherSuite.ietfNames[cipher])] = conversation
+                      % (CipherSuite.ietfNames[cipher])] = conversation
 
     # single bit error
     scenarios = [(CipherSuite.TLS_AES_128_GCM_SHA256, 32),
                  (CipherSuite.TLS_AES_256_GCM_SHA384, 48)]
     for cipher, prf_bytes in scenarios:
-        for mbit in range(8*prf_bytes):
+        for mbit in range(8 * prf_bytes):
             mbyte = mbit // 8 + 1
             conversation = Connect(host, port)
             node = conversation
@@ -193,17 +192,17 @@ def main():
             ext = {}
             groups = [GroupName.secp256r1]
             ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-            ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+            ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
                 .create([TLS_1_3_DRAFT, (3, 3)])
-            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
                 .create(groups)
             sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                         SignatureScheme.rsa_pss_pss_sha256,
                         SignatureScheme.rsa_pss_rsae_sha384,
                         SignatureScheme.rsa_pss_pss_sha384]
-            ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+            ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
                 .create(sig_algs)
-            ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+            ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
                 .create(RSA_SIG_ALL)
             node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
             node = node.add_child(ExpectServerHello())
@@ -213,7 +212,7 @@ def main():
             node = node.add_child(ExpectCertificateVerify())
             node = node.add_child(ExpectFinished())
             node = node.add_child(fuzz_message(FinishedGenerator(),
-                                               xors={-mbyte: 0x01 << mbit%8}))
+                                               xors={-mbyte: 0x01 << mbit % 8}))
             # This message may be sent right after server finished
             cycle = ExpectNewSessionTicket()
             node = node.add_child(cycle)
@@ -231,33 +230,33 @@ def main():
     # truncation
     # cipher, start, end
     scenarios = [
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 0,  -1),
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 0,  -2),
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 0,  -4),
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 0,  -8),
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 0,  -16),
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 0,  -32),
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 0,  12), # TLS-1.2 size
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 1,  None),
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 2,  None),
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 4,  None),
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 8,  None),
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, -1),
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, -2),
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, -4),
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, -8),
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, -16),
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, -32),
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 12),  # TLS-1.2 size
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 1, None),
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 2, None),
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 4, None),
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 8, None),
         (CipherSuite.TLS_AES_128_GCM_SHA256, 16, None),
         (CipherSuite.TLS_AES_128_GCM_SHA256, 32, None),
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 0,  -1),
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 0,  -2),
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 0,  -4),
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 0,  -8),
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 0,  -16), # SHA-256 size
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 0,  -32),
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 0,  12), # TLS-1.2 size
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 1,  None),
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 2,  None),
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 4,  None),
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 8,  None),
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 16, None), # SHA-256 size
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, -1),
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, -2),
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, -4),
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, -8),
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, -16),  # SHA-256 size
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, -32),
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 12),  # TLS-1.2 size
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 1, None),
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 2, None),
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 4, None),
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 8, None),
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 16, None),  # SHA-256 size
         (CipherSuite.TLS_AES_256_GCM_SHA384, 32, None)
-        ]
+    ]
     for cipher, start, end in scenarios:
         conversation = Connect(host, port)
         node = conversation
@@ -266,17 +265,17 @@ def main():
         ext = {}
         groups = [GroupName.secp256r1]
         ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
             .create([TLS_1_3_DRAFT, (3, 3)])
-        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
             .create(groups)
         sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                     SignatureScheme.rsa_pss_pss_sha256,
                     SignatureScheme.rsa_pss_rsae_sha384,
                     SignatureScheme.rsa_pss_pss_sha384]
-        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
             .create(sig_algs)
-        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
             .create(RSA_SIG_ALL)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
@@ -309,47 +308,47 @@ def main():
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 2),
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 4),
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 8),
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 16), # SHA-384 size
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 16),  # SHA-384 size
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 32),
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 48),
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 2**14-4-32), # max record
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 0x20000), # intermediate
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 0x30000), # bigger than max ClientHello
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 256**3-1-32), # max handshake
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 2 ** 14 - 4 - 32),  # max record
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 0x20000),  # intermediate
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 0x30000),  # bigger than max ClientHello
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 0, 256 ** 3 - 1 - 32),  # max handshake
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 1, 0),
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 2, 0),
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 4, 0),
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 8, 0),
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 16, 0), # SHA-384 size
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 16, 0),  # SHA-384 size
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 32, 0),
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 48, 0),
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 2**14-4-32, 0), # max record
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 2 ** 14 - 4 - 32, 0),  # max record
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 12, 0),
         (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 1, 1),
-        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 8, 8), # SHA-384 size
+        (CipherSuite.TLS_AES_128_GCM_SHA256, 0, 8, 8),  # SHA-384 size
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 1),
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 2),
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 4),
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 8),
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 16), # SHA-512 size
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 16),  # SHA-512 size
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 32),
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 48),
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 2**14-4-48), # max record
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 2 ** 14 - 4 - 48),  # max record
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 0x20000),
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 0x30000), # bigger than max ClientHello
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 256**3-1-48), # max handshake
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 0x30000),  # bigger than max ClientHello
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 256 ** 3 - 1 - 48),  # max handshake
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 0, 12),
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 1, 0),
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 2, 0),
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 4, 0),
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 8, 0),
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 16, 0), # SHA-512 size
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 16, 0),  # SHA-512 size
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 32, 0),
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 48, 0),
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 2**14-4-48, 0), # max record
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 2 ** 14 - 4 - 48, 0),  # max record
         (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 1, 1),
-        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 8, 8) # SHA-512 size
-        ]
+        (CipherSuite.TLS_AES_256_GCM_SHA384, 0, 8, 8)  # SHA-512 size
+    ]
     for cipher, pad_byte, pad_left, pad_right in scenarios:
         # longer timeout for longer messages
         # Because the client is sending encrypted data without waiting
@@ -366,7 +365,7 @@ def main():
         # (all graph terminal nodes go through ExpectAlert), server that fails
         # to do that will still cause the whole test conversation to fail in
         # case it just closes the connection on us
-        timeout = 5 if max(pad_left, pad_right) < 2**14 * 4 else 300
+        timeout = 5 if max(pad_left, pad_right) < 2 ** 14 * 4 else 300
         conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ciphers = [cipher,
@@ -374,17 +373,17 @@ def main():
         ext = {}
         groups = [GroupName.secp256r1]
         ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
             .create([TLS_1_3_DRAFT, (3, 3)])
-        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
             .create(groups)
         sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                     SignatureScheme.rsa_pss_pss_sha256,
                     SignatureScheme.rsa_pss_rsae_sha384,
                     SignatureScheme.rsa_pss_pss_sha384]
-        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
             .create(sig_algs)
-        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
             .create(RSA_SIG_ALL)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
@@ -414,9 +413,9 @@ def main():
                                  AlertDescription.decode_error)
         close_node.add_child(ExpectClose())
         node = node.add_child(FinishedGenerator(
-                                  pad_byte=pad_byte,
-                                  pad_left=pad_left,
-                                  pad_right=pad_right))
+            pad_byte=pad_byte,
+            pad_left=pad_left,
+            pad_right=pad_right))
         node.next_sibling = close_node
 
         # This message may be sent right after server finished
@@ -479,12 +478,12 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
@@ -502,14 +501,14 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -518,6 +517,7 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

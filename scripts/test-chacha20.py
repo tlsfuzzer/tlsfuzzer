@@ -11,21 +11,20 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        fuzz_encrypted_message, PlaintextMessageGenerator, SetMaxRecordSize
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+    fuzz_encrypted_message, PlaintextMessageGenerator, SetMaxRecordSize
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose, \
-        ExpectServerKeyExchange
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectApplicationData, ExpectClose, \
+    ExpectServerKeyExchange
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ContentType, ExtensionType, GroupName
+    ContentType, ExtensionType, GroupName
 from tlslite.extensions import SupportedGroupsExtension, \
-        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
+    SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import SIG_ALL
-
 
 version = 3
 
@@ -99,7 +98,7 @@ def main():
         exts = None
     else:
         exts = {}
-        exts[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        exts[ExtensionType.supported_groups] = SupportedGroupsExtension() \
             .create([GroupName.secp256r1, GroupName.ffdhe2048,
                      GroupName.x25519])
         exts[ExtensionType.signature_algorithms_cert] = \
@@ -203,7 +202,7 @@ def main():
     # plaintext just under the maximum permissible
     conversation = Connect(host, port)
     node = conversation
-    node = node.add_child(SetMaxRecordSize(2**16-1))
+    node = node.add_child(SetMaxRecordSize(2 ** 16 - 1))
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -219,9 +218,9 @@ def main():
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
     data = bytearray(b"GET / HTTP/1.0\r\n" +
-                     b"X-test: " + b"A" * (2**14 - 28) +
+                     b"X-test: " + b"A" * (2 ** 14 - 28) +
                      b"\r\n\r\n")
-    assert len(data) == 2**14
+    assert len(data) == 2 ** 14
     node = node.add_child(ApplicationDataGenerator(data))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
@@ -238,7 +237,7 @@ def main():
     # plaintext over the maximum permissible
     conversation = Connect(host, port)
     node = conversation
-    node = node.add_child(SetMaxRecordSize(2**16-1))
+    node = node.add_child(SetMaxRecordSize(2 ** 16 - 1))
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -254,9 +253,9 @@ def main():
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
     data = bytearray(b"GET / HTTP/1.0\r\n" +
-                     b"X-test: " + b"A" * (2**14 - 28 + 1) +
+                     b"X-test: " + b"A" * (2 ** 14 - 28 + 1) +
                      b"\r\n\r\n")
-    assert len(data) == 2**14 + 1
+    assert len(data) == 2 ** 14 + 1
     node = node.add_child(ApplicationDataGenerator(data))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       [AlertDescription.decompression_failure,
@@ -266,7 +265,7 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    node = node.add_child(SetMaxRecordSize(2**16-1))
+    node = node.add_child(SetMaxRecordSize(2 ** 16 - 1))
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -282,9 +281,9 @@ def main():
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
     data = bytearray(b"GET / HTTP/1.0\r\n" +
-                     b"X-test: " + b"A" * (2**14 + 1024 - 28) +
+                     b"X-test: " + b"A" * (2 ** 14 + 1024 - 28) +
                      b"\r\n\r\n")
-    assert len(data) == 2**14 + 1024
+    assert len(data) == 2 ** 14 + 1024
     node = node.add_child(ApplicationDataGenerator(data))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       [AlertDescription.decompression_failure,
@@ -294,7 +293,7 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    node = node.add_child(SetMaxRecordSize(2**16-1))
+    node = node.add_child(SetMaxRecordSize(2 ** 16 - 1))
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -310,15 +309,14 @@ def main():
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
     data = bytearray(b"GET / HTTP/1.0\r\n" +
-                     b"X-test: " + b"A" * (2**14 + 1024 - 28 + 1) +
+                     b"X-test: " + b"A" * (2 ** 14 + 1024 - 28 + 1) +
                      b"\r\n\r\n")
-    assert len(data) == 2**14 + 1024 + 1
+    assert len(data) == 2 ** 14 + 1024 + 1
     node = node.add_child(ApplicationDataGenerator(data))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.record_overflow))
     node.add_child(ExpectClose())
     conversations["too big plaintext - above TLSCompressed max"] = conversation
-
 
     # fuzz the tag (16 last bytes)
     for val in [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80]:
@@ -340,13 +338,13 @@ def main():
             node = node.add_child(ExpectChangeCipherSpec())
             node = node.add_child(ExpectFinished())
             msg = ApplicationDataGenerator(
-                    bytearray(b"GET / HTTP/1.0\r\n\r\n"))
-            node = node.add_child(fuzz_encrypted_message(msg, xors={pos:val}))
+                bytearray(b"GET / HTTP/1.0\r\n\r\n"))
+            node = node.add_child(fuzz_encrypted_message(msg, xors={pos: val}))
             node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                               AlertDescription.bad_record_mac))
             node.add_child(ExpectClose())
             conversations["fuzz tag with {0} on pos {1}".format(val, pos)] \
-                    = conversation
+                = conversation
 
     # too small message handling
     for val in range(16):
@@ -368,13 +366,13 @@ def main():
         node = node.add_child(ExpectFinished())
         # any byte value will do, a1 chosen at random
         msg = PlaintextMessageGenerator(ContentType.application_data,
-                                        bytearray([0xa1]*val))
+                                        bytearray([0xa1] * val))
         node = node.add_child(msg)
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                           AlertDescription.bad_record_mac))
         node.add_child(ExpectClose())
         conversations["{0} bytes long ciphertext".format(val)] \
-                = conversation
+            = conversation
 
     # run the conversation
     good = 0
@@ -420,12 +418,12 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
@@ -441,14 +439,14 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -457,6 +455,7 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

@@ -11,22 +11,22 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        TCPBufferingEnable, TCPBufferingFlush, \
-        TCPBufferingDisable
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+    TCPBufferingEnable, TCPBufferingFlush, \
+    TCPBufferingDisable
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose, \
-        ExpectServerKeyExchange
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectApplicationData, ExpectClose, \
+    ExpectServerKeyExchange
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType, HashAlgorithm, SignatureAlgorithm, GroupName, \
-        ECPointFormat
+    ExtensionType, HashAlgorithm, SignatureAlgorithm, GroupName, \
+    ECPointFormat
 from tlslite.utils.x25519 import X25519_ORDER_SIZE, X448_ORDER_SIZE
 from tlslite.extensions import SignatureAlgorithmsExtension, TLSExtension, \
-        SupportedGroupsExtension, ECPointFormatsExtension, \
-        SignatureAlgorithmsCertExtension
+    SupportedGroupsExtension, ECPointFormatsExtension, \
+    SignatureAlgorithmsCertExtension
 from tlslite.utils.cryptomath import numberToByteArray
 from tlsfuzzer.helpers import RSA_SIG_ALL
 from tlsfuzzer.utils.lists import natural_sort_keys
@@ -108,14 +108,14 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     groups = [GroupName.secp256r1,
               GroupName.secp384r1,
               GroupName.secp521r1]
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -151,9 +151,9 @@ def main():
                 (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
                 (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
         ext = {ExtensionType.signature_algorithms:
-                SignatureAlgorithmsExtension().create(sigs),
+                   SignatureAlgorithmsExtension().create(sigs),
                ExtensionType.signature_algorithms_cert:
-                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+                   SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -222,9 +222,9 @@ def main():
                 (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
                 (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
         ext = {ExtensionType.signature_algorithms:
-                SignatureAlgorithmsExtension().create(sigs),
+                   SignatureAlgorithmsExtension().create(sigs),
                ExtensionType.signature_algorithms_cert:
-                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+                   SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -288,12 +288,12 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     groups = [GroupName.sect163k1]
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -329,12 +329,12 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     groups = [11200]  # unknown ECDHE group
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -370,12 +370,12 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     groups = [11200]
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -393,13 +393,13 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     groups = [GroupName.x25519,
               GroupName.x448]
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -432,13 +432,13 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     groups = [GroupName.x25519,
               GroupName.x448]
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -470,16 +470,16 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ext[ExtensionType.ec_point_formats] = \
-            ECPointFormatsExtension().create([ECPointFormat.ansiX962_compressed_prime,
-                                              ECPointFormat.ansiX962_compressed_char2,
-                                              ECPointFormat.uncompressed])
+        ECPointFormatsExtension().create([ECPointFormat.ansiX962_compressed_prime,
+                                          ECPointFormat.ansiX962_compressed_char2,
+                                          ECPointFormat.uncompressed])
     groups = [GroupName.x25519]
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -511,14 +511,14 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     ext[ExtensionType.ec_point_formats] = \
-            ECPointFormatsExtension().create([ECPointFormat.uncompressed])
+        ECPointFormatsExtension().create([ECPointFormat.uncompressed])
     groups = [GroupName.x25519]
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -550,12 +550,12 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     groups = [GroupName.x25519]
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -587,12 +587,12 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     groups = [GroupName.x448]
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -625,12 +625,12 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     groups = [GroupName.x25519]
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -659,12 +659,12 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     groups = [GroupName.x25519]
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -695,12 +695,12 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     groups = [GroupName.x25519]
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -735,12 +735,12 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     groups = [GroupName.x25519]  # ecdh_x25519
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -772,12 +772,12 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     groups = [GroupName.x448]
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -807,12 +807,12 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     groups = [GroupName.x448]
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -841,12 +841,12 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     groups = [GroupName.x448]  # ecdh_x448
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -876,12 +876,12 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     groups = [GroupName.x25519]
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -911,12 +911,12 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     groups = [GroupName.x448]
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -946,12 +946,12 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     groups = [GroupName.x25519]
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -981,12 +981,12 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
     ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
+               SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     groups = [GroupName.x448]
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
+        SupportedGroupsExtension().create(groups)
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -1007,7 +1007,6 @@ def main():
     node = node.add_child(ExpectClose())
     conversations["x448 key share of \"1\""] = conversation
 
-
     # run the conversation
     good = 0
     bad = 0
@@ -1025,7 +1024,7 @@ def main():
         if num_limit > len(run_only):
             num_limit = len(run_only)
         regular_tests = [(k, v) for k, v in conversations.items() if
-                          k in run_only]
+                         k in run_only]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
                          (k != 'sanity') and k not in run_exclude]
@@ -1055,12 +1054,12 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
@@ -1079,14 +1078,14 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -1094,6 +1093,7 @@ def main():
         print("FAILED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

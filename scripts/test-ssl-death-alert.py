@@ -12,19 +12,18 @@ import getopt
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, AlertGenerator
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, AlertGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectClose, ExpectServerKeyExchange
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectClose, ExpectServerKeyExchange
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        GroupName, ExtensionType
+    GroupName, ExtensionType
 from tlslite.extensions import SupportedGroupsExtension, \
-        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
+    SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.helpers import flexible_getattr
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import RSA_SIG_ALL
-
 
 version = 5
 
@@ -116,7 +115,7 @@ def main():
         ext = {}
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
-        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
             .create(groups)
         ext[ExtensionType.signature_algorithms] = \
             SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
@@ -154,7 +153,7 @@ def main():
         ext = {}
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
-        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
             .create(groups)
         ext[ExtensionType.signature_algorithms] = \
             SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
@@ -166,7 +165,7 @@ def main():
         ext = None
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    for _ in range(number_of_alerts+1):
+    for _ in range(number_of_alerts + 1):
         node = node.add_child(AlertGenerator(
             AlertLevel.warning, AlertDescription.unsupported_certificate))
     node = node.add_child(ExpectServerHello())
@@ -177,7 +176,6 @@ def main():
     node = node.add_child(ExpectAlert(alert_level, alert_description))
     node = node.add_child(ExpectClose())
     conversations["SSL Death Alert with getting alert"] = conversation
-
 
     # run the conversation
     good = 0
@@ -193,10 +191,10 @@ def main():
         if num_limit > len(run_only):
             num_limit = len(run_only)
         regular_tests = [(k, v) for k, v in conversations.items() if
-                          k in run_only]
+                         k in run_only]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
-                          k not in run_exclude]
+                         k not in run_exclude]
     sampled_tests = sample(regular_tests, min(num_limit, len(regular_tests)))
 
     for c_name, conversation in sampled_tests:
@@ -224,12 +222,12 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
@@ -256,7 +254,7 @@ def main():
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -265,6 +263,7 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

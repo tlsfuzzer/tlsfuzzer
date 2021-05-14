@@ -11,19 +11,18 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, AlertGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectClose, ExpectApplicationData
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectClose, ExpectApplicationData
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType, HashAlgorithm, SignatureAlgorithm, NameType
+    ExtensionType, HashAlgorithm, SignatureAlgorithm, NameType
 from tlslite.extensions import TLSExtension, SignatureAlgorithmsExtension, \
-        SNIExtension, SignatureAlgorithmsCertExtension
+    SNIExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.helpers import RSA_SIG_ALL
 from tlsfuzzer.utils.lists import natural_sort_keys
-
 
 version = 4
 
@@ -102,13 +101,13 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([
-             (getattr(HashAlgorithm, x),
-              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']]),
-           ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext = {ExtensionType.signature_algorithms:
+        SignatureAlgorithmsExtension().create([
+            (getattr(HashAlgorithm, x),
+             SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                               'sha224', 'sha1']]),
+        ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())
@@ -132,13 +131,13 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([
-             (getattr(HashAlgorithm, x),
-              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']]),
-           ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext = {ExtensionType.signature_algorithms:
+        SignatureAlgorithmsExtension().create([
+            (getattr(HashAlgorithm, x),
+             SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                               'sha224', 'sha1']]),
+        ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     sni = SNIExtension().create(bytearray(hostname, 'utf-8'))
     ext[ExtensionType.server_name] = sni
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -164,13 +163,13 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([
-             (getattr(HashAlgorithm, x),
-              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']]),
-           ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext = {ExtensionType.signature_algorithms:
+        SignatureAlgorithmsExtension().create([
+            (getattr(HashAlgorithm, x),
+             SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                               'sha224', 'sha1']]),
+        ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     sni = TLSExtension(extType=ExtensionType.server_name).create(bytearray(0))
     ext[ExtensionType.server_name] = sni
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -184,13 +183,13 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([
-             (getattr(HashAlgorithm, x),
-              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']]),
-           ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext = {ExtensionType.signature_algorithms:
+        SignatureAlgorithmsExtension().create([
+            (getattr(HashAlgorithm, x),
+             SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                               'sha224', 'sha1']]),
+        ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     sni = SNIExtension().create(serverNames=[])
     ext[ExtensionType.server_name] = sni
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -204,13 +203,13 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([
-             (getattr(HashAlgorithm, x),
-              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']]),
-           ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext = {ExtensionType.signature_algorithms:
+        SignatureAlgorithmsExtension().create([
+            (getattr(HashAlgorithm, x),
+             SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                               'sha224', 'sha1']]),
+        ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     sni = SNIExtension().create(hostNames=[bytearray(0)])
     ext[ExtensionType.server_name] = sni
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -224,18 +223,18 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([
-             (getattr(HashAlgorithm, x),
-              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']]),
-           ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext = {ExtensionType.signature_algorithms:
+        SignatureAlgorithmsExtension().create([
+            (getattr(HashAlgorithm, x),
+             SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                               'sha224', 'sha1']]),
+        ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     payload = bytearray(b'\x00\x04'  # overall length
-                        b'\x00'      # type - host_name
+                        b'\x00'  # type - host_name
                         b'\x00\x01'  # length of host name
-                        b'e'         # host name
-                        b'x'         # trailing data
+                        b'e'  # host name
+                        b'x'  # trailing data
                         )
     sni = TLSExtension(extType=ExtensionType.server_name).create(payload)
     ext[ExtensionType.server_name] = sni
@@ -250,13 +249,13 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([
-             (getattr(HashAlgorithm, x),
-              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']]),
-           ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext = {ExtensionType.signature_algorithms:
+        SignatureAlgorithmsExtension().create([
+            (getattr(HashAlgorithm, x),
+             SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                               'sha224', 'sha1']]),
+        ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     sni = SNIExtension().create(bytearray(b'www.') +
                                 bytearray(hostname, 'utf-8'))
     ext[ExtensionType.server_name] = sni
@@ -290,13 +289,13 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([
-             (getattr(HashAlgorithm, x),
-              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']]),
-           ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext = {ExtensionType.signature_algorithms:
+        SignatureAlgorithmsExtension().create([
+            (getattr(HashAlgorithm, x),
+             SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                               'sha224', 'sha1']]),
+        ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     # names MUST be valid DNS host names
     sni = SNIExtension().create(bytearray(hostname[:-1], 'utf-8') +
                                 bytearray(b'\x00') +
@@ -314,13 +313,13 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([
-             (getattr(HashAlgorithm, x),
-              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']]),
-           ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext = {ExtensionType.signature_algorithms:
+        SignatureAlgorithmsExtension().create([
+            (getattr(HashAlgorithm, x),
+             SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                               'sha224', 'sha1']]),
+        ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     # names MUST be valid DNS host names
     sni = SNIExtension().create(bytearray(hostname[:-1], 'utf-8') +
                                 bytearray(b'\x07') +
@@ -338,13 +337,13 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([
-             (getattr(HashAlgorithm, x),
-              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']]),
-           ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext = {ExtensionType.signature_algorithms:
+        SignatureAlgorithmsExtension().create([
+            (getattr(HashAlgorithm, x),
+             SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                               'sha224', 'sha1']]),
+        ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     # names MUST be valid DNS host names
     sni = SNIExtension().create(bytearray(hostname[:-1], 'utf-8') +
                                 bytearray(b'\xc4\x85') +
@@ -361,13 +360,13 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([
-             (getattr(HashAlgorithm, x),
-              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']]),
-           ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext = {ExtensionType.signature_algorithms:
+        SignatureAlgorithmsExtension().create([
+            (getattr(HashAlgorithm, x),
+             SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                               'sha224', 'sha1']]),
+        ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     # names MUST be valid DNS host names
     sni = SNIExtension().create(bytearray(hostname, 'utf-8') +
                                 bytearray(b'\x1b[31mBAD\x1b[0;37m'))
@@ -379,12 +378,11 @@ def main():
 
     conversations["SNI name with ANSI color escapes code"] = conversation
 
-
     # malformed extension
     conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    ext = {ExtensionType.server_name: lambda _:TLSExtension().create(0, bytearray(b'\xff'*4))}
+    ext = {ExtensionType.server_name: lambda _: TLSExtension().create(0, bytearray(b'\xff' * 4))}
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
@@ -397,13 +395,13 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([
-             (getattr(HashAlgorithm, x),
-              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']]),
-           ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext = {ExtensionType.signature_algorithms:
+        SignatureAlgorithmsExtension().create([
+            (getattr(HashAlgorithm, x),
+             SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                               'sha224', 'sha1']]),
+        ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     # RFC 6066 client MUST NOT send two names of the same type
     sni = SNIExtension().create(hostNames=[bytearray(hostname, 'utf-8'),
                                            bytearray(b'www.') +
@@ -420,13 +418,13 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([
-             (getattr(HashAlgorithm, x),
-              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']]),
-           ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext = {ExtensionType.signature_algorithms:
+        SignatureAlgorithmsExtension().create([
+            (getattr(HashAlgorithm, x),
+             SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                               'sha224', 'sha1']]),
+        ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     names = [SNIExtension.ServerName(NameType.host_name,
                                      bytearray(hostname, 'utf-8')),
              # some unknown SNI type, should be ignored by server
@@ -457,19 +455,19 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([
-             (getattr(HashAlgorithm, x),
-              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1']]),
-           ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
-    names = [# some unknown SNI type, should be ignored by server
-             SNIExtension.ServerName(NameType.host_name + 1,
-                                     bytearray(range(0, 24))),
-             # actual SNI payload
-             SNIExtension.ServerName(NameType.host_name,
-                                     bytearray(hostname, 'utf-8'))]
+    ext = {ExtensionType.signature_algorithms:
+        SignatureAlgorithmsExtension().create([
+            (getattr(HashAlgorithm, x),
+             SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                               'sha224', 'sha1']]),
+        ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    names = [  # some unknown SNI type, should be ignored by server
+        SNIExtension.ServerName(NameType.host_name + 1,
+                                bytearray(range(0, 24))),
+        # actual SNI payload
+        SNIExtension.ServerName(NameType.host_name,
+                                bytearray(hostname, 'utf-8'))]
     sni = SNIExtension().create(serverNames=names)
     ext[ExtensionType.server_name] = sni
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -491,7 +489,6 @@ def main():
     # hangs gnutls-serv
     conversations["multiple types in SNI, host_name last"] = conversation
 
-
     # run the conversation
     good = 0
     bad = 0
@@ -509,7 +506,7 @@ def main():
         if num_limit > len(run_only):
             num_limit = len(run_only)
         regular_tests = [(k, v) for k, v in conversations.items() if
-                          k in run_only]
+                         k in run_only]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
                          (k != 'sanity') and k not in run_exclude]
@@ -539,12 +536,12 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
@@ -562,14 +559,14 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)

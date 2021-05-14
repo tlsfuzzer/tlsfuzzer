@@ -11,25 +11,24 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, \
-        CertificateGenerator, CertificateVerifyGenerator, \
-        AlertGenerator, TCPBufferingEnable, TCPBufferingDisable, \
-        TCPBufferingFlush
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, \
+    CertificateGenerator, CertificateVerifyGenerator, \
+    AlertGenerator, TCPBufferingEnable, TCPBufferingDisable, \
+    TCPBufferingFlush
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectClose, ExpectCertificateRequest, \
-        ExpectApplicationData, ExpectServerKeyExchange
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectClose, ExpectCertificateRequest, \
+    ExpectApplicationData, ExpectServerKeyExchange
 from tlslite.extensions import SignatureAlgorithmsExtension, \
-        SignatureAlgorithmsCertExtension, SupportedGroupsExtension
+    SignatureAlgorithmsCertExtension, SupportedGroupsExtension
 from tlslite.constants import CipherSuite, AlertDescription, \
-        HashAlgorithm, SignatureAlgorithm, ExtensionType, GroupName
+    HashAlgorithm, SignatureAlgorithm, ExtensionType, GroupName
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import RSA_SIG_ALL
-
 
 version = 5
 
@@ -130,15 +129,15 @@ def main():
         else:
             ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        ext = {ExtensionType.signature_algorithms :
-               SignatureAlgorithmsExtension().create([
-                 (getattr(HashAlgorithm, x),
-                  SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                    'sha224', 'sha1', 'md5']]),
-               ExtensionType.signature_algorithms_cert :
-               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+        ext = {ExtensionType.signature_algorithms:
+            SignatureAlgorithmsExtension().create([
+                (getattr(HashAlgorithm, x),
+                 SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                   'sha224', 'sha1', 'md5']]),
+            ExtensionType.signature_algorithms_cert:
+                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
         if dhe:
-            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
                 .create([GroupName.secp256r1, GroupName.ffdhe2048])
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -171,12 +170,12 @@ def main():
 
     # try valid signatures but with wrong identifiers on TLS level
     for name, signature, envelope in [
-            ("SHA-1 signature in SHA-256 envelope", HashAlgorithm.sha1,
-             HashAlgorithm.sha256),
-            ("SHA-256 signature in SHA-1 envelope", HashAlgorithm.sha256,
-             HashAlgorithm.sha1),
-            ("SHA-384 signature in SHA-256 envelope", HashAlgorithm.sha384,
-             HashAlgorithm.sha256)]:
+        ("SHA-1 signature in SHA-256 envelope", HashAlgorithm.sha1,
+         HashAlgorithm.sha256),
+        ("SHA-256 signature in SHA-1 envelope", HashAlgorithm.sha256,
+         HashAlgorithm.sha1),
+        ("SHA-384 signature in SHA-256 envelope", HashAlgorithm.sha384,
+         HashAlgorithm.sha256)]:
         conversation = Connect(host, port)
         node = conversation
         if dhe:
@@ -186,15 +185,15 @@ def main():
         else:
             ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        ext = {ExtensionType.signature_algorithms :
-               SignatureAlgorithmsExtension().create([
-                 (getattr(HashAlgorithm, x),
-                  SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                    'sha224', 'sha1', 'md5']]),
-               ExtensionType.signature_algorithms_cert :
-               SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+        ext = {ExtensionType.signature_algorithms:
+            SignatureAlgorithmsExtension().create([
+                (getattr(HashAlgorithm, x),
+                 SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                   'sha224', 'sha1', 'md5']]),
+            ExtensionType.signature_algorithms_cert:
+                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
         if dhe:
-            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
                 .create([GroupName.secp256r1, GroupName.ffdhe2048])
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -236,15 +235,15 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {ExtensionType.signature_algorithms :
-           SignatureAlgorithmsExtension().create([
-             (getattr(HashAlgorithm, x),
-              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
-                                                'sha224', 'sha1', 'md5']]),
-           ExtensionType.signature_algorithms_cert :
-           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ext = {ExtensionType.signature_algorithms:
+        SignatureAlgorithmsExtension().create([
+            (getattr(HashAlgorithm, x),
+             SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                               'sha224', 'sha1', 'md5']]),
+        ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     if dhe:
-        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
             .create([GroupName.secp256r1, GroupName.ffdhe2048])
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -289,7 +288,7 @@ def main():
         if num_limit > len(run_only):
             num_limit = len(run_only)
         regular_tests = [(k, v) for k, v in conversations.items() if
-                          k in run_only]
+                         k in run_only]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
                          (k != 'sanity') and k not in run_exclude]
@@ -324,12 +323,12 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
@@ -352,14 +351,14 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -368,6 +367,7 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

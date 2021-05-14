@@ -10,23 +10,22 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator
+    ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+    FinishedGenerator, ApplicationDataGenerator, AlertGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose, \
-        ExpectEncryptedExtensions, ExpectCertificateVerify, \
-        ExpectNewSessionTicket
+    ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+    ExpectAlert, ExpectApplicationData, ExpectClose, \
+    ExpectEncryptedExtensions, ExpectCertificateVerify, \
+    ExpectNewSessionTicket
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme
+    TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme
 from tlslite.keyexchange import ECDHKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
-        SupportedVersionsExtension, SupportedGroupsExtension, \
-        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
+    SupportedVersionsExtension, SupportedGroupsExtension, \
+    SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL
-
 
 version = 3
 
@@ -52,6 +51,7 @@ def help_msg():
     print("                certificate with rsaEncryption key and")
     print("                with RSASSA-PSS key")
     print(" --help         this message")
+
 
 def main():
     host = "localhost"
@@ -105,9 +105,9 @@ def main():
     for group in groups:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_rsae_sha384,
@@ -116,9 +116,9 @@ def main():
         sig_algs += [SignatureScheme.rsa_pss_pss_sha256,
                      SignatureScheme.rsa_pss_pss_sha384,
                      SignatureScheme.rsa_pss_pss_sha512]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
         .create(RSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
@@ -138,7 +138,7 @@ def main():
 
     node.next_sibling = ExpectApplicationData()
     node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                       AlertDescription.close_notify))
+                                                      AlertDescription.close_notify))
 
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
@@ -151,21 +151,21 @@ def main():
         conversation = Connect(host, port)
         node = conversation
         ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {}
         groups = [GroupName.secp256r1]
         key_shares = []
         for group in groups:
             key_shares.append(key_share_gen(group))
         ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
             .create([TLS_1_3_DRAFT, (3, 3)])
-        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
             .create(groups)
         sig_algs = [sig_alg]
-        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
             .create(sig_algs)
-        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
             .create(RSA_SIG_ALL)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
@@ -185,12 +185,11 @@ def main():
 
         node.next_sibling = ExpectApplicationData()
         node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                        AlertDescription.close_notify))
+                                                          AlertDescription.close_notify))
 
         node = node.add_child(ExpectAlert())
         node.next_sibling = ExpectClose()
         conversations["tls13 signature {0}".format(SignatureScheme.toRepr(sig_alg))] = conversation
-
 
     # RSASSA-PSS
     for sig_alg in [SignatureScheme.rsa_pss_pss_sha256,
@@ -199,21 +198,21 @@ def main():
         conversation = Connect(host, port)
         node = conversation
         ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {}
         groups = [GroupName.secp256r1]
         key_shares = []
         for group in groups:
             key_shares.append(key_share_gen(group))
         ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        ext[ExtensionType.supported_versions] = SupportedVersionsExtension() \
             .create([TLS_1_3_DRAFT, (3, 3)])
-        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
             .create(groups)
         sig_algs = [sig_alg]
-        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension() \
             .create(sig_algs)
-        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension() \
             .create(RSA_SIG_ALL)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
 
@@ -235,16 +234,15 @@ def main():
 
             node.next_sibling = ExpectApplicationData()
             node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                            AlertDescription.close_notify))
+                                                              AlertDescription.close_notify))
 
             node = node.add_child(ExpectAlert())
             node.next_sibling = ExpectClose()
         else:
             node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                            AlertDescription.handshake_failure))
+                                              AlertDescription.handshake_failure))
             node = node.add_child(ExpectClose())
         conversations["tls13 signature {0}".format(SignatureScheme.toRepr(sig_alg))] = conversation
-
 
     # run the conversation
     good = 0
@@ -263,7 +261,7 @@ def main():
         if num_limit > len(run_only):
             num_limit = len(run_only)
         regular_tests = [(k, v) for k, v in conversations.items() if
-                          k in run_only]
+                         k in run_only]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
                          (k != 'sanity') and k not in run_exclude]
@@ -293,12 +291,12 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if expected_failures[c_name] is not None and \
+                        expected_failures[c_name] not in str(exception):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                          .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
@@ -320,14 +318,14 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
@@ -336,6 +334,7 @@ def main():
 
     if bad > 0:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
