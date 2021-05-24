@@ -231,6 +231,42 @@ class TestExpectHandshake(unittest.TestCase):
 
         self.assertFalse(ret)
 
+    def test__cmp_eq_or_in(self):
+        ret = ExpectHandshake._cmp_eq_or_in([2, 3, 4], 3)
+
+        self.assertIsNone(ret)
+
+    def test__cmp_eq_or_in_with_None(self):
+        ret = ExpectHandshake._cmp_eq_or_in(None, 3)
+
+        self.assertIsNone(ret)
+
+    def test__cmp_eq_or_in_not_matching(self):
+        with self.assertRaises(AssertionError) as e:
+            ExpectHandshake._cmp_eq_or_in([2, 3, 4], 1)
+
+        self.assertIn("[2, 3, 4]", str(e.exception))
+        self.assertIn("not in expected", str(e.exception))
+        self.assertIn("1", str(e.exception))
+
+    def test__cmp_eq_or_in_mismatch_with_type(self):
+        with self.assertRaises(AssertionError) as e:
+            ExpectHandshake._cmp_eq_or_in(
+                [HandshakeType.client_hello,
+                 HandshakeType.server_hello],
+                HandshakeType.server_key_exchange,
+                field_type=HandshakeType)
+
+        self.assertIn("client_hello, server_hello", str(e.exception))
+        self.assertIn("server_key_exchange", str(e.exception))
+
+    def test__cmp_eq_or_in_mismatch_with_format_string(self):
+        with self.assertRaises(AssertionError) as e:
+            ExpectHandshake._cmp_eq_or_in([2, 3], 1,
+                f_str="our: {0}, ext: {1}")
+
+        self.assertIn("our: [2, 3], ext: 1", str(e.exception))
+
     def test__cmp_eq_list_no_type(self):
         ret = ExpectHandshake._cmp_eq_list((1, 2), (1, 2))
 
