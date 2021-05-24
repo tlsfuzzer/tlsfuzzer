@@ -47,6 +47,8 @@ def help_msg():
     print("                (excluding \"sanity\" tests)")
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
     print(" --swap-ciphers expect the server to pick AES-128 over AES-256")
+    print(" --n/n-1        expect n/n-1 record splitting (should be used")
+    print("                for TLS 1.0 and earlier only)")
     print(" --help         this message")
 
 
@@ -60,9 +62,11 @@ def main():
     last_exp_tmp = None
     swap_ciphers = False
     dhe = False
+    splitting = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:d", ["help", "swap-ciphers"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:d", ["help", "swap-ciphers",
+                                                       "n/n-1"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -83,6 +87,8 @@ def main():
             swap_ciphers = True
         elif opt == '-d':
             dhe = True
+        elif opt == "--n/n-1":
+            splitting = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -130,6 +136,8 @@ def main():
     node = node.add_child(ApplicationDataGenerator(
         bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     node = node.add_child(ExpectApplicationData())
+    if splitting:
+        node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
     node = node.add_child(ExpectAlert())
@@ -170,6 +178,8 @@ def main():
     node = node.add_child(ApplicationDataGenerator(
         bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     node = node.add_child(ExpectApplicationData())
+    if splitting:
+        node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
     node = node.add_child(ExpectAlert())
@@ -249,6 +259,8 @@ def main():
     node = node.add_child(ApplicationDataGenerator(
         bytearray(b"GET / HTTP/1.0\n\n")))
     node = node.add_child(ExpectApplicationData())
+    if splitting:
+        node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
     node = node.add_child(ExpectAlert())
