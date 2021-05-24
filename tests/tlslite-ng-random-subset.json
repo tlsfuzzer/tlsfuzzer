@@ -229,6 +229,8 @@
                          "-k", "tests/serverX509Key.pem",
                          "-c", "tests/serverX509Cert.pem"]},
          {"name" : "test-resumption-with-wrong-ciphers.py"},
+         {"name" : "test-resumption-with-wrong-ciphers.py",
+          "arguments" : ["-d"]},
          {"name" : "test-serverhello-random.py",
           "arguments" : ["-x", "Protocol (3, 0)", "-X", "protocol_version",
                          "-x", "Protocol (3, 0) in SSLv2 compatible ClientHello",
