@@ -117,6 +117,40 @@ class ExpectMessage(Expect):
             f_str = "Expected: {0}, received: {1}"
         raise AssertionError(f_str.format(expected, received))
 
+    @classmethod
+    def _cmp_eq_or_in(cls, our, recv, field_type=None, f_str=None):
+        """
+        Check if received value equals expected or is in expected list.
+
+        If our is a list or set, check if recv is in it.
+        If our is not None, check if it's equal to recv.
+        If they don't match or are not part of a set, try translating
+        them with field_type.toStr() method and raise AssertionError
+        formatted with f_str. First parameter to .format() will be
+        the expected value and the second one witll be the
+        received one.
+        """
+        if our is None:
+            return
+        try:
+            if recv in our:
+                return
+        except TypeError:
+            return cls._cmp_eq(our, recv, field_type, f_str)
+
+        # doesn't match, so prepare the error message
+        if field_type:
+            expected = "({0})".format(", ".join(
+                field_type.toStr(i) for i in our))
+            received = field_type.toStr(recv)
+        else:
+            expected = our
+            received = recv
+
+        if not f_str:
+            f_str = "Received value ({1}) not in expected list: {0}"
+        raise AssertionError(f_str.format(expected, received))
+
     @staticmethod
     def _cmp_eq_list(our, recv, field_type=None, f_str=None):
         """
@@ -554,8 +588,11 @@ class ExpectServerHello(_ExpectExtensionsMessage):
         :param tuple server_max_protocol: the higher protocol version supported
         by server. Used for testing downgrade signaling of servers.
 
+        :type cipher: int or set-like
         :param int cipher: the id of the cipher that is expected to be
-        negotiated by server. None (the default) means any valid cipher
+        negotiated by server. Can also be a list or set (needs to support
+        ``in``) for a set of allowed ciphers.
+        None (the default) means any valid cipher
         (i.e. not SCSV or GREASE) sent in ClientHello can be selected by
         server.
 
@@ -703,9 +740,10 @@ class ExpectServerHello(_ExpectExtensionsMessage):
                      f_str="Server selected unexpected protocol version. "
                            "Expected: {0}, received: {1}.")
 
-        self._cmp_eq(self.cipher, srv_hello.cipher_suite,
-                     f_str="Server selected unexpected ciphersuite. "
-                           "Expected: {0}, received: {1}.")
+        self._cmp_eq_or_in(
+            self.cipher, srv_hello.cipher_suite,
+            f_str="Server selected unexpected ciphersuite. "
+                  "Expected: {0}, received: {1}.")
 
         # check if server sent cipher matches what we advertised in CH
         cln_hello = state.get_last_message_of_type(ClientHello)
