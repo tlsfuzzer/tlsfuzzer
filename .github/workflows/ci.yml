@@ -275,9 +275,9 @@ jobs:
       - name: Install dependencies (2.6)
         if: ${{ matrix.python-version == '2.6' }}
         run: |
-          wget https://files.pythonhosted.org/packages/7b/1d/912505e143a60c9d14ca475ebef6c3f7c421051f2a65eb1aafa3879df823/tlslite-ng-0.8.0-alpha40.tar.gz
+          wget https://files.pythonhosted.org/packages/ff/df/b4c257a6987633e85fc3639f23f4cda557b07a3da0e090fa0cb1f01404dc/tlslite-ng-0.8.0-alpha41.tar.gz
           wget https://files.pythonhosted.org/packages/98/16/70be2716e24eaf5d81074bb3c05429d60292c2a96613a78ac3d69526ad2a/ecdsa-0.16.1-py2.py3-none-any.whl
-          pip install tlslite-ng-0.8.0-alpha40.tar.gz ecdsa-0.16.1-py2.py3-none-any.whl
+          pip install tlslite-ng-0.8.0-alpha41.tar.gz ecdsa-0.16.1-py2.py3-none-any.whl
       - name: Install dependencies
         if: ${{ matrix.python-version != '2.6' }}
         run: pip install -r requirements.txt
