@@ -30,7 +30,7 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
 from tlsfuzzer.helpers import key_share_gen, SIG_ALL, key_share_ext_gen
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -53,6 +53,9 @@ def help_msg():
     print(" -a alert_desc  Alert description expected for cases with invalid")
     print("                curves advertised, integer or name.")
     print("                \"illegal_parameter\" by default.")
+    print(" --relaxed      Allow connections where both valid and obsolete curves")
+    print("                are advertised in supported_groups and key_share.")
+    print("                This is not RFC compliant.")
     print(" --cookie       expect the server to send \"cookie\" extension in")
     print("                Hello Retry Request message")
     print(" --help         this message")
@@ -80,6 +83,46 @@ def negative_test(host, port, additional_extensions, expected_alert):
     node = node.add_child(ExpectClose())
     return conversation
 
+def positive_test(host, port, additional_extensions):
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.ecdsa_secp256r1_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(SIG_ALL)
+    ext.update(additional_extensions)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData()
+    node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                       AlertDescription.close_notify))
+
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    return conversation
+
 
 def main():
     host = "localhost"
@@ -90,9 +133,10 @@ def main():
     last_exp_tmp = None
     alert_desc = AlertDescription.illegal_parameter
     cookie = False
+    relaxed = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:a:", ["help", "cookie"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:a:", ["help", "cookie", "relaxed"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -114,6 +158,8 @@ def main():
                 alert_desc = int(arg)
             except ValueError:
                 alert_desc = getattr(AlertDescription, arg)
+        elif opt =="--relaxed":
+            relaxed = True
         elif opt == "--cookie":
             cookie = True
         elif opt == '--help':
@@ -246,6 +292,107 @@ def main():
     node.next_sibling = ExpectClose()
     conversations["sanity - HRR support"] = conversation
 
+    # verify that server replies with HRR when we send valid curve in supported_groups
+    # and unsupported curve in supported_groups and key_share
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = OrderedDict()
+    groups = [GroupName.secp256r1]
+    unsupported_groups = [GroupName.secp224r1]
+    both_groups = groups + unsupported_groups
+    key_shares = []
+    for group in unsupported_groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(both_groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.ecdsa_secp256r1_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+
+    ext = OrderedDict()
+    if cookie:
+        ext[ExtensionType.cookie] = None
+    ext[ExtensionType.key_share] = None
+    ext[ExtensionType.supported_versions] = None
+    if not relaxed:
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                              AlertDescription.illegal_parameter))
+        node = node.add_child(ExpectClose())
+    else:
+        node = node.add_child(ExpectHelloRetryRequest(extensions=ext))
+        ext = OrderedDict()
+        if cookie:
+            ext[ExtensionType.cookie] = ch_cookie_handler
+        groups = [GroupName.secp256r1]
+        key_shares = []
+        for group in groups:
+            key_shares.append(key_share_gen(group))
+        ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+            .create([TLS_1_3_DRAFT, (3, 3)])
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                    SignatureScheme.rsa_pss_pss_sha256,
+                    SignatureScheme.ecdsa_secp256r1_sha256]
+        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+            .create(sig_algs)
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+            .create(SIG_ALL)
+        ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectServerHello())
+        node = node.add_child(ExpectEncryptedExtensions())
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectCertificateVerify())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+        # This message is optional and may show up 0 to many times
+        cycle = ExpectNewSessionTicket()
+        node = node.add_child(cycle)
+        node.add_child(cycle)
+
+        node.next_sibling = ExpectApplicationData()
+        node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                           AlertDescription.close_notify))
+
+        node = node.add_child(ExpectAlert())
+        node.next_sibling = ExpectClose()
+    conversations["secp256r1 and secp224r1 in supported_groups, secp224r1 in key_share - HRR"] = conversation
+
+    # Check that all the valid groups work correctly
+    valid_groups = [GroupName.secp256r1, GroupName.secp384r1,
+                    GroupName.secp521r1, GroupName.x25519,
+                    GroupName.x448]
+
+    for valid_group in valid_groups:
+        groups = [valid_group]
+        ext = {}
+        key_shares = []
+        for group in groups:
+            key_shares.append(key_share_gen(group))
+        ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        conversation = positive_test(host, port, ext)
+        conversation_name = "{0} in supported_groups and key_share"\
+            .format(GroupName.toRepr(valid_group))
+        conversations[conversation_name] = conversation
+
     # https://tools.ietf.org/html/rfc8446#appendix-B.3.1.4
     obsolete_groups = chain(range(0x0001, 0x0016 + 1),
                             range(0x001A, 0x001C + 1),
@@ -290,7 +437,10 @@ def main():
         ext[ExtensionType.key_share] = key_share_ext_gen([GroupName.secp256r1])
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
-        conversation = negative_test(host, port, ext, alert_desc)
+        if relaxed:
+            conversation = positive_test(host, port, ext)
+        else:
+            conversation = negative_test(host, port, ext, alert_desc)
         conversation_name = "{0} and secp256r1 in supported_groups and "\
                             "secp256r1 in key_share".format(obsolete_group_name)
         conversations[conversation_name] = conversation
@@ -309,7 +459,10 @@ def main():
         ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
-        conversation = negative_test(host, port, ext, alert_desc)
+        if relaxed:
+            conversation = positive_test(host, port, ext)
+        else:
+            conversation = negative_test(host, port, ext, alert_desc)
         conversation_name = "{0} and secp256r1 in supported_groups and key_share".format(obsolete_group_name)
         conversations[conversation_name] = conversation
 
@@ -327,7 +480,10 @@ def main():
         ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
-        conversation = negative_test(host, port, ext, alert_desc)
+        if relaxed:
+            conversation = positive_test(host, port, ext)
+        else:
+            conversation = negative_test(host, port, ext, alert_desc)
         conversation_name = "secp256r1 and {0} in supported_groups and key_share".format(obsolete_group_name)
         conversations[conversation_name] = conversation
 
