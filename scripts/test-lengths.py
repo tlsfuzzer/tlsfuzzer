@@ -188,7 +188,7 @@ def main():
         node = node.add_child(ApplicationDataGenerator(
             bytearray(b"GET /data-" + bytes(str(data_len), "ascii")
                       + b".txt HTTP/1.0\r\n\r\n")))
-        node = node.add_child(ExpectApplicationData())
+        node = node.add_child(ExpectApplicationData(size=data_len))
         node = node.add_child(AlertGenerator(AlertLevel.warning,
                                              AlertDescription.close_notify))
         node = node.add_child(ExpectAlert())
