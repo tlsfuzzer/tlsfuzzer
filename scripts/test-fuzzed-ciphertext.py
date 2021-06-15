@@ -136,11 +136,11 @@ def main():
     conversations["sanity"] = conversation
 
     # 8 chars: explicit nonce
-    # 16 chars: AES-CTR encrypt: GET / HTTP/1.0\n\n
+    # 18 chars: AES-CTR encrypt: GET / HTTP/1.0\r\n\r\n
     # 16 chars: GCM tag 128 bit
-    # 1 char: experimentally determined there mysteriously is one more byte
-    #         in the message.
-    fuzzes = [(-i, 1) for i in range(1,8+16+16+1)]
+    # 1 char: because the offsets are 1-based, not 0-based
+    fuzzes = [(-i, j) for i in range(1,8+18+16+1)
+              for j in [1 << x for x in range(8)]]
     for pos, val in fuzzes:
         conversation = Connect(host, port)
         node = conversation
@@ -174,7 +174,7 @@ def main():
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectFinished())
         node = node.add_child(fuzz_encrypted_message(
-            ApplicationDataGenerator(b"GET / HTTP/1.0\n\n"), xors={pos:val}))
+            ApplicationDataGenerator(b"GET / HTTP/1.0\r\n\r\n"), xors={pos:val}))
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                           AlertDescription.bad_record_mac))
         node = node.add_child(ExpectClose())
