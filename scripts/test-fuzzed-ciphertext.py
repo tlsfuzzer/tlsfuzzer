@@ -17,12 +17,19 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         fuzz_encrypted_message, AlertGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectClose, ExpectApplicationData
+        ExpectAlert, ExpectClose, ExpectApplicationData, \
+        ExpectServerKeyExchange
 
-from tlslite.constants import CipherSuite, AlertLevel, AlertDescription
+from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
+        GroupName, ExtensionType
+from tlslite.extensions import SupportedGroupsExtension, \
+        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
+from tlsfuzzer.helpers import SIG_ALL
 
-version = 2
+
+version = 3
+
 
 def help_msg():
     print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
@@ -40,7 +47,8 @@ def help_msg():
     print("                execution of preceding expected failure probe")
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
-    print("                (excluding \"sanity\" tests)")
+    print("                (\"sanity\" tests are always executed)")
+    print(" -d             negotiate (EC)DHE instead of RSA key exchange")
     print(" --help         this message")
 
 
@@ -52,9 +60,10 @@ def main():
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
+    dhe = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:d", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -71,6 +80,8 @@ def main():
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '-d':
+            dhe = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -86,11 +97,29 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_GCM_SHA256,
-        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers))
+    if dhe:
+        ext = {}
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_GCM_SHA256,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ext = None
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_GCM_SHA256,
+            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -98,7 +127,7 @@ def main():
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
     node = node.add_child(
-        ApplicationDataGenerator(b"GET / HTTP/1.0\n\n"))
+        ApplicationDataGenerator(b"GET / HTTP/1.0\r\n\r\n"))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -107,19 +136,37 @@ def main():
     conversations["sanity"] = conversation
 
     # 8 chars: explicit nonce
-    # 16 chars: AES-CTR encrypt: GET / HTTP/1.0\n\n
+    # 18 chars: AES-CTR encrypt: GET / HTTP/1.0\r\n\r\n
     # 16 chars: GCM tag 128 bit
-    # 1 char: experimentally determined there mysteriously is one more byte
-    #         in the message.
-    fuzzes = [(-i, 1) for i in range(1,8+16+16+1)]
+    # 1 char: because the offsets are 1-based, not 0-based
+    fuzzes = [(-i, j) for i in range(1,8+18+16+1)
+              for j in [1 << x for x in range(8)]]
     for pos, val in fuzzes:
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_GCM_SHA256,
-            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        node = node.add_child(ClientHelloGenerator(ciphers))
+        if dhe:
+            ext = {}
+            groups = [GroupName.secp256r1,
+                      GroupName.ffdhe2048]
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                .create(groups)
+            ext[ExtensionType.signature_algorithms] = \
+                SignatureAlgorithmsExtension().create(SIG_ALL)
+            ext[ExtensionType.signature_algorithms_cert] = \
+                SignatureAlgorithmsCertExtension().create(SIG_ALL)
+            ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                       CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                       CipherSuite.TLS_DHE_RSA_WITH_AES_128_GCM_SHA256,
+                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        else:
+            ext = None
+            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_GCM_SHA256,
+                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(ClientKeyExchangeGenerator())
         node = node.add_child(ChangeCipherSpecGenerator())
@@ -127,7 +174,7 @@ def main():
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectFinished())
         node = node.add_child(fuzz_encrypted_message(
-            ApplicationDataGenerator(b"GET / HTTP/1.0\n\n"), xors={pos:val}))
+            ApplicationDataGenerator(b"GET / HTTP/1.0\r\n\r\n"), xors={pos:val}))
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                           AlertDescription.bad_record_mac))
         node = node.add_child(ExpectClose())
@@ -199,6 +246,9 @@ def main():
                 bad += 1
                 failed.append(c_name)
 
+    print("Basic test to verify if AES-128-GCM tags are being checked by the")
+    print("server. Expects TLS 1.2 or earlier and RSA key exchange (or (EC)DHE")
+    print("if -d option is used\n")
     print("Test end")
     print(20 * '=')
     print("version: {0}".format(version))

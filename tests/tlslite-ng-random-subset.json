@@ -138,6 +138,8 @@
           "arguments" : ["--named-ffdh", "RFC5054 group 3"]},
          {"name" : "test-ffdhe-negotiation.py"},
          {"name" : "test-fuzzed-ciphertext.py"},
+         {"name" : "test-fuzzed-ciphertext.py",
+          "arguments" : ["-d"]},
          {"name" : "test-fuzzed-finished.py"},
          {"name" : "test-fuzzed-MAC.py"},
          {"name" : "test-fuzzed-padding.py"},
