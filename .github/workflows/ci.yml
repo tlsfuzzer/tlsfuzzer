@@ -334,9 +334,15 @@ jobs:
       - name: Linter
         # pylint doesn't work on 2.6: https://bitbucket.org/logilab/pylint/issue/390/py26-compatiblity-broken
         if: ${{ matrix.python-version != 2.6 }}
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
         run: |
+          opt=""
+          if ! [[ $PYTHON_VERSION == 2.6 || $PYTHON_VERSION == 2.7 || $PYTHON_VERSION == 3.3 || $PYTHON_VERSION == 3.4 || $PYTHON_VERSION == 3.5 ]]; then
+            opt="--compare-branch origin/master"
+          fi
           pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" tlsfuzzer > pylint_report.txt || :
-          diff-quality --violations=pylint --fail-under=90 pylint_report.txt
+          diff-quality $opt --violations=pylint --fail-under=90 pylint_report.txt
       - name: Verify that intermediate commits are testable
         # for some reason this takes a lot of time on Python 2.6, on the other
         # hand, it's highly unlikely that anybody will bisect code on
