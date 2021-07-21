@@ -31,7 +31,7 @@ from tlsfuzzer.helpers import SIG_ALL, psk_ext_gen, AutoEmptyExtension, \
         key_share_ext_gen, psk_session_ext_gen, psk_ext_updater
 
 
-version = 1
+version = 2
 
 
 def help_msg():
@@ -460,7 +460,7 @@ def main():
     if len(sort):
         print("FAILED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
 
-    if bad > 0:
+    if bad or xpass:
         sys.exit(1)
 
 if __name__ == "__main__":

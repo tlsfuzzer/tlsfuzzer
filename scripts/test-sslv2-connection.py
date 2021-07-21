@@ -21,7 +21,9 @@ from tlslite.constants import CipherSuite, AlertLevel, \
         ExtensionType
 from tlsfuzzer.utils.lists import natural_sort_keys
 
-version = 2
+
+version = 3
+
 
 def help_msg():
     """Print usage information"""
@@ -186,7 +188,7 @@ def main():
     if len(sort):
         print("FAILED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
 
-    if good > 0:
+    if good or xpass:
         sys.exit(1)
 
 if __name__ == "__main__":
