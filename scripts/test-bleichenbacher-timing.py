@@ -29,7 +29,7 @@ from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.helpers import SIG_ALL, RSA_PKCS1_ALL
 
 
-version = 12
+version = 13
 
 
 def help_msg():
@@ -1099,7 +1099,7 @@ place where the timing leak happens:
     if len(sort):
         print("FAILED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
 
-    if bad > 0:
+    if bad or xpass:
         sys.exit(1)
     elif timing:
         # if regular tests passed, run timing collection and analysis

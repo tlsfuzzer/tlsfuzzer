@@ -28,7 +28,8 @@ from tlsfuzzer.helpers import RSA_SIG_ALL, SIG_ALL, ECDSA_SIG_ALL
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.utils.lists import natural_sort_keys
 
-version = 5
+
+version = 6
 
 
 def help_msg():
@@ -822,7 +823,8 @@ def main():
     sort = sorted(failed, key=natural_sort_keys)
     if len(sort):
         print("FAILED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
-    if bad > 0:
+
+    if bad or xpass:
         sys.exit(1)
 
 if __name__ == "__main__":

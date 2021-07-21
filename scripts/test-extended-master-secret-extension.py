@@ -29,7 +29,7 @@ from tlsfuzzer.helpers import RSA_SIG_ALL
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -1026,7 +1026,7 @@ def main():
     if len(sort):
         print("FAILED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
 
-    if bad > 0:
+    if bad or xpass:
         sys.exit(1)
 
 if __name__ == "__main__":
