@@ -28,7 +28,7 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
 from tlsfuzzer.helpers import key_share_gen, SIG_ALL
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -106,7 +106,9 @@ def main():
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256,
-                SignatureScheme.ecdsa_secp256r1_sha256]
+                SignatureScheme.ecdsa_secp256r1_sha256,
+                SignatureScheme.ed25519,
+                SignatureScheme.ed448]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\

@@ -17,8 +17,8 @@ __all__ = ['sig_algs_to_ids', 'key_share_gen', 'psk_ext_gen',
            'psk_ext_updater', 'psk_session_ext_gen', 'flexible_getattr',
            'key_share_ext_gen', 'uniqueness_check', 'RSA_SIG_ALL',
            'ECDSA_SIG_ALL', 'RSA_PKCS1_ALL', 'RSA_PSS_PSS_ALL',
-           'RSA_PSS_RSAE_ALL', 'ECDSA_SIG_TLS1_3_ALL', 'SIG_ALL',
-           'AutoEmptyExtension', 'client_cert_types_to_ids']
+           'RSA_PSS_RSAE_ALL', 'ECDSA_SIG_TLS1_3_ALL', 'EDDSA_SIG_ALL',
+           'SIG_ALL', 'AutoEmptyExtension', 'client_cert_types_to_ids']
 
 
 RSA_SIG_ALL = [(getattr(HashAlgorithm, x), SignatureAlgorithm.rsa) for x in
@@ -71,12 +71,19 @@ List of all ECDSA signature algorithms that can be used in TLS 1.3.
 Subset of :py:const:`ECDSA_SIG_ALL`.
 """
 
+EDDSA_SIG_ALL = [SignatureScheme.ed448,
+                 SignatureScheme.ed25519]
+"""
+List of all EdDSA signature algorithms that can be used in TLS 1.2 and later.
+"""
 
-SIG_ALL = RSA_PSS_PSS_ALL + RSA_PSS_RSAE_ALL + RSA_PKCS1_ALL + ECDSA_SIG_ALL
+
+SIG_ALL = RSA_PSS_PSS_ALL + RSA_PSS_RSAE_ALL + RSA_PKCS1_ALL + ECDSA_SIG_ALL +\
+    EDDSA_SIG_ALL
 """List of all signature algorithms supported by tlsfuzzer,
 as used in ``signature_algorithms`` or ``signature_algorithms_cert`` extension.
 
-For now includes only RSA and ECDSA algorithms, will include EdDSA and DSA
+For now includes only RSA, ECDSA and EdDSA algorithms, will include DSA
 algorithms later on.
 
 Sorted in order of strongest to weakest hash.
