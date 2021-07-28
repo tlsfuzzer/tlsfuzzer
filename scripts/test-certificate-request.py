@@ -33,7 +33,7 @@ from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 
 
-version = 8
+version = 9
 
 
 def help_msg():
@@ -74,7 +74,9 @@ def main():
     cert = None
     private_key = None
 
-    sigalgs = [SignatureScheme.ecdsa_secp521r1_sha512,
+    sigalgs = [SignatureScheme.ed25519,
+               SignatureScheme.ed448,
+               SignatureScheme.ecdsa_secp521r1_sha512,
                SignatureScheme.ecdsa_secp384r1_sha384,
                SignatureScheme.ecdsa_secp256r1_sha256,
                (HashAlgorithm.sha224, SignatureAlgorithm.ecdsa),

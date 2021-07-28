@@ -1,5 +1,4 @@
-# Author: Simo Sorce, (c) 2018
-#  Hubert Kario, (c) 2019
+# Author: Hubert Kario, (c) 2021
 # Released under Gnu GPL v2.0, see LICENSE file for details
 """Test of ECDSA in CertificateVerify"""
 
@@ -24,7 +23,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectCertificateVerify, ExpectNewSessionTicket
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import key_share_ext_gen, sig_algs_to_ids, RSA_SIG_ALL,\
-        ECDSA_SIG_ALL
+        ECDSA_SIG_ALL, EDDSA_SIG_ALL
 from tlslite.extensions import SignatureAlgorithmsExtension, \
         SignatureAlgorithmsCertExtension, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension
@@ -38,7 +37,7 @@ from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 
 
-version = 7
+version = 1
 
 
 def help_msg():
@@ -92,32 +91,6 @@ def hashes_to_list(arg):
     return hlist
 
 
-def sigalg_select(alg_type, hash_pref, supported=None, cert_type=None):
-    for hash_name in hash_pref:
-        if not cert_type:
-            name = "_".join([alg_type, hash_name])
-        elif cert_type == "rsa":
-            name = "_".join([alg_type, "rsae", hash_name])
-        elif cert_type == "rsa-pss":
-            name = "_".join([alg_type, "pss", hash_name])
-        elif cert_type == "ecdsa":
-            name = "_".join([alg_type, hash_name])
-        else:
-            raise ValueError("Unknown certificate type {0}".format(cert_type))
-
-        sigalg = getattr(SignatureScheme, name)
-
-        if supported is None:
-            return sigalg
-        if sigalg in supported:
-            return sigalg
-
-    raise ValueError(
-        "Couldn't find a supported Signature Algorithm that  matches the" +
-        " provided parameters: {0}, {1}, {3}".format(alg_type, hash_pref,
-                                                    cert_type))
-
-
 def main():
     """Check that server properly rejects malformed signatures in TLS 1.3"""
     hostname = "localhost"
@@ -156,7 +129,9 @@ def main():
                 SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256,
                 SignatureScheme.rsa_pss_rsae_sha384,
-                SignatureScheme.rsa_pss_pss_sha384]
+                SignatureScheme.rsa_pss_pss_sha384,
+                SignatureScheme.ed25519,
+                SignatureScheme.ed448]
 
     hashalgs = hashes_to_list("sha256 sha384 sha512")
 
@@ -227,7 +202,8 @@ def main():
     ext[ExtensionType.signature_algorithms] = \
         SignatureAlgorithmsExtension().create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = \
-        SignatureAlgorithmsCertExtension().create(ECDSA_SIG_ALL + RSA_SIG_ALL)
+        SignatureAlgorithmsCertExtension().create(
+            ECDSA_SIG_ALL + RSA_SIG_ALL + EDDSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -269,7 +245,8 @@ def main():
     ext[ExtensionType.signature_algorithms] = \
         SignatureAlgorithmsExtension().create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = \
-        SignatureAlgorithmsCertExtension().create(ECDSA_SIG_ALL + RSA_SIG_ALL)
+        SignatureAlgorithmsCertExtension().create(
+            ECDSA_SIG_ALL + RSA_SIG_ALL + EDDSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -278,7 +255,8 @@ def main():
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectCertificateVerify())
     node = node.add_child(ExpectFinished())
-    node = node.add_child(CertificateGenerator())
+    node = node.add_child(CertificateGenerator(X509CertChain([cert])))
+    node = node.add_child(CertificateVerifyGenerator(private_key))
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ApplicationDataGenerator(
     bytearray(b"GET / HTTP/1.0\r\n\r\n")))
@@ -295,22 +273,7 @@ def main():
     conversations["check sigalgs in cert request"] = conversation
 
     for sigalg in ECDSA_SIG_ALL:
-        # set if test should succeed or fail based on cert type,
-        # advertisement and forbidden algorithms
-        expectPass = False
-        if len(private_key) == 256 and \
-                sigalg == SignatureScheme.ecdsa_secp256r1_sha256:
-            expectPass = True
-        elif len(private_key) == 384 and \
-                sigalg == SignatureScheme.ecdsa_secp384r1_sha384:
-            expectPass = True
-        elif len(private_key) == 521 and \
-                sigalg == SignatureScheme.ecdsa_secp521r1_sha512:
-            expectPass = True
-        # expect failure if an algorithm is not advertized
-        if sigalg not in cr_sigalgs:
-            expectPass = False
-
+        real_sig = getattr(SignatureScheme, private_key.key_type.lower())
         conversation = Connect(hostname, port)
         node = conversation
         ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
@@ -326,8 +289,8 @@ def main():
         ext[ExtensionType.signature_algorithms] = \
             SignatureAlgorithmsExtension().create(sig_algs)
         ext[ExtensionType.signature_algorithms_cert] = \
-            SignatureAlgorithmsCertExtension().create(ECDSA_SIG_ALL +
-                                                      RSA_SIG_ALL)
+            SignatureAlgorithmsCertExtension().create(
+                ECDSA_SIG_ALL + RSA_SIG_ALL + EDDSA_SIG_ALL)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectChangeCipherSpec())
@@ -339,32 +302,14 @@ def main():
         node = node.add_child(CertificateGenerator(X509CertChain([cert])))
         # force sigalg
         node = node.add_child(CertificateVerifyGenerator(private_key, msg_alg=
-            sigalg))
+            sigalg, sig_alg=real_sig))
         node = node.add_child(FinishedGenerator())
 
-        result = "works"
-        # only signatures of matching certificate type should work
-        if expectPass:
-            node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
-            # This message is optional and may show up 0 to many times
-            cycle = ExpectNewSessionTicket()
-            node = node.add_child(cycle)
-            node.add_child(cycle)
+        node = node.add_child(ExpectAlert(
+            AlertLevel.fatal, AlertDescription.illegal_parameter))
+        node.add_child(ExpectClose())
 
-            node.next_sibling = ExpectApplicationData()
-            node = node.next_sibling.add_child(AlertGenerator(
-                AlertLevel.warning, AlertDescription.close_notify))
-
-            node = node.add_child(ExpectAlert())
-            node.next_sibling = ExpectClose()
-
-        else:
-            node = node.add_child(ExpectAlert(
-                AlertLevel.fatal, AlertDescription.illegal_parameter))
-            node.add_child(ExpectClose())
-
-            result = "is refused"
+        result = "is refused"
 
         name = SignatureScheme.toRepr(sigalg)
         if not name:
@@ -374,16 +319,13 @@ def main():
                       name, result)] = conversation
 
     # verify that an ECDSA signature with mismatched message hash fails
-    if len(private_key) == 256:
-        sig_alg = SignatureScheme.ecdsa_secp384r1_sha384
-        msg_alg = SignatureScheme.ecdsa_secp256r1_sha256
-    elif len(private_key) == 384:
-        sig_alg = SignatureScheme.ecdsa_secp256r1_sha256
-        msg_alg = SignatureScheme.ecdsa_secp384r1_sha384
+    if private_key.key_type == "Ed25519":
+        sig_alg = SignatureScheme.ed25519
+        msg_alg = SignatureScheme.ed448
     else:
-        assert len(private_key) == 521
-        sig_alg = SignatureScheme.ecdsa_secp384r1_sha384
-        msg_alg = SignatureScheme.ecdsa_secp521r1_sha512
+        assert private_key.key_type == "Ed448"
+        sig_alg = SignatureScheme.ed448
+        msg_alg = SignatureScheme.ed25519
 
     conversation = Connect(hostname, port)
     node = conversation
@@ -399,7 +341,8 @@ def main():
     ext[ExtensionType.signature_algorithms] = \
         SignatureAlgorithmsExtension().create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = \
-        SignatureAlgorithmsCertExtension().create(ECDSA_SIG_ALL + RSA_SIG_ALL)
+        SignatureAlgorithmsCertExtension().create(
+            ECDSA_SIG_ALL + RSA_SIG_ALL + EDDSA_SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -413,23 +356,18 @@ def main():
         private_key, sig_alg=sig_alg, msg_alg=msg_alg))
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ExpectAlert(
-        AlertLevel.fatal, AlertDescription.decrypt_error))
+        AlertLevel.fatal, AlertDescription.illegal_parameter))
     node.add_child(ExpectClose())
 
-    conversations["check ecdsa signature with mismatched hash fails"] = \
+    conversations["check eddsa signature with mismatched scheme fails"] = \
         conversation
 
-
     # check that fuzzed signatures are rejected
-    if len(private_key) == 256:
-        # bacause of DER encoding of the signature, the mapping between key size
-        # and signature size is non-linear
-        siglen = 70
-    elif len(private_key) == 384:
-        siglen = 103
+    if private_key.key_type == "Ed25519":
+        siglen = 64
     else:
-        assert len(private_key) == 521
-        siglen = 137
+        assert private_key.key_type == "Ed448"
+        siglen = 114
     for pos in range(siglen):
         for xor in [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80]:
             conversation = Connect(hostname, port)
@@ -446,8 +384,8 @@ def main():
             ext[ExtensionType.signature_algorithms] = \
                 SignatureAlgorithmsExtension().create(sig_algs)
             ext[ExtensionType.signature_algorithms_cert] = \
-                SignatureAlgorithmsCertExtension().create(ECDSA_SIG_ALL + \
-                                                          RSA_SIG_ALL)
+                SignatureAlgorithmsCertExtension().create(
+                    ECDSA_SIG_ALL + RSA_SIG_ALL + EDDSA_SIG_ALL)
             node = node.add_child(ClientHelloGenerator(
                 ciphers, extensions=ext))
             node = node.add_child(ExpectServerHello())
@@ -469,6 +407,88 @@ def main():
             conversations_long["check that fuzzed signatures are rejected." +
                                " Malformed {0} - xor {1} at {2}".format(
                                certType, hex(xor), pos)] = conversation
+
+    # check if all zero values are rejected
+    for name, subs in [
+        ("All-zero R value in signature is rejected",
+         dict((i, 0) for i in range(siglen // 2))),
+        ("All-zero S value in signature is rejected",
+         dict((i + siglen // 2, 0) for i in range(siglen // 2))),
+        ("All-zero bytes signature is rejected",
+         dict((i, 0) for i in range(siglen))),
+    ]:
+        conversation = Connect(hostname, port)
+        node = conversation
+        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        ext = {}
+        groups = [GroupName.secp256r1]
+        ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+        ext[ExtensionType.supported_versions] = \
+            SupportedVersionsExtension().create([(3, 4), (3, 3)])
+        ext[ExtensionType.supported_groups] = \
+            SupportedGroupsExtension().create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(sig_algs)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(
+                ECDSA_SIG_ALL + RSA_SIG_ALL + EDDSA_SIG_ALL)
+        node = node.add_child(ClientHelloGenerator(
+            ciphers, extensions=ext))
+        node = node.add_child(ExpectServerHello())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectEncryptedExtensions())
+        node = node.add_child(ExpectCertificateRequest())
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectCertificateVerify())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(CertificateGenerator(X509CertChain([cert])))
+        node = node.add_child(
+            CertificateVerifyGenerator(private_key,
+                                       padding_subs=subs))
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectAlert(
+            AlertLevel.fatal, AlertDescription.decrypt_error))
+        node.add_child(ExpectClose())
+
+        conversations_long[name] = conversation
+
+    # empty signature field
+    conversation = Connect(hostname, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    ext[ExtensionType.supported_versions] = \
+        SupportedVersionsExtension().create([(3, 4), (3, 3)])
+    ext[ExtensionType.supported_groups] = \
+        SupportedGroupsExtension().create(groups)
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(
+            ECDSA_SIG_ALL + RSA_SIG_ALL + EDDSA_SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(
+        ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificateRequest())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(CertificateGenerator(X509CertChain([cert])))
+    node = node.add_child(
+        CertificateVerifyGenerator(private_key,
+                                   signature=bytearray(0)))
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectAlert(
+        AlertLevel.fatal, AlertDescription.decrypt_error))
+    node.add_child(ExpectClose())
+
+    conversations_long["empty signature field"] = conversation
 
     # run the conversation
     good = 0
@@ -535,11 +555,9 @@ def main():
                 failed.append(c_name)
 
     print("Test to verify that server properly accepts or refuses")
-    print("ECDSA signatures in TLS1.3; SHA224 and SHA1 signatures are always")
-    print("refused, Other signatures are accepted or refused accordingly to")
-    print("the key provided.\n")
-    print("Test should be run three times, once each with P-256, P-384 and")
-    print("P-521 client certificate.\n")
+    print("EdDSA signatures in TLS1.3")
+    print("Test should be executed two times, once with Ed25519 key and")
+    print("once with Ed448 key (if both are supported by the server).\n")
 
     print("Test end")
     print(20 * '=')

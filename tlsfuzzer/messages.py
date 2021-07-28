@@ -1047,6 +1047,12 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         return (getattr(HashAlgorithm, hash_name), SignatureAlgorithm.ecdsa)
 
     @staticmethod
+    def _sig_alg_for_eddsa_key(key_alg, accept_sig_algs):
+        sig_alg = getattr(SignatureScheme, key_alg.lower())
+        assert sig_alg in accept_sig_algs
+        return sig_alg
+
+    @staticmethod
     def _sig_alg_for_certificate(key_alg, accept_sig_algs, version, key):
         """
         Select an acceptable signature algorithm based on key algorithm,
@@ -1055,6 +1061,9 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         if key_alg in ("rsa", "rsa-pss"):
             return CertificateVerifyGenerator._sig_alg_for_rsa_key(
                 key_alg, accept_sig_algs, version)
+        if key_alg in ("Ed25519", "Ed448"):
+            return CertificateVerifyGenerator._sig_alg_for_eddsa_key(
+                key_alg, accept_sig_algs)
         assert key_alg == "ecdsa"
         return CertificateVerifyGenerator._sig_alg_for_ecdsa_key(
             accept_sig_algs, version, key)
@@ -1201,6 +1210,10 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         if self.sig_alg and self.sig_alg[1] == SignatureAlgorithm.ecdsa or\
                 self.private_key.key_type == "ecdsa":
             signature_type = "ecdsa"
+        elif self.sig_alg and self.sig_alg in (
+                SignatureScheme.ed25519, SignatureScheme.ed448) or \
+                self.private_key.key_type in ("Ed25519", "Ed448"):
+            signature_type = "eddsa"
         else:
             signature_type = "rsa"
         if self.context:
@@ -1223,7 +1236,13 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                                         status.prf_name,
                                         key_type=self.private_key.key_type)
 
-        if signature_type == "ecdsa":
+        if signature_type == "eddsa":
+            self.mgf1_hash = "intrinsic"
+            self.rsa_pss_salt_len = None
+            padding = None
+            old_private_key_op = None
+            sig_func = self.private_key.hashAndSign
+        elif signature_type == "ecdsa":
             self._get_ecdsa_sig_parameters()
             padding = None
             old_private_key_op = None
@@ -1231,16 +1250,18 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             # curve, the signing is successful
             verify_bytes = verify_bytes[:self.private_key.
                                         private_key.curve.baselen]
+            sig_func = self.private_key.sign
         else:
             # we don't have to handle non pkcs1 padding because the
             # calcVerifyBytes does everything
             padding, old_private_key_op = self._get_rsa_sig_parameters()
+            sig_func = self.private_key.sign
 
         try:
-            signature = self.private_key.sign(verify_bytes,
-                                              padding,
-                                              self.mgf1_hash,
-                                              self.rsa_pss_salt_len)
+            signature = sig_func(verify_bytes,
+                                 padding,
+                                 self.mgf1_hash,
+                                 self.rsa_pss_salt_len)
         finally:
             # make sure the changes are undone even if the signing fails
             self.private_key._raw_private_key_op_bytes = old_private_key_op
@@ -1254,6 +1275,9 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             signature = bytearray(signature)
             max_byte = len(signature) - 1
             self._normalise_subs_and_xors(max_byte)
+        if signature_type in ("ecdsa", "eddsa"):
+            # but EdDSA signatures are always the same length for given
+            # key type, so don't normalise the values for them
             signature = substitute_and_xor(signature, self.padding_subs,
                                            self.padding_xors)
         return signature
