@@ -51,8 +51,10 @@ from tlslite.utils.keyfactory import generateRSAKey
 from tlslite.utils.cryptomath import numberToByteArray
 from tlslite.utils.python_rsakey import Python_RSAKey
 from tlslite.utils.python_ecdsakey import Python_ECDSAKey
+from tlslite.utils.python_eddsakey import Python_EdDSAKey
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
+from ecdsa import SigningKey, Ed25519
 
 
 rsa_pss_cert = X509CertChain([X509().parse(
@@ -2430,6 +2432,63 @@ class TestCertificateVerifyGeneratorECDSA(unittest.TestCase):
         self.assertTrue(priv_key.verify(
             sig, secureHash(b"", "sha1"),
             "", "sha1"))
+
+class TestCertificateVerifyGeneratorEdDSA(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        p_key = SigningKey.generate(Ed25519)
+        cls.priv_key = Python_EdDSAKey(None, p_key)
+
+    def test_generate_with_eddsa_and_no_cert_req_in_tls1_3(self):
+        priv_key = self.priv_key
+        cert_ver_g = CertificateVerifyGenerator(priv_key)
+        state = ConnectionState()
+        state.version = (3, 4)
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertTrue(msg.signature)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.ed25519)
+
+        verif_bytes = KeyExchange.calcVerifyBytes(
+                (3, 4),
+                state.handshake_hashes,
+                constants.SignatureScheme.ed25519,
+                b'',
+                b'',
+                b'',
+                "sha256")
+
+        self.assertTrue(priv_key.hashAndVerify(
+            msg.signature, verif_bytes,
+            "", "sha256"))
+
+    def test_generate_with_xors(self):
+        priv_key = self.priv_key
+        cert_ver_g = CertificateVerifyGenerator(priv_key,
+                                                padding_xors={0: 0xff})
+        state = ConnectionState()
+        state.version = (3, 3)
+        req = CertificateRequest((3, 3)).create([], [],
+            [constants.SignatureScheme.ed25519])
+        state.handshake_messages = [req]
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertTrue(msg.signature)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.ed25519)
+
+        sig = msg.signature
+        self.assertFalse(priv_key.hashAndVerify(
+            sig, b""))
+
+        sig[0] ^= 0xff
+        self.assertTrue(priv_key.hashAndVerify(
+            sig, b""))
 
 
 class TestClearContext(unittest.TestCase):
