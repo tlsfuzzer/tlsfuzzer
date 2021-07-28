@@ -71,8 +71,15 @@ List of all ECDSA signature algorithms that can be used in TLS 1.3.
 Subset of :py:const:`ECDSA_SIG_ALL`.
 """
 
+EDDSA_SIG_ALL = [SignatureScheme.ed448,
+                 SignatureScheme.ed25519]
+"""
+List of all EdDSA signature algorithms that can be used in TLS 1.2 and later.
+"""
 
-SIG_ALL = RSA_PSS_PSS_ALL + RSA_PSS_RSAE_ALL + RSA_PKCS1_ALL + ECDSA_SIG_ALL
+
+SIG_ALL = RSA_PSS_PSS_ALL + RSA_PSS_RSAE_ALL + RSA_PKCS1_ALL + ECDSA_SIG_ALL +\
+    EDDSA_SIG_ALL
 """List of all signature algorithms supported by tlsfuzzer,
 as used in ``signature_algorithms`` or ``signature_algorithms_cert`` extension.
 

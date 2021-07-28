@@ -1042,20 +1042,32 @@ class ExpectCertificateVerify(ExpectHandshake):
             c_hello = state.get_last_message_of_type(ClientHello)
             ext = c_hello.getExtension(ExtensionType.signature_algorithms)
             assert cert_v.signatureAlgorithm in ext.sigalgs
-            if state.get_server_public_key().key_type == "rsa-pss":
+            key_type = state.get_server_public_key().key_type
+            if key_type == "rsa-pss":
                 # in TLS 1.3 only RSA-PSS signatures are allowed
                 assert cert_v.signatureAlgorithm in (
                     SignatureScheme.rsa_pss_pss_sha256,
                     SignatureScheme.rsa_pss_pss_sha384,
                     SignatureScheme.rsa_pss_pss_sha512)
-            elif state.get_server_public_key().key_type == "rsa":
+            elif key_type == "rsa":
                 # in TLS 1.3 only RSA-PSS signatures are allowed
                 assert cert_v.signatureAlgorithm in (
                     SignatureScheme.rsa_pss_rsae_sha256,
                     SignatureScheme.rsa_pss_rsae_sha384,
                     SignatureScheme.rsa_pss_rsae_sha512)
+            elif key_type in ("Ed25519", "Ed448"):
+                assert cert_v.signatureAlgorithm in (
+                    SignatureScheme.ed25519,
+                    SignatureScheme.ed448)
+                if getattr(SignatureScheme, key_type.lower()) != \
+                        cert_v.signatureAlgorithm:
+                    raise AssertionError(
+                        "Mismatched signature ({0}) for used key ({1})"
+                        .format(
+                            SignatureScheme.toStr(cert_v.signatureAlgorithm),
+                            key_type))
             else:
-                assert state.get_server_public_key().key_type == "ecdsa"
+                assert key_type == "ecdsa"
                 curve_name = state.get_server_public_key().curve_name
                 assert curve_name in ("NIST256p", "NIST384p", "NIST521p")
                 sigalg = cert_v.signatureAlgorithm
@@ -1071,13 +1083,19 @@ class ExpectCertificateVerify(ExpectHandshake):
 
         salg = cert_v.signatureAlgorithm
 
-        if salg[1] == SignatureAlgorithm.ecdsa:
+        if salg in (SignatureScheme.ed25519, SignatureScheme.ed448):
+            hash_name = "intrinsic"
+            padding = None
+            salt_len = None
+        elif salg[1] == SignatureAlgorithm.ecdsa:
             hash_name = HashAlgorithm.toStr(salg[0])
             padding = None
+            salt_len = None
         else:
             scheme = SignatureScheme.toRepr(salg)
             hash_name = SignatureScheme.getHash(scheme)
             padding = SignatureScheme.getPadding(scheme)
+            salt_len = getattr(hashlib, hash_name)().digest_size
 
         transcript_hash = state.handshake_hashes.digest(state.prf_name)
         sig_context = bytearray(b'\x20' * 64 +
@@ -1089,7 +1107,7 @@ class ExpectCertificateVerify(ExpectHandshake):
                 sig_context,
                 padding,
                 hash_name,
-                getattr(hashlib, hash_name)().digest_size):
+                salt_len):
             raise AssertionError("Signature verification failed")
 
         state.handshake_messages.append(cert_v)
