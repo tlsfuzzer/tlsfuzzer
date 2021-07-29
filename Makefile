@@ -30,8 +30,8 @@ test: docs
 	coverage3 html
 	"$(PYTHON)" tests/verify-scripts-json.py tests/tlslite-ng.json tests/tlslite-ng-random-subset.json
 	pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" tlsfuzzer > pylint_report.txt || :
-	diff-quality --violations=pylint --fail-under=90 pylint_report.txt
-	diff-cover --fail-under=90 coverage.xml
+	diff-quality --compare-branch origin/master --violations=pylint --fail-under=90 pylint_report.txt
+	diff-cover --compare-branch origin/master --fail-under=90 coverage.xml
 
 test-scripts:
 	"$(PYTHON)" tests/verify-scripts-json.py tests/tlslite-ng.json tests/tlslite-ng-random-subset.json
