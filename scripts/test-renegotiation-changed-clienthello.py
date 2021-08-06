@@ -243,6 +243,8 @@ def main():
     node = node.add_child(ExpectServerHello(
         description="second handshake"))
     node = node.add_child(ExpectCertificate())
+    if ocsp:
+        node = node.add_child(ExpectCertificateStatus())
     if dhe:
         node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
@@ -355,6 +357,8 @@ def main():
             node = node.add_child(ExpectServerHello(
                 description="second handshake"))
             node = node.add_child(ExpectCertificate())
+            if ocsp and drop_ext != ExtensionType.status_request:
+                node = node.add_child(ExpectCertificateStatus())
             if dhe:
                 node = node.add_child(ExpectServerKeyExchange())
             node = node.add_child(ExpectServerHelloDone())
