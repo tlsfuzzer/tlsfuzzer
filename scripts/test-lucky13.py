@@ -29,7 +29,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import SIG_ALL
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -63,6 +63,8 @@ def help_msg():
     print(" --cpu-list     Set the CPU affinity for the tcpdump process")
     print("                See taskset(1) man page for the syntax of this")
     print("                option. Not used by default.")
+    print(" --payload-len num Size of the sent Application Data record, in bytes.")
+    print("                512 by default.")
     print(" --help         this message")
 
 
@@ -80,12 +82,14 @@ def main():
     quick = False
     cipher = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA
     affinity = None
+    ciphertext_len = 512
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "h:p:e:x:X:n:l:o:i:C:", ["help",
                                                               "repeat=",
                                                               "quick",
-                                                              "cpu-list="])
+                                                              "cpu-list=",
+                                                              "payload-len="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -117,6 +121,8 @@ def main():
             interface = arg
         elif opt == '-o':
             outdir = arg
+        elif opt == "--payload-len":
+            ciphertext_len = int(arg)
         elif opt == "--repeat":
             repetitions = int(arg)
         elif opt == '--help':
@@ -210,7 +216,7 @@ def main():
     if quick:
         # iterate over min/max padding and first/last byte MAC error
         for pad_len, error_pos in product([1, 256], [0, -1]):
-            payload_len = 512 - mac_len - pad_len - block_len
+            payload_len = ciphertext_len - mac_len - pad_len - block_len
 
             conversation = Connect(host, port)
             node = conversation
@@ -243,7 +249,7 @@ def main():
 
         # iterate over min/max padding and first/last byte of padding error
         for pad_len, error_pos in product([256], [0, 254]):
-            payload_len = 512 - mac_len - pad_len - block_len
+            payload_len = ciphertext_len - mac_len - pad_len - block_len
 
             conversation = Connect(host, port)
             node = conversation
@@ -278,7 +284,7 @@ def main():
         for pad_len in range(1, 257):
 
             # ciphertext 1 has 512 bytes, calculate payload size
-            payload_len = 512 - mac_len - pad_len - block_len
+            payload_len = ciphertext_len - mac_len - pad_len - block_len
 
             conversation = Connect(host, port)
             node = conversation
@@ -313,7 +319,7 @@ def main():
 
             # avoid changing the padding length byte
             if pad_len < 256:
-                payload_len = 512 - mac_len - 256 - block_len
+                payload_len = ciphertext_len - mac_len - 256 - block_len
 
                 conversation = Connect(host, port)
                 node = conversation
@@ -368,7 +374,7 @@ def main():
             groups["MAC out of bounds"]["padding length byte={0}".format(pad_len - 1)] = conversation
 
         # iterate over MAC length and fuzz byte by byte
-        payload_len = 512 - mac_len - block_len - 256
+        payload_len = ciphertext_len - mac_len - block_len - 256
         for mac_index in range(0, mac_len):
             conversation = Connect(host, port)
             node = conversation
