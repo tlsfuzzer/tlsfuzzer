@@ -29,7 +29,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import SIG_ALL
 
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -240,6 +240,37 @@ def main():
             node = node.add_child(ExpectClose())
             groups["quick - wrong MAC"][
                 "wrong MAC at pos {0}, padding of length {1} ".format(error_pos, pad_len)] = conversation
+
+        # iterate over min/max padding and first/last byte of padding error
+        for pad_len, error_pos in product([256], [0, 254]):
+            payload_len = 512 - mac_len - pad_len - block_len
+
+            conversation = Connect(host, port)
+            node = conversation
+            ciphers = [cipher]
+            node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+            node = node.add_child(ExpectServerHello())
+            node = node.add_child(ExpectCertificate())
+            if dhe:
+                node = node.add_child(ExpectServerKeyExchange())
+            node = node.add_child(ExpectServerHelloDone())
+            node = node.add_child(ClientKeyExchangeGenerator())
+            node = node.add_child(ChangeCipherSpecGenerator())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(ExpectChangeCipherSpec())
+            node = node.add_child(ExpectFinished())
+            node = node.add_child(
+                fuzz_padding(
+                    ApplicationDataGenerator(bytearray(payload_len)),
+                    min_length=pad_len,
+                    xors={(error_pos): 0xff}
+                )
+            )
+            node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                              AlertDescription.bad_record_mac))
+            node = node.add_child(ExpectClose())
+            groups["quick - wrong MAC"][
+                "wrong pad at pos {0}, padding of length {1} ".format(error_pos, pad_len)] = conversation
 
     else:
         # iterate over: padding length with incorrect MAC
