@@ -29,7 +29,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import SIG_ALL
 
 
-version = 2
+version = 3
 
 
 def help_msg():
@@ -155,18 +155,16 @@ def main():
         }
 
     dhe = cipher in CipherSuite.ecdhAllSuites
+    ext = {}
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(SIG_ALL)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(SIG_ALL)
     if dhe:
-        ext = {}
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
             .create(groups)
-        ext[ExtensionType.signature_algorithms] = \
-            SignatureAlgorithmsExtension().create(SIG_ALL)
-        ext[ExtensionType.signature_algorithms_cert] = \
-            SignatureAlgorithmsCertExtension().create(SIG_ALL)
-    else:
-        ext = None
 
     # first run sanity test and verify that server supports this ciphersuite
     conversation = Connect(host, port)
