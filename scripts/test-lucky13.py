@@ -29,7 +29,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import SIG_ALL
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -239,7 +239,7 @@ def main():
                                               AlertDescription.bad_record_mac))
             node = node.add_child(ExpectClose())
             groups["quick - wrong MAC"][
-                "wrong MAC at pos {0}, padding of length {1} ".format(error_pos, pad_len)] = conversation
+                "wrong MAC at pos {0}, padding length {1}".format(error_pos, pad_len)] = conversation
 
         # iterate over min/max padding and first/last byte of padding error
         for pad_len, error_pos in product([256], [0, 254]):
@@ -270,7 +270,7 @@ def main():
                                               AlertDescription.bad_record_mac))
             node = node.add_child(ExpectClose())
             groups["quick - wrong MAC"][
-                "wrong pad at pos {0}, padding of length {1} ".format(error_pos, pad_len)] = conversation
+                "wrong pad at pos {0}, padding length {1}".format(error_pos, pad_len)] = conversation
 
     else:
         # iterate over: padding length with incorrect MAC
@@ -306,7 +306,7 @@ def main():
             node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                               AlertDescription.bad_record_mac))
             node = node.add_child(ExpectClose())
-            groups["wrong padding and MAC"]["wrong MAC, padding of length {0} ".format(pad_len)] = conversation
+            groups["wrong padding and MAC"]["wrong MAC, padding length {0}".format(pad_len)] = conversation
 
             # incorrect padding of length 255 (256 with the length byte)
             # with error byte iterated over the length of padding
@@ -340,7 +340,7 @@ def main():
                                                   AlertDescription.bad_record_mac))
                 node = node.add_child(ExpectClose())
                 groups["wrong padding and MAC"][
-                    "padding of length 255 (256 with the length byte), error at position {0}".format(
+                    "padding length 255 (256 with the length byte), padding error at position {0}".format(
                         pad_len - 1)] = conversation
 
             # ciphertext 2 has 128 bytes and broken padding to make server check mac "before" the plaintext
@@ -390,7 +390,7 @@ def main():
             node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                               AlertDescription.bad_record_mac))
             node = node.add_child(ExpectClose())
-            groups["wrong padding and MAC"]["incorrect MAC at pos {0}".format(mac_index)] = conversation
+            groups["wrong padding and MAC"]["padding length 255 (256 with the length byte), incorrect MAC at pos {0}".format(mac_index)] = conversation
 
     for group_name, conversations in groups.items():
 
