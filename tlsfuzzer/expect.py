@@ -27,7 +27,7 @@ from tlslite.utils.codec import Parser, Writer
 from tlslite.utils.compat import b2a_hex
 from tlslite.utils.cryptomath import secureHMAC, derive_secret, \
         HKDF_expand_label
-from tlslite.mathtls import calcFinished, RFC7919_GROUPS, FFDHE_PARAMETERS
+from tlslite.mathtls import RFC7919_GROUPS, FFDHE_PARAMETERS, calc_key
 from tlslite.keyexchange import KeyExchange, DHE_RSAKeyExchange, \
         ECDHE_RSAKeyExchange
 from tlslite.x509 import X509
@@ -1531,11 +1531,13 @@ class ExpectFinished(ExpectHandshake):
         if self.version in ((0, 2), (2, 0)):
             state.session_id = finished.verify_data
         elif self.version <= (3, 3):
-            verify_expected = calcFinished(state.version,
-                                           state.key['master_secret'],
-                                           state.cipher,
-                                           state.handshake_hashes,
-                                           not state.client)
+            verify_expected = calc_key(state.version,
+                                       state.key['master_secret'],
+                                       state.cipher,
+                                       b'client finished' if not state.client
+                                       else b'server finished',
+                                       state.handshake_hashes,
+                                       output_length=12)
 
             assert finished.verify_data == verify_expected
         else:  # TLS 1.3
