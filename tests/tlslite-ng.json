@@ -376,6 +376,14 @@
           "arguments" : ["-k", "tests/serverECKey.pem",
                          "-c", "tests/serverECCert.pem"]
           },
+         {"name" : "test-eddsa-in-certificate-verify.py",
+          "arguments" : ["-k", "tests/serverEd25519Key.pem",
+                         "-c", "tests/serverEd25519Cert.pem"]
+          },
+         {"name" : "test-eddsa-in-certificate-verify.py",
+          "arguments" : ["-k", "tests/serverEd448Key.pem",
+                         "-c", "tests/serverEd448Cert.pem"]
+          },
          {"name" : "test-rsa-pss-sigs-on-certificate-verify.py",
           "arguments" : ["--illegpar"]
           },
@@ -401,7 +409,15 @@
          {"name" : "test-tls13-ecdsa-in-certificate-verify.py",
           "arguments" : ["-k", "tests/serverECKey.pem",
                          "-c", "tests/serverECCert.pem"]
-          }
+          },
+         {"name" : "test-tls13-eddsa-in-certificate-verify.py",
+          "arguments" : ["-k", "tests/serverEd25519Key.pem",
+                         "-c", "tests/serverEd25519Cert.pem"]
+          },
+         {"name" : "test-tls13-eddsa-in-certificate-verify.py",
+          "arguments" : ["-k", "tests/serverEd448Key.pem",
+                         "-c", "tests/serverEd448Cert.pem"]
+         }
      ]
     },
     {"server_command": ["{python}", "-u", "{command}", "server",

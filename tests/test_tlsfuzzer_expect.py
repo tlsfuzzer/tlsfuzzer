@@ -181,6 +181,49 @@ srv_raw_ecdsa_certificate = str(
     )
 
 
+srv_raw_ed25519_certificate = str(
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIBPDCB76ADAgECAhQkqENccCvOQyI4iKFuuOKwl860bTAFBgMrZXAwFDESMBAG\n"
+    "A1UEAwwJbG9jYWxob3N0MB4XDTIxMDcyNjE0MjcwN1oXDTIxMDgyNTE0MjcwN1ow\n"
+    "FDESMBAGA1UEAwwJbG9jYWxob3N0MCowBQYDK2VwAyEA1KMGmAZealfgakBuCx/E\n"
+    "n69fo072qm90eM40ulGex0ajUzBRMB0GA1UdDgQWBBTHKWv5l/SxnkkYJhh5r3Pv\n"
+    "ESAh1DAfBgNVHSMEGDAWgBTHKWv5l/SxnkkYJhh5r3PvESAh1DAPBgNVHRMBAf8E\n"
+    "BTADAQH/MAUGAytlcANBAF/vSBfOHAdRl29sWDTkuqy1dCuSf7j7jKE/Be8Fk7xs\n"
+    "WteXJmIa0HlRAZjxNfWbsSGLnTYbsGTbxKx3QU9H9g0=\n"
+    "-----END CERTIFICATE-----\n"
+    )
+
+
+srv_raw_ed25519_key = str(
+    "-----BEGIN PRIVATE KEY-----\n"
+    "MC4CAQAwBQYDK2VwBCIEIAjtEwCECqbot5RZxSmiNDWcPp+Xc9Y9WJcUhti3JgSP\n"
+    "-----END PRIVATE KEY-----\n"
+    )
+
+
+srv_raw_ed448_certificate = str(
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIIBiDCCAQigAwIBAgIUZoaDDgE5Cy2GuAMtk4lnsmrPF04wBQYDK2VxMBQxEjAQ\n"
+    "BgNVBAMMCWxvY2FsaG9zdDAeFw0yMTA3MjYxODAzMzhaFw0yMTA4MjUxODAzMzha\n"
+    "MBQxEjAQBgNVBAMMCWxvY2FsaG9zdDBDMAUGAytlcQM6AKxTNGJ39O4kUx7BopPK\n"
+    "prb1Jkoo0csq0Cmpa+VhpDlbR9/gVsb3pchexzjxXyRkNv71naHmOkQvAKNTMFEw\n"
+    "HQYDVR0OBBYEFBb153yRh5IZOfBxoakGVuviFKujMB8GA1UdIwQYMBaAFBb153yR\n"
+    "h5IZOfBxoakGVuviFKujMA8GA1UdEwEB/wQFMAMBAf8wBQYDK2VxA3MAiXEqTPRb\n"
+    "u+56ebfiGjdE++H+YvHVxxxycqKAIAikfsLFfw2LUGQVBMhl+nzS4zRDOKa34uGz\n"
+    "DwEApFuOWurH/y8zqM5NFyXfwbHRlhG4xwUet52CbrtC7Dy1HYnvWdEjbKDSJXpJ\n"
+    "MmNSiO0oBtQ62CsA\n"
+    "-----END CERTIFICATE-----\n"
+    )
+
+
+srv_raw_ed448_key = str(
+    "-----BEGIN PRIVATE KEY-----\n"
+    "MEcCAQAwBQYDK2VxBDsEOWC42wrEHt4sse84L8oi/2LfqtYvT+Xwd5USLJuAUi6h\n"
+    "Ht8RBuFGD/DoZIfwfBgBfemM56jAnbQIug==\n"
+    "-----END PRIVATE KEY-----\n"
+    )
+
+
 class TestExpect(unittest.TestCase):
     def test___init__(self):
         exp = Expect(ContentType.handshake)
@@ -2244,6 +2287,112 @@ class TestExpectCertificateVerify(unittest.TestCase):
 
         self.assertIn("Invalid signature type for NIST256p key, received: "
                       "ecdsa_secp384r1_sha384", str(exc.exception))
+
+    def test_process_with_ed25519_sig_alg(self):
+        exp = ExpectCertificateVerify()
+
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+
+        cert = Certificate(CertificateType.x509, (3, 4)).create(
+            X509CertChain([X509().parse(srv_raw_ed25519_certificate)]))
+
+        private_key = parsePEMKey(srv_raw_ed25519_key, private=True)
+
+        client_hello = ClientHello()
+        ext = SignatureAlgorithmsExtension().\
+            create([SignatureScheme.ed25519])
+        client_hello.extensions = [ext]
+        state.handshake_messages.append(client_hello)
+
+        state.handshake_messages.append(cert)
+
+        hh_digest = state.handshake_hashes.digest('sha256')
+        self.assertEqual(state.prf_name, "sha256")
+        signature_context = bytearray(b'\x20' * 64 +
+                                      b'TLS 1.3, server CertificateVerify' +
+                                      b'\x00') + hh_digest
+        sig = private_key.hashAndSign(signature_context,
+                                      None,
+                                      None,
+                                      None)
+        scheme = SignatureScheme.ed25519
+        cer_verify = CertificateVerify((3, 4)).create(sig, scheme)
+
+        exp.process(state, cer_verify)
+
+    def test_process_with_ed448_sig_alg(self):
+        exp = ExpectCertificateVerify()
+
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+
+        cert = Certificate(CertificateType.x509, (3, 4)).create(
+            X509CertChain([X509().parse(srv_raw_ed448_certificate)]))
+
+        private_key = parsePEMKey(srv_raw_ed448_key, private=True)
+
+        client_hello = ClientHello()
+        ext = SignatureAlgorithmsExtension().\
+            create([SignatureScheme.ed448])
+        client_hello.extensions = [ext]
+        state.handshake_messages.append(client_hello)
+
+        state.handshake_messages.append(cert)
+
+        hh_digest = state.handshake_hashes.digest('sha256')
+        self.assertEqual(state.prf_name, "sha256")
+        signature_context = bytearray(b'\x20' * 64 +
+                                      b'TLS 1.3, server CertificateVerify' +
+                                      b'\x00') + hh_digest
+        sig = private_key.hashAndSign(signature_context,
+                                      None,
+                                      None,
+                                      None)
+        scheme = SignatureScheme.ed448
+        cer_verify = CertificateVerify((3, 4)).create(sig, scheme)
+
+        exp.process(state, cer_verify)
+
+    def test_process_eddsa_with_mismatched_signature(self):
+        exp = ExpectCertificateVerify()
+
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+
+        cert = Certificate(CertificateType.x509, (3, 4)).create(
+            X509CertChain([X509().parse(srv_raw_ed448_certificate)]))
+
+        private_key = parsePEMKey(srv_raw_ed25519_key, private=True)
+
+        client_hello = ClientHello()
+        ext = SignatureAlgorithmsExtension().\
+            create([SignatureScheme.ed25519])
+        client_hello.extensions = [ext]
+        state.handshake_messages.append(client_hello)
+
+        state.handshake_messages.append(cert)
+
+        hh_digest = state.handshake_hashes.digest('sha256')
+        self.assertEqual(state.prf_name, "sha256")
+        signature_context = bytearray(b'\x20' * 64 +
+                                      b'TLS 1.3, server CertificateVerify' +
+                                      b'\x00') + hh_digest
+        sig = private_key.hashAndSign(signature_context,
+                                      None,
+                                      None,
+                                      None)
+        scheme = SignatureScheme.ed25519
+        cer_verify = CertificateVerify((3, 4)).create(sig, scheme)
+
+        with self.assertRaises(AssertionError) as e:
+            exp.process(state, cer_verify)
+
+        self.assertIn("Mismatched signature (ed25519) for used key (Ed448)",
+                      str(e.exception))
 
     def test_process_with_expected_sig_alg(self):
         exp = ExpectCertificateVerify(
