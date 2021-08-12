@@ -85,7 +85,7 @@ Then you can install tlsfuzzer dependencies to speed-up the test execution:
    dnf install python3 python3-devel tcpdump gmp-devel swig mpfr-devel \
    libmpc openssl-devel make gcc gcc-c++ git libmpc-devel python3-six
 
-   pip3 install m2crypto gmpy gmpy2
+   pip3 install m2crypto gmpy2
    pip3 install --pre tlslite-ng
 
 And the general requirements to collect and analyse timing results:
@@ -98,7 +98,7 @@ And the general requirements to collect and analyse timing results:
 
    Because the tests use packet capture to collect timing information and
    they buffer the messages until all of them have been created, the use
-   of ``m2crypto``, ``gmpy`` and ``gmpy2`` does not have an effect on collected
+   of ``m2crypto`` and ``gmpy2`` does not have an effect on collected
    data points, using them will only make tlsfuzzer run the tests at a higher
    frequency.
 
