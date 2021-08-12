@@ -29,7 +29,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import SIG_ALL
 
 
-version = 2
+version = 6
 
 
 def help_msg():
@@ -63,6 +63,8 @@ def help_msg():
     print(" --cpu-list     Set the CPU affinity for the tcpdump process")
     print("                See taskset(1) man page for the syntax of this")
     print("                option. Not used by default.")
+    print(" --payload-len num Size of the sent Application Data record, in bytes.")
+    print("                512 by default.")
     print(" --help         this message")
 
 
@@ -80,12 +82,14 @@ def main():
     quick = False
     cipher = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA
     affinity = None
+    ciphertext_len = 512
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "h:p:e:x:X:n:l:o:i:C:", ["help",
                                                               "repeat=",
                                                               "quick",
-                                                              "cpu-list="])
+                                                              "cpu-list=",
+                                                              "payload-len="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -117,6 +121,8 @@ def main():
             interface = arg
         elif opt == '-o':
             outdir = arg
+        elif opt == "--payload-len":
+            ciphertext_len = int(arg)
         elif opt == "--repeat":
             repetitions = int(arg)
         elif opt == '--help':
@@ -155,18 +161,16 @@ def main():
         }
 
     dhe = cipher in CipherSuite.ecdhAllSuites
+    ext = {}
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(SIG_ALL)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(SIG_ALL)
     if dhe:
-        ext = {}
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
             .create(groups)
-        ext[ExtensionType.signature_algorithms] = \
-            SignatureAlgorithmsExtension().create(SIG_ALL)
-        ext[ExtensionType.signature_algorithms_cert] = \
-            SignatureAlgorithmsCertExtension().create(SIG_ALL)
-    else:
-        ext = None
 
     # first run sanity test and verify that server supports this ciphersuite
     conversation = Connect(host, port)
@@ -212,7 +216,7 @@ def main():
     if quick:
         # iterate over min/max padding and first/last byte MAC error
         for pad_len, error_pos in product([1, 256], [0, -1]):
-            payload_len = 512 - mac_len - pad_len - block_len
+            payload_len = ciphertext_len - mac_len - pad_len - block_len
 
             conversation = Connect(host, port)
             node = conversation
@@ -241,7 +245,38 @@ def main():
                                               AlertDescription.bad_record_mac))
             node = node.add_child(ExpectClose())
             groups["quick - wrong MAC"][
-                "wrong MAC at pos {0}, padding of length {1} ".format(error_pos, pad_len)] = conversation
+                "wrong MAC at pos {0}, padding length {1}".format(error_pos, pad_len)] = conversation
+
+        # iterate over min/max padding and first/last byte of padding error
+        for pad_len, error_pos in product([256], [0, 254]):
+            payload_len = ciphertext_len - mac_len - pad_len - block_len
+
+            conversation = Connect(host, port)
+            node = conversation
+            ciphers = [cipher]
+            node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+            node = node.add_child(ExpectServerHello())
+            node = node.add_child(ExpectCertificate())
+            if dhe:
+                node = node.add_child(ExpectServerKeyExchange())
+            node = node.add_child(ExpectServerHelloDone())
+            node = node.add_child(ClientKeyExchangeGenerator())
+            node = node.add_child(ChangeCipherSpecGenerator())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(ExpectChangeCipherSpec())
+            node = node.add_child(ExpectFinished())
+            node = node.add_child(
+                fuzz_padding(
+                    ApplicationDataGenerator(bytearray(payload_len)),
+                    min_length=pad_len,
+                    xors={(error_pos): 0xff}
+                )
+            )
+            node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                              AlertDescription.bad_record_mac))
+            node = node.add_child(ExpectClose())
+            groups["quick - wrong MAC"][
+                "wrong pad at pos {0}, padding length {1}".format(error_pos, pad_len)] = conversation
 
     else:
         # iterate over: padding length with incorrect MAC
@@ -249,7 +284,7 @@ def main():
         for pad_len in range(1, 257):
 
             # ciphertext 1 has 512 bytes, calculate payload size
-            payload_len = 512 - mac_len - pad_len - block_len
+            payload_len = ciphertext_len - mac_len - pad_len - block_len
 
             conversation = Connect(host, port)
             node = conversation
@@ -277,14 +312,14 @@ def main():
             node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                               AlertDescription.bad_record_mac))
             node = node.add_child(ExpectClose())
-            groups["wrong padding and MAC"]["wrong MAC, padding of length {0} ".format(pad_len)] = conversation
+            groups["wrong padding and MAC"]["wrong MAC, padding length {0}".format(pad_len)] = conversation
 
             # incorrect padding of length 255 (256 with the length byte)
             # with error byte iterated over the length of padding
 
             # avoid changing the padding length byte
             if pad_len < 256:
-                payload_len = 512 - mac_len - 256 - block_len
+                payload_len = ciphertext_len - mac_len - 256 - block_len
 
                 conversation = Connect(host, port)
                 node = conversation
@@ -311,7 +346,7 @@ def main():
                                                   AlertDescription.bad_record_mac))
                 node = node.add_child(ExpectClose())
                 groups["wrong padding and MAC"][
-                    "padding of length 255 (256 with the length byte), error at position {0}".format(
+                    "padding length 255 (256 with the length byte), padding error at position {0}".format(
                         pad_len - 1)] = conversation
 
             # ciphertext 2 has 128 bytes and broken padding to make server check mac "before" the plaintext
@@ -339,7 +374,7 @@ def main():
             groups["MAC out of bounds"]["padding length byte={0}".format(pad_len - 1)] = conversation
 
         # iterate over MAC length and fuzz byte by byte
-        payload_len = 512 - mac_len - block_len - 256
+        payload_len = ciphertext_len - mac_len - block_len - 256
         for mac_index in range(0, mac_len):
             conversation = Connect(host, port)
             node = conversation
@@ -361,7 +396,7 @@ def main():
             node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                               AlertDescription.bad_record_mac))
             node = node.add_child(ExpectClose())
-            groups["wrong padding and MAC"]["incorrect MAC at pos {0}".format(mac_index)] = conversation
+            groups["wrong padding and MAC"]["padding length 255 (256 with the length byte), incorrect MAC at pos {0}".format(mac_index)] = conversation
 
     for group_name, conversations in groups.items():
 
