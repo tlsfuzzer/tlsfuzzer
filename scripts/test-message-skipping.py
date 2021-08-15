@@ -264,6 +264,48 @@ def main():
     node = node.add_child(ExpectClose())
     conversations["skip Finished"] = conversation
 
+    # skip all but Finished
+    conversation = Connect(host, port)
+    node = conversation
+    node = node.add_child(FinishedGenerator(protocol=(3, 0)))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.unexpected_message))
+    node = node.add_child(ExpectClose())
+    conversations["skip all but Finished in SSLv3"] = conversation
+
+    conversation = Connect(host, port, version=(3, 1))
+    node = conversation
+    node = node.add_child(FinishedGenerator(protocol=(3, 1)))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.unexpected_message))
+    node = node.add_child(ExpectClose())
+    conversations["skip all but Finished in TLS 1.0"] = conversation
+
+    conversation = Connect(host, port, version=(3, 2))
+    node = conversation
+    node = node.add_child(FinishedGenerator(protocol=(3, 2)))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.unexpected_message))
+    node = node.add_child(ExpectClose())
+    conversations["skip all but Finished in TLS 1.1"] = conversation
+
+    conversation = Connect(host, port, version=(3, 3))
+    node = conversation
+    node = node.add_child(FinishedGenerator(protocol=(3, 3)))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.unexpected_message))
+    node = node.add_child(ExpectClose())
+    conversations["skip all but Finished in TLS 1.2"] = conversation
+
+    # TLS 1.3 uses TLS 1.2 version on record layer level
+    conversation = Connect(host, port, version=(3, 3))
+    node = conversation
+    node = node.add_child(FinishedGenerator(protocol=(3, 4)))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.unexpected_message))
+    node = node.add_child(ExpectClose())
+    conversations["skip all but Finished in TLS 1.3"] = conversation
+
     # run the conversation
     good = 0
     bad = 0
