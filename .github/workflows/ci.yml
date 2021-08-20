@@ -40,6 +40,9 @@ jobs:
           - name: py3.9
             os: ubuntu-latest
             python-version: 3.9
+          - name: py3.10
+            os: ubuntu-latest
+            python-version: '3.10.0-rc.1'
           # also test with extraction tooling installed
           - name: py2.6 with extract
             os: ubuntu-latest
@@ -78,6 +81,10 @@ jobs:
             os: ubuntu-latest
             python-version: 3.9
             opt-deps: ['extract']
+          - name: py3.10 with extract
+            os: ubuntu-latest
+            python-version: '3.10.0-rc.1'
+            opt-deps: ['extract']
           # also test with just analysis tooling installed
           - name: py3.6 with analysis
             os: ubuntu-18.04
@@ -95,6 +102,10 @@ jobs:
             os: ubuntu-latest
             python-version: 3.9
             opt-deps: ['analysis']
+          - name: py3.10 with analysis
+            os: ubuntu-latest
+            python-version: '3.10.0-rc.1'
+            opt-deps: ['analysis']
           # and with both extract and analysis
           - name: py3.6 with extract and analysis
             os: ubuntu-18.04
@@ -111,6 +122,10 @@ jobs:
           - name: py3.9 with extract and analysis
             os: ubuntu-latest
             python-version: 3.9
+            opt-deps: ['extract', 'analysis']
+          - name: py3.10 with extract and analysis
+            os: ubuntu-latest
+            python-version: '3.10.0-rc.1'
             # note: codeclimate can be specified in only one environment
             opt-deps: ['extract', 'analysis', 'codeclimate']
     steps:
@@ -195,8 +210,11 @@ jobs:
         if: ${{ !matrix.container }}
         run: sudo apt-get install -y libmpfr-dev libmpc-dev libgmp-dev
       - name: Install gmpy2
-        if: ${{ !matrix.container }}
+        if: ${{ matrix.python-version != '3.10' && !matrix.container}}
         run: pip install gmpy2
+      - name: Install gmpy2==2.1.0b5 (3.10)
+        if: ${{ matrix.python-version == '3.10' && !matrix.container}}
+        run: pip install gmpy2==2.1.0b5
       - name: Install M2Crypto dependencies
         if: ${{ !matrix.container }}
         run: sudo apt-get install -y swig libssl-dev
