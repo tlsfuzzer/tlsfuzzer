@@ -4,7 +4,6 @@
 """Parsing and processing of received TLS messages"""
 from __future__ import print_function
 
-import collections
 import itertools
 from functools import partial
 import sys
@@ -39,6 +38,15 @@ from .handshake_helpers import calc_pending_states, kex_for_group, \
         curve_name_to_hash_tls13
 from .helpers import ECDSA_SIG_TLS1_3_ALL
 from .tree import TreeNode
+
+# pylint: disable=import-error,no-name-in-module
+# pylint: disable=bad-option-value,deprecated-class
+if sys.version_info >= (3, 3):
+    from collections.abc import Iterable
+else:
+    from collections import Iterable
+# pylint: enable=bad-option-value,deprecated-class
+# pylint: enable=import-error,no-name-in-module
 
 
 class Expect(TreeNode):
@@ -1818,7 +1826,7 @@ class ExpectAlert(Expect):
                                                             self.level)
         if self.description is not None:
             # allow for multiple choice for description
-            if not isinstance(self.description, collections.Iterable):
+            if not isinstance(self.description, Iterable):
                 self.description = tuple([self.description])
 
             if alert.description not in self.description:
