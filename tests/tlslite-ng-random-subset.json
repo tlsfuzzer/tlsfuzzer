@@ -188,6 +188,8 @@
           "exp_pass" : false},
          {"name":  "test-lucky13.py",
           "arguments" :  ["--quick"]},
+         {"name":  "test-lucky13.py",
+          "arguments" :  ["--quick", "-C", "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384"]},
          {"name" : "test-message-duplication.py"},
          {"name" : "test-message-skipping.py"},
          {"name" : "test-message-skipping.py",

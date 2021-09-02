@@ -167,10 +167,10 @@ def main():
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(SIG_ALL)
     if dhe:
-        groups = [GroupName.secp256r1,
+        sup_groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
-            .create(groups)
+            .create(sup_groups)
 
     # first run sanity test and verify that server supports this ciphersuite
     conversation = Connect(host, port)
