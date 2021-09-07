@@ -155,7 +155,8 @@ def run_clients(tests, common_args, srv, expected_size):
                      arg in arguments]
         proc_args.extend(common_args + arguments)
         my_env = os.environ.copy()
-        my_env["PYTHONPATH"]="."
+        path = my_env.get("PYTHONPATH")
+        my_env["PYTHONPATH"] = ".:{0}".format(path) if path else "."
         proc = Popen(proc_args, env=my_env,
                      stdout=PIPE, stderr=PIPE, bufsize=1)
         thr_stdout = Thread(target=process_stdout, args=(script, proc))
