@@ -1845,6 +1845,10 @@ class ExpectAlert(Expect):
         if problem_desc:
             raise AssertionError(problem_desc)
 
+    def __repr__(self):
+        """Return human readable representation of object."""
+        return self._repr(["level", "description"])
+
 
 class ExpectSSL2Alert(ExpectHandshake):
     """Processing of SSLv2 Handshake protocol alert messages"""
