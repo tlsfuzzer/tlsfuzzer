@@ -3104,6 +3104,12 @@ class TestExpectAlert(unittest.TestCase):
                          "not match received "
                          "\"255\"")
 
+    def test___str__(self):
+        exp = ExpectAlert(AlertLevel.warning,
+                          AlertDescription.illegal_parameter)
+
+        self.assertEqual(str(exp), "ExpectAlert(level=1, description=47)")
+
 
 class TestExpectSSL2Alert(unittest.TestCase):
     def test___init__(self):
