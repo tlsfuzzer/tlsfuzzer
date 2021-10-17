@@ -10,6 +10,7 @@ import time
 import subprocess
 import sys
 import math
+import queue
 from threading import Thread
 from itertools import chain, repeat
 
@@ -131,6 +132,11 @@ class TimingRunner:
                       eta,
                       " " * 4), end="\r")
 
+    def _delay_loop(self, delay, delay_ready, status):
+        while status[2]:
+            delay_ready.put(None)
+            time.sleep(delay)
+
     def run(self):
         """
         Run test the specified number of times and start analysis
@@ -141,6 +147,11 @@ class TimingRunner:
         status = Thread(target=self.tcpdump_status, args=(sniffer,))
         status.setDaemon(True)
         status.start()
+
+        delay_ready = queue.Queue()
+        delay_runner = None
+
+        start_time = time.time()
 
         try:
             # run the conversations
@@ -156,6 +167,18 @@ class TimingRunner:
                   "This might take a while...")
             for executed, index in enumerate(queries):
                 status[0] = executed
+                if executed > WARM_UP:
+                    delay_ready.get()
+                elif executed == WARM_UP:
+                    end_time = time.time()
+                    avg_test_time = (end_time - start_time) / executed
+                    avg_test_time *= 1.2
+                    delay_runner = Thread(
+                        target=self._delay_loop,
+                        args=(avg_test_time, delay_ready, status)
+                    )
+                    delay_runner.start()
+
                 if self.tcpdump_running:
                     c_name = test_classes[index]
                     c_test = self.tests[c_name]
@@ -182,6 +205,8 @@ class TimingRunner:
             sniffer.terminate()
             sniffer.wait()
             progress.join()
+            if delay_runner:
+                delay_runner.join()
 
         # start extraction and analysis
         print("Starting extraction...")
