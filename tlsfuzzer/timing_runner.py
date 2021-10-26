@@ -10,6 +10,7 @@ import time
 import subprocess
 import sys
 import math
+import copy
 from threading import Thread
 from itertools import chain, repeat
 
@@ -159,6 +160,8 @@ class TimingRunner:
                 if self.tcpdump_running:
                     c_name = test_classes[index]
                     c_test = self.tests[c_name]
+
+                    c_test = copy.deepcopy(c_test)
 
                     runner = Runner(c_test)
                     res = True
