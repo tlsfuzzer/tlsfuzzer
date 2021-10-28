@@ -708,6 +708,11 @@ class Analysis(object):
                         (q1+2*median+q3)/4))
         return ret
 
+    @staticmethod
+    def _import_diffs(diffs):
+        global _diffs
+        _diffs = diffs
+
     def _bootstrap_differences(self, pair, reps=5000):
         """Return a list of bootstrapped central tendencies of differences."""
         # don't pickle the diffs as they are read-only, use a global to pass
@@ -727,7 +732,8 @@ class Analysis(object):
 
         ret = dict((k, list()) for k in keys)
 
-        with mp.Pool() as pool:
+        with mp.Pool(initializer=self._import_diffs, initargs=(_diffs,)) \
+                as pool:
             cent_tend = pool.imap_unordered(
                 self._cent_tend_of_random_sample,
                 chain(repeat(job_size, reps // job_size), [reps % job_size]))
