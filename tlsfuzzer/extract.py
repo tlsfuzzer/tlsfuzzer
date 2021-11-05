@@ -110,8 +110,14 @@ class Extract:
         self.timings = defaultdict(list)
         self.client_message = None
         self.server_message = None
+        self.client_msgs = []
+        self.server_msgs = []
+        self.initial_syn = None
+        self.initial_syn_ack = None
+        self.initial_ack = None
         self.warm_up_messages_left = WARM_UP
         self.raw_times = raw_times
+        self.pckt_times = []
 
         # set up class names generator
         self.log = log
@@ -168,26 +174,56 @@ class Extract:
         with open(self.capture, 'rb') as pcap:
             capture = dpkt.pcap.Reader(pcap)
 
+            syn_ack_seq = 0
+
+            # since timestamp is Decimal() we don't have to worry about float()
+            # precision
             for timestamp, pkt in capture:
                 link_packet = dpkt.ethernet.Ethernet(pkt)
                 ip_pkt = link_packet.data
                 tcp_pkt = ip_pkt.data
 
-                if tcp_pkt.data:
-                    if (tcp_pkt.sport == self.port and
-                            ip_pkt.src == self.ip_address):
-                        # message from the server
-                        self.server_message = timestamp
-                    else:
-                        # message from the client
-                        self.client_message = timestamp
-                if (tcp_pkt.flags & 0x02) != 0:
+                if (tcp_pkt.flags & dpkt.tcp.TH_SYN and
+                        tcp_pkt.dport == self.port and
+                        ip_pkt.dst == self.ip_address):
                     # a SYN packet was found - new connection
+                    # (if a retransmission it won't be counted as at least
+                    # one client and one server message has to be exchanged)
                     self.add_timing()
 
                     # reset timestamps
                     self.server_message = None
                     self.client_message = None
+                    self.initial_syn = timestamp
+                    self.initial_syn_ack = None
+                    self.initial_ack = None
+                    self.client_msgs = []
+                    self.server_msgs = []
+                elif (tcp_pkt.flags & dpkt.tcp.TH_SYN and
+                        tcp_pkt.flags & dpkt.tcp.TH_ACK and
+                        tcp_pkt.sport == self.port and
+                        ip_pkt.src == self.ip_address):
+                    self.initial_syn_ack = timestamp
+                    syn_ack_seq = tcp_pkt.seq
+                elif (tcp_pkt.flags & dpkt.tcp.TH_ACK and
+                        tcp_pkt.dport == self.port and
+                        ip_pkt.dst == self.ip_address and
+                        tcp_pkt.ack - 1 % (2**32 - 1) == syn_ack_seq and
+                        not tcp_pkt.data):
+                    # the initial ACK is the one that ACKs the initial SYN+ACK
+                    self.initial_ack = timestamp
+                if tcp_pkt.data:
+                    if (tcp_pkt.sport == self.port and
+                            ip_pkt.src == self.ip_address):
+                        # message from the server
+                        self.server_message = timestamp
+                        self.server_msgs.append(timestamp)
+                    else:
+                        # message from the client
+                        self.client_message = timestamp
+                        self.client_msgs.append(timestamp)
+
+                    # note time of first packet
             # deal with the last connection
             self.add_timing()
 
@@ -199,8 +235,63 @@ class Extract:
                 class_name = self.class_names[class_index]
                 time_diff = abs(self.server_message - self.client_message)
                 self.timings[class_name].append(time_diff)
+                self.pckt_times.append((
+                    self.initial_syn,
+                    self.initial_syn_ack,
+                    self.initial_ack,
+                    self.client_msgs,
+                    self.server_msgs
+                ))
             else:
                 self.warm_up_messages_left -= 1
+                if self.warm_up_messages_left == 0:
+                    self.last_warmup_server = self.server_message
+
+    def write_pkt_csv(self, filename):
+        """
+        Write all packet times to file
+        """
+        filename = join(self.output, filename)
+        with open(filename, 'w') as csvfile:
+            print("Writing to {0}".format(filename))
+            writer = csv.writer(csvfile, quoting=csv.QUOTE_MINIMAL)
+            columns = [
+                "lst_srv_to_syn",
+                "syn_to_syn_ack",
+                "syn_ack_to_ack",
+                "ack_to_lst_clnt",
+                "lst_clnt_to_lst_srv",
+            ]
+            multi = False
+
+            if len(self.pckt_times[0][3]) > 1:
+                if not len(self.pckt_times[0][4]) > 1:
+                    raise ValueError("Both sides must send multiple packets")
+                colums.extend((
+                    "2nd_lst_clnt_to_2nd_lst_srv",
+                ))
+                multi = True
+
+            writer.writerow(columns)
+
+            previous_lst_srv = self.last_warmup_server
+            for syn, syn_ack, ack, c_msgs, s_msgs in self.pckt_times:
+                lst_clnt = c_msgs[-1]
+                row = [
+                    syn - previous_lst_srv,
+                    syn_ack - syn,
+                    ack - syn_ack,
+                    lst_clnt - ack,
+                    s_msgs[-1] - lst_clnt,
+                ]
+
+                if multi and len(c_msgs) > 1 and len(s_msgs):
+                    row.extend((
+                        s_msgs[-2] - c_msgs[-2],
+                    ))
+
+                writer.writerow(row)
+                previous_lst_srv = s_msgs[-1]
 
     def write_csv(self, filename):
         """

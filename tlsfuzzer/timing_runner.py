@@ -202,6 +202,9 @@ class TimingRunner:
                                  self.port)
             extraction.parse()
             extraction.write_csv(os.path.join(self.out_dir, "timing.csv"))
+            extraction.write_pkt_csv(os.path.join(
+                self.out_dir,
+                "raw_times_detail.csv"))
             return True
 
         print("Extraction is not available. "
