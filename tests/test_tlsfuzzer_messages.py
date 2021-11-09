@@ -439,8 +439,9 @@ class TestRawSocketWriteGenerator(unittest.TestCase):
     def test___repr__(self):
         msg_gen = RawSocketWriteGenerator(bytearray(b'some data'))
 
-        self.assertEqual(repr(msg_gen),
-                         "RawSocketWriteGenerator(data=bytearray(b'some data'))")
+        self.assertEqual(
+            repr(msg_gen),
+            "RawSocketWriteGenerator(data=bytearray(b'some data'))")
 
     def test___repr___with_description(self):
         msg_gen = RawSocketWriteGenerator(bytearray(b'some data'),
