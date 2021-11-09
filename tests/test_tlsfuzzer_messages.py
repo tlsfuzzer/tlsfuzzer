@@ -438,8 +438,10 @@ class TestRawSocketWriteGenerator(unittest.TestCase):
     def test___repr__(self):
         msg_gen = RawSocketWriteGenerator(bytearray(b'some data'))
 
-        self.assertEqual(repr(msg_gen),
-                         "RawSocketWriteGenerator(data=bytearray(b'some data'))")
+        self.assertEqual(
+            repr(msg_gen),
+            "RawSocketWriteGenerator(data=bytearray(b'some data'), "
+            "busywait=0)")
 
     def test___repr___with_description(self):
         msg_gen = RawSocketWriteGenerator(bytearray(b'some data'),
@@ -448,7 +450,8 @@ class TestRawSocketWriteGenerator(unittest.TestCase):
         self.assertEqual(repr(msg_gen),
                          "RawSocketWriteGenerator("
                          "data=bytearray(b'some data'), "
-                         "description='STARTTLS')")
+                         "description='STARTTLS', "
+                         "busywait=0)")
 
     def test_process(self):
         state = ConnectionState()

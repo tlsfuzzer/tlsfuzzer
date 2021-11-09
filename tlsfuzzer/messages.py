@@ -387,20 +387,24 @@ class RawSocketWriteGenerator(Command):
     :ivar bytearray ~.data: data to send
     :ivar str ~.description: identifier to print when processing of the node
         fails
+    :ivar int ~.busywait: number of cycles to waste before sending data
     """
 
-    def __init__(self, data, description=None):
+    def __init__(self, data, description=None, busywait=0):
         """Set the record layer type and payload to send."""
         super(RawSocketWriteGenerator, self).__init__()
         self.data = data
         self.description = description
+        self.busywait = busywait
 
     def __repr__(self):
         """Return human readable representation of the object."""
-        return self._repr(["data", "description"])
+        return self._repr(["data", "description", "busywait"])
 
     def process(self, state):
         """Send the message over the socket."""
+        for _ in range(self.busywait):
+            pass
         state.msg_sock._recordSocket.sock.send(self.data)
 
 
