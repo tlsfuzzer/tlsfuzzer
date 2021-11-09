@@ -1082,8 +1082,8 @@ class Analysis(object):
         global_min = min(min(data1), min(data2))
         global_max = max(max(data1), max(data2))
         # same for zoomed-in data
-        data1_q1, data1_q3 = np.quantile(data1, [0.05, 0.95])
-        data2_q1, data2_q3 = np.quantile(data2, [0.05, 0.95])
+        data1_q1, data1_q3 = np.quantile(data1, [0.025, 0.95])
+        data2_q1, data2_q3 = np.quantile(data2, [0.025, 0.95])
         global_q1 = min(data1_q1, data2_q1)
         global_q3 = max(data1_q3, data2_q3)
 
@@ -1117,7 +1117,7 @@ class Analysis(object):
 
         diff = data2 - data1
         diff_min, diff_q1, diff_q3, diff_max = \
-            np.quantile(diff, [0, 0.025, 0.975, 1])
+            np.quantile(diff, [0, 0.05, 0.95, 1])
 
         self._graph_hist_over_time(
             diff, diff_min, diff_max,
