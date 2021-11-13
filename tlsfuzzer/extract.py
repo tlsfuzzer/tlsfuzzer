@@ -8,9 +8,12 @@ from __future__ import print_function
 import getopt
 import sys
 import csv
+import time
+import math
 from os.path import join
 from collections import defaultdict
 from socket import inet_aton, gethostbyname, gaierror, error
+from threading import Thread
 
 import dpkt
 
@@ -169,63 +172,149 @@ class Extract:
                 class_name = self.class_names[class_index]
                 self.timings[class_name].append(line.strip())
 
+    @staticmethod
+    def _bytes_prefix(count):
+        ret = count
+        lvl = 0
+        lvls = {0: 'B', 1: 'KiB', 2: 'MiB', 3: 'GiB', 4: 'TiB', 5: 'EiB'}
+        while ret > 2000:
+            ret /= 1024.0
+            lvl += 1
+
+        return "{0:.2f} {1}".format(ret, lvls[lvl])
+
+    @staticmethod
+    def _format_seconds(sec):
+        """Format number of seconds into a more readable string."""
+        elems = []
+        msec, sec = math.modf(sec)
+        sec = int(sec)
+        days, rem = divmod(sec, 60*60*24)
+        if days:
+            elems.append("{0}d".format(days))
+        hours, rem = divmod(rem, 60*60)
+        if hours or elems:
+            elems.append("{0}h".format(hours))
+        minutes, sec = divmod(rem, 60)
+        if minutes or elems:
+            elems.append("{0}m".format(minutes))
+        elems.append("{0:.2f}s".format(sec+msec))
+        return " ".join(elems)
+
+    @classmethod
+    def _report_progress(cls, status):
+        """
+        Periodically report progress of task in status, thread runner.
+
+        status must be an array with three elements, first two specify a
+        fraction of completed work (i.e. 0 <= status[0]/status[1] <= 1),
+        third specifies if the reporting process should continue running, a
+        False value there will cause the process to finish
+        """
+        # technically that should be time.monotonic(), but it's not supported
+        # on python2.7
+        start_exec = time.time()
+        prev_loop = start_exec
+        delay = 2.0
+        while status[2]:
+            old_exec = status[0]
+            time.sleep(delay)
+            now = time.time()
+            elapsed = now-start_exec
+            loop_time = now-prev_loop
+            prev_loop = now
+            elapsed_str = cls._format_seconds(elapsed)
+            done = status[0]*100.0/status[1]
+            try:
+                remaining = (100-done)*elapsed/done
+            except ZeroDivisionError:
+                remaining = status[1]
+            remaining_str = cls._format_seconds(remaining)
+            eta = time.strftime("%H:%M:%S %d-%m-%Y",
+                                time.localtime(now+remaining))
+            print("Done: {0:6.2f}%, elapsed: {1}, speed: {2}/s, "
+                  "avg speed: {3}/s, remaining: {4}, ETA: {5}{6}"
+                  .format(
+                      done, elapsed_str,
+                      cls._bytes_prefix((status[0] - old_exec)/loop_time),
+                      cls._bytes_prefix(status[0]/elapsed),
+                      remaining_str,
+                      eta,
+                      " " * 4), end="\r")
+
     def _parse_pcap(self):
         """Process capture file."""
         with open(self.capture, 'rb') as pcap:
-            capture = dpkt.pcap.Reader(pcap)
+            progress = None
+            try:
+                pcap.seek(0, 2)
+                exp_len = pcap.tell()
+                pcap.seek(0, 0)
+                status = [0, exp_len, True]
+                progress = Thread(target=self._report_progress, args=(status,))
+                progress.start()
 
-            syn_ack_seq = 0
+                capture = dpkt.pcap.Reader(pcap)
 
-            # since timestamp is Decimal() we don't have to worry about float()
-            # precision
-            for timestamp, pkt in capture:
-                link_packet = dpkt.ethernet.Ethernet(pkt)
-                ip_pkt = link_packet.data
-                tcp_pkt = ip_pkt.data
+                syn_ack_seq = 0
 
-                if (tcp_pkt.flags & dpkt.tcp.TH_SYN and
-                        tcp_pkt.dport == self.port and
-                        ip_pkt.dst == self.ip_address):
-                    # a SYN packet was found - new connection
-                    # (if a retransmission it won't be counted as at least
-                    # one client and one server message has to be exchanged)
-                    self.add_timing()
+                # since timestamp is Decimal() we don't have to worry about
+                # float() # precision
+                for timestamp, pkt in capture:
+                    status[0] = pcap.tell()
+                    link_packet = dpkt.ethernet.Ethernet(pkt)
+                    ip_pkt = link_packet.data
+                    tcp_pkt = ip_pkt.data
 
-                    # reset timestamps
-                    self.server_message = None
-                    self.client_message = None
-                    self.initial_syn = timestamp
-                    self.initial_syn_ack = None
-                    self.initial_ack = None
-                    self.client_msgs = []
-                    self.server_msgs = []
-                elif (tcp_pkt.flags & dpkt.tcp.TH_SYN and
-                        tcp_pkt.flags & dpkt.tcp.TH_ACK and
-                        tcp_pkt.sport == self.port and
-                        ip_pkt.src == self.ip_address):
-                    self.initial_syn_ack = timestamp
-                    syn_ack_seq = tcp_pkt.seq
-                elif (tcp_pkt.flags & dpkt.tcp.TH_ACK and
-                        tcp_pkt.dport == self.port and
-                        ip_pkt.dst == self.ip_address and
-                        tcp_pkt.ack - 1 % (2**32 - 1) == syn_ack_seq and
-                        not tcp_pkt.data):
-                    # the initial ACK is the one that ACKs the initial SYN+ACK
-                    self.initial_ack = timestamp
-                if tcp_pkt.data:
-                    if (tcp_pkt.sport == self.port and
+                    if (tcp_pkt.flags & dpkt.tcp.TH_SYN and
+                            tcp_pkt.dport == self.port and
+                            ip_pkt.dst == self.ip_address):
+                        # a SYN packet was found - new connection
+                        # (if a retransmission it won't be counted as at least
+                        # one client and one server message has to be
+                        # exchanged)
+                        self.add_timing()
+
+                        # reset timestamps
+                        self.server_message = None
+                        self.client_message = None
+                        self.initial_syn = timestamp
+                        self.initial_syn_ack = None
+                        self.initial_ack = None
+                        self.client_msgs = []
+                        self.server_msgs = []
+                    elif (tcp_pkt.flags & dpkt.tcp.TH_SYN and
+                            tcp_pkt.flags & dpkt.tcp.TH_ACK and
+                            tcp_pkt.sport == self.port and
                             ip_pkt.src == self.ip_address):
-                        # message from the server
-                        self.server_message = timestamp
-                        self.server_msgs.append(timestamp)
-                    else:
-                        # message from the client
-                        self.client_message = timestamp
-                        self.client_msgs.append(timestamp)
+                        self.initial_syn_ack = timestamp
+                        syn_ack_seq = tcp_pkt.seq
+                    elif (tcp_pkt.flags & dpkt.tcp.TH_ACK and
+                            tcp_pkt.dport == self.port and
+                            ip_pkt.dst == self.ip_address and
+                            tcp_pkt.ack - 1 % (2**32 - 1) == syn_ack_seq and
+                            not tcp_pkt.data):
+                        # the initial ACK is the one that ACKs the initial
+                        # SYN+ACK
+                        self.initial_ack = timestamp
+                    if tcp_pkt.data:
+                        if (tcp_pkt.sport == self.port and
+                                ip_pkt.src == self.ip_address):
+                            # message from the server
+                            self.server_message = timestamp
+                            self.server_msgs.append(timestamp)
+                        else:
+                            # message from the client
+                            self.client_message = timestamp
+                            self.client_msgs.append(timestamp)
 
-                    # note time of first packet
-            # deal with the last connection
-            self.add_timing()
+                        # note time of first packet
+                # deal with the last connection
+                self.add_timing()
+            finally:
+                status[2] = False
+                progress.join()
+                print()
 
     def add_timing(self):
         """Associate the timing information with its class"""

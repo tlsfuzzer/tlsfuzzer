@@ -182,6 +182,7 @@ class TimingRunner:
             sniffer.terminate()
             sniffer.wait()
             progress.join()
+            print()
 
         # start extraction and analysis
         print("Starting extraction...")
