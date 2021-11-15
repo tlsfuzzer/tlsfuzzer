@@ -118,7 +118,10 @@ class TimingRunner:
             elapsed = time.time()-start_exec
             elapsed_str = TimingRunner._format_seconds(elapsed)
             done = status[0]*100.0/status[1]
-            remaining = (100-done)*elapsed/done
+            try:
+                remaining = (100-done)*elapsed/done
+            except ZeroDivisionError:
+                remaining = status[1]*elapsed
             remaining_str = TimingRunner._format_seconds(remaining)
             eta = time.strftime("%H:%M:%S %d-%m-%Y",
                                 time.localtime(time.time()+remaining))
