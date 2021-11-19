@@ -100,7 +100,13 @@ class TestExtraction(unittest.TestCase):
 @unittest.skipIf(failed_import,
                  "Could not import extraction. Skipping related tests.")
 class TestCommandLine(unittest.TestCase):
-    def test_command_line(self):
+
+    @mock.patch('tlsfuzzer.extract.Log')
+    @mock.patch('tlsfuzzer.extract.Extract.write_pkt_csv')
+    @mock.patch('tlsfuzzer.extract.Extract.write_csv')
+    @mock.patch('tlsfuzzer.extract.Extract.parse')
+    def test_command_line(self, mock_parse, mock_write, mock_write_pkt,
+                          mock_log):
         capture = "capture.pcap"
         logfile = "log.csv"
         host = "localhost"
@@ -114,18 +120,20 @@ class TestCommandLine(unittest.TestCase):
                 "-o", output]
         mock_init = mock.Mock()
         mock_init.return_value = None
-        with mock.patch('tlsfuzzer.extract.Extract.parse'):
-            with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
-                with mock.patch('tlsfuzzer.extract.Extract.write_csv'):
-                    with mock.patch('tlsfuzzer.extract.Log') as mock_log:
-                        with mock.patch("sys.argv", args):
-                            main()
-                            mock_log.assert_called_once_with(logfile)
-                            mock_init.assert_called_once_with(
-                                mock.ANY, capture, output, host, int(port),
-                                None)
+        with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
+            with mock.patch("sys.argv", args):
+                main()
+                mock_log.assert_called_once_with(logfile)
+                mock_init.assert_called_once_with(
+                    mock.ANY, capture, output, host, int(port),
+                    None)
 
-    def test_raw_times(self):
+
+    @mock.patch('tlsfuzzer.extract.Log')
+    @mock.patch('tlsfuzzer.extract.Extract.write_pkt_csv')
+    @mock.patch('tlsfuzzer.extract.Extract.write_csv')
+    @mock.patch('tlsfuzzer.extract.Extract.parse')
+    def test_raw_times(self, mock_parse, mock_write, mock_write_pkt, mock_log):
         raw_times = "times-log.csv"
         logfile = "log.csv"
         output = "/tmp"
@@ -135,30 +143,29 @@ class TestCommandLine(unittest.TestCase):
                 "--raw-times", raw_times]
         mock_init = mock.Mock()
         mock_init.return_value = None
-        with mock.patch('tlsfuzzer.extract.Extract.parse'):
-            with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
-                with mock.patch('tlsfuzzer.extract.Extract.write_csv'):
-                    with mock.patch('tlsfuzzer.extract.Log') as mock_log:
-                        with mock.patch("sys.argv", args):
-                            main()
-                            mock_log.assert_called_once_with(logfile)
-                            mock_init.assert_called_once_with(
-                                mock.ANY, None, output, None, None,
-                                raw_times)
-
-    def test_help(self):
-        args = ["extract.py", "--help"]
-        with mock.patch('tlsfuzzer.extract.help_msg') as help_mock:
+        with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
             with mock.patch("sys.argv", args):
-                self.assertRaises(SystemExit, main)
-                help_mock.assert_called_once()
+                main()
+                mock_log.assert_called_once_with(logfile)
+                mock_init.assert_called_once_with(
+                    mock.ANY, None, output, None, None,
+                    raw_times)
 
-    def test_help_msg(self):
-        with mock.patch('__main__.__builtins__.print') as print_mock:
-            help_msg()
-            self.assertGreaterEqual(print_mock.call_count, 1)
+    @mock.patch('__main__.__builtins__.print')
+    @mock.patch('tlsfuzzer.extract.help_msg')
+    def test_help(self, help_mock, print_mock):
+        args = ["extract.py", "--help"]
+        with mock.patch("sys.argv", args):
+            self.assertRaises(SystemExit, main)
+            help_mock.assert_called_once()
 
-    def test_missing_output(self):
+    @mock.patch('__main__.__builtins__.print')
+    def test_help_msg(self, print_mock):
+        help_msg()
+        self.assertGreaterEqual(print_mock.call_count, 1)
+
+    @mock.patch('__main__.__builtins__.print')
+    def test_missing_output(self, print_mock):
         args = ["extract.py"]
         with mock.patch("sys.argv", args):
             self.assertRaises(SystemExit, main)

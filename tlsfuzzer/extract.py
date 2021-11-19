@@ -49,7 +49,6 @@ def main():
     port = None
     raw_times = None
 
-
     argv = sys.argv[1:]
 
     if not argv:
@@ -90,6 +89,8 @@ def main():
     analysis = Extract(log, capture, output, ip_address, port, raw_times)
     analysis.parse()
     analysis.write_csv('timing.csv')
+    if not raw_times:
+        analysis.write_pkt_csv('raw_times_detail.csv')
 
 
 class Extract:
@@ -256,12 +257,15 @@ class Extract:
 
                 capture = dpkt.pcap.Reader(pcap)
 
-                syn_ack_seq = 0
+                exp_srv_ack = 0
+                exp_clnt_ack = 0
 
+                pkt_count = 0
                 # since timestamp is Decimal() we don't have to worry about
-                # float() # precision
+                # float() precision
                 for timestamp, pkt in capture:
                     status[0] = pcap.tell()
+                    pkt_count += 1
                     link_packet = dpkt.ethernet.Ethernet(pkt)
                     ip_pkt = link_packet.data
                     tcp_pkt = ip_pkt.data
@@ -283,27 +287,46 @@ class Extract:
                         self.initial_ack = None
                         self.client_msgs = []
                         self.server_msgs = []
+                        exp_srv_ack = tcp_pkt.seq + 1 & 0xffffffff
+                        exp_clnt_ack = 0
                     elif (tcp_pkt.flags & dpkt.tcp.TH_SYN and
                             tcp_pkt.flags & dpkt.tcp.TH_ACK and
                             tcp_pkt.sport == self.port and
                             ip_pkt.src == self.ip_address):
                         self.initial_syn_ack = timestamp
-                        syn_ack_seq = tcp_pkt.seq
+                        exp_clnt_ack = tcp_pkt.seq + 1 & 0xffffffff
+                        if tcp_pkt.ack != exp_srv_ack:
+                            print("Mismatched syn/ack seq at {0}\n"
+                                  .format(pkt_count))
+                            raise ValueError("Packet drops in capture!")
                     elif (tcp_pkt.flags & dpkt.tcp.TH_ACK and
                             tcp_pkt.dport == self.port and
                             ip_pkt.dst == self.ip_address and
-                            tcp_pkt.ack - 1 % (2**32 - 1) == syn_ack_seq and
-                            not tcp_pkt.data):
-                        # the initial ACK is the one that ACKs the initial
-                        # SYN+ACK
+                            tcp_pkt.ack == exp_clnt_ack and
+                            not self.initial_ack):
+                        # the initial ACK is the first ACK that acknowledges
+                        # the SYN+ACK
                         self.initial_ack = timestamp
+                    # initial ACK can be combined with the first data packet
                     if tcp_pkt.data:
                         if (tcp_pkt.sport == self.port and
                                 ip_pkt.src == self.ip_address):
+                            if tcp_pkt.ack != exp_srv_ack:
+                                print("Mismatched syn/ack seq at {0}\n"
+                                      .format(pkt_count))
+                                raise ValueError("Packet drops in capture!")
+                            exp_clnt_ack = exp_clnt_ack + len(tcp_pkt.data) \
+                                & 0xffffffff
                             # message from the server
                             self.server_message = timestamp
                             self.server_msgs.append(timestamp)
                         else:
+                            if tcp_pkt.ack != exp_clnt_ack:
+                                print("Mismatched syn/ack seq at {0}\n"
+                                      .format(pkt_count))
+                                raise ValueError("Packet drops in capture!")
+                            exp_srv_ack = exp_srv_ack + len(tcp_pkt.data) \
+                                & 0xffffffff
                             # message from the client
                             self.client_message = timestamp
                             self.client_msgs.append(timestamp)
