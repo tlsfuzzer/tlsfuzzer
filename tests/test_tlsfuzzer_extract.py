@@ -117,13 +117,14 @@ class TestCommandLine(unittest.TestCase):
         with mock.patch('tlsfuzzer.extract.Extract.parse'):
             with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
                 with mock.patch('tlsfuzzer.extract.Extract.write_csv'):
-                    with mock.patch('tlsfuzzer.extract.Log') as mock_log:
-                        with mock.patch("sys.argv", args):
-                            main()
-                            mock_log.assert_called_once_with(logfile)
-                            mock_init.assert_called_once_with(
-                                mock.ANY, capture, output, host, int(port),
-                                None)
+                    with mock.patch('tlsfuzzer.extract.Extract.write_pkt_csv'):
+                        with mock.patch('tlsfuzzer.extract.Log') as mock_log:
+                            with mock.patch("sys.argv", args):
+                                main()
+                                mock_log.assert_called_once_with(logfile)
+                                mock_init.assert_called_once_with(
+                                    mock.ANY, capture, output, host, int(port),
+                                    None)
 
     def test_raw_times(self):
         raw_times = "times-log.csv"
@@ -138,13 +139,14 @@ class TestCommandLine(unittest.TestCase):
         with mock.patch('tlsfuzzer.extract.Extract.parse'):
             with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
                 with mock.patch('tlsfuzzer.extract.Extract.write_csv'):
-                    with mock.patch('tlsfuzzer.extract.Log') as mock_log:
-                        with mock.patch("sys.argv", args):
-                            main()
-                            mock_log.assert_called_once_with(logfile)
-                            mock_init.assert_called_once_with(
-                                mock.ANY, None, output, None, None,
-                                raw_times)
+                    with mock.patch('tlsfuzzer.extract.Extract.write_pkt_csv'):
+                        with mock.patch('tlsfuzzer.extract.Log') as mock_log:
+                            with mock.patch("sys.argv", args):
+                                main()
+                                mock_log.assert_called_once_with(logfile)
+                                mock_init.assert_called_once_with(
+                                    mock.ANY, None, output, None, None,
+                                    raw_times)
 
     def test_help(self):
         args = ["extract.py", "--help"]
