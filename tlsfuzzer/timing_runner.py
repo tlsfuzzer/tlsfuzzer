@@ -8,6 +8,7 @@ import traceback
 import os
 import time
 import subprocess
+import signal
 import sys
 import math
 from threading import Thread
@@ -141,9 +142,8 @@ class TimingRunner:
         :return: int 0 for no difference, 1 for difference, 2 if unavailable
         """
         sniffer = self.sniff()
-        status = Thread(target=self.tcpdump_status, args=(sniffer,))
-        status.setDaemon(True)
-        status.start()
+        status_th = Thread(target=self.tcpdump_status, args=(sniffer,))
+        status_th.start()
 
         try:
             # run the conversations
@@ -158,6 +158,10 @@ class TimingRunner:
             print("Starting timing info collection. "
                   "This might take a while...")
             for executed, index in enumerate(queries):
+                if executed % 10240 == 0:
+                    # allow the tcpdump to write data to disk
+                    sniffer.send_signal(signal.SIGUSR2)
+                    time.sleep(0.5)
                 status[0] = executed
                 if self.tcpdump_running:
                     c_name = test_classes[index]
@@ -185,7 +189,13 @@ class TimingRunner:
             sniffer.terminate()
             sniffer.wait()
             progress.join()
+            status_th.join()
             print()
+            print(self.tcpdump_output)
+            if "0 packets dropped by kernel" not in \
+                    self.tcpdump_output.split('\n'):
+                raise ValueError("Incomplete packet capture. Aborting. "
+                    "Try reducing disk load or capture to a RAM disk")
 
         # start extraction and analysis
         print("Starting extraction...")
@@ -242,7 +252,8 @@ class TimingRunner:
                                                                self.port)
         flags = ['-i', self.interface,
                  '-s', '0',
-                 '--time-stamp-precision', 'nano']
+                 '--time-stamp-precision', 'nano'
+                 '--buffer-size=102400']  # units are KiB
 
         output_file = os.path.join(self.out_dir, "capture.pcap")
         cmd = []
@@ -254,6 +265,7 @@ class TimingRunner:
         # detect when tcpdump starts capturing
         self.tcpdump_running = False
         for row in iter(process.stderr.readline, b''):
+            print(row.decode())
             line = row.rstrip()
             if 'listening' in line.decode():
                 # tcpdump is ready
@@ -293,12 +305,11 @@ class TimingRunner:
         :param Popen process: A process with running tcpdump attached
         """
         _, stderr = process.communicate()
+        self.tcpdump_output = stderr.decode()
         if self.tcpdump_running:
-            self.tcpdump_running = False
             print("tcpdump unexpectedly exited with return code {0}"
                   .format(process.returncode))
-            if stderr:
-                print(stderr.decode())
+            self.tcpdump_running = False
 
     @staticmethod
     def check_extraction_availability():
