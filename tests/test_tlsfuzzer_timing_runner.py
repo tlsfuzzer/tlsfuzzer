@@ -163,6 +163,7 @@ class TestRunner(unittest.TestCase):
                         with mock.patch('tlsfuzzer.timing_runner.Thread'):
                             with mock.patch('tlsfuzzer.timing_runner.time.sleep'):
                                 with mock.patch('tlsfuzzer.timing_runner.Runner') as runner:
+                                    self.runner.tcpdump_output = "0 packets dropped by kernel"
                                     ret = self.runner.run()
                                     self.assertEqual(runner.call_count, WARM_UP + 9)
                                     extract.assert_called_once()
@@ -182,6 +183,7 @@ class TestRunner(unittest.TestCase):
                         with mock.patch('tlsfuzzer.timing_runner.Thread'):
                             with mock.patch('tlsfuzzer.timing_runner.time.sleep'):
                                 with mock.patch('tlsfuzzer.timing_runner.Runner') as runner:
+                                    self.runner.tcpdump_output = "0 packets dropped by kernel"
                                     ret = self.runner.run()
                                     self.assertEqual(runner.call_count, WARM_UP + 9)
                                     extract.assert_called_once()
@@ -199,6 +201,7 @@ class TestRunner(unittest.TestCase):
                             with mock.patch('tlsfuzzer.timing_runner.time.sleep'):
                                 with mock.patch('tlsfuzzer.timing_runner.Runner') as runner:
                                     self.runner.tcpdump_running = False
+                                    self.runner.tcpdump_output = "0 packets dropped by kernel"
                                     self.assertRaises(SystemExit, self.runner.run)
                                     self.assertEqual(runner.call_count, 0)
 
@@ -219,6 +222,7 @@ class TestRunner(unittest.TestCase):
                             with mock.patch('tlsfuzzer.timing_runner.time.sleep'):
                                 with mock.patch('tlsfuzzer.timing_runner.Runner') as runner:
                                     runner.return_value.run.side_effect = raise_error
+                                    self.runner.tcpdump_output = "0 packets dropped by kernel"
                                     self.assertRaises(AssertionError, self.runner.run)
 
     def test__format_seconds_with_seconds(self):
