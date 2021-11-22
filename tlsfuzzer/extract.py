@@ -296,7 +296,7 @@ class Extract:
                         self.initial_syn_ack = timestamp
                         exp_clnt_ack = tcp_pkt.seq + 1 & 0xffffffff
                         if tcp_pkt.ack != exp_srv_ack:
-                            print("Mismatched syn/ack seq at {0}"
+                            print("Mismatched syn/ack seq at {0}\n"
                                   .format(pkt_count))
                             raise ValueError("Packet drops in capture!")
                     elif (tcp_pkt.flags & dpkt.tcp.TH_ACK and
@@ -312,7 +312,7 @@ class Extract:
                         if (tcp_pkt.sport == self.port and
                                 ip_pkt.src == self.ip_address):
                             if tcp_pkt.ack != exp_srv_ack:
-                                print("Mismatched syn/ack seq at {0}"
+                                print("Mismatched syn/ack seq at {0}\n"
                                       .format(pkt_count))
                                 raise ValueError("Packet drops in capture!")
                             exp_clnt_ack = exp_clnt_ack + len(tcp_pkt.data) \
@@ -322,7 +322,7 @@ class Extract:
                             self.server_msgs.append(timestamp)
                         else:
                             if tcp_pkt.ack != exp_clnt_ack:
-                                print("Mismatched syn/ack seq at {0}"
+                                print("Mismatched syn/ack seq at {0}\n"
                                       .format(pkt_count))
                                 raise ValueError("Packet drops in capture!")
                             exp_srv_ack = exp_srv_ack + len(tcp_pkt.data) \
