@@ -49,7 +49,6 @@ def main():
     port = None
     raw_times = None
 
-
     argv = sys.argv[1:]
 
     if not argv:
@@ -90,7 +89,8 @@ def main():
     analysis = Extract(log, capture, output, ip_address, port, raw_times)
     analysis.parse()
     analysis.write_csv('timing.csv')
-    analysis.write_pkt_csv('raw_times_detail.csv')
+    if not raw_times:
+        analysis.write_pkt_csv('raw_times_detail.csv')
 
 
 class Extract:
