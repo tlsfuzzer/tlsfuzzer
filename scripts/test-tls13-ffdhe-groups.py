@@ -52,6 +52,8 @@ def help_msg():
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
     print("                (\"sanity\" tests are always executed)")
+    print(" -t timeout     how long to wait before assuming the server won't")
+    print("                send a message")
     print(" --help         this message")
 
 
@@ -62,9 +64,10 @@ def main():
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
+    timeout = 5.0
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:t:n:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -84,6 +87,8 @@ def main():
         elif opt == '--help':
             help_msg()
             sys.exit(0)
+        elif opt == '-t':
+            timeout = float(arg)
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -94,7 +99,7 @@ def main():
 
     conversations = {}
 
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -137,7 +142,7 @@ def main():
     conversations["sanity"] = conversation
 
     for group in groups:
-        conversation = Connect(host, port)
+        conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -176,7 +181,7 @@ def main():
         conversations["sanity - {0}".format(GroupName.toRepr(group))] = conversation
 
         # duplicated key share entry
-        conversation = Connect(host, port)
+        conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -202,7 +207,7 @@ def main():
                       .format(GroupName.toRepr(group))] = conversation
 
         # padded representation
-        conversation = Connect(host, port)
+        conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -228,7 +233,7 @@ def main():
         # truncated representation (given that all groups use safe primes,
         # any integer between 1 and p-1 is a valid key share, it's just that
         # after truncation we don't know the private key that generates it)
-        conversation = Connect(host, port)
+        conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -252,7 +257,7 @@ def main():
                       .format(GroupName.toRepr(group))] = conversation
 
         # key share from wrong group
-        conversation = Connect(host, port)
+        conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -280,7 +285,7 @@ def main():
                       .format(GroupName.toRepr(group))] = conversation
 
         # just 0
-        conversation = Connect(host, port)
+        conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -303,7 +308,7 @@ def main():
                       .format(GroupName.toRepr(group))] = conversation
 
         # 0 key share
-        conversation = Connect(host, port)
+        conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -327,7 +332,7 @@ def main():
                       .format(GroupName.toRepr(group))] = conversation
 
         # 1 key share
-        conversation = Connect(host, port)
+        conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -352,7 +357,7 @@ def main():
                       .format(GroupName.toRepr(group))] = conversation
 
         # all bits set key share
-        conversation = Connect(host, port)
+        conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -388,7 +393,7 @@ def main():
             params = FFDHE8192
 
         # p-1 key share
-        conversation = Connect(host, port)
+        conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -412,7 +417,7 @@ def main():
                       .format(GroupName.toRepr(group))] = conversation
 
         # p key share
-        conversation = Connect(host, port)
+        conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -436,7 +441,7 @@ def main():
                       .format(GroupName.toRepr(group))] = conversation
 
         # empty key share entry
-        conversation = Connect(host, port)
+        conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
