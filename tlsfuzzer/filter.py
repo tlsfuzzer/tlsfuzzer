@@ -14,7 +14,7 @@ from os.path import join
 
 import pandas as pd
 import numpy as np
-from scipy.cluster.vq import kmeans2
+import hdbscan
 
 def help_msg():
     """Print help message."""
@@ -76,18 +76,14 @@ class Filter(object):
         self.col_name = col_name
 
     def k_means_cluster(self):
-        # just an arbitrary number that won't cause massive memory usage
-        # for large samples
-        k = 400
-        # but also don't make the k similar in size to sample size, while
-        # still performing clustering
-        k = min(k, max(len(self.data)//50 + 1, 2))
-        print("Starting k-means clustering (k={0})...".format(k))
-        centroids, labels = kmeans2(self.data, k, minit='points')
+        print("Starting HDBSCAN...")
+        clusterer = hdbscan.HDBSCAN(min_cluster_size=10)
+        labels = clusterer.fit_predict(self.data)
         self.labels = labels
-        bin_counts = np.bincount(labels)
-        print("Clustering done, smallest group size: {0}, largest: {1}."
-              .format(min(bin_counts), max(bin_counts)))
+        bins = set(labels)
+        bin_counts = [sum(i == x for i in labels) for x in bins]
+        print("Clustering done, groups: {2}, smallest group size: {0}, largest: {1}."
+              .format(min(bin_counts), max(bin_counts), len(bin_counts)))
 
     def read_pkt_csv(self):
         with open(self.input_file, "r") as csvfile:
@@ -97,7 +93,7 @@ class Filter(object):
         print("Data read.")
 
     def lin_regression(self):
-        """Run linear regression on data using k-means labels."""
+        """Run linear regression on individual data clusters."""
         print("Calculating linear regression on individual groups...")
         if self.col_name not in self.data.columns:
             raise ValueError("Column name \"{0}\" not in {1}".format(
