@@ -77,13 +77,31 @@ class Filter(object):
 
     def k_means_cluster(self):
         print("Starting HDBSCAN...")
-        clusterer = hdbscan.HDBSCAN(min_cluster_size=10)
-        labels = clusterer.fit_predict(self.data)
+        print("clustering:")
+        data = self.data[['ack_to_lst_clnt', 'lst_clnt_to_lst_srv']]
+        #data = self.data.copy()
+        #data['__index'] = self.data.index / 1e9
+        #del data['lst_srv_to_syn']
+        print(data)
+        clusterer = hdbscan.HDBSCAN(cluster_selection_method='leaf', alpha=0.5, leaf_size=10, min_cluster_size=10, min_samples=1, cluster_selection_epsilon=3e-9, metric="manhattan")
+        #clusterer = hdbscan.HDBSCAN(cluster_selection_method="leaf", leaf_size=40, min_cluster_size=10, min_samples=1)
+        labels = clusterer.fit_predict(data)
+        print("clustered")
         self.labels = labels
         bins = set(labels)
-        bin_counts = [sum(i == x for i in labels) for x in bins]
-        print("Clustering done, groups: {2}, smallest group size: {0}, largest: {1}."
-              .format(min(bin_counts), max(bin_counts), len(bin_counts)))
+        from collections import Counter
+        bins = Counter(labels)
+        outliers = bins.pop(-1, 0)
+        bin_counts = bins.values()
+        print("Clustering done, groups: {2}, smallest group size: {0}, largest: {1}, outliers: {3}."
+              .format(min(bin_counts), max(bin_counts), len(bin_counts), outliers))
+        import matplotlib.pyplot as plt
+        #plt.scatter(data['ack_to_lst_clnt'], data['lst_clnt_to_lst_srv'], c=labels, marker=".", alpha=0.5)
+        #plt.show()
+        for i in [-1] + sorted(bins.keys(), key=lambda x: bins[x], reverse=True)[:5]:
+            print("label: {0}, size: {1}".format(i, bins.get(i, outliers)))
+            #plt.scatter(data.loc[labels == i, ['ack_to_lst_clnt']], data.loc[labels == i, ['lst_clnt_to_lst_srv']], marker=".", alpha=0.5)
+            #plt.show()
 
     def read_pkt_csv(self):
         with open(self.input_file, "r") as csvfile:
@@ -106,10 +124,16 @@ class Filter(object):
         res = pd.DataFrame(columns=[self.col_name])
 
         for group in all_labels:
-            l_coef = self.data.loc[self.labels == group, coef_names]
+            l_coef = self.data.loc[self.labels == group, ['ack_to_lst_clnt', 'lst_srv_to_syn']]
             # add the constant (intercept) to the linear equation
+            #l_coef = l_coef['ack_to_lst_clnt']
             l_coef['__constant'] = np.ones(len(l_coef))
+            del l_coef['lst_srv_to_syn']
             l_dep = dep[self.labels == group]
+            #if group == -1:
+                # don't apply regression to outliers
+            #    res = pd.concat([res, l_dep])
+            #    continue
             x_param = np.linalg.lstsq(l_coef, l_dep, rcond=None)[0]
 
             predicted = np.dot(l_coef, x_param)
