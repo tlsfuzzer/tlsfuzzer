@@ -42,7 +42,7 @@ jobs:
             python-version: 3.9
           - name: py3.10
             os: ubuntu-latest
-            python-version: '3.10.0-rc.1'
+            python-version: '3.10'
           # also test with extraction tooling installed
           - name: py2.6 with extract
             os: ubuntu-latest
@@ -83,7 +83,7 @@ jobs:
             opt-deps: ['extract']
           - name: py3.10 with extract
             os: ubuntu-latest
-            python-version: '3.10.0-rc.1'
+            python-version: '3.10'
             opt-deps: ['extract']
           # also test with just analysis tooling installed
           - name: py3.6 with analysis
@@ -104,7 +104,7 @@ jobs:
             opt-deps: ['analysis']
           - name: py3.10 with analysis
             os: ubuntu-latest
-            python-version: '3.10.0-rc.1'
+            python-version: '3.10'
             opt-deps: ['analysis']
           # and with both extract and analysis
           - name: py3.6 with extract and analysis
@@ -125,7 +125,7 @@ jobs:
             opt-deps: ['extract', 'analysis']
           - name: py3.10 with extract and analysis
             os: ubuntu-latest
-            python-version: '3.10.0-rc.1'
+            python-version: '3.10'
             # note: codeclimate can be specified in only one environment
             opt-deps: ['extract', 'analysis', 'codeclimate']
     steps:
@@ -210,11 +210,8 @@ jobs:
         if: ${{ !matrix.container }}
         run: sudo apt-get install -y libmpfr-dev libmpc-dev libgmp-dev
       - name: Install gmpy2
-        if: ${{ !matrix.container && matrix.python-version != '3.10.0-rc.1' }}
+        if: ${{ !matrix.container }}
         run: pip install gmpy2
-      - name: Install gmpy2 2.1.0b6 (3.10)
-        if: ${{ !matrix.container && matrix.python-version == '3.10.0-rc.1' }}
-        run: pip install git+https://github.com/aleaxit/gmpy@gmpy2-2.1.0b6
       - name: Install M2Crypto dependencies
         if: ${{ !matrix.container }}
         run: sudo apt-get install -y swig libssl-dev
@@ -341,10 +338,8 @@ jobs:
           # more generally, it should be `1845 + len(sys.version.split()[0])`,
           # as http.server uses `sys_version = "Python/" + sys.version.split()[0]`
           # https://github.com/python/cpython/blob/2c050e52f1ccf5db03819e4ed70690521d67e9fa/Lib/http/server.py#L253
-          if [[ $PYTHON_VERSION == '2.7' || $PYTHON_VERSION == '3.4' || $PYTHON_VERSION == '3.5' || $PYTHON_VERSION == '3.6' || $PYTHON_VERSION == '3.7' || $PYTHON_VERSION == '3.8' ]]; then
+          if [[ $PYTHON_VERSION == '2.7' || $PYTHON_VERSION == '3.4' || $PYTHON_VERSION == '3.5' || $PYTHON_VERSION == '3.6' || $PYTHON_VERSION == '3.7' || $PYTHON_VERSION == '3.8' || $PYTHON_VERSION == '3.10' ]]; then
             export REPLY_SIZE=1850
-          elif [[ $PYTHON_VERSION == '3.10.0-rc.1' ]]; then
-            export REPLY_SIZE=1853  # Server: SimpleHTTP/0.6 Python/3.10.0rc1
           elif [[ $PYTHON_VERSION == 'nightly' ]]; then
             export REPLY_SIZE=1852  # Server: SimpleHTTP/0.6 Python/3.10.0a0
           else
