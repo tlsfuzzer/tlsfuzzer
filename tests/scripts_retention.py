@@ -34,17 +34,25 @@ xpass_lock = threading.Lock()
 
 
 def process_stdout(name, proc):
-    for line in iter(proc.stdout.readline, b''):
-        line = line.decode()
-        line = line.rstrip()
-        out.put("{0}:stdout:{1}".format(name, line))
+    try:
+        for line in iter(proc.stdout.readline, b''):
+            line = line.decode()
+            line = line.rstrip()
+            out.put("{0}:stdout:{1}".format(name, line))
+    except Exception as e:
+        out.put("{0}:Exception:stdout:{1}".format(name, e))
+        raise e
 
 
 def process_stderr(name, proc):
-    for line in iter(proc.stderr.readline, b''):
-        line = line.decode()
-        line = line.rstrip()
-        out.put("{0}:stderr:{1}".format(name, line))
+    try:
+        for line in iter(proc.stderr.readline, b''):
+            line = line.decode()
+            line = line.rstrip()
+            out.put("{0}:stderr:{1}".format(name, line))
+    except Exception as e:
+        out.put("{0}:Exception:stderr:{1}".format(name, e))
+        raise e
 
 
 def wait_till_open(host, port):
@@ -167,8 +175,10 @@ def run_clients(tests, common_args, srv, expected_size):
         thr_stderr.join()
         proc.wait()
         ret = proc.returncode
+        srv.poll()
         if srv.returncode is not None:
             logger.critical("Server process not active")
+            print_all_from_queue(params.get("exp_pass", True))
         end_time = time.time()
         if ret == 0 and params.get("exp_pass", True) or \
                 ret != 0 and not params.get("exp_pass", True):
@@ -226,9 +236,9 @@ def run_with_json(config_file, srv_path, expected_size):
                 logging.debug("Killing server process")
                 srv.send_signal(15)  # SIGTERM
                 srv.wait()
-                logging.debug("Server process killed: {0}".format(srv.returncode))
+                logging.info("Server process killed: {0}".format(srv.returncode))
             except OSError:
-                logging.debug("Can't kill server process")
+                logging.error("Can't kill server process")
         srv_err.join()
         srv_out.join()
 
