@@ -126,7 +126,7 @@ class TestCommandLine(unittest.TestCase):
                 mock_log.assert_called_once_with(logfile)
                 mock_init.assert_called_once_with(
                     mock.ANY, capture, output, host, int(port),
-                    None)
+                    None, None)
 
 
     @mock.patch('tlsfuzzer.extract.Log')
@@ -149,7 +149,7 @@ class TestCommandLine(unittest.TestCase):
                 mock_log.assert_called_once_with(logfile)
                 mock_init.assert_called_once_with(
                     mock.ANY, None, output, None, None,
-                    raw_times)
+                    raw_times, None)
 
     @mock.patch('__main__.__builtins__.print')
     @mock.patch('tlsfuzzer.extract.help_msg')
