@@ -124,7 +124,7 @@ class TestCommandLine(unittest.TestCase):
                                 mock_log.assert_called_once_with(logfile)
                                 mock_init.assert_called_once_with(
                                     mock.ANY, capture, output, host, int(port),
-                                    None)
+                                    None, None)
 
     def test_raw_times(self):
         raw_times = "times-log.csv"
@@ -146,7 +146,7 @@ class TestCommandLine(unittest.TestCase):
                                 mock_log.assert_called_once_with(logfile)
                                 mock_init.assert_called_once_with(
                                     mock.ANY, None, output, None, None,
-                                    raw_times)
+                                    raw_times, None)
 
     def test_help(self):
         args = ["extract.py", "--help"]

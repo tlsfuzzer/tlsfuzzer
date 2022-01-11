@@ -14,12 +14,15 @@ from os.path import join
 from collections import defaultdict
 from socket import inet_aton, gethostbyname, gaierror, error
 from threading import Thread
+import pandas as pd
+import numpy as np
 
 import dpkt
 
 from tlsfuzzer.utils.log import Log
 from tlsfuzzer.utils.statics import WARM_UP
 from tlsfuzzer.utils.lists import natural_sort_keys
+from tlsfuzzer.utils.ordered_dict import OrderedDict
 
 
 def help_msg():
@@ -30,6 +33,7 @@ def help_msg():
     print(" -o output      Directory where to place results (required)")
     print(" -h host        TLS server host or ip")
     print(" -p port        TLS server port")
+    print(" -n name        column name to use from the raw-times file")
     print(" --raw-times FILE Read the timings from an external file, not")
     print("                the packet capture")
     print(" --help         Display this message")
@@ -48,6 +52,7 @@ def main():
     ip_address = None
     port = None
     raw_times = None
+    col_name = None
 
     argv = sys.argv[1:]
 
@@ -55,7 +60,7 @@ def main():
         help_msg()
         sys.exit(1)
 
-    opts, args = getopt.getopt(argv, "l:c:h:p:o:t:", ["help", "raw-times="])
+    opts, args = getopt.getopt(argv, "l:c:h:p:o:t:n:", ["help", "raw-times="])
     for opt, arg in opts:
         if opt == '-l':
             logfile = arg
@@ -65,6 +70,8 @@ def main():
             output = arg
         elif opt == '-h':
             ip_address = arg
+        elif opt == "-n":
+            col_name = arg
         elif opt == '-p':
             port = int(arg)
         elif opt == "--raw-times":
@@ -86,7 +93,9 @@ def main():
 
     log = Log(logfile)
     log.read_log()
-    analysis = Extract(log, capture, output, ip_address, port, raw_times)
+    analysis = Extract(
+        log, capture, output, ip_address, port, raw_times, col_name
+    )
     analysis.parse()
     analysis.write_csv('timing.csv')
     if not raw_times:
@@ -97,7 +106,7 @@ class Extract:
     """Extract timing information from packet capture."""
 
     def __init__(self, log, capture=None, output=None, ip_address=None,
-                 port=None, raw_times=None):
+                 port=None, raw_times=None, col_name=None):
         """
         Initialises instance and sets up class name generator from log.
 
@@ -122,6 +131,7 @@ class Extract:
         self.warm_up_messages_left = WARM_UP
         self.raw_times = raw_times
         self.pckt_times = []
+        self.col_name = col_name
 
         # set up class names generator
         self.log = log
@@ -161,17 +171,22 @@ class Extract:
 
         self.warm_up_messages_left = times_count - probe_count
 
-        with open(self.raw_times, 'r') as raw_times:
-            # skip the header line
-            raw_times.readline()
+        data = pd.read_csv(self.raw_times, dtype=np.float64)
 
-            for _ in range(self.warm_up_messages_left):
-                raw_times.readline()
+        data.drop(range(self.warm_up_messages_left), inplace=True)
 
-            for line in raw_times:
-                class_index = next(self.class_generator)
-                class_name = self.class_names[class_index]
-                self.timings[class_name].append(line.strip())
+        if len(data.columns) > 1 and self.col_name is None:
+            raise ValueError("Multiple columns in raw_times file!")
+
+        if self.col_name:
+            data = data[self.col_name]
+        else:
+            data = data.iloc[:, 0]
+
+        for line in data:
+            class_index = next(self.class_generator)
+            class_name = self.class_names[class_index]
+            self.timings[class_name].append(line)
 
     @staticmethod
     def _bytes_prefix(count):
@@ -286,7 +301,15 @@ class Extract:
                         self.initial_syn_ack = None
                         self.initial_ack = None
                         self.client_msgs = []
+                        self.client_msgs_acks = OrderedDict()
                         self.server_msgs = []
+                        self.server_msgs_acks = OrderedDict()
+                        self.clnt_fin = None
+                        self.srv_fin = None
+                        self.ack_for_fin = None
+                        self.in_srv_shutdown = False
+                        self.in_clnt_shutdown = False
+                        self.initial_ack_seq_no = None
                         exp_srv_ack = tcp_pkt.seq + 1 & 0xffffffff
                         exp_clnt_ack = 0
                     elif (tcp_pkt.flags & dpkt.tcp.TH_SYN and
@@ -307,6 +330,40 @@ class Extract:
                         # the initial ACK is the first ACK that acknowledges
                         # the SYN+ACK
                         self.initial_ack = timestamp
+                        self.initial_ack_seq_no = tcp_pkt.ack
+                    elif (tcp_pkt.flags & dpkt.tcp.TH_ACK and
+                            not tcp_pkt.flags & dpkt.tcp.TH_FIN and
+                            tcp_pkt.sport == self.port and
+                            tcp_pkt.ack not in self.client_msgs_acks and
+                            not self.in_srv_shutdown):
+                        # first ACK to a client sent message
+                        self.client_msgs_acks[tcp_pkt.ack] = timestamp
+                    elif (tcp_pkt.flags & dpkt.tcp.TH_ACK and
+                            not tcp_pkt.flags & dpkt.tcp.TH_FIN and
+                            tcp_pkt.dport == self.port and
+                            tcp_pkt.ack != self.initial_ack_seq_no and
+                            tcp_pkt.ack not in self.server_msgs_acks and
+                            not self.in_clnt_shutdown):
+                        # first ACK to a server sent message
+                        self.server_msgs_acks[tcp_pkt.ack] = timestamp
+                    elif tcp_pkt.flags & dpkt.tcp.TH_FIN:
+                        if tcp_pkt.sport == self.port:
+                            self.in_srv_shutdown = True
+                            self.srv_fin = timestamp
+                            if len(self.client_msgs) != \
+                                    len(self.client_msgs_acks):
+                                self.client_msgs_acks[tcp_pkt.ack] = timestamp
+                        else:
+                            self.in_clnt_shutdown = True
+                            self.clnt_fin = timestamp
+                            if len(self.server_msgs) != \
+                                    len(self.server_msgs_acks):
+                                self.server_msgs_acks[tcp_pkt.ack] = timestamp
+                    elif (tcp_pkt.flags & dpkt.tcp.TH_ACK and
+                            not tcp_pkt.flags & dpkt.tcp.TH_FIN and
+                            self.in_clnt_shutdown and self.in_srv_shutdown):
+                        self.ack_for_fin = timestamp
+
                     # initial ACK can be combined with the first data packet
                     if tcp_pkt.data:
                         if (tcp_pkt.sport == self.port and
@@ -352,58 +409,114 @@ class Extract:
                     self.initial_syn_ack,
                     self.initial_ack,
                     self.client_msgs,
-                    self.server_msgs
+                    self.client_msgs_acks,
+                    self.server_msgs,
+                    self.server_msgs_acks,
+                    self.srv_fin,
+                    self.clnt_fin,
+                    self.ack_for_fin,
                 ))
             else:
                 self.warm_up_messages_left -= 1
                 if self.warm_up_messages_left == 0:
-                    self.last_warmup_server = self.server_message
+                    if self.srv_fin > self.clnt_fin:
+                        self.last_warmup_fin = self.srv_fin
+                    else:
+                        self.last_warmup_fin = self.clnt_fin
 
     def write_pkt_csv(self, filename):
         """
         Write all packet times to file
         """
+        exp_clnt = None
+        exp_srv = None
+        for _, _, _, clnt_msgs, clnt_msgs_acks, srv_msgs, srv_msgs_acks, _, _, _ in self.pckt_times:
+            if len(clnt_msgs) != len(clnt_msgs_acks):
+                print(clnt_msgs)
+                print()
+                print(clnt_msgs_acks)
+                raise ValueError("client message ACKs mismatch: {0} vs {1}"
+                    .format(len(clnt_msgs), len(clnt_msgs_acks)))
+            if len(srv_msgs) != len(srv_msgs_acks):
+                print(srv_msgs)
+                print()
+                print(srv_msgs_acks)
+                raise ValueError("server message ACKs mismatch")
+
+            if exp_clnt is None:
+                exp_clnt = len(clnt_msgs)
+            elif len(clnt_msgs) != exp_clnt:
+                raise ValueError("inconsistent count of client messages")
+
+            if exp_srv is None:
+                exp_srv = len(srv_msgs)
+            elif len(srv_msgs) != exp_srv:
+                raise ValueError("inconsistent count of server messages")
+        if exp_srv != exp_clnt:
+            raise ValueError("For every client query we need a response")
+
         filename = join(self.output, filename)
         with open(filename, 'w') as csvfile:
             print("Writing to {0}".format(filename))
             writer = csv.writer(csvfile, quoting=csv.QUOTE_MINIMAL)
             columns = [
-                "lst_srv_to_syn",
+                "lst_msg_to_syn",
                 "syn_to_syn_ack",
                 "syn_ack_to_ack",
-                "ack_to_lst_clnt",
-                "lst_clnt_to_lst_srv",
             ]
-            multi = False
-
-            if len(self.pckt_times[0][3]) > 1:
-                if not len(self.pckt_times[0][4]) > 1:
-                    raise ValueError("Both sides must send multiple packets")
-                colums.extend((
-                    "2nd_lst_clnt_to_2nd_lst_srv",
-                ))
-                multi = True
+            for i in range(exp_clnt):
+                columns.append("prv_ack_to_clnt_{0}".format(i))
+                columns.append("clnt_{0}_ack".format(i))
+                columns.append("clnt_{0}_rtt".format(i))
+                columns.append("prv_ack_to_srv_{0}".format(i))
+                columns.append("srv_{0}_ack".format(i))
+            columns.extend([
+                "lst_srv_to_srv_fin",
+                "lst_srv_to_clnt_fin",
+                "second_fin_to_ack"
+            ])
 
             writer.writerow(columns)
 
-            previous_lst_srv = self.last_warmup_server
-            for syn, syn_ack, ack, c_msgs, s_msgs in self.pckt_times:
-                lst_clnt = c_msgs[-1]
+            previous_lst_msg = self.last_warmup_fin
+            for (syn, syn_ack, ack, c_msgs, c_msgs_acks, s_msgs, s_msgs_acks,
+                    srv_fin, clnt_fin, ack_for_fin) in self.pckt_times:
                 row = [
-                    syn - previous_lst_srv,
+                    syn - previous_lst_msg,
                     syn_ack - syn,
                     ack - syn_ack,
-                    lst_clnt - ack,
-                    s_msgs[-1] - lst_clnt,
                 ]
+                prv_ack = ack
+                for c_msg, c_msg_ack, s_msg, s_msg_ack in zip(
+                        c_msgs, c_msgs_acks.values(),
+                        s_msgs, s_msgs_acks.values()
+                ):
+                    # prv_ack_to_clnt_X
+                    row.append(c_msg - prv_ack)
+                    prv_ack = s_msg_ack
+                    # clnt_X_ack
+                    row.append(c_msg_ack - c_msg)
+                    # clnt_X_rtt
+                    row.append(s_msg - c_msg)
 
-                if multi and len(c_msgs) > 1 and len(s_msgs):
-                    row.extend((
-                        s_msgs[-2] - c_msgs[-2],
-                    ))
+                    # prv_ack_to_srv_X
+                    row.append(s_msg - c_msg_ack)
+                    # srv_X_ack
+                    row.append(s_msg_ack - s_msg)
+
+                # lst_srv_to_srv_fin
+                row.append(srv_fin - s_msgs[-1])
+                # lst_srv_to_clnt_fin
+                row.append(clnt_fin - s_msgs[-1])
+                if srv_fin > clnt_fin:
+                    last_fin = srv_fin
+                else:
+                    last_fin = clnt_fin
+                # second_fin_to_ack
+                row.append(ack_for_fin - last_fin)
 
                 writer.writerow(row)
-                previous_lst_srv = s_msgs[-1]
+                previous_lst_msg = ack_for_fin
 
     def write_csv(self, filename):
         """
@@ -419,7 +532,7 @@ class Extract:
             class_names = sorted(self.timings, key=natural_sort_keys)
             writer.writerow(class_names)
             for values in zip(*[self.timings[i] for i in class_names]):
-                writer.writerow(values)
+                writer.writerow("{0:.9f}".format(i) for i in values)
 
     @staticmethod
     def hostname_to_ip(hostname):
