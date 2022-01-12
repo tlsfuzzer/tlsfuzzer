@@ -402,7 +402,10 @@ class Extract:
             if self.warm_up_messages_left == 0:
                 class_index = next(self.class_generator)
                 class_name = self.class_names[class_index]
-                time_diff = abs(self.server_message - self.client_message)
+                lst_clnt_ack = 0
+                for lst_clnt_ack in self.client_msgs_acks.values():
+                    pass
+                time_diff = self.server_msgs[-1] - lst_clnt_ack
                 self.timings[class_name].append(time_diff)
                 self.pckt_times.append((
                     self.initial_syn,
