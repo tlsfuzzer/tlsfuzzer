@@ -336,27 +336,29 @@ class Extract:
                             tcp_pkt.sport == self.port and
                             tcp_pkt.ack not in self.client_msgs_acks and
                             not self.in_srv_shutdown):
-                        # first ACK to a client sent message
-                        self.client_msgs_acks[tcp_pkt.ack] = timestamp
+                        # check if it's the first ACK to a client sent message
+                        if len(self.client_msgs) > len(self.client_msgs_acks):
+                            self.client_msgs_acks[tcp_pkt.ack] = timestamp
                     elif (tcp_pkt.flags & dpkt.tcp.TH_ACK and
                             not tcp_pkt.flags & dpkt.tcp.TH_FIN and
                             tcp_pkt.dport == self.port and
                             tcp_pkt.ack != self.initial_ack_seq_no and
                             tcp_pkt.ack not in self.server_msgs_acks and
                             not self.in_clnt_shutdown):
-                        # first ACK to a server sent message
-                        self.server_msgs_acks[tcp_pkt.ack] = timestamp
+                        # check if it's the first ACK to a server sent message
+                        if len(self.server_msgs) > len(self.server_msgs_acks):
+                            self.server_msgs_acks[tcp_pkt.ack] = timestamp
                     elif tcp_pkt.flags & dpkt.tcp.TH_FIN:
                         if tcp_pkt.sport == self.port:
                             self.in_srv_shutdown = True
                             self.srv_fin = timestamp
-                            if len(self.client_msgs) != \
+                            if len(self.client_msgs) > \
                                     len(self.client_msgs_acks):
                                 self.client_msgs_acks[tcp_pkt.ack] = timestamp
                         else:
                             self.in_clnt_shutdown = True
                             self.clnt_fin = timestamp
-                            if len(self.server_msgs) != \
+                            if len(self.server_msgs) > \
                                     len(self.server_msgs_acks):
                                 self.server_msgs_acks[tcp_pkt.ack] = timestamp
                     elif (tcp_pkt.flags & dpkt.tcp.TH_ACK and
