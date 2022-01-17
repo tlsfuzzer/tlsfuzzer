@@ -11,7 +11,7 @@ from random import sample
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator
+        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, Close
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
@@ -23,7 +23,7 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
 from tlslite.extensions import SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import SIG_ALL
+from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
 
 
 version = 1
@@ -44,9 +44,16 @@ def help_msg():
     print(" -X message     expect the `message` substring in exception raised during")
     print("                execution of preceding expected failure probe")
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
-    print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
+    print(" -n num         run 'num' or all(if 0) tests instead of default(1000)")
     print("                (\"sanity\" tests are always executed)")
-    print(" -d             negotiate (EC)DHE instead of RSA key exchange")
+    print(" -d             use TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256")
+    print("                instead of TLS_RSA_WITH_AES_128_CBC_SHA256")
+    print(" -C cipher      ciphersuite to use for the connection,")
+    print("                TLS_RSA_WITH_AES_128_CBC_SHA256 by default")
+    print(" --extra-exts   send also supported_groups, signature_algorithms,")
+    print("                and signature_algorithms_cert extensions in Client")
+    print("                Hello. Default for DHE and ECDHE ciphers")
+    print(" --etm          Advertise and expect encrypt_then_mac extension")
     print(" --help         this message")
     # already used single-letter options:
     # -m test-large-hello.py - min extension number for fuzz testing
@@ -76,14 +83,18 @@ def help_msg():
 def main():
     host = "localhost"
     port = 4433
-    num_limit = None
+    num_limit = 1000
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
     dhe = False
+    cipher = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA256
+    extra_exts = False
+    etm = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:d", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:",
+        ["help", "extra-exts", "etm"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -101,12 +112,29 @@ def main():
         elif opt == '-n':
             num_limit = int(arg)
         elif opt == '-d':
-            dhe = True
+            cipher = CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256
+        elif opt == '--extra-exts':
+            extra_exts = True
+        elif opt == '--etm':
+            etm = True
+        elif opt == '-C':
+            if arg[:2] == '0x':
+                cipher = int(arg, 16)
+            else:
+                try:
+                    cipher = getattr(CipherSuite, arg)
+                except AttributeError:
+                    cipher = int(arg)
         elif opt == '--help':
             help_msg()
             sys.exit(0)
         else:
             raise ValueError("Unknown option: {0}".format(opt))
+
+    if cipher in CipherSuite.dhAllSuites \
+            or cipher in CipherSuite.ecdhAllSuites:
+        extra_exts = True
+        dhe = True
 
     if args:
         run_only = set(args)
@@ -117,9 +145,11 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    if dhe:
+    if extra_exts:
         ext = {}
         groups = [GroupName.secp256r1,
+                  GroupName.secp384r1,
+                  GroupName.secp521r1,
                   GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
@@ -127,15 +157,19 @@ def main():
             SignatureAlgorithmsExtension().create(SIG_ALL)
         ext[ExtensionType.signature_algorithms_cert] = \
             SignatureAlgorithmsCertExtension().create(SIG_ALL)
-        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     else:
         ext = None
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA256,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if etm:
+        if ext is None:
+            ext = {}
+        ext[ExtensionType.encrypt_then_mac] = AutoEmptyExtension()
+    ciphers = [cipher,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
+    srv_ext = {ExtensionType.renegotiation_info: None}
+    if etm:
+        srv_ext[ExtensionType.encrypt_then_mac] = None
+    node = node.add_child(ExpectServerHello(extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
         node = node.add_child(ExpectServerKeyExchange())
@@ -148,18 +182,17 @@ def main():
     node = node.add_child(ApplicationDataGenerator(
         bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     node = node.add_child(ExpectApplicationData())
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                         AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
+    node.add_child(Close())
     conversations["sanity"] = conversation
 
-    for data_len in range(1000, 1025):
+    for data_len in range(1, 2**14):
         conversation = Connect(host, port)
         node = conversation
-        if dhe:
+        if extra_exts:
             ext = {}
             groups = [GroupName.secp256r1,
+                      GroupName.secp384r1,
+                      GroupName.secp521r1,
                       GroupName.ffdhe2048]
             ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
                 .create(groups)
@@ -167,15 +200,19 @@ def main():
                 SignatureAlgorithmsExtension().create(SIG_ALL)
             ext[ExtensionType.signature_algorithms_cert] = \
                 SignatureAlgorithmsCertExtension().create(SIG_ALL)
-            ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
-                       CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
-                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         else:
             ext = None
-            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA256,
-                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        if etm:
+            if ext is None:
+                ext = {}
+            ext[ExtensionType.encrypt_then_mac] = AutoEmptyExtension()
+        ciphers = [cipher,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-        node = node.add_child(ExpectServerHello())
+        srv_ext = {ExtensionType.renegotiation_info: None}
+        if etm:
+            srv_ext[ExtensionType.encrypt_then_mac] = None
+        node = node.add_child(ExpectServerHello(extensions=srv_ext))
         node = node.add_child(ExpectCertificate())
         if dhe:
             node = node.add_child(ExpectServerKeyExchange())
@@ -186,8 +223,7 @@ def main():
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectFinished())
         node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET /data-" + bytes(str(data_len), "ascii")
-                      + b".txt HTTP/1.0\r\n\r\n")))
+            bytearray(b"A" * (data_len - 1) + b"\n")))
         node = node.add_child(ExpectApplicationData(size=data_len))
         node = node.add_child(AlertGenerator(AlertLevel.warning,
                                              AlertDescription.close_notify))
@@ -256,9 +292,15 @@ def main():
                 bad += 1
                 failed.append(c_name)
 
-    print("Check if different lengths of plaintext are handled correctly")
-    print("using RSA key exchange (or (EC)DHE if")
-    print("-d option is used) and AES_128_CBC_SHA256 ciphersuites\n")
+    print("Check if different lengths of plaintext are handled correctly.")
+    print("Test expects the server to reply with plaintext of the same length")
+    print("it sent, that's usually called an 'echo' mode in test servers.")
+    print("For full test coverage you should execute it will all valid")
+    print("combinations of cipher (AES-128, AES-256, 3DES, etc.), all valid")
+    print("cipher modes (CBC, GCM, CCM, etc.), all valid HMACs (SHA1, SHA256,")
+    print("SHA384, etc.), EtM vs MtE for CBC ciphersuites and")
+    print("record_size_limit extension.")
+    print()
 
     print("Test end")
     print(20 * '=')
