@@ -1873,12 +1873,17 @@ class ExpectSSL2Alert(ExpectHandshake):
 class ExpectApplicationData(Expect):
     """Processing Application Data message"""
 
-    def __init__(self, data=None, size=None, output=None):
+    def __init__(self, data=None, size=None, output=None, description=None):
         super(ExpectApplicationData, self).\
                 __init__(ContentType.application_data)
         self.data = data
         self.size = size
         self.output = output
+        self.description = description
+
+    def __str__(self):
+        """Return human readable representation of the object."""
+        return self._repr(['data', 'size', 'description'])
 
     def process(self, state, msg):
         assert msg.contentType == ContentType.application_data
