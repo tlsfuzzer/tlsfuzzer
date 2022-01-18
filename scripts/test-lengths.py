@@ -11,17 +11,18 @@ from random import sample
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, Close
+        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, Close, \
+        SetMaxRecordSize
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
         ExpectServerKeyExchange
 
-
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         GroupName, ExtensionType
 from tlslite.extensions import SupportedGroupsExtension, \
-        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
+        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension, \
+        TLSExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
 
@@ -54,6 +55,9 @@ def help_msg():
     print("                and signature_algorithms_cert extensions in Client")
     print("                Hello. Default for DHE and ECDHE ciphers")
     print(" --etm          Advertise and expect encrypt_then_mac extension")
+    print(" --size-limit num Send a max_fragment_length extension advertising")
+    print("                num as the max size we're willing to receive.")
+    print("                Valid values are 512, 1024, 2048 and 4096")
     print(" --help         this message")
     # already used single-letter options:
     # -m test-large-hello.py - min extension number for fuzz testing
@@ -91,10 +95,11 @@ def main():
     cipher = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA256
     extra_exts = False
     etm = False
+    size_limit = None
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:",
-        ["help", "extra-exts", "etm"])
+        ["help", "extra-exts", "etm", "size-limit="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -117,6 +122,18 @@ def main():
             extra_exts = True
         elif opt == '--etm':
             etm = True
+        elif opt == '--size-limit':
+            size_limit = int(arg)
+            if size_limit not in (512, 1024, 2048, 4096):
+                raise ValueError("Invalid size to --size-limit")
+            if size_limit == 512:
+                size_limit = 1
+            elif size_limit == 1024:
+                size_limit = 2
+            elif size_limit == 2048:
+                size_limit = 3
+            else:
+                size_limit = 4
         elif opt == '-C':
             if arg[:2] == '0x':
                 cipher = int(arg, 16)
@@ -145,8 +162,8 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
     if extra_exts:
-        ext = {}
         groups = [GroupName.secp256r1,
                   GroupName.secp384r1,
                   GroupName.secp521r1,
@@ -157,19 +174,25 @@ def main():
             SignatureAlgorithmsExtension().create(SIG_ALL)
         ext[ExtensionType.signature_algorithms_cert] = \
             SignatureAlgorithmsCertExtension().create(SIG_ALL)
-    else:
-        ext = None
     if etm:
-        if ext is None:
-            ext = {}
         ext[ExtensionType.encrypt_then_mac] = AutoEmptyExtension()
+    if size_limit:
+        ext[ExtensionType.max_fragment_length] = \
+            TLSExtension(extType=1).create(bytearray([size_limit]))
+    if not ext:
+        ext = None
     ciphers = [cipher,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     srv_ext = {ExtensionType.renegotiation_info: None}
     if etm:
         srv_ext[ExtensionType.encrypt_then_mac] = None
+    if size_limit:
+        srv_ext[ExtensionType.max_fragment_length] =\
+            TLSExtension(extType=1).create(bytearray([size_limit]))
     node = node.add_child(ExpectServerHello(extensions=srv_ext))
+    if size_limit:
+        node = node.add_child(SetMaxRecordSize(2**(8+size_limit)))
     node = node.add_child(ExpectCertificate())
     if dhe:
         node = node.add_child(ExpectServerKeyExchange())
@@ -188,8 +211,8 @@ def main():
     for data_len in range(1, 2**14 + 1):
         conversation = Connect(host, port)
         node = conversation
+        ext = {}
         if extra_exts:
-            ext = {}
             groups = [GroupName.secp256r1,
                       GroupName.secp384r1,
                       GroupName.secp521r1,
@@ -200,19 +223,25 @@ def main():
                 SignatureAlgorithmsExtension().create(SIG_ALL)
             ext[ExtensionType.signature_algorithms_cert] = \
                 SignatureAlgorithmsCertExtension().create(SIG_ALL)
-        else:
-            ext = None
         if etm:
-            if ext is None:
-                ext = {}
             ext[ExtensionType.encrypt_then_mac] = AutoEmptyExtension()
+        if size_limit:
+            ext[ExtensionType.max_fragment_length] =\
+                TLSExtension(extType=1).create(bytearray([size_limit]))
+        if not ext:
+            ext = None
         ciphers = [cipher,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         srv_ext = {ExtensionType.renegotiation_info: None}
         if etm:
             srv_ext[ExtensionType.encrypt_then_mac] = None
+        if size_limit:
+            srv_ext[ExtensionType.max_fragment_length] =\
+                TLSExtension(extType=1).create(bytearray([size_limit]))
         node = node.add_child(ExpectServerHello(extensions=srv_ext))
+        if size_limit:
+            node = node.add_child(SetMaxRecordSize(2**(8+size_limit)))
         node = node.add_child(ExpectCertificate())
         if dhe:
             node = node.add_child(ExpectServerKeyExchange())
@@ -224,7 +253,17 @@ def main():
         node = node.add_child(ExpectFinished())
         node = node.add_child(ApplicationDataGenerator(
             bytearray(b"A" * (data_len - 1) + b"\n")))
-        node = node.add_child(ExpectApplicationData(size=data_len))
+        if size_limit:
+            for i in range(data_len // 2**(8 + size_limit)):
+                node = node.add_child(ExpectApplicationData(
+                    size=2**(8 + size_limit),
+                    description=str(i)))
+            if data_len % 2**(8 + size_limit):
+                node = node.add_child(ExpectApplicationData(
+                    size=data_len % 2**(8 + size_limit),
+                    description="last"))
+        else:
+            node = node.add_child(ExpectApplicationData(size=data_len))
         node = node.add_child(AlertGenerator(AlertLevel.warning,
                                              AlertDescription.close_notify))
         node = node.add_child(ExpectAlert())
@@ -295,14 +334,15 @@ def main():
     print("Check if different lengths of plaintext are handled correctly.")
     print("Test expects the server to reply with plaintext of the same length")
     print("it sent, that's usually called an 'echo' mode in test servers.")
-    print("For full test coverage you should execute it will all valid")
+    print("For full test coverage you should execute it with all valid")
     print("combinations of cipher (AES-128, AES-256, 3DES, etc.), all valid")
     print("cipher modes (CBC, GCM, CCM, etc.), all valid HMACs (SHA1, SHA256,")
     print("SHA384, etc.), EtM vs MtE for CBC ciphersuites and")
-    print("record_size_limit extension.")
+    print("max_fragment_length extension.")
     print()
 
     print("Test end")
+    print("Cipher used: {0}".format(CipherSuite.ietfNames[cipher]))
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
@@ -313,14 +353,14 @@ def main():
     print("FAIL: {0}".format(bad))
     print("XPASS: {0}".format(xpass))
     print(20 * '=')
-    sort = sorted(xpassed ,key=natural_sort_keys)
+    sort = sorted(xpassed, key=natural_sort_keys)
     if len(sort):
         print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
     sort = sorted(failed, key=natural_sort_keys)
     if len(sort):
         print("FAILED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
 
-    if bad > 0:
+    if bad or xpass:
         sys.exit(1)
 
 if __name__ == "__main__":
