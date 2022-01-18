@@ -185,7 +185,7 @@ def main():
     node.add_child(Close())
     conversations["sanity"] = conversation
 
-    for data_len in range(1, 2**14):
+    for data_len in range(1, 2**14 + 1):
         conversation = Connect(host, port)
         node = conversation
         if extra_exts:
