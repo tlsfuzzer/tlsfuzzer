@@ -192,6 +192,7 @@ class Extract:
             class_index = next(self.class_generator)
             class_name = self.class_names[class_index]
             self.timings[class_name].append(line)
+            self._flush_to_files()
 
         self._write_csv_header()
         self._write_csv()
@@ -443,11 +444,12 @@ class Extract:
                 not all(self.timings.values()):
             return
 
-        # make sure the csv has a header
-        self._write_pkt_header()
+        if not self.raw_times:
+            # make sure the csv has a header
+            self._write_pkt_header()
 
-        # then write queued up individual packet times
-        self._write_pkts()
+            # then write queued up individual packet times
+            self._write_pkts()
 
         # write the header of the already sorted results
         self._write_csv_header()
