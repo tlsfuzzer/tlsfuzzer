@@ -185,7 +185,7 @@ def main():
             "too short PKCS padding - 8 bytes",
             "very short PKCS padding (40 bytes short)",
         ))
-    else:
+    elif test_set is not None:
         raise ValueError("Unrecognised test set name: {0}".format(test_set))
 
     cln_extensions = {ExtensionType.renegotiation_info: None}
