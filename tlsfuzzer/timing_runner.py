@@ -8,7 +8,6 @@ import traceback
 import os
 import time
 import subprocess
-import signal
 import sys
 import math
 from threading import Thread
@@ -160,7 +159,9 @@ class TimingRunner:
             for executed, index in enumerate(queries):
                 if executed % 10240 == 0:
                     # allow the tcpdump to write data to disk
-                    sniffer.send_signal(signal.SIGUSR2)
+                    # XXX SIGUSR2 is not supported on tcpdump-4.9.2 to flush
+                    # data to disk
+                    #sniffer.send_signal(signal.SIGUSR2)
                     time.sleep(0.5)
                 status[0] = executed
                 if self.tcpdump_running:
