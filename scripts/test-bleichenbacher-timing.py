@@ -29,7 +29,7 @@ from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.helpers import SIG_ALL, RSA_PKCS1_ALL
 
 
-version = 14
+version = 15
 
 
 def help_msg():
@@ -180,6 +180,7 @@ def main():
         run_only = set((
             "control - fuzzed pre master secret 1",
             "control - fuzzed pre master secret 2",
+            "control - fuzzed pre master secret 3",
             "too short PKCS padding - 1 bytes",
             "too short PKCS padding - 4 bytes",
             "too short PKCS padding - 8 bytes",
@@ -261,7 +262,7 @@ def main():
 
     conversations["sanity - static non-zero byte in random padding"] = conversation
 
-    for i in range(1, 3):
+    for i in range(1, 4):
         # create a CKE with PMS the runner doesn't know/use
         # (benchmark to measure other tests to)
         conversation = Connect(host, port)
@@ -277,8 +278,14 @@ def main():
         # use too short PMS but then change padding so that the PMS is
         # correct length with correct TLS version but the encryption keys
         # that tlsfuzzer calculates will be incorrect
+        padding_xors=None
+        if i == 3:
+            # for the third control probe make sure that the signal from
+            # fuzzing is very visible to the server
+            padding_xors=dict((i, 0) for i in range(120))
         node = node.add_child(ClientKeyExchangeGenerator(
             padding_subs={-3: 0, -2: 3, -1: 3},
+            padding_xors=padding_xors,
             premaster_secret=bytearray([0] * 46),
             reuse_encrypted_premaster=reuse_rsa_ciphertext))
         node = node.add_child(ChangeCipherSpecGenerator())
@@ -1051,8 +1058,9 @@ All tests should exhibit the same kind of timing behaviour, but
 if some groups of tests are inconsistent, that points to likely
 place where the timing leak happens:
 - the control test case:
-  - 'control - fuzzed pre master secret 1' and
-    'control - fuzzed pre master secret 2' - this will end up with random
+  - 'control - fuzzed pre master secret 1',
+    'control - fuzzed pre master secret 2', and
+    'control - fuzzed pre master secret 3' - this will end up with random
     plaintexts in record with Finished, most resembling a randomly
     selected PMS by the server
   - 'random plaintext' - this will end up with a completely random
