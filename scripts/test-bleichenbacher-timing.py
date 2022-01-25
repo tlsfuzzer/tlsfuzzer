@@ -29,7 +29,7 @@ from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.helpers import SIG_ALL, RSA_PKCS1_ALL
 
 
-version = 15
+version = 16
 
 
 def help_msg():
@@ -177,15 +177,38 @@ def main():
         raise ValueError("Can't specify test set and individual tests together")
 
     if test_set == "raw decrypted value":
-        run_only = set((
-            "control - fuzzed pre master secret 1",
-            "control - fuzzed pre master secret 2",
-            "control - fuzzed pre master secret 3",
-            "too short PKCS padding - 1 bytes",
-            "too short PKCS padding - 4 bytes",
-            "too short PKCS padding - 8 bytes",
-            "very short PKCS padding (40 bytes short)",
-        ))
+        if reuse_rsa_ciphertext:
+            run_only = set((
+                "control - fuzzed pre master secret 1",
+                "control - fuzzed pre master secret 2",
+                "control - fuzzed pre master secret 3",
+                "too short PKCS padding - 1 bytes - 0",
+                "too short PKCS padding - 1 bytes - 1",
+                "too short PKCS padding - 1 bytes - 2",
+                "too short PKCS padding - 1 bytes - 3",
+                "too short PKCS padding - 4 bytes - 0",
+                "too short PKCS padding - 4 bytes - 1",
+                "too short PKCS padding - 4 bytes - 2",
+                "too short PKCS padding - 4 bytes - 3",
+                "too short PKCS padding - 8 bytes - 0",
+                "too short PKCS padding - 8 bytes - 1",
+                "too short PKCS padding - 8 bytes - 2",
+                "too short PKCS padding - 8 bytes - 3",
+                "very short PKCS padding (40 bytes short) - 0",
+                "very short PKCS padding (40 bytes short) - 1",
+                "very short PKCS padding (40 bytes short) - 2",
+                "very short PKCS padding (40 bytes short) - 3",
+            ))
+        else:
+            run_only = set((
+                "control - fuzzed pre master secret 1",
+                "control - fuzzed pre master secret 2",
+                "control - fuzzed pre master secret 3",
+                "too short PKCS padding - 1 bytes",
+                "too short PKCS padding - 4 bytes",
+                "too short PKCS padding - 8 bytes",
+                "very short PKCS padding (40 bytes short)",
+            ))
     elif test_set is not None:
         raise ValueError("Unrecognised test set name: {0}".format(test_set))
 
@@ -790,8 +813,46 @@ def main():
 
     conversations["wrong TLS version (0, 0) in pre master secret"] = conversation
 
-    for i in [1, 4, 8]:
-        # check if too short PKCS padding is detected
+    for rep in range(4 if reuse_rsa_ciphertext else 1):
+        for i in [1, 4, 8]:
+            # check if too short PKCS padding is detected
+            conversation = Connect(host, port)
+            node = conversation
+            ciphers = [cipher]
+            node = node.add_child(ClientHelloGenerator(ciphers,
+                                                       extensions=cln_extensions))
+            node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+
+            node = node.add_child(ExpectCertificate())
+            node = node.add_child(ExpectServerHelloDone())
+            node = node.add_child(TCPBufferingEnable())
+            # move the start of the padding forward, essentially encrypting two 0 bytes
+            # at the beginning of the padding, but since those are transformed into a number
+            # their existence is lost and it just like the padding was too small
+            padding_subs = {}
+            for j in range(1, 1+i):
+                padding_subs[j] = 0
+            padding_subs[i+1] = 2
+            node = node.add_child(ClientKeyExchangeGenerator(
+                padding_subs=padding_subs,
+                reuse_encrypted_premaster=reuse_rsa_ciphertext))
+            node = node.add_child(ChangeCipherSpecGenerator())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(TCPBufferingDisable())
+            node = node.add_child(TCPBufferingFlush())
+            node = node.add_child(ExpectAlert(level,
+                                              alert))
+            node.add_child(ExpectClose())
+
+            suffix = ""
+            if reuse_rsa_ciphertext:
+                suffix = " - {0}".format(rep)
+
+            conversations["too short PKCS padding - {0} bytes{1}"
+                .format(i, suffix)] = conversation
+
+    for j in range(4 if reuse_rsa_ciphertext else 1):
+        # check if very short PKCS padding doesn't have a different behaviour
         conversation = Connect(host, port)
         node = conversation
         ciphers = [cipher]
@@ -802,15 +863,13 @@ def main():
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(TCPBufferingEnable())
-        # move the start of the padding forward, essentially encrypting two 0 bytes
-        # at the beginning of the padding, but since those are transformed into a number
-        # their existence is lost and it just like the padding was too small
-        padding_subs = {}
-        for j in range(1, 1+i):
-            padding_subs[j] = 0
-        padding_subs[i+1] = 2
+        # move the start of the padding 40 bytes towards LSB
+        subs = {}
+        for i in range(41):
+            subs[i] = 0
+        subs[41] = 2
         node = node.add_child(ClientKeyExchangeGenerator(
-            padding_subs=padding_subs,
+            padding_subs=subs,
             reuse_encrypted_premaster=reuse_rsa_ciphertext))
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
@@ -820,37 +879,12 @@ def main():
                                           alert))
         node.add_child(ExpectClose())
 
-        conversations["too short PKCS padding - {0} bytes".format(i)]\
-            = conversation
+        suffix = ""
+        if reuse_rsa_ciphertext:
+            suffix = " - {0}".format(j)
 
-    # check if very short PKCS padding doesn't have a different behaviour
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    # move the start of the padding 40 bytes towards LSB
-    subs = {}
-    for i in range(41):
-        subs[i] = 0
-    subs[41] = 2
-    node = node.add_child(ClientKeyExchangeGenerator(
-        padding_subs=subs,
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
-
-    conversations["very short PKCS padding (40 bytes short)"] = conversation
+        conversations["very short PKCS padding (40 bytes short){0}"
+            .format(suffix)] = conversation
 
     # check if too long PKCS padding is detected
     conversation = Connect(host, port)
