@@ -208,7 +208,11 @@ def main():
     node.add_child(Close())
     conversations["sanity"] = conversation
 
-    for data_len in range(1, 2**14 + 1):
+    lengths = range(1, 2**14 + 1)
+    if num_limit:
+        lengths = sample(lengths, num_limit)
+
+    for data_len in lengths:
         conversation = Connect(host, port)
         node = conversation
         ext = {}
