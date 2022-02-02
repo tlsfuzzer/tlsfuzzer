@@ -12,6 +12,8 @@ import signal
 import sys
 import math
 from threading import Thread
+from multiprocessing import Pool
+import multiprocessing as mp
 from itertools import chain, repeat
 
 from tlsfuzzer.utils.log import Log
@@ -135,12 +137,22 @@ class TimingRunner:
                       eta,
                       " " * 4), end="\r")
 
+    @staticmethod
+    def _run_conversation(conversation):
+        runner = Runner(conversation)
+        runner.run()
+
     def run(self):
         """
         Run test the specified number of times and start analysis
 
         :return: int 0 for no difference, 1 for difference, 2 if unavailable
         """
+
+        # as we want fresh ASLR and PYTHONHASHSEED we want to use the
+        # spawn method even on Linux
+        mp.set_start_method('spawn')
+
         sniffer = self.sniff()
         status_th = Thread(target=self.tcpdump_status, args=(sniffer,))
         status_th.start()
@@ -157,32 +169,32 @@ class TimingRunner:
             queries = chain(repeat(0, WARM_UP), self.log.iterate_log())
             print("Starting timing info collection. "
                   "This might take a while...")
-            for executed, index in enumerate(queries):
-                if executed % 10240 == 0:
-                    # allow the tcpdump to write data to disk
-                    # XXX SIGUSR2 is not supported on tcpdump-4.9.2 to flush
-                    # data to disk
-                    #sniffer.send_signal(signal.SIGUSR2)
-                    time.sleep(0.5)
-                status[0] = executed
-                if self.tcpdump_running:
-                    c_name = test_classes[index]
-                    c_test = self.tests[c_name]
+            with Pool(processes=3, maxtasksperchild=100) as pool:
+                for executed, index in enumerate(queries):
+                    if executed % 10240 == 0:
+                        # allow the tcpdump to write data to disk
+                        # XXX SIGUSR2 is not supported on tcpdump-4.9.2 to flush
+                        # data to disk
+                        #sniffer.send_signal(signal.SIGUSR2)
+                        time.sleep(0.5)
+                    status[0] = executed
+                    if self.tcpdump_running:
+                        c_name = test_classes[index]
+                        c_test = self.tests[c_name]
 
-                    runner = Runner(c_test)
-                    res = True
-                    try:
-                        runner.run()
-                    except Exception:
-                        print("Error while processing")
-                        print(traceback.format_exc())
-                        res = False
+                        res = True
+                        try:
+                            pool.apply(self._run_conversation, args=(c_test,))
+                        except Exception:
+                            print("Error while processing")
+                            print(traceback.format_exc())
+                            res = False
 
-                    if not res:
-                        raise AssertionError(
-                            "Test must pass in order to be timed")
-                else:
-                    sys.exit(1)
+                        if not res:
+                            raise AssertionError(
+                                "Test must pass in order to be timed")
+                    else:
+                        sys.exit(1)
         finally:
             # stop sniffing and give tcpdump time to write all buffered packets
             self.tcpdump_running = False
