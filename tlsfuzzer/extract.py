@@ -185,7 +185,7 @@ class Extract:
         if self.col_name:
             data = data[self.col_name]
         else:
-            data = data[0]
+            data = data.iloc[:,0]
 
         for line in data:
             class_index = next(self.class_generator)
