@@ -155,6 +155,7 @@ def main():
 
     if args:
         run_only = set(args)
+        num_limit = None
     else:
         run_only = None
 
@@ -255,8 +256,12 @@ def main():
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectFinished())
-        node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"A" * (data_len - 1) + b"\n")))
+        if size_limit == 4 and data_len == 16384:
+            node = node.add_child(ApplicationDataGenerator(
+                bytearray((b"A" * 4095 + b"\n") * 4)))
+        else:
+            node = node.add_child(ApplicationDataGenerator(
+                bytearray(b"A" * (data_len - 1) + b"\n")))
         if size_limit:
             for i in range(data_len // 2**(8 + size_limit)):
                 node = node.add_child(ExpectApplicationData(
@@ -295,7 +300,13 @@ def main():
         regular_tests = [(k, v) for k, v in conversations.items() if
                          (k != 'sanity') and k not in run_exclude]
     sampled_tests = sample(regular_tests, min(num_limit, len(regular_tests)))
-    ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
+    if run_only and len(run_only) == 1:
+        if len(sampled_tests) != 1:
+            raise ValueError("Unrecognised test name: '{0}'".format(
+                next(iter(run_only))))
+        ordered_tests = sampled_tests
+    else:
+        ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
 
     for c_name, c_test in ordered_tests:
         print("{0} ...".format(c_name))
