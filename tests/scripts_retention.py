@@ -238,7 +238,8 @@ def run_with_json(config_file, srv_path, expected_size):
                 srv.wait()
                 logging.info("Server process killed: {0}".format(srv.returncode))
             except OSError:
-                logging.error("Can't kill server process")
+                logging.error("Can't kill server process, retcode: {0}"
+                    .format(srv.returncode))
         srv_err.join()
         srv_out.join()
 
