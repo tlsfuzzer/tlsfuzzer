@@ -54,6 +54,8 @@ def help_msg():
     print(" --dhparam      File with the expected DH parameters that the server should use")
     print("                can be used together with --named-ffdh to specify multiple")
     print("                acceptable parameters")
+    print(" -t timeout     how long to wait before assuming the server won't")
+    print("                send a message")
     print(" --help         this message")
 
 
@@ -67,9 +69,10 @@ def main():
     last_exp_tmp = None
     group_names = []
     dh_file = None
+    timeout = 5.0
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:", ["help", "named-ffdh=",
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:t:n:", ["help", "named-ffdh=",
                                                       "dhparam="])
     for opt, arg in opts:
         if opt == '-h':
@@ -94,6 +97,8 @@ def main():
             group_names.append(arg)
         elif opt == '--dhparam':
             dh_file = arg
+        elif opt == '-t':
+            timeout = float(arg)
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -121,7 +126,7 @@ def main():
 
     conversations = {}
 
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ext = {ExtensionType.renegotiation_info: None}
     ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
@@ -155,7 +160,7 @@ def main():
 
     conversations["sanity"] = conversation
 
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ext = {ExtensionType.renegotiation_info: None}
     ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,

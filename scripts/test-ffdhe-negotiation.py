@@ -52,6 +52,8 @@ def help_msg():
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
     print("                (excluding \"sanity\" tests)")
+    print(" -t timeout     how long to wait before assuming the server won't")
+    print("                send a message")
     print(" --help         this message")
 
 
@@ -65,9 +67,10 @@ def main():
     expected_failures = {}
     last_exp_tmp = None
     sig_algs = None  # `sigalgs` w/o underscore is used for client certificates
+    timeout = 5.0
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:S:e:x:X:n:", ["help", "alert="])
+    opts, args = getopt.getopt(argv, "h:p:S:e:x:X:t:n:", ["help", "alert="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -91,6 +94,8 @@ def main():
         elif opt == '--help':
             help_msg()
             sys.exit(0)
+        elif opt == '-t':
+            timeout = float(arg)
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -101,7 +106,7 @@ def main():
 
     conversations = {}
 
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ext = {ExtensionType.renegotiation_info: None}
     ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
@@ -133,7 +138,7 @@ def main():
 
     conversations["sanity"] = conversation
 
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
@@ -168,7 +173,7 @@ def main():
     conversations["Check if DHE preferred"] = conversation
 
     for group in GroupName.allFF:
-        conversation = Connect(host, port)
+        conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
         ext = {ExtensionType.renegotiation_info: None}
@@ -203,7 +208,7 @@ def main():
         conversations["{0} negotiation".format(GroupName.toStr(group))] = \
                 conversation
 
-        conversation = Connect(host, port)
+        conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
         ext = {ExtensionType.renegotiation_info: None}
@@ -238,7 +243,7 @@ def main():
         conversations["unassigned tolerance, {0} negotiation".format(GroupName.toStr(group))] = \
                 conversation
 
-        conversation = Connect(host, port)
+        conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
         ext = {ExtensionType.renegotiation_info: None}
@@ -277,7 +282,7 @@ def main():
         for group2 in GroupName.allFF:
             if group == group2:
                 continue
-            conversation = Connect(host, port)
+            conversation = Connect(host, port, timeout=timeout)
             node = conversation
             ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
             ext = {ExtensionType.renegotiation_info: None}
@@ -314,7 +319,7 @@ def main():
             conversations["{0} or {1} negotiation".format(GroupName.toStr(group),
                     GroupName.toStr(group2))] = conversation
 
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
@@ -349,7 +354,7 @@ def main():
 
     conversations["fallback to non-ffdhe"] = conversation
 
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
@@ -385,7 +390,7 @@ def main():
     conversations["fallback to non-ffdhe with secp256r1 advertised"] = conversation
 
     # first paragraph of section 4 in RFC 7919
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_NULL_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
