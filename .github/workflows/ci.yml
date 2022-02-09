@@ -207,13 +207,13 @@ jobs:
           pip install setuptools-28.8.0-py2.py3-none-any.whl wheel-0.30.0a0-py2.py3-none-any.whl
       # gmpy2 and m2crypto are not necessary but make tlslite-ng much faster
       - name: Install gmpy2 dependencies
-        if: ${{ !matrix.container }}
+        if: ${{ !matrix.container && matrix.python-version != '3.3' }}
         run: sudo apt-get install -y libmpfr-dev libmpc-dev libgmp-dev
       - name: Install gmpy2
-        if: ${{ !matrix.container }}
+        if: ${{ !matrix.container && matrix.python-version != '3.3' }}
         run: pip install gmpy2
       - name: Install M2Crypto dependencies
-        if: ${{ !matrix.container }}
+        if: ${{ !matrix.container && matrix.python-version != '3.3' }}
         run: sudo apt-get install -y swig libssl-dev
       - name: Install M2Crypto (py2.7+)
         if: ${{ !matrix.container && matrix.python-version != '3.3' && matrix.python-version != '3.4'}}
