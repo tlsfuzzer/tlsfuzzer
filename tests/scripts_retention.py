@@ -185,7 +185,11 @@ def run_clients(tests, common_args, srv, expected_size):
             good += 1
             logger.info("{0}:finished:{1:.2f}s".format(script,
                                                    end_time - start_time))
-            flush_queue(params.get("exp_pass", True))
+            srv.poll()
+            if srv.returncode is not None:
+                print_all_from_queue(params.get("exp_pass", True))
+            else:
+                flush_queue(params.get("exp_pass", True))
         else:
             bad += 1
             print_all_from_queue(params.get("exp_pass", True))
@@ -193,6 +197,9 @@ def run_clients(tests, common_args, srv, expected_size):
                                                        end_time - start_time,
                                                        ret))
             failed.append(proc_args)
+        srv.poll()
+        if srv.returncode is not None:
+            break
 
     return good, bad, failed
 
