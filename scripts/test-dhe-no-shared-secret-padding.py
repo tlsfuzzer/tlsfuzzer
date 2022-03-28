@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2018
+# Author: Hubert Kario, (c) 2018-2022
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 """Test for correct handling of short DHE shared secret."""
@@ -22,11 +22,14 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType
+        ExtensionType, GroupName
+from tlslite.extensions import SupportedGroupsExtension, \
+        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlslite.utils.cryptomath import numBytes
+from tlsfuzzer.helpers import SIG_ALL
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -50,6 +53,8 @@ def help_msg():
     print("                shared secret for test case to be valid,")
     print("                1 by default")
     print(" -z             don't expect 1/n-1 record split in TLS1.0")
+    print(" --extra-exts   Send additional extensions to advertise support for")
+    print("                stronger primes and signatures")
     print(" --help         this message")
 
 
@@ -63,9 +68,11 @@ def main():
     last_exp_tmp = None
     min_zeros = 1
     record_split = True
+    extra_exts = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:z", ["help", "min-zeros="])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:z", ["help", "min-zeros=",
+        "extra-exts"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -84,6 +91,8 @@ def main():
             num_limit = int(arg)
         elif opt == '-z':
             record_split = False
+        elif opt == '--extra-exts':
+            extra_exts = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -112,10 +121,20 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
+    exts = {}
+    exts[ExtensionType.renegotiation_info] = None
+    if extra_exts:
+        exts[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create([GroupName.ffdhe2048, GroupName.ffdhe3072,
+                     GroupName.ffdhe4096])
+        exts[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(SIG_ALL)
+        exts[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(SIG_ALL)
     ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(
         ciphers,
-        extensions={ExtensionType.renegotiation_info:None}))
+        extensions=exts))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
@@ -142,9 +161,13 @@ def main():
             conversation = Connect(host, port,
                                    version=(0, 2) if ssl2 else (3, 0))
             node = conversation
-            ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+            if ssl2:
+                ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                           CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+            else:
+                ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
             node = node.add_child(ClientHelloGenerator(ciphers,
+                                                       extensions=exts,
                                                        version=prot,
                                                        ssl2=ssl2))
             if prot > (3, 0):
@@ -252,9 +275,10 @@ def main():
                 if res:
                     good += 1
                     if numBytes(collected_dh_primes[-1]) \
-                            >= len(collected_premaster_secrets[-1]) + min_zeros:
-                        print("Got prime {0} bytes long and a premaster_secret "
-                              "{1} bytes long"
+                            >= len(collected_premaster_secrets[-1]) \
+                            + min_zeros:
+                        print("Got prime {0} bytes long and a premaster_secret"
+                              " {1} bytes long"
                               .format(numBytes(collected_dh_primes[-1]),
                                   len(collected_premaster_secrets[-1])))
                         break_loop = True
@@ -263,8 +287,9 @@ def main():
                             min_zeros:
                         print("Got prime {0} bytes long and a client "
                               "key share {1} bytes long"
-                              .format(numBytes(collected_dh_primes[-1]),
-                                      numBytes(collected_client_key_shares[-1])))
+                              .format(
+                                  numBytes(collected_dh_primes[-1]),
+                                  numBytes(collected_client_key_shares[-1])))
                         break_loop_clnt = True
                     print("OK\n")
                 else:
