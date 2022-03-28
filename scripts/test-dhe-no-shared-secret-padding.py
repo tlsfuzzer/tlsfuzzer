@@ -26,7 +26,7 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
 from tlslite.utils.cryptomath import numBytes
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -54,7 +54,7 @@ def help_msg():
 
 
 def main():
-    """Verify correct DHE shared secret handling."""
+    """Verify correct DHE shared secret and key share handling."""
     host = "localhost"
     port = 4433
     num_limit = 1
@@ -99,11 +99,14 @@ def main():
 
     collected_premaster_secrets = []
     collected_dh_primes = []
+    collected_client_key_shares = []
     variables_check = \
         {'premaster_secret':
          collected_premaster_secrets,
          'ServerKeyExchange.dh_p':
-         collected_dh_primes}
+         collected_dh_primes,
+         'ClientKeyExchange.dh_Yc':
+         collected_client_key_shares}
 
     conversations = {}
 
@@ -117,9 +120,9 @@ def main():
         extensions={ExtensionType.renegotiation_info:None}))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
-    node = node.add_child(CopyVariables(variables_check))
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(CopyVariables(variables_check))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -152,9 +155,9 @@ def main():
                                                     version=prot))
             node = node.add_child(ExpectCertificate())
             node = node.add_child(ExpectServerKeyExchange())
-            node = node.add_child(CopyVariables(variables_check))
             node = node.add_child(ExpectServerHelloDone())
             node = node.add_child(ClientKeyExchangeGenerator())
+            node = node.add_child(CopyVariables(variables_check))
             node = node.add_child(ChangeCipherSpecGenerator())
             node = node.add_child(FinishedGenerator())
             node = node.add_child(ExpectChangeCipherSpec())
@@ -204,15 +207,18 @@ def main():
             continue
         i = 0
         break_loop = False
+        break_loop_clnt = False
         while True:
             # don't hog the memory unnecessairly
             collected_dh_primes[:] = []
             collected_premaster_secrets[:] = []
+            collected_client_key_shares[:] = []
 
             print("\"{1}\" repeat {0}...".format(i, c_name))
             i += 1
             if c_name == "sanity":
                 break_loop = True
+                break_loop_clnt = True
 
             runner = Runner(c_test)
 
@@ -252,19 +258,28 @@ def main():
                               .format(numBytes(collected_dh_primes[-1]),
                                   len(collected_premaster_secrets[-1])))
                         break_loop = True
+                    if numBytes(collected_dh_primes[-1]) \
+                            >= numBytes(collected_client_key_shares[-1]) + \
+                            min_zeros:
+                        print("Got prime {0} bytes long and a client "
+                              "key share {1} bytes long"
+                              .format(numBytes(collected_dh_primes[-1]),
+                                      numBytes(collected_client_key_shares[-1])))
+                        break_loop_clnt = True
                     print("OK\n")
                 else:
                     bad += 1
                     failed.append(c_name)
                     break
-            if break_loop:
+            if break_loop and break_loop_clnt:
                 break
 
 
     print('')
 
     print("Check if the calculated DHE pre_master_secret is truncated when")
-    print("there are zeros on most significant bytes")
+    print("there are zeros on most significant bytes, and that server")
+    print("accepts a client key share when it does the same")
 
     print("Test end")
     print(20 * '=')

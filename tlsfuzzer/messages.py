@@ -337,6 +337,7 @@ class CopyVariables(Command):
     ``master_secret``, ``ServerHello.extensions.key_share.key_exchange``,
     ``server handshake traffic secret``, ``exporter master secret``,
     ``ServerKeyExchange.key_share``, ``ServerKeyExchange.dh_p``,
+    ``ClientKeyExchange.dh_Yc``, ``ClientKeyExchange.ecdh_Yc``,
     ``DH shared secret``, ``PSK secret``, ``client_verify_data``,
     ``server_verify_data``, ``client application traffic secret``,
     ``server application traffic secret``,
@@ -809,12 +810,14 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
                                             self.version).createDH(ske.dh_p-1)
             else:
                 cke = status.key_exchange.makeClientKeyExchange()
+            status.key['ClientKeyExchange.dh_Yc'] = cke.dh_Yc
         elif self.cipher in CipherSuite.ecdhAllSuites:
             if self.ecdh_Yc is not None:
                 cke = ClientKeyExchange(self.cipher,
                                         self.version).createECDH(self.ecdh_Yc)
             else:
                 cke = status.key_exchange.makeClientKeyExchange()
+            status.key['ClientKeyExchange.ecdh_Yc'] = cke.ecdh_Yc
         else:
             raise AssertionError("Unknown cipher/key exchange type")
 
