@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2015-2018
+# Author: Hubert Kario, (c) 2015-2022
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 from __future__ import print_function
@@ -27,7 +27,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
 
 
-version = 1
+version = 2
 
 
 def help_msg():
@@ -54,6 +54,8 @@ def help_msg():
     print(" --extra-exts   send also supported_groups, signature_algorithms,")
     print("                and signature_algorithms_cert extensions in Client")
     print("                Hello. Default for DHE and ECDHE ciphers")
+    print(" -t timeout     Connection and server reply timeout, in seconds.")
+    print("                5 seconds by default.")
     print(" --etm          Advertise and expect encrypt_then_mac extension")
     print(" --size-limit num Send a max_fragment_length extension advertising")
     print("                num as the max size we're willing to receive.")
@@ -96,9 +98,10 @@ def main():
     extra_exts = False
     etm = False
     size_limit = None
+    timeout = 5.0
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:",
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:t:",
         ["help", "extra-exts", "etm", "size-limit="])
     for opt, arg in opts:
         if opt == '-h':
@@ -142,6 +145,8 @@ def main():
                     cipher = getattr(CipherSuite, arg)
                 except AttributeError:
                     cipher = int(arg)
+        elif opt == '-t':
+            timeout = float(arg)
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -161,7 +166,7 @@ def main():
 
     conversations = {}
 
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ext = {}
     if extra_exts:
@@ -214,7 +219,7 @@ def main():
         lengths = sample(lengths, num_limit)
 
     for data_len in lengths:
-        conversation = Connect(host, port)
+        conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ext = {}
         if extra_exts:

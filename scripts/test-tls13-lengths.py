@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2018
+# Author: Hubert Kario, (c) 2022
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 from __future__ import print_function
@@ -29,7 +29,7 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
 from tlsfuzzer.helpers import key_share_gen, SIG_ALL, key_share_ext_gen
 
 
-version = 6
+version = 7
 
 
 def help_msg():
@@ -51,6 +51,8 @@ def help_msg():
     print("                (\"sanity\" tests are always executed)")
     print(" -C cipher      ciphersuite to use for the connection,")
     print("                TLS_AES_128_GCM_SHA256 by default")
+    print(" -t timeout     Timeout for connection and server responses.")
+    print("                By default 5 seconds.")
     print(" --help         this message")
 
 
@@ -62,9 +64,10 @@ def main():
     expected_failures = {}
     last_exp_tmp = None
     cipher = CipherSuite.TLS_AES_128_GCM_SHA256
+    timeout = 5.0
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:C:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:C:t:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -92,6 +95,8 @@ def main():
         elif opt == '--help':
             help_msg()
             sys.exit(0)
+        elif opt == '-t':
+            timeout = float(arg)
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -102,7 +107,7 @@ def main():
 
     conversations = {}
 
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -149,7 +154,7 @@ def main():
         lengths = sample(lengths, num_limit)
 
     for data_len in lengths:
-        conversation = Connect(host, port)
+        conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ciphers = [cipher,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
