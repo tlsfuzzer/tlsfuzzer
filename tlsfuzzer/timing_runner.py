@@ -250,7 +250,7 @@ class TimingRunner:
                                                                self.port)
         flags = ['-i', self.interface,
                  '-s', '0',
-                 '--time-stamp-precision', 'nano'
+                 '--time-stamp-precision', 'nano',
                  '--buffer-size=102400']  # units are KiB
 
         output_file = os.path.join(self.out_dir, "capture.pcap")
