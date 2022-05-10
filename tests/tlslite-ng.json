@@ -578,5 +578,20 @@
          {"name": "test-tls13-conversation.py"},
          {"name": "test-tls13-ecdsa-support.py"}
      ]
+    },
+    {"server_command": ["{python}", "-u", "{command}", "server",
+                "--echo",
+                "-k", "tests/serverX509Key.pem",
+                "-c", "tests/serverX509Cert.pem",
+                "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "tests" : [
+         {"name": "test-lengths.py",
+          "arguments": ["-n", "0"]},
+         {"name": "test-tls13-lengths.py",
+          "arguments": ["-n", "0"]}
+     ]
     }
 ]
