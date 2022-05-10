@@ -187,6 +187,56 @@ def main():
 
     conversations["very high version (254, 254)"] = conversation
 
+    conversation = Connect(host, port, version=(3, 1))
+    node = conversation
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=ext,
+                                               version=(4, 1)))
+    node = node.add_child(ExpectServerHello(version=(3, 3),
+                                            extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+
+    conversations["high version (4, 1)"] = conversation
+
+    conversation = Connect(host, port, version=(3, 1))
+    node = conversation
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=ext,
+                                               version=(6, 3)))
+    node = node.add_child(ExpectServerHello(version=(3, 3),
+                                            extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+
+    conversations["high version (6, 3)"] = conversation
+
     conversation = Connect(host, port, version=(3, 0))
     node = conversation
     node = node.add_child(ClientHelloGenerator(ciphers,
