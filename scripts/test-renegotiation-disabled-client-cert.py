@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2018
+# Author: Hubert Kario, (c) 2018-2022
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 from __future__ import print_function
@@ -30,7 +30,7 @@ from tlslite.x509certchain import X509CertChain
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -40,7 +40,10 @@ def help_msg():
     print(" -p port        port number to use for connection, 4433 by default")
     print(" probe-name     if present, will run only the probes with given")
     print("                names and not all of them, e.g \"sanity\"")
-    print(" -d             Use (EC)DHE instead of RSA for key exchange")
+    print(" -d             negotiate (EC)DHE instead of RSA key exchange, send")
+    print("                additional extensions, usually used for (EC)DHE ciphers")
+    print(" -C ciph        Use specified ciphersuite. Either numerical value or")
+    print("                IETF name.")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
     print(" -x probe-name  expect the probe to fail. When such probe passes despite being marked like this")
@@ -70,9 +73,10 @@ def main():
     cert = None
     early_abort = False
     dhe = False
+    ciphers = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:k:c:d", ["help", "no-ins-renego",
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:k:c:dC:", ["help", "no-ins-renego",
                                                       "early-abort"])
     for opt, arg in opts:
         if opt == '-h':
@@ -90,6 +94,14 @@ def main():
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-d':
             dhe = True
+        elif opt == '-C':
+            if arg[:2] == '0x':
+                ciphers = [int(arg, 16)]
+            else:
+                try:
+                    ciphers = [getattr(CipherSuite, arg)]
+                except AttributeError:
+                    ciphers = [int(arg)]
         elif opt == '-n':
             num_limit = int(arg)
         elif opt == '--no-ins-renego':
@@ -123,6 +135,20 @@ def main():
     else:
         run_only = None
 
+    if ciphers:
+        if not dhe:
+            # by default send minimal set of extensions, but allow user
+            # to override it
+            dhe = ciphers[0] in CipherSuite.ecdhAllSuites or \
+                    ciphers[0] in CipherSuite.dhAllSuites
+    else:
+        if dhe:
+            ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+        else:
+            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+
     conversations = {}
 
     conversation = Connect(host, port)
@@ -137,19 +163,15 @@ def main():
                   GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
                 .create(groups)
-        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     else:
         ext = {}
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(sig_algs)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ClientHelloGenerator(
+        ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
+        extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -183,12 +205,8 @@ def main():
                   GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
                 .create(groups)
-        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
     else:
         ext = {ExtensionType.renegotiation_info:None}
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = \
@@ -249,12 +267,8 @@ def main():
                   GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
                 .create(groups)
-        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
     else:
         ext = {ExtensionType.renegotiation_info:None}
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = \
