@@ -216,7 +216,7 @@ jobs:
         if: ${{ !matrix.container && matrix.python-version != '3.3' }}
         run: sudo apt-get install -y swig libssl-dev
       - name: Install M2Crypto (py2.7+)
-        if: ${{ !matrix.container && matrix.python-version != '3.3' && matrix.python-version != '3.4'}}
+        if: ${{ !matrix.container && matrix.python-version != '3.3' && matrix.python-version != '3.4' && matrix.python-version != 3.5 }}
         run: pip install m2crypto
       - name: Install M2Crypto (py2.6)
         if: ${{ matrix.container }}
