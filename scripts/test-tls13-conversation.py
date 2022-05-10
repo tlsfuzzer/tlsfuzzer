@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2018
+# Author: Hubert Kario, (c) 2018-2022
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 from __future__ import print_function
@@ -28,7 +28,7 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
 from tlsfuzzer.helpers import key_share_gen, SIG_ALL
 
 
-version = 6
+version = 7
 
 
 def help_msg():
@@ -48,6 +48,8 @@ def help_msg():
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
     print("                (\"sanity\" tests are always executed)")
+    print(" -C ciph        Use specified ciphersuite. Either numerical value or")
+    print("                IETF name.")
     print(" --help         this message")
 
 
@@ -58,9 +60,10 @@ def main():
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
+    ciphers = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:C:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -77,6 +80,14 @@ def main():
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '-C':
+            if arg[:2] == '0x':
+                ciphers = [int(arg, 16)]
+            else:
+                try:
+                    ciphers = [getattr(CipherSuite, arg)]
+                except AttributeError:
+                    ciphers = [int(arg)]
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -88,12 +99,13 @@ def main():
     else:
         run_only = None
 
+    if not ciphers:
+        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256]
+
     conversations = {}
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {}
     groups = [GroupName.secp256r1]
     key_shares = []
@@ -113,7 +125,9 @@ def main():
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ClientHelloGenerator(
+        ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
+        extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectEncryptedExtensions())
