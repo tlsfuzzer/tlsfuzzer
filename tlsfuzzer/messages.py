@@ -389,7 +389,7 @@ class RawSocketWriteGenerator(Command):
     :ivar int ~.busywait: number of cycles to waste before sending data
     """
 
-    def __init__(self, data, description=None, busywait=0):
+    def __init__(self, data, description=None, busywait=None):
         """Set the record layer type and payload to send."""
         super(RawSocketWriteGenerator, self).__init__()
         self.data = data
@@ -402,7 +402,7 @@ class RawSocketWriteGenerator(Command):
 
     def process(self, state):
         """Send the message over the socket."""
-        for _ in range(self.busywait):
+        for _ in range(self.busywait if self.busywait else 0):
             pass
         state.msg_sock._recordSocket.sock.send(self.data)
 
