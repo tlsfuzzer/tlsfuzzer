@@ -15,6 +15,7 @@ except ImportError:
 
 import socket
 import os
+import io
 
 from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,\
         ChangeCipherSpecGenerator, FinishedGenerator, \
@@ -882,9 +883,25 @@ class TestClientKeyExchangeGenerator(unittest.TestCase):
         self.assertEqual(len(cke.premaster_secret), 48)
 
     def test___init___with_invalid_param(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError) as e:
             cke = ClientKeyExchangeGenerator(p_as_share=True,
                                              p_1_as_share=True)
+
+        self.assertIn("both p_as_share and p_1_as_share", str(e.exception))
+
+    def test___init___with_incomplete_settings(self):
+        with self.assertRaises(ValueError) as e:
+            ClientKeyExchangeGenerator(encrypted_premaster_file="/dev/zero")
+
+        self.assertIn("length of data", str(e.exception))
+
+    def test___init___with_mutually_exclusive_settings(self):
+        with self.assertRaises(ValueError) as e:
+            ClientKeyExchangeGenerator(encrypted_premaster_file="/dev/zero",
+                                       encrypted_premaster_length="32",
+                                       modulus_as_encrypted_premaster=True)
+
+        self.assertIn("both modulus_as_encrypted_premaster", str(e.exception))
 
     def test_generate(self):
         state = ConnectionState()
@@ -1047,6 +1064,19 @@ class TestClientKeyExchangeGenerator(unittest.TestCase):
 
         ret = cke.generate(state)
         self.assertEqual(ret.dh_Yc, 20)
+
+    def test_generate_with_enc_PMS_from_file(self):
+        state = ConnectionState()
+        fake_file = io.BytesIO(b'\x01'*256)
+        cke = ClientKeyExchangeGenerator(
+                cipher=constants.CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                encrypted_premaster_file=fake_file,
+                encrypted_premaster_length=256)
+
+        ret = cke.generate(state)
+
+        self.assertEqual(len(ret.encryptedPreMasterSecret), 256)
+        self.assertEqual(ret.encryptedPreMasterSecret, b'\x01'*256)
 
     def test_post_send(self):
         state = ConnectionState()
