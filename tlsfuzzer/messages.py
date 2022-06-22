@@ -732,6 +732,12 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
        will create the RSA ciphertext once and reuse it for subsequent
        connections. Applicable only to RSA key exchange, useful only for
        tests that run the same conversation over and over (like timing tests).
+    :ivar encrypted_premaster_file: The :term:`file object` from which to
+       read the encrypted premaster secret, on node re-ececution will read
+       subsequent values, does not rewind the file pointer or close the file.
+       The file must be opened in binary mode
+    :vartype encrypted_premaster_file: :term:`file object`
+    :ivar int encrypted_premaster_length: The length of data to read, in bytes
     """
 
     def __init__(self, cipher=None, version=None, client_version=None,
@@ -739,7 +745,9 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
                  ecdh_Yc=None, encrypted_premaster=None,
                  modulus_as_encrypted_premaster=False, p_as_share=False,
                  p_1_as_share=False, premaster_secret=None,
-                 padding_byte=None, reuse_encrypted_premaster=False):
+                 padding_byte=None, reuse_encrypted_premaster=False,
+                 encrypted_premaster_file=None,
+                 encrypted_premaster_length=None):
         """Set settings of the Client Key Exchange to be sent."""
         super(ClientKeyExchangeGenerator, self).__init__()
         self.cipher = cipher
@@ -759,6 +767,16 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
         self.p_1_as_share = p_1_as_share
         self.padding_byte = padding_byte
         self.reuse_encrypted_premaster = reuse_encrypted_premaster
+        self.encrypted_premaster_file = encrypted_premaster_file
+        self.encrypted_premaster_length = encrypted_premaster_length
+
+        if encrypted_premaster_file and not encrypted_premaster_length:
+            raise ValueError("Must specify the length of data to read from"
+                             " encrypted_premaster_file")
+
+        if modulus_as_encrypted_premaster and encrypted_premaster_file:
+            raise ValueError("Can't set both modulus_as_encrypted_premaster "
+                             "and encrypted_premaster_file at the same time")
 
         if p_as_share and p_1_as_share:
             raise ValueError("Can't set both p_as_share and p_1_as_share at "
@@ -780,6 +798,9 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
             if self.modulus_as_encrypted_premaster:
                 public_key = status.get_server_public_key()
                 self.encrypted_premaster = numberToByteArray(public_key.n)
+            elif self.encrypted_premaster_file:
+                self.encrypted_premaster = self.encrypted_premaster_file.read(
+                    self.encrypted_premaster_length)
             if self.encrypted_premaster:
                 cke.createRSA(self.encrypted_premaster)
                 if self.reuse_encrypted_premaster:

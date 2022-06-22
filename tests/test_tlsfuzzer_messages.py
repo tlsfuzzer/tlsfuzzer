@@ -15,6 +15,7 @@ except ImportError:
 
 import socket
 import os
+import io
 
 from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,\
         ChangeCipherSpecGenerator, FinishedGenerator, \
@@ -1049,6 +1050,19 @@ class TestClientKeyExchangeGenerator(unittest.TestCase):
 
         ret = cke.generate(state)
         self.assertEqual(ret.dh_Yc, 20)
+
+    def test_generate_with_enc_PMS_from_file(self):
+        state = ConnectionState()
+        fake_file = io.BytesIO(b'\x01'*256)
+        cke = ClientKeyExchangeGenerator(
+                cipher=constants.CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                encrypted_premaster_file=fake_file,
+                encrypted_premaster_length=256)
+
+        ret = cke.generate(state)
+
+        self.assertEqual(len(ret.encryptedPreMasterSecret), 256)
+        self.assertEqual(ret.encryptedPreMasterSecret, b'\x01'*256)
 
     def test_post_send(self):
         state = ConnectionState()
