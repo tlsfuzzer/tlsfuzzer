@@ -249,18 +249,19 @@ class TimingRunner:
             print('WARNING: Timing tests should run with root privileges,'
                   'as it improves accuracy and might be needed for tcpdump.')
 
-        packet_filter = "host {0} and port {1} and tcp".format(self.ip_address,
-                                                               self.port)
         flags = ['-i', self.interface,
                  '-s', '0',
                  '--time-stamp-precision', 'nano',
                  '--buffer-size=102400']  # units are KiB
+        flags += ["host", "{0}".format(self.ip_address), "and",
+                  "port", "{0}".format(self.port), "and",
+                  "tcp"]
 
         output_file = os.path.join(self.out_dir, "capture.pcap")
         cmd = []
         if self.affinity:
             cmd += ['taskset', '--cpu-list', self.affinity]
-        cmd += ['tcpdump', packet_filter, '-w', output_file] + flags
+        cmd += ['tcpdump', '-w', output_file] + flags
         process = subprocess.Popen(cmd, stderr=subprocess.PIPE)
 
         # detect when tcpdump starts capturing
