@@ -387,23 +387,35 @@ class RawSocketWriteGenerator(Command):
     :ivar str ~.description: identifier to print when processing of the node
         fails
     :ivar int ~.busywait: number of cycles to waste before sending data
+    :ivar ~.data_file: The :term:`file object` from which to read the data
+        to send. On node re-execution will read subsequent values, does not
+        rewind the file pointer or close the file. The file must be opened in
+        binary mode.
+    :vartype ~.data_file: :term:`file object`
+    :ivar int data_length: The length of data to read from file, in bytes.
     """
 
-    def __init__(self, data, description=None, busywait=None):
+    def __init__(self, data=None, description=None, busywait=None,
+            data_file=None, data_length=None):
         """Set the record layer type and payload to send."""
         super(RawSocketWriteGenerator, self).__init__()
         self.data = data
         self.description = description
         self.busywait = busywait
+        self.data_file = data_file
+        self.data_length = data_length
 
     def __repr__(self):
         """Return human readable representation of the object."""
-        return self._repr(["data", "description", "busywait"])
+        return self._repr(["data", "description", "busywait", "data_file",
+                           "data_length"])
 
     def process(self, state):
         """Send the message over the socket."""
         for _ in range(self.busywait if self.busywait else 0):
             pass
+        if self.data_file:
+            self.data = self.data_file.read(self.data_length)
         state.msg_sock._recordSocket.sock.send(self.data)
 
 
