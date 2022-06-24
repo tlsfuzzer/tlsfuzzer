@@ -70,6 +70,12 @@ file:
    isolated_cores=2-10
    no_balance_cores=2-10
 
+.. note::
+
+   You should isolate both processors of the hyper-threaded pair (or quadruple,
+   or octect...). Use a tool like ``lscpu -p`` to identify which Linux CPUs
+   run on which physical cores.
+
 Then apply the profile:
 
 .. code:: bash
@@ -101,6 +107,13 @@ And the general requirements to collect and analyse timing results:
    of ``m2crypto`` and ``gmpy2`` does not have an effect on collected
    data points, using them will only make tlsfuzzer run the tests at a higher
    frequency.
+
+.. note::
+   RHEL-8 doesn't respect the QUICKACK setting on the C API. The users need
+   to declare the loopback as a quickack route, otherwise the time between
+   packets will be counted as zero. Use a command like
+   ``ip route change local 127.0.0.1 dev lo proto kernel scope host src 127.0.0.1 quickack 1``
+   to enable it.
 
 Testing theory
 ==============
