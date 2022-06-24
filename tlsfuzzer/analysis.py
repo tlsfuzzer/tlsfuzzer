@@ -1244,8 +1244,16 @@ class Analysis(object):
         if not self.multithreaded_graph:
             return
 
+        errors = []
+
         for proc, err_desc in threads:
-            self._stop_thread(proc, err_desc)
+            try:
+                self._stop_thread(proc, err_desc)
+            except Exception as e:
+                errors.append(str(e))
+
+        if errors:
+            raise Exception(str(errors))
 
     def generate_report(self):
         """
