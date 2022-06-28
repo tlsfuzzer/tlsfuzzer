@@ -232,6 +232,17 @@ class TimingRunner:
 
         :return: int 0 for no difference, 1 for difference, 2 unavailable
         """
+        try:
+            # if psutil is installed, allow the analysis to run on all
+            # CPU cores
+            import psutil
+            p = psutil.Process()
+            p.cpu_affinity([])
+            # but we need to set the values explicitly to override
+            # core isolation
+            p.cpu_affinity([i for i in p.cpu_affinity() if i])
+        except ImportError:
+            pass
         if self.check_analysis_availability():
             from tlsfuzzer.analysis import Analysis
             analysis = Analysis(self.out_dir)
