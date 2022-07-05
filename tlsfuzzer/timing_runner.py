@@ -357,8 +357,13 @@ class TimingRunner:
         :param str name: Name of the test being run
         :return: str Path to newly created directory
         """
-        test_name = os.path.basename(name)
-        out_dir = os.path.join(os.path.abspath(self.out_dir),
-                               "{0}_{1}".format(test_name, int(time.time())))
-        os.mkdir(out_dir)
+        while True:
+            test_name = os.path.basename(name)
+            out_dir = os.path.join(os.path.abspath(self.out_dir),
+                                   "{0}_{1}".format(test_name, int(time.time())))
+            try:
+                os.mkdir(out_dir)
+            except FileExistsError:
+                continue
+            break
         return out_dir
