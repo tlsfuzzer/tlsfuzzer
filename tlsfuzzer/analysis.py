@@ -693,7 +693,8 @@ class Analysis(object):
         _diffs = data.iloc[:, pair.index2] -\
             data.iloc[:, pair.index1]
 
-        job_size = os.cpu_count() * 10
+        job_count = os.cpu_count() * 4
+        job_size = max(reps // job_count, 1)
 
         keys = ("mean", "median", "trim_mean_05", "trim_mean_25", "trimean")
 
@@ -702,7 +703,7 @@ class Analysis(object):
         with mp.Pool() as pool:
             cent_tend = pool.imap_unordered(
                 self._cent_tend_of_random_sample,
-                chain(repeat(job_size, reps//job_size), [reps % job_size]))
+                chain(repeat(job_size, reps // job_size), [reps % job_size]))
 
             for values in cent_tend:
                 # handle reps % job_size == 0
