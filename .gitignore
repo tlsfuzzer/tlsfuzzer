@@ -61,3 +61,7 @@ epydoc/
 
 # PyBuilder
 target/
+
+# Project specific ignores (dependencies)
+.tlslite-ng/
+.ecdsa/
