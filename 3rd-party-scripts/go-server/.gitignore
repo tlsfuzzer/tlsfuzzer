@@ -1,0 +1,7 @@
+# Key material
+*.crt
+*.pem
+*.key
+
+# Build binaries
+go-server

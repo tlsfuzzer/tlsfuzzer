@@ -165,6 +165,17 @@ ciphers and with the above certificate:
 selfserv -d sql:./nssdb -p 4433 -V tls1.0: -H 1 -n localhost
 ```
 
+### Go
+
+To test the Go TLS server, you first need to install a Go toolchain
+environment (e.g., `sudo dnf install -y go`). Then, in the project's
+`3rd-party-scripts/go-server` directory, run `go build`. Finally, to
+start a self-server with default configuration:
+
+```
+./go-server  -addr ":4433"
+```
+
 ### Advanced configuration
 More advanced and complex configurations as well as description how to compile
 the above servers from source is available on the wiki page
