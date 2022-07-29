@@ -191,7 +191,9 @@ def main():
     node.add_child(ExpectClose())
     conversations["HRR reversed order of known extensions"] = conversation
 
-    unassigned_ext_id = list(range(52, 65279))
+    unassigned_ext_id = []
+    unassigned_ext_id.extend(range(52, 57))
+    unassigned_ext_id.extend(range(58, 65279))
 
     # Exclude extensions from a list of unassigned ones
     unassigned_ext_id = [ext for ext in unassigned_ext_id if ext not in ext_exclude]

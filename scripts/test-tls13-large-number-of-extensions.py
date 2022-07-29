@@ -167,7 +167,8 @@ def main():
     unassigned_ext_id.extend(range(22, 28))
     unassigned_ext_id.extend(range(29, 41))
     unassigned_ext_id.extend([46])
-    unassigned_ext_id.extend(range(52, 65536))
+    unassigned_ext_id.extend(range(52, 57))
+    unassigned_ext_id.extend(range(58, 65536))
 
     # Exclude extensions from a list of unassigned ones
     unassigned_ext_id = [ext for ext in unassigned_ext_id if ext not in ext_exclude]
