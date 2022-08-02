@@ -97,16 +97,14 @@ def main():
         log, capture, output, ip_address, port, raw_times, col_name
     )
     analysis.parse()
-    analysis.write_csv('timing.csv')
-    if not raw_times:
-        analysis.write_pkt_csv('raw_times_detail.csv')
 
 
 class Extract:
     """Extract timing information from packet capture."""
 
     def __init__(self, log, capture=None, output=None, ip_address=None,
-                 port=None, raw_times=None, col_name=None):
+                 port=None, raw_times=None, col_name=None,
+                 write_csv='timing.csv', write_pkt_csv='raw_times_detail.csv'):
         """
         Initialises instance and sets up class name generator from log.
 
@@ -132,6 +130,12 @@ class Extract:
         self.raw_times = raw_times
         self.pckt_times = []
         self.col_name = col_name
+        self.write_csv = write_csv
+        self.write_pkt_csv = write_pkt_csv
+        self._exp_clnt = None
+        self._exp_srv = None
+        self._previous_lst_msg = None
+        self._write_class_names = None
 
         # set up class names generator
         self.log = log
@@ -188,6 +192,9 @@ class Extract:
             class_index = next(self.class_generator)
             class_name = self.class_names[class_index]
             self.timings[class_name].append(line)
+
+        self._write_csv_header()
+        self._write_csv()
 
     @staticmethod
     def _bytes_prefix(count):
@@ -421,6 +428,7 @@ class Extract:
                     self.clnt_fin,
                     self.ack_for_fin,
                 ))
+                self._flush_to_files()
             else:
                 self.warm_up_messages_left -= 1
                 if self.warm_up_messages_left == 0:
@@ -429,12 +437,48 @@ class Extract:
                     else:
                         self.last_warmup_fin = self.clnt_fin
 
-    def write_pkt_csv(self, filename):
-        """
-        Write all packet times to file
-        """
-        exp_clnt = None
-        exp_srv = None
+    def _flush_to_files(self):
+        # we can write only complete lines
+        if len(self.timings) != len(self.class_names) or \
+                not all(self.timings.values()):
+            return
+
+        # make sure the csv has a header
+        self._write_pkt_header()
+
+        # then write queued up individual packet times
+        self._write_pkts()
+
+        # write the header of the already sorted results
+        self._write_csv_header()
+
+        # finally write the times of already sorted classes
+        self._write_csv()
+
+    def _write_csv_header(self):
+        if self._write_class_names is not None:
+            return
+
+        filename = join(self.output, self.write_csv)
+        with open(filename, 'w') as csvfile:
+            print("Writing to {0}\n".format(filename))
+            writer = csv.writer(csvfile, quoting=csv.QUOTE_MINIMAL)
+            class_names = sorted(self.timings, key=natural_sort_keys)
+            writer.writerow(class_names)
+            self._write_class_names = class_names
+
+    def _write_csv(self):
+        filename = join(self.output, self.write_csv)
+        with open(filename, 'a') as csvfile:
+            writer = csv.writer(csvfile, quoting=csv.QUOTE_MINIMAL)
+            for values in zip(*[self.timings[i] for i in
+                    self._write_class_names]):
+                writer.writerow("{0:.9f}".format(i) for i in values)
+
+            for i in self.timings.values():
+                i.clear()
+
+    def _write_pkts(self):
         for _, _, _, clnt_msgs, clnt_msgs_acks, srv_msgs, srv_msgs_acks, _, _, _ in self.pckt_times:
             if len(clnt_msgs) != len(clnt_msgs_acks):
                 print(clnt_msgs)
@@ -448,46 +492,24 @@ class Extract:
                 print(srv_msgs_acks)
                 raise ValueError("server message ACKs mismatch")
 
-            if exp_clnt is None:
-                exp_clnt = len(clnt_msgs)
-            elif len(clnt_msgs) != exp_clnt:
+            if len(clnt_msgs) != self._exp_clnt:
                 raise ValueError("inconsistent count of client messages")
 
-            if exp_srv is None:
-                exp_srv = len(srv_msgs)
-            elif len(srv_msgs) != exp_srv:
+            if len(srv_msgs) != self._exp_srv:
                 raise ValueError("inconsistent count of server messages")
-        if exp_srv != exp_clnt:
-            raise ValueError("For every client query we need a response")
 
-        filename = join(self.output, filename)
-        with open(filename, 'w') as csvfile:
-            print("Writing to {0}".format(filename))
+        if self._previous_lst_msg is None:
+            self._previous_lst_msg = self.last_warmup_fin
+
+        filename = join(self.output, self.write_pkt_csv)
+        with open(filename, "a") as csvfile:
             writer = csv.writer(csvfile, quoting=csv.QUOTE_MINIMAL)
-            columns = [
-                "lst_msg_to_syn",
-                "syn_to_syn_ack",
-                "syn_ack_to_ack",
-            ]
-            for i in range(exp_clnt):
-                columns.append("prv_ack_to_clnt_{0}".format(i))
-                columns.append("clnt_{0}_ack".format(i))
-                columns.append("clnt_{0}_rtt".format(i))
-                columns.append("prv_ack_to_srv_{0}".format(i))
-                columns.append("srv_{0}_ack".format(i))
-            columns.extend([
-                "lst_srv_to_srv_fin",
-                "lst_srv_to_clnt_fin",
-                "second_fin_to_ack"
-            ])
+            while self.pckt_times:
+                (syn, syn_ack, ack, c_msgs, c_msgs_acks, s_msgs, s_msgs_acks,
+                    srv_fin, clnt_fin, ack_for_fin) = self.pckt_times.pop(0)
 
-            writer.writerow(columns)
-
-            previous_lst_msg = self.last_warmup_fin
-            for (syn, syn_ack, ack, c_msgs, c_msgs_acks, s_msgs, s_msgs_acks,
-                    srv_fin, clnt_fin, ack_for_fin) in self.pckt_times:
                 row = [
-                    syn - previous_lst_msg,
+                    syn - self._previous_lst_msg,
                     syn_ack - syn,
                     ack - syn_ack,
                 ]
@@ -518,26 +540,61 @@ class Extract:
                 else:
                     last_fin = clnt_fin
                 # second_fin_to_ack
-                row.append(ack_for_fin - last_fin)
+                if ack_for_fin:
+                    row.append(ack_for_fin - last_fin)
+                    self._previous_lst_msg = ack_for_fin
+                else:
+                    row.append(0.0)
+                    self._previous_lst_msg = last_fin
 
                 writer.writerow(row)
-                previous_lst_msg = ack_for_fin
 
-    def write_csv(self, filename):
-        """
-        Write timing information into a csv file. Each row starts with a class
-        name and the rest of the row are individual timing measurements.
+    def _write_pkt_header(self):
+        if self._exp_clnt is not None:
+            return
 
-        :param str filename: Target filename
-        """
-        filename = join(self.output, filename)
+        for _, _, _, clnt_msgs, clnt_msgs_acks, srv_msgs, srv_msgs_acks, \
+                _, _, _ in self.pckt_times:
+            if len(clnt_msgs) != len(clnt_msgs_acks):
+                print(clnt_msgs)
+                print()
+                print(clnt_msgs_acks)
+                raise ValueError("client message ACKs mismatch: {0} vs {1}"
+                    .format(len(clnt_msgs), len(clnt_msgs_acks)))
+            if len(srv_msgs) != len(srv_msgs_acks):
+                print(srv_msgs)
+                print()
+                print(srv_msgs_acks)
+                raise ValueError("server message ACKs mismatch")
+
+            self._exp_clnt = len(clnt_msgs)
+            self._exp_srv = len(srv_msgs)
+
+        if self._exp_srv != self._exp_clnt:
+            raise ValueError("For every client query we need a response")
+
+        filename = join(self.output, self.write_pkt_csv)
         with open(filename, 'w') as csvfile:
-            print("Writing to {0}".format(filename))
+            print("Writing to {0}\n".format(filename))
             writer = csv.writer(csvfile, quoting=csv.QUOTE_MINIMAL)
-            class_names = sorted(self.timings, key=natural_sort_keys)
-            writer.writerow(class_names)
-            for values in zip(*[self.timings[i] for i in class_names]):
-                writer.writerow("{0:.9f}".format(i) for i in values)
+            columns = [
+                "lst_msg_to_syn",
+                "syn_to_syn_ack",
+                "syn_ack_to_ack",
+            ]
+            for i in range(self._exp_clnt):
+                columns.append("prv_ack_to_clnt_{0}".format(i))
+                columns.append("clnt_{0}_ack".format(i))
+                columns.append("clnt_{0}_rtt".format(i))
+                columns.append("prv_ack_to_srv_{0}".format(i))
+                columns.append("srv_{0}_ack".format(i))
+            columns.extend([
+                "lst_srv_to_srv_fin",
+                "lst_srv_to_clnt_fin",
+                "second_fin_to_ack"
+            ])
+
+            writer.writerow(columns)
 
     @staticmethod
     def hostname_to_ip(hostname):

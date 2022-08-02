@@ -75,26 +75,34 @@ class TestExtraction(unittest.TestCase):
             self.log = Log(self.logfile)
             self.log.read_log()
 
+        self.builtin_open = open
+
+    def file_selector(self, *args, **kwargs):
+        name = args[0]
+        mode = args[1]
+        if "timing.csv" in name:
+            r = mock.mock_open()(name, mode)
+            r.write.side_effect = lambda s: self.assertIn(
+                    s.strip(), self.expected.splitlines())
+            return r
+        return self.builtin_open(*args, **kwargs)
+
     def test_extraction_from_external_time_source(self):
         extract = Extract(self.log, None, "/tmp", None, None,
                           join(dirname(abspath(__file__)), "times-log.csv"))
-        extract.parse()
 
-        with mock.patch('__main__.__builtins__.open', mock.mock_open()) as mock_file:
-            mock_file.return_value.write.side_effect = lambda s: self.assertIn(
-                s.strip(), self.expected.splitlines())
-            extract.write_csv('timing.csv')
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_selector
+            extract.parse()
 
     def test_extraction(self):
         extract = Extract(self.log,
                           join(dirname(abspath(__file__)), "capture.pcap"),
                           "/tmp", "localhost", 4433)
-        extract.parse()
 
-        with mock.patch('__main__.__builtins__.open', mock.mock_open()) as mock_file:
-            mock_file.return_value.write.side_effect = lambda s: self.assertIn(
-                s.strip(), self.expected.splitlines())
-            extract.write_csv('timing.csv')
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_selector
+            extract.parse()
 
 
 @unittest.skipIf(failed_import,
@@ -102,8 +110,8 @@ class TestExtraction(unittest.TestCase):
 class TestCommandLine(unittest.TestCase):
 
     @mock.patch('tlsfuzzer.extract.Log')
-    @mock.patch('tlsfuzzer.extract.Extract.write_pkt_csv')
-    @mock.patch('tlsfuzzer.extract.Extract.write_csv')
+    @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
+    @mock.patch('tlsfuzzer.extract.Extract._write_csv')
     @mock.patch('tlsfuzzer.extract.Extract.parse')
     def test_command_line(self, mock_parse, mock_write, mock_write_pkt,
                           mock_log):
@@ -130,8 +138,8 @@ class TestCommandLine(unittest.TestCase):
 
 
     @mock.patch('tlsfuzzer.extract.Log')
-    @mock.patch('tlsfuzzer.extract.Extract.write_pkt_csv')
-    @mock.patch('tlsfuzzer.extract.Extract.write_csv')
+    @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
+    @mock.patch('tlsfuzzer.extract.Extract._write_csv')
     @mock.patch('tlsfuzzer.extract.Extract.parse')
     def test_raw_times(self, mock_parse, mock_write, mock_write_pkt, mock_log):
         raw_times = "times-log.csv"
