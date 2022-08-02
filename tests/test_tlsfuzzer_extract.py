@@ -75,26 +75,34 @@ class TestExtraction(unittest.TestCase):
             self.log = Log(self.logfile)
             self.log.read_log()
 
+        self.builtin_open = open
+
+    def file_selector(self, *args, **kwargs):
+        name = args[0]
+        mode = args[1]
+        if "timing.csv" in name:
+            r = mock.mock_open()(name, mode)
+            r.write.side_effect = lambda s: self.assertIn(
+                    s.strip(), self.expected.splitlines())
+            return r
+        return self.builtin_open(*args, **kwargs)
+
     def test_extraction_from_external_time_source(self):
         extract = Extract(self.log, None, "/tmp", None, None,
                           join(dirname(abspath(__file__)), "times-log.csv"))
-        extract.parse()
 
-        with mock.patch('__main__.__builtins__.open', mock.mock_open()) as mock_file:
-            mock_file.return_value.write.side_effect = lambda s: self.assertIn(
-                s.strip(), self.expected.splitlines())
-            extract.write_csv('timing.csv')
+        with mock.patch('builtins.open') as mock_file:
+            mock_file.side_effect = self.file_selector
+            extract.parse()
 
     def test_extraction(self):
         extract = Extract(self.log,
                           join(dirname(abspath(__file__)), "capture.pcap"),
                           "/tmp", "localhost", 4433)
-        extract.parse()
 
-        with mock.patch('__main__.__builtins__.open', mock.mock_open()) as mock_file:
-            mock_file.return_value.write.side_effect = lambda s: self.assertIn(
-                s.strip(), self.expected.splitlines())
-            extract.write_csv('timing.csv')
+        with mock.patch('builtins.open') as mock_file:
+            mock_file.side_effect = self.file_selector
+            extract.parse()
 
 
 @unittest.skipIf(failed_import,
@@ -116,8 +124,8 @@ class TestCommandLine(unittest.TestCase):
         mock_init.return_value = None
         with mock.patch('tlsfuzzer.extract.Extract.parse'):
             with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
-                with mock.patch('tlsfuzzer.extract.Extract.write_csv'):
-                    with mock.patch('tlsfuzzer.extract.Extract.write_pkt_csv'):
+                with mock.patch('tlsfuzzer.extract.Extract._write_csv'):
+                    with mock.patch('tlsfuzzer.extract.Extract._write_pkts'):
                         with mock.patch('tlsfuzzer.extract.Log') as mock_log:
                             with mock.patch("sys.argv", args):
                                 main()
@@ -138,8 +146,8 @@ class TestCommandLine(unittest.TestCase):
         mock_init.return_value = None
         with mock.patch('tlsfuzzer.extract.Extract.parse'):
             with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
-                with mock.patch('tlsfuzzer.extract.Extract.write_csv'):
-                    with mock.patch('tlsfuzzer.extract.Extract.write_pkt_csv'):
+                with mock.patch('tlsfuzzer.extract.Extract._write_csv'):
+                    with mock.patch('tlsfuzzer.extract.Extract._write_pkts'):
                         with mock.patch('tlsfuzzer.extract.Log') as mock_log:
                             with mock.patch("sys.argv", args):
                                 main()
