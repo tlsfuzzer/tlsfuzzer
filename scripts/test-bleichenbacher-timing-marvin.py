@@ -33,7 +33,7 @@ from tlslite.utils.cryptomath import getRandomBytes, numBytes, secureHMAC, \
     numberToByteArray, numBits, secureHash
 
 
-version = 1
+version = 2
 
 
 def help_msg():
@@ -212,21 +212,22 @@ class MarvinCiphertextGenerator(object):
     def generate(self):
         ret = {}
 
-        # first a random well-formed ciphertext
-        if self.tls_version is None:
-            while True:
+        # first a random well-formed ciphertext canaries
+        for i in range(1, 4):
+            if self.tls_version is None:
+                while True:
+                    rand_pms = getRandomBytes(self.pms_len)
+                    if bytes(rand_pms[:2]) not in self.forbidden:
+                        break
+            else:
                 rand_pms = getRandomBytes(self.pms_len)
-                if bytes(rand_pms[:2]) not in self.forbidden:
-                    break
-        else:
-            rand_pms = getRandomBytes(self.pms_len)
-            rand_pms[0] = self.tls_version[0]
-            rand_pms[1] = self.tls_version[1]
+                rand_pms[0] = self.tls_version[0]
+                rand_pms[1] = self.tls_version[1]
 
-        ciphertext = self.pub_key.encrypt(rand_pms)
+            ciphertext = self.pub_key.encrypt(rand_pms)
 
-        assert rand_pms == self.priv_key.decrypt(ciphertext)
-        ret["well formed"] = ciphertext
+            assert rand_pms == self.priv_key.decrypt(ciphertext)
+            ret["well formed - {0}".format(i)] = ciphertext
 
         # then invalid one, with version byte set to 1
         subs = {0: 1}
