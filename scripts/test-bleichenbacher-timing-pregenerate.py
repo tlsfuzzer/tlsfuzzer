@@ -1327,7 +1327,7 @@ place where the timing leak happens:
             print("Running timing tests...")
             timing_runner.generate_log(
                 ['generic'], [],
-                repetitions * len(sampled_tests))
+                repetitions * len(actual_tests))
             ret_val = timing_runner.run()
             if ret_val != 0:
                 print("run failed")
