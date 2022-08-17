@@ -5,7 +5,8 @@ from __future__ import print_function
 import traceback
 import sys
 import getopt
-from itertools import chain
+import os
+from itertools import chain, repeat
 from random import sample
 
 from tlsfuzzer.runner import Runner
@@ -31,9 +32,11 @@ from tlslite.x509 import X509
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.utils.cryptomath import getRandomBytes, numBytes, secureHMAC, \
     numberToByteArray, numBits, secureHash
+from tlsfuzzer.utils.statics import WARM_UP
+from tlsfuzzer.utils.log import Log
 
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -717,24 +720,107 @@ significant byte:
     if len(sort):
         print("FAILED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
 
-    if bad > 0:
+    if bad or xpass:
         sys.exit(1)
     elif timing:
         # if regular tests passed, run timing collection and analysis
         if TimingRunner.check_tcpdump():
+            tests = [('generic', None)]
+
             timing_runner = TimingRunner("{0}_v{1}_{2}".format(
                                             sys.argv[0],
                                             version,
                                             CipherSuite.ietfNames[cipher]),
-                                         sampled_tests,
+                                         tests,
                                          outdir,
                                          host,
                                          port,
                                          interface,
-                                         affinity)
+                                         affinity,
+                                         skip_extract=True)
+            print("Pre-generating pre-master secret values...")
+
+            with open(
+                os.path.join(timing_runner.out_dir, 'pms_values.bin'),
+                "wb"
+            ) as pms_file:
+                # create a real order of tests to run
+                log = Log(os.path.join(timing_runner.out_dir, "real_log.csv"))
+                actual_tests = []
+                for c_name, c_test in sampled_tests:
+                    if run_only and c_name not in run_only or \
+                            c_name in run_exclude:
+                        continue
+                    if not c_name.startswith("sanity"):
+                        actual_tests.append(c_name)
+
+                log.start_log(actual_tests)
+                for _ in range(repetitions):
+                    log.shuffle_new_run()
+                log.write()
+                log.read_log()
+                test_classes = log.get_classes()
+                queries = chain(repeat(0, WARM_UP), log.iterate_log())
+
+                exp_key_size = (len(srv_cert.publicKey) + 7) // 8
+
+                # generate the PMS values
+                for executed, index in enumerate(queries):
+                    g_name = test_classes[index]
+
+                    res = ciphertexts[g_name]
+                    assert len(res) == exp_key_size, len(res)
+
+                    pms_file.write(res)
+
+            # fake the set of tests to run so it's just one
+            pms_file = open(
+                os.path.join(timing_runner.out_dir, 'pms_values.bin'),
+                "rb"
+            )
+
+            conversation = Connect(host, port)
+            node = conversation
+            ciphers = [cipher]
+            node = node.add_child(ClientHelloGenerator(ciphers,
+                                                       extensions=cln_extensions))
+            node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+
+            node = node.add_child(ExpectCertificate())
+            node = node.add_child(ExpectServerHelloDone())
+            node = node.add_child(TCPBufferingEnable())
+            node = node.add_child(ClientKeyExchangeGenerator(
+                encrypted_premaster_file=pms_file,
+                encrypted_premaster_length=exp_key_size
+                ))
+            node = node.add_child(ChangeCipherSpecGenerator())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(TCPBufferingDisable())
+            node = node.add_child(TCPBufferingFlush())
+            node = node.add_child(ExpectAlert(level,
+                                              alert))
+            node.add_child(ExpectClose())
+
+            tests[:] = [('generic', conversation)]
+
             print("Running timing tests...")
-            timing_runner.generate_log(run_only, run_exclude, repetitions)
+            timing_runner.generate_log(
+                ['generic'], [],
+                repetitions * len(actual_tests))
             ret_val = timing_runner.run()
+            if ret_val != 0:
+                print("run failed")
+                sys.exit(ret_val)
+            os.remove(os.path.join(timing_runner.out_dir, 'log.csv'))
+            os.rename(
+                os.path.join(timing_runner.out_dir, 'real_log.csv'),
+                os.path.join(timing_runner.out_dir, 'log.csv')
+            )
+            if not timing_runner.extract():
+                ret_val = 2
+            else:
+                timing_runner.analyse()
+
             if ret_val == 0:
                 print("No statistically significant difference detected")
             elif ret_val == 1:
