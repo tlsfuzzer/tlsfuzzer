@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2021
+# Author: Hubert Kario, (c) 2021-2022
 # Released under Gnu GPL v2.0, see LICENSE file for details
 """Bleichenbacher attack test for Marvin workaround."""
 from __future__ import print_function
@@ -33,7 +33,7 @@ from tlslite.utils.cryptomath import getRandomBytes, numBytes, secureHMAC, \
     numberToByteArray, numBits, secureHash
 
 
-version = 2
+version = 3
 
 
 def help_msg():
@@ -166,6 +166,7 @@ class MarvinCiphertextGenerator(object):
 
     This will create either valid ciphertext that decrypt to specified length,
     or invalid ciphertexts that have synthethic ciphertexts of specified length.
+    All ciphertexts will also require the same number of bytes to represent.
 
     If tls_version is None it will simply select PMS values for which the
     first two bytes of it can't be mistaken for a TLS version (it won't
@@ -189,6 +190,14 @@ class MarvinCiphertextGenerator(object):
                 rand_pms = pms
             ciphertext = _encrypt_with_fuzzing(
                 self.pub_key, rand_pms, subs, padding_byte)
+
+            # since we use static probes, we don't want to see a difference
+            # caused by publicly visible values (like can happen with
+            # multiprecision integer arithmetic implementation that uses
+            # clamping), so make sure that the ciphertext has
+            # non-zero MSB
+            if not ciphertext[0]:
+                continue
 
             synth_plaintext = synthetic_plaintext_generator(
                 self.priv_key, ciphertext)
@@ -214,17 +223,22 @@ class MarvinCiphertextGenerator(object):
 
         # first a random well-formed ciphertext canaries
         for i in range(1, 4):
-            if self.tls_version is None:
-                while True:
+            while True:
+                if self.tls_version is None:
+                    while True:
+                        rand_pms = getRandomBytes(self.pms_len)
+                        if bytes(rand_pms[:2]) not in self.forbidden:
+                            break
+                else:
                     rand_pms = getRandomBytes(self.pms_len)
-                    if bytes(rand_pms[:2]) not in self.forbidden:
-                        break
-            else:
-                rand_pms = getRandomBytes(self.pms_len)
-                rand_pms[0] = self.tls_version[0]
-                rand_pms[1] = self.tls_version[1]
+                    rand_pms[0] = self.tls_version[0]
+                    rand_pms[1] = self.tls_version[1]
 
-            ciphertext = self.pub_key.encrypt(rand_pms)
+                ciphertext = self.pub_key.encrypt(rand_pms)
+                # make sure MSB is non zero to avoid public value clamping
+                # side-channel
+                if ciphertext[0]:
+                    break
 
             assert rand_pms == self.priv_key.decrypt(ciphertext)
             ret["well formed - {0}".format(i)] = ciphertext
@@ -312,16 +326,21 @@ class MarvinCiphertextGenerator(object):
         ret["too long PKCS#1 padding"] = ciphertext
 
         # low Hamming weight RSA plaintext
-        if self.tls_version is None:
-            while True:
+        while True:
+            if self.tls_version is None:
+                while True:
+                    rand_pms = getRandomBytes(self.pms_len)
+                    if bytes(rand_pms[:2]) not in self.forbidden:
+                        break
+            else:
                 rand_pms = getRandomBytes(self.pms_len)
-                if bytes(rand_pms[:2]) not in self.forbidden:
-                    break
-        else:
-            rand_pms = getRandomBytes(self.pms_len)
-            rand_pms[0] = self.tls_version[0]
-            rand_pms[1] = self.tls_version[1]
-        ciphertext = _encrypt_with_fuzzing(self.pub_key, rand_pms, None, 1)
+                rand_pms[0] = self.tls_version[0]
+                rand_pms[1] = self.tls_version[1]
+            ciphertext = _encrypt_with_fuzzing(self.pub_key, rand_pms, None, 1)
+            # make sure MSB is non-zero to avoid side-channel based on public
+            # value clamping
+            if ciphertext[0]:
+                break
         assert rand_pms == self.priv_key.decrypt(ciphertext)
         ret["use 1 as the padding byte (low Hamming weight plaintext)"] = ciphertext
 
@@ -338,6 +357,10 @@ class MarvinCiphertextGenerator(object):
                 rand_pms[1] = self.tls_version[1]
 
             ciphertext = self.pub_key.encrypt(rand_pms)
+            # make sure MSB is non-zero to avoid side-channel based on public
+            # value clamping
+            if not ciphertext[0]:
+                continue
 
             synth_plaintext = synthetic_plaintext_generator(
                 self.priv_key, ciphertext)
@@ -360,6 +383,10 @@ class MarvinCiphertextGenerator(object):
                 rand_pms[1] = self.tls_version[1]
 
             ciphertext = self.pub_key.encrypt(rand_pms)
+            # make sure MSB is non-zero to avoid side-channel based on public
+            # value clamping
+            if not ciphertext[0]:
+                continue
 
             synth_plaintext = synthetic_plaintext_generator(
                 self.priv_key, ciphertext)
