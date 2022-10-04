@@ -34,10 +34,13 @@ fewest observations.
 Hardware selection
 ------------------
 
-You will want a server with at least 3 physical cores: one to run
-the OS, tlsfuzzer script, etc., one to run the tcpdump process (to ensure
-consistent timestamping of captured packets) and one to run the system under
-test (to ensure consistent response times).
+You will want a server with at least 2 physical cores, and optimally with
+3 physical cores: one to run
+the OS, handle IRQs, etc. one to run the tlsfuzzer and tcpdump processes (to
+ensure consistent timestamping of captured packets) and one to run the system
+under test (to ensure consistent response times). If that's not available,
+running the OS, tlsfuzzer and tcpdump on one core and the SUT on isolated
+core is also an option (though it will provide lower quality measurements).
 
 While you can run the tests against a network server, this manual
 doesn't describe how to ensure low latency and low jitter
@@ -74,7 +77,10 @@ file:
 
    You should isolate both processors of the hyper-threaded pair (or quadruple,
    or octect...). Use a tool like ``lscpu -p`` to identify which Linux CPUs
-   run on which physical cores.
+   share physical resources: optimally you should run on separate Cores that
+   don't share cache, but are still in the same socket and the same NUMA Node.
+   All the CPUs that do share Cores (and if possible, L1 and L2 cache) should
+   also be isolated but left unused.
 
 Then apply the profile:
 
