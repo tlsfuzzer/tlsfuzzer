@@ -7,11 +7,11 @@ from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         Finished, Alert, ApplicationData, Message, Certificate, \
         CertificateVerify, CertificateRequest, ClientMasterKey, \
         ClientFinished, ServerKeyExchange, ServerHello, Heartbeat, \
-        KeyUpdate
+        KeyUpdate, CompressedCertificate
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
         ExtensionType, CertificateType, HashAlgorithm, \
         SignatureAlgorithm, CipherSuite, SignatureScheme, TLS_1_3_HRR, \
-        HeartbeatMessageType
+        HeartbeatMessageType, CertificateCompressionAlgorithm
 import tlslite.utils.tlshashlib as hashlib
 from tlslite.extensions import TLSExtension, RenegotiationInfoExtension, \
         ClientKeyShareExtension, StatusRequestExtension
@@ -898,6 +898,49 @@ class ClientMasterKeyGenerator(HandshakeProtocolMessageGenerator):
         cmk.create(self.cipher, clear_key, encrypted_master_key, key_arg)
         self.msg = cmk
         return cmk
+
+
+class CompressedCertificateGenerator(HandshakeProtocolMessageGenerator):
+    """Generator for TLS handshake protocol CompressedCertificate message."""
+
+    def __init__(self, certs=None, cert_type=None, version=None, context=None,
+                 algorithm=CertificateCompressionAlgorithm.zlib,
+                 # overrides
+                 override_uncompressed_length=None,
+                 override_compressed_data=None):
+        """Set the certificates to send to server."""
+        super(CompressedCertificateGenerator, self).__init__()
+        self.certs = certs
+        self.cert_type = cert_type
+        self.version = version
+        self.context = context
+        self.algorithm = algorithm
+        self.override_uncompressed_length = override_uncompressed_length
+        self.override_compressed_data = override_compressed_data
+
+    def generate(self, status):
+        """Create a Certificate message."""
+        if self.version is None:
+            self.version = status.version
+        if self.cert_type is None:
+            self.cert_type = CertificateType.x509
+        context = b''
+        if self.context:
+            context = self.context[-1]
+            assert isinstance(context, CertificateRequest)
+            context = context.certificate_request_context
+        cert = CompressedCertificate(self.cert_type, version=self.version)
+        if self.override_uncompressed_length is not None:
+            cert.override_uncompressed_length = \
+                    self.override_uncompressed_length
+        cert.create(self.certs, context=context, algorithm=self.algorithm)
+        if self.override_compressed_data is not None:
+            cert.override_compressed_data = self.override_compressed_data
+        if self.context:
+            self.context.append(cert)
+
+        self.msg = cert
+        return cert
 
 
 class CertificateGenerator(HandshakeProtocolMessageGenerator):
