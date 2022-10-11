@@ -20,7 +20,7 @@ from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
         ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus, \
         CertificateVerify, EncryptedExtensions, NewSessionTicket, Heartbeat,\
-        KeyUpdate, HelloRequest
+        KeyUpdate, HelloRequest, CompressedCertificate
 from tlslite.extensions import TLSExtension, ALPNExtension
 from tlslite.utils.codec import Parser, Writer
 from tlslite.utils.compat import b2a_hex
@@ -1012,6 +1012,40 @@ class ExpectCertificate(ExpectHandshake):
             assert hs_type == HandshakeType.certificate
 
             cert = Certificate(self.cert_type, state.version)
+            cert.parse(parser)
+            self._old_cert_bytes = msg_bytes
+            self._old_cert = cert
+
+        state.handshake_messages.append(cert)
+        state.handshake_hashes.update(msg_bytes)
+
+
+class ExpectCompressedCertificate(ExpectHandshake):  # TODO: code reuse
+    def __init__(self, cert_type=CertificateType.x509):
+        super(ExpectCompressedCertificate, self).__init__(
+                ContentType.handshake,
+                HandshakeType.compressed_certificate
+        )
+        self.cert_type = cert_type
+        self._old_cert = None
+        self._old_cert_bytes = None
+
+    def process(self, state, msg):
+        """
+        :type state: `~ConnectionState`
+        """
+        assert msg.contentType == ContentType.handshake
+
+        msg_bytes = msg.write()
+        if self._old_cert_bytes is not None and \
+                msg_bytes == self._old_cert_bytes:
+            cert = self._old_cert
+        else:
+            parser = Parser(msg_bytes)
+            hs_type = parser.get(1)
+            assert hs_type == HandshakeType.compressed_certificate
+
+            cert = CompressedCertificate(self.cert_type, state.version)
             cert.parse(parser)
             self._old_cert_bytes = msg_bytes
             self._old_cert = cert
