@@ -33,7 +33,7 @@ from tlsfuzzer.utils.statics import WARM_UP
 from tlsfuzzer.utils.log import Log
 
 
-version = 1
+version = 2
 
 
 def help_msg():
@@ -83,7 +83,9 @@ def help_msg():
     print("                timing signal weaker or stronger depending on implementation.")
     print("                By default ciphertexts that have padding will be randomised.")
     print(" --test-set     Execute a pre-selected subset of tests.")
-    print("                Available: 'raw decrypted value'")
+    print("                Available: 'raw decrypted value', 'Hamming weight'")
+    print(" --bit-sets     List of numerical values for Hamming weight tests,")
+    print("                separated by spaces. Default: '0x01 0x02 0x04'")
     print(" --help         this message")
 
 
@@ -108,6 +110,7 @@ def main():
     affinity = None
     reuse_rsa_ciphertext = False
     test_set = None
+    bit_sets = (0x01, 0x02, 0x04)
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv,
@@ -118,7 +121,8 @@ def main():
                                 "repeat=",
                                 "cpu-list=",
                                 "static-enc",
-                                "test-set="])
+                                "test-set=",
+                                "bit-sets="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -169,6 +173,11 @@ def main():
             sys.exit(0)
         elif opt == "--test-set":
             test_set = arg
+        elif opt == "--bit-sets":
+            bit_sets = set(
+                int(i, 16) if i[:2] == '0x' else int(i)
+                for i in arg.split(" ")
+            )
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -213,6 +222,18 @@ def main():
                 "too short PKCS padding - 8 bytes",
                 "very short PKCS padding (40 bytes short)",
             ))
+    elif test_set == 'Hamming weight':
+        run_only = set((
+            "control - fuzzed pre master secret 1",
+            "control - fuzzed pre master secret 2",
+            "control - fuzzed pre master secret 3",
+            "very low Hamming weight RSA plaintext",
+            "very high Hamming weight RSA plaintext",
+        ))
+        run_only |= set(
+            "low Hamming weight RSA plaintext - {0}".format(hex(bit_set))
+            for bit_set in bit_sets
+        )
     elif test_set is not None:
         raise ValueError("Unrecognised test set name: {0}".format(test_set))
 
@@ -999,33 +1020,36 @@ def main():
     generators["very low Hamming weight RSA plaintext"] = cke_node
 
     # low Hamming weight:
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+    for bit_set in bit_sets:
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions=cln_extensions))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
 
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
-        padding_subs={-1: 1},
-        padding_byte=1,
-        client_version=(1, 1),
-        premaster_secret=bytearray([1]*48),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
+        node = node.add_child(ClientKeyExchangeGenerator(
+            padding_subs={-1: bit_set},
+            padding_byte=bit_set,
+            client_version=(bit_set, bit_set),
+            premaster_secret=bytearray([bit_set]*48),
+            reuse_encrypted_premaster=reuse_rsa_ciphertext))
+        cke_node = node
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
+        node = node.add_child(ExpectAlert(level,
+                                          alert))
+        node.add_child(ExpectClose())
 
-    conversations["low Hamming weight RSA plaintext"] = conversation
-    generators["low Hamming weight RSA plaintext"] = cke_node
+        conversations["low Hamming weight RSA plaintext - {0}"
+                      .format(hex(bit_set))] = conversation
+        generators["low Hamming weight RSA plaintext - {0}"
+                   .format(hex(bit_set))] = cke_node
 
     # test for Hamming weight sensitivity:
     # very high Hamming weight:
@@ -1147,7 +1171,7 @@ significant byte:
   For signatures the bytes must equal 0xff
 - one zero byte that acts as separator between padding and
   encrypted value
-- one or more bytes that are the encrypted value, for TLS it must
+- zero, one, or more bytes that are the encrypted value, for TLS it must
   be 48 bytes long and the first two bytes need to equal the
   TLS version advertised in Client Hello
 
@@ -1216,8 +1240,8 @@ place where the timing leak happens:
   - 'very high Hamming weight RSA plaintext' - padding, padding separator, TLS
     version and PMS are all 0xff bytes
   - 'use PKCS#1 padding type 1' - here the padding will be all 0xff bytes
-  - 'low Hamming weight RSA plaintext' - padding, padding separator, TLS
-    version and PMS are all 0x01 bytes""")
+  - 'low Hamming weight RSA plaintext - 0xXX' - padding, padding separator, TLS
+    version and PMS are all set to the specified value""")
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
