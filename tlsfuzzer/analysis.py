@@ -56,6 +56,11 @@ def help_msg():
  --multithreaded-graph Create graph and calculate statistical tests at the
                 same time. Note: this increases memory usage of analysis by
                 a factor of 8.
+ --clock-frequency freq Assume that the times in the file are not specified in
+                seconds but rather in clock cycles of a clock running at
+                frequency 'freq' specified in MHz. Use when the clock source
+                are the raw reads from the Time Stamp Counter register or
+                similar.
  --verbose      Print the current task
  --help         Display this message""")
 
@@ -68,11 +73,13 @@ def main():
     conf_int_plot = True
     multithreaded_graph = False
     verbose = False
+    clock_freq = None
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "o:",
                                ["help", "no-ecdf-plot", "no-scatter-plot",
                                 "no-conf-interval-plot",
                                 "multithreaded-graph",
+                                "clock-frequency=",
                                 "verbose"])
 
     for opt, arg in opts:
@@ -89,12 +96,14 @@ def main():
             conf_int_plot = False
         elif opt == "--multithreaded-graph":
             multithreaded_graph = True
+        elif opt == "--clock-frequency":
+            clock_freq = float(arg) * 1000000  # in MHz
         elif opt == "--verbose":
             verbose = True
 
     if output:
         analysis = Analysis(output, ecdf_plot, scatter_plot, conf_int_plot,
-                            multithreaded_graph, verbose)
+                            multithreaded_graph, verbose, clock_freq)
         ret = analysis.generate_report()
         return ret
     else:
@@ -106,9 +115,10 @@ class Analysis(object):
 
     def __init__(self, output, draw_ecdf_plot=True, draw_scatter_plot=True,
                  draw_conf_interval_plot=True, multithreaded_graph=False,
-                 verbose=False):
+                 verbose=False, clock_frequency=None):
         self.verbose = verbose
         self.output = output
+        self.clock_frequency = clock_frequency
         data = self.load_data()
         self.class_names = list(data)
         self.draw_ecdf_plot = draw_ecdf_plot
@@ -152,6 +162,8 @@ class Analysis(object):
         csv_reader = pd.read_csv(timing_csv_path, chunksize=512000,
                                  dtype=np.float64)
         chunk = next(csv_reader)
+        if self.clock_frequency:
+            chunk = chunk / self.clock_frequency
         timing_bin = np.memmap(timing_bin_path, dtype=np.float64,
                                mode="w+",
                                shape=(len(chunk.index), ncol),
@@ -166,6 +178,8 @@ class Analysis(object):
                                    shape=(rows_written + len(chunk.index),
                                           ncol),
                                    order="C")
+            if self.clock_frequency:
+                chunk = chunk / self.clock_frequency
             timing_bin[rows_written:, :] = chunk.iloc[:, :]
             rows_written += len(chunk.index)
 
