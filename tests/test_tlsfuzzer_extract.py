@@ -77,6 +77,43 @@ class TestExtraction(unittest.TestCase):
 
         self.builtin_open = open
 
+        self.expected_raw = (
+            "raw times\n"
+            "12354\n"
+            "65468\n"
+            "21235\n"
+            "45623\n"
+            "88965\n"
+            "21232\n"
+            "12223\n"
+            "32432\n"
+            "22132\n"
+            "21564\n"
+            "56489\n"
+            "54987\n"
+            "25654\n"
+            "54922\n"
+            "56488\n"
+            "89477\n"
+            "52616\n"
+            "21366\n"
+            "56487\n"
+            "21313\n")
+
+        self.expected_binary_conv = (
+            "A,B\n"
+            "65468.000000000,12354.000000000\n"
+            "21235.000000000,45623.000000000\n"
+            "21232.000000000,88965.000000000\n"
+            "12223.000000000,32432.000000000\n"
+            "22132.000000000,21564.000000000\n"
+            "56489.000000000,54987.000000000\n"
+            "25654.000000000,54922.000000000\n"
+            "89477.000000000,56488.000000000\n"
+            "21366.000000000,52616.000000000\n"
+            "21313.000000000,56487.000000000\n"
+            )
+
     def file_selector(self, *args, **kwargs):
         name = args[0]
         mode = args[1]
@@ -84,6 +121,23 @@ class TestExtraction(unittest.TestCase):
             r = mock.mock_open()(name, mode)
             r.write.side_effect = lambda s: self.assertIn(
                     s.strip(), self.expected.splitlines())
+            return r
+        return self.builtin_open(*args, **kwargs)
+
+    def file_selector_binary(self, *args, **kwargs):
+        name = args[0]
+        mode = args[1]
+        if "timing.csv" in name:
+            r = mock.mock_open()(name, mode)
+            r.write.side_effect = lambda s: self.assertIn(
+                    s.strip(), self.expected_binary_conv.splitlines())
+            return r
+        elif "raw_times.csv" in name:
+            if "r" in mode:
+                return mock.mock_open(read_data=self.expected_raw)(name, mode)
+            r = mock.mock_open()(name, mode)
+            r.write.side_effect = lambda s: self.assertIn(
+                    s.strip(), self.expected_raw.splitlines())
             return r
         return self.builtin_open(*args, **kwargs)
 
@@ -125,6 +179,15 @@ class TestExtraction(unittest.TestCase):
             mock_file.side_effect = self.file_selector
             extract.parse()
 
+    def test_binary_convert(self):
+        extract = Extract(self.log, None, "/tmp", None, None,
+                          join(dirname(abspath(__file__)),
+                               "raw_times.bin"), binary=4)
+
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_selector_binary
+            extract.parse()
+
 
 @unittest.skipIf(failed_import,
                  "Could not import extraction. Skipping related tests.")
@@ -155,7 +218,7 @@ class TestCommandLine(unittest.TestCase):
                 mock_log.assert_called_once_with(logfile)
                 mock_init.assert_called_once_with(
                     mock.ANY, capture, output, host, int(port),
-                    None, None)
+                    None, None, binary=None, endian="little")
 
     @mock.patch('tlsfuzzer.extract.Log')
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
@@ -179,7 +242,105 @@ class TestCommandLine(unittest.TestCase):
                 mock_log.assert_called_once_with(logfile)
                 mock_init.assert_called_once_with(
                     mock.ANY, None, output, None, None,
-                    raw_times, column_name)
+                    raw_times, column_name, binary=None, endian='little')
+
+    @mock.patch('tlsfuzzer.extract.Log')
+    @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
+    @mock.patch('tlsfuzzer.extract.Extract._write_csv')
+    @mock.patch('tlsfuzzer.extract.Extract.parse')
+    def test_raw_binary_times(self, mock_parse, mock_write, mock_write_pkt, mock_log):
+        raw_times = "raw_times_detail.csv"
+        logfile = "log.csv"
+        output = "/tmp"
+        column_name = "clnt_0_rtt"
+        args = ["extract.py",
+                "-l", logfile,
+                "-o", output,
+                "--raw-times", raw_times,
+                "--binary", "4",
+                "--endian", "big"]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
+            with mock.patch("sys.argv", args):
+                main()
+                mock_log.assert_called_once_with(logfile)
+                mock_init.assert_called_once_with(
+                    mock.ANY, None, output, None, None,
+                    raw_times, None, binary=4, endian='big')
+
+    @mock.patch('tlsfuzzer.extract.Log')
+    @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
+    @mock.patch('tlsfuzzer.extract.Extract._write_csv')
+    @mock.patch('tlsfuzzer.extract.Extract.parse')
+    def test_wrong_endian_name(self, mock_parse, mock_write, mock_write_pkt, mock_log):
+        raw_times = "raw_times_detail.csv"
+        logfile = "log.csv"
+        output = "/tmp"
+        column_name = "clnt_0_rtt"
+        args = ["extract.py",
+                "-l", logfile,
+                "-o", output,
+                "--raw-times", raw_times,
+                "--binary", "4",
+                "--endian", "middle"]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
+            with mock.patch("sys.argv", args):
+                with self.assertRaises(ValueError) as e:
+                    main()
+
+                self.assertIn("Only 'little' and 'big'", str(e.exception))
+
+    @mock.patch('tlsfuzzer.extract.Log')
+    @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
+    @mock.patch('tlsfuzzer.extract.Extract._write_csv')
+    @mock.patch('tlsfuzzer.extract.Extract.parse')
+    def test_binary_without_raw_times(self, mock_parse, mock_write, mock_write_pkt, mock_log):
+        raw_times = "raw_times_detail.csv"
+        logfile = "log.csv"
+        output = "/tmp"
+        column_name = "clnt_0_rtt"
+        args = ["extract.py",
+                "-l", logfile,
+                "-o", output,
+                "--binary", "4",
+                "--endian", "big"]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
+            with mock.patch("sys.argv", args):
+                with self.assertRaises(ValueError) as e:
+                    main()
+
+                self.assertIn("Can't specify binary number", str(e.exception))
+
+    @mock.patch('tlsfuzzer.extract.Log')
+    @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
+    @mock.patch('tlsfuzzer.extract.Extract._write_csv')
+    @mock.patch('tlsfuzzer.extract.Extract.parse')
+    def test_column_name_with_binary_file(self, mock_parse, mock_write, mock_write_pkt, mock_log):
+        raw_times = "raw_times_detail.csv"
+        logfile = "log.csv"
+        output = "/tmp"
+        column_name = "clnt_0_rtt"
+        args = ["extract.py",
+                "-l", logfile,
+                "-o", output,
+                "-n", column_name,
+                "--raw-times", raw_times,
+                "--binary", "4",
+                "--endian", "big"]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
+            with mock.patch("sys.argv", args):
+                with self.assertRaises(ValueError) as e:
+                    main()
+
+                self.assertIn("Binary format doesn't support column names",
+                              str(e.exception))
 
     @mock.patch('tlsfuzzer.extract.Log')
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
@@ -202,7 +363,7 @@ class TestCommandLine(unittest.TestCase):
                 mock_log.assert_called_once_with(logfile)
                 mock_init.assert_called_once_with(
                     mock.ANY, None, output, None, None,
-                    raw_times, None)
+                    raw_times, None, binary=None, endian='little')
 
     @mock.patch('__main__.__builtins__.print')
     @mock.patch('tlsfuzzer.extract.help_msg')
