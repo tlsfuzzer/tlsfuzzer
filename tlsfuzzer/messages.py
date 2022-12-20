@@ -2138,7 +2138,7 @@ def fuzz_pkcs1_padding(key, substitutions=None, xors=None, padding_byte=None):
 
     Use to modify Client Key Exchange padding of encrypted value.
     """
-    if not xors and not substitutions:
+    if xors is None and substitutions is None and padding_byte is None:
         return key
 
     def new_addPKCS1Padding(bytes, blockType, self=key,
