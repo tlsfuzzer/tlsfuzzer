@@ -1105,7 +1105,10 @@ def main():
         sampled_tests = sample(regular_tests, min(num_limit, len(regular_tests)))
     else:
         sampled_tests = regular_tests
-    ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
+    if len(sampled_tests) == 1:
+        ordered_tests = sampled_tests
+    else:
+        ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
 
     print("Running tests for {0}".format(CipherSuite.ietfNames[cipher]))
 
