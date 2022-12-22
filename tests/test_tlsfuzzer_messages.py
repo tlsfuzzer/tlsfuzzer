@@ -917,6 +917,23 @@ class TestClientKeyExchangeGenerator(unittest.TestCase):
         self.assertEqual(decrypt[:2], bytearray([3, 3]))
         self.assertEqual(decrypt[2:], bytearray([0]*46))
 
+    def test_with_random_premaster(self):
+        state = ConnectionState()
+        state.get_server_public_key = lambda : self.priv_key
+        cke = ClientKeyExchangeGenerator(
+                cipher=constants.CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                random_premaster=True)
+
+        ret = cke.generate(state)
+
+        cke.post_send(state)
+
+        decrypt = self.priv_key.decrypt(ret.encryptedPreMasterSecret)
+
+        self.assertEqual(decrypt[:2], bytearray([3, 3]))
+        self.assertEqual(len(decrypt), 48)
+        self.assertNotEqual(decrypt[2:], bytearray([0]*46))
+
     def test_generate_with_custom_premaster_secret(self):
         state = ConnectionState()
         state.get_server_public_key = lambda : self.priv_key
@@ -1088,6 +1105,41 @@ class TestClientKeyExchangeGenerator(unittest.TestCase):
         ret = cke.generate(state)
 
         cke.post_send(state)
+
+    def test_with_random_substitutions(self):
+        state = ConnectionState()
+        state.get_server_public_key = lambda : self.priv_key
+        cke = ClientKeyExchangeGenerator(
+                cipher=constants.CipherSuite.TLS_RSA_WITH_NULL_MD5,
+                premaster_secret=bytearray(),
+                padding_subs={-1:-2, -2:-2, -3:-2, -4:-2, -5:-2, -6:-2, -7:0})
+
+        ret = cke.generate(state)
+
+        self.assertEqual(len(ret.encryptedPreMasterSecret), 128)
+        decrypt = self.priv_key.decrypt(ret.encryptedPreMasterSecret)
+
+        self.assertEqual(len(decrypt), 6)
+        for i in range(6):
+            self.assertNotEqual(decrypt[i], 0)
+
+    def test_with_random_xors(self):
+        state = ConnectionState()
+        state.get_server_public_key = lambda : self.priv_key
+        cke = ClientKeyExchangeGenerator(
+                cipher=constants.CipherSuite.TLS_RSA_WITH_NULL_MD5,
+                premaster_secret=bytearray(),
+                padding_xors={-1:-2},
+                padding_subs={-2:0})
+
+        ret = cke.generate(state)
+
+        self.assertEqual(len(ret.encryptedPreMasterSecret), 128)
+        decrypt = self.priv_key.decrypt(ret.encryptedPreMasterSecret)
+
+        self.assertEqual(len(decrypt), 1)
+        self.assertNotEqual(decrypt[0], 0)
+
 
 class TestChangeCipherSpecGenerator(unittest.TestCase):
     def test___init__(self):
