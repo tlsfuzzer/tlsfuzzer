@@ -276,15 +276,16 @@ def main():
     node = node.add_child(ExpectClose())
     conversations["sanity"] = conversation
 
-    runner = Runner(conversation)
-    try:
-        runner.run()
-        server_cert_state = runner.state
-    except Exception as exp:
-        # Exception means the server rejected the ciphersuite
-        print("Failing on {0} because server does not support it. ".format(CipherSuite.ietfNames[cipher]))
-        print(20 * '=')
-        exit(1)
+    if len(run_only) != 1:
+        runner = Runner(conversation)
+        try:
+            runner.run()
+            server_cert_state = runner.state
+        except Exception as exp:
+            # Exception means the server rejected the ciphersuite
+            print("Failing on {0} because server does not support it. ".format(CipherSuite.ietfNames[cipher]))
+            print(20 * '=')
+            exit(1)
 
     # check if a certain number doesn't trip up the server
     # (essentially a second sanity test)
