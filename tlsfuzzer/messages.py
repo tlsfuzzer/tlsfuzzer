@@ -3,6 +3,7 @@
 
 """Objects for generating TLS messages to send."""
 
+import random
 from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         Finished, Alert, ApplicationData, Message, Certificate, \
         CertificateVerify, CertificateRequest, ClientMasterKey, \
@@ -750,6 +751,8 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
        The file must be opened in binary mode
     :vartype encrypted_premaster_file: :term:`file object`
     :ivar int encrypted_premaster_length: The length of data to read, in bytes
+    :ivar bool random_premaster: whether to use a random premaster value
+       or the static default (48 zero bytes)
     """
 
     def __init__(self, cipher=None, version=None, client_version=None,
@@ -759,7 +762,8 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
                  p_1_as_share=False, premaster_secret=None,
                  padding_byte=None, reuse_encrypted_premaster=False,
                  encrypted_premaster_file=None,
-                 encrypted_premaster_length=None):
+                 encrypted_premaster_length=None,
+                 random_premaster=False):
         """Set settings of the Client Key Exchange to be sent."""
         super(ClientKeyExchangeGenerator, self).__init__()
         self.cipher = cipher
@@ -781,6 +785,7 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
         self.reuse_encrypted_premaster = reuse_encrypted_premaster
         self.encrypted_premaster_file = encrypted_premaster_file
         self.encrypted_premaster_length = encrypted_premaster_length
+        self.random_premaster = random_premaster
 
         if encrypted_premaster_file and not encrypted_premaster_length:
             raise ValueError("Must specify the length of data to read from"
@@ -818,9 +823,11 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
                 if self.reuse_encrypted_premaster:
                     status.key['premaster_secret'] = self.premaster_secret
             else:
-                assert len(self.premaster_secret) > 1
-                self.premaster_secret[0] = self.client_version[0]
-                self.premaster_secret[1] = self.client_version[1]
+                if self.random_premaster:
+                    self.premaster_secret = bytearray(random.randbytes(48))
+                if len(self.premaster_secret) >= 2:
+                    self.premaster_secret[0] = self.client_version[0]
+                    self.premaster_secret[1] = self.client_version[1]
 
                 status.key['premaster_secret'] = self.premaster_secret
 
@@ -1722,11 +1729,23 @@ def substitute_and_xor(data, substitutions, xors):
     """
     if substitutions is not None:
         for pos in substitutions:
-            data[pos] = substitutions[pos]
+            if substitutions[pos] == -1:
+                data[pos] = random.randint(0, 255)
+            elif substitutions[pos] == -2:
+                data[pos] = random.randint(1, 255)
+            else:
+                assert substitutions[pos] >= 0
+                data[pos] = substitutions[pos]
 
     if xors is not None:
         for pos in xors:
-            data[pos] ^= xors[pos]
+            if xors[pos] == -1:
+                data[pos] ^= random.randint(0, 255)
+            elif xors[pos] == -2:
+                data[pos] ^= random.randint(1, 255)
+            else:
+                assert xors[pos] >= 0
+                data[pos] ^= xors[pos]
 
     return data
 
