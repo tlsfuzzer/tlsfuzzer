@@ -280,7 +280,7 @@ def main():
     node = node.add_child(ExpectClose())
     conversations["sanity"] = conversation
 
-    if len(run_only) != 1:
+    if not run_only or len(run_only) != 1:
         runner = Runner(conversation)
         try:
             runner.run()
