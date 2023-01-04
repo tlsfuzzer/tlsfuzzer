@@ -94,11 +94,33 @@ Then you can install tlsfuzzer dependencies to speed-up the test execution:
 
 .. code:: bash
 
-   dnf install python3 python3-devel tcpdump gmp-devel swig mpfr-devel \
-   libmpc openssl-devel make gcc gcc-c++ git libmpc-devel python3-six
+   dnf install -y python3 python3-devel tcpdump gmp-devel swig mpfr-devel \
+   libmpc openssl-devel make gcc gcc-c++ git libmpc-devel python3-six \
+   meson openblas-devel gcc-gfortran lapack-devel zlib-devel \
+   libtiff-devel libjpeg-devel openjpeg2-devel zlib-devel freetype-devel \
+   lcms2-devel libwebp-devel tcl-devel tk-devel harfbuzz-devel fribidi-devel \
+   libxcb-devel
 
    pip3 install m2crypto gmpy2
    pip3 install --pre tlslite-ng
+
+On RHEL you also need to patch up pkgconfig for scipy to be compilable
+(necessary for source installation, wheels don't need it):
+
+.. code:: bash
+
+   cat > /usr/lib64/pkgconfig/openblas.pc <<EOF
+   prefix=/usr
+   libdir=/usr/lib64
+   includedir=/usr/include/openblas
+   Name: openblas
+   Description: OpenBLAS
+   Version: 0.3.15
+   URL: http://www.openblas.net/
+   Libs: -L/usr/lib64 -lopenblas
+   Libs.private: -lm
+   Cflags: -I/usr/include/openblas/
+   EOF
 
 And the general requirements to collect and analyse timing results:
 
