@@ -65,6 +65,7 @@
           "arguments" : ["-d", "sanity"],
           "comment" : "non-sanity probes use specific ciphers, we cannot alter them with -d option"
          },
+         {"name" : "test-connection-abort.py"},
          {"name" : "test-conversation.py"},
          {"name" : "test-conversation.py",
           "arguments" : ["-d"]},
@@ -272,6 +273,7 @@
          {"name" : "test-tls13-0rtt-garbage.py",
           "arguments" : ["--cookie"]},
          {"name" : "test-tls13-ccs.py"},
+         {"name" : "test-tls13-connection-abort.py"},
          {"name" : "test-tls13-conversation.py"},
          {"name" : "test-tls13-count-tickets.py",
           "arguments" : ["-t", "2"]},
