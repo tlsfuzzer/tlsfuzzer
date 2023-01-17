@@ -36,7 +36,7 @@ from tlsfuzzer.utils.statics import WARM_UP
 from tlsfuzzer.utils.log import Log
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -93,6 +93,11 @@ def help_msg():
     print("                used as the version, e.g. \"0x0303\" for TLS 1.2")
     print("                Note: using this option will significantly increase")
     print("                the time to generate ciphertexts.")
+    print(" --probe-reuse num How many times to reuse a probe before generating")
+    print("                a new one. Low values will increase time to generate")
+    print("                probes while large values risk false positives caused")
+    print("                by ciphertext value. Set to 0 to never regenerate.")
+    print("                Default 100")
     print(" --help         this message")
 
 
@@ -424,6 +429,7 @@ def main():
     srv_key = None
     srv_cert = None
     pms_tls_version = None
+    probe_reuse = 100
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv,
@@ -436,7 +442,8 @@ def main():
                                 "pms-len=",
                                 "srv-key=",
                                 "srv-cert=",
-                                "pms-tls-version="])
+                                "pms-tls-version=",
+                                "probe-reuse="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -496,6 +503,8 @@ def main():
         elif opt == "--pms-tls-version":
             int_ver = int(arg, 16)
             pms_tls_version = divmod(int_ver, 256)
+        elif opt == "--probe-reuse":
+            probe_reuse = int(arg)
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -766,6 +775,11 @@ significant byte:
 
                 # generate the PMS values
                 for executed, index in enumerate(queries):
+                    if probe_reuse and executed > WARM_UP and \
+                            executed % (len(test_classes) * probe_reuse) == 0:
+                        print("regenerating probes")
+                        ciphertexts = marvin_gen.generate()
+
                     g_name = test_classes[index]
 
                     res = ciphertexts[g_name]
