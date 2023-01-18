@@ -6,8 +6,11 @@ import traceback
 import sys
 import getopt
 import os
+import math
+import time
 from itertools import chain, repeat
 from random import sample
+from threading import Thread
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.timing_runner import TimingRunner
@@ -407,6 +410,76 @@ class MarvinCiphertextGenerator(object):
         return ret
 
 
+def _format_seconds(sec):
+    """Format number of seconds into a more readable string."""
+    elems = []
+    msec, sec = math.modf(sec)
+    sec = int(sec)
+    days, rem = divmod(sec, 60*60*24)
+    if days:
+        elems.append("{0}d".format(days))
+    hours, rem = divmod(rem, 60*60)
+    if hours or elems:
+        elems.append("{0}h".format(hours))
+    minutes, sec = divmod(rem, 60)
+    if minutes or elems:
+        elems.append("{0}m".format(minutes))
+    elems.append("{0:.2f}s".format(sec+msec))
+    return " ".join(elems)
+
+
+def _si_prefix(count):
+    ret = count
+    lvl = 0
+    lvls = {0: '', 1: 'k', 2: 'M', 3: 'G', 4: 'T', 5: 'E'}
+    while ret > 2000:
+        ret /= 1000.0
+        lvl += 1
+
+    return "{0:.2f} {1}".format(ret, lvls[lvl])
+
+
+def _report_progress(status):
+    """
+    Periodically report progress of task in status, thread runner.
+
+    status must be an array with three elements, first two specify a
+    fraction of completed work (i.e. 0 <= status[0]/status[1] <= 1),
+    third specifies if the reporting process should continue running, a
+    False value there will cause the process to finish
+    """
+    # technically that should be time.monotonic(), but it's not supported
+    # on python2.7
+    start_exec = time.time()
+    prev_loop = start_exec
+    delay = 2.0
+    while status[2]:
+        old_exec = status[0]
+        time.sleep(delay)
+        now = time.time()
+        elapsed = now-start_exec
+        loop_time = now-prev_loop
+        prev_loop = now
+        elapsed_str = _format_seconds(elapsed)
+        done = status[0]*100.0/status[1]
+        try:
+            remaining = (100-done)*elapsed/done
+        except ZeroDivisionError:
+            remaining = status[1]
+        remaining_str = _format_seconds(remaining)
+        eta = time.strftime("%H:%M:%S %d-%m-%Y",
+                            time.localtime(now+remaining))
+        print("Done: {0:6.2f}%, elapsed: {1}, speed: {2}/s, "
+              "avg speed: {3}/s, remaining: {4}, ETA: {5}{6}"
+              .format(
+                  done, elapsed_str,
+                  _si_prefix((status[0] - old_exec)/loop_time),
+                  _si_prefix(status[0]/elapsed),
+                  remaining_str,
+                  eta,
+                  " " * 4), end="\r")
+
+
 def main():
     """Check if server implements Marvin workaround correctly."""
     host = "localhost"
@@ -771,21 +844,31 @@ significant byte:
                 test_classes = log.get_classes()
                 queries = chain(repeat(0, WARM_UP), log.iterate_log())
 
+                status = [0, len(test_classes) * repetitions + WARM_UP, True]
+                progress = Thread(target=_report_progress, args=(status,))
+                progress.start()
+
                 exp_key_size = (len(srv_cert.publicKey) + 7) // 8
 
                 # generate the PMS values
-                for executed, index in enumerate(queries):
-                    if probe_reuse and executed > WARM_UP and \
-                            executed % (len(test_classes) * probe_reuse) == 0:
-                        print("regenerating probes")
-                        ciphertexts = marvin_gen.generate()
+                try:
+                    for executed, index in enumerate(queries):
+                        if probe_reuse and executed > WARM_UP and \
+                                executed % (len(test_classes) * probe_reuse) == 0:
+                            ciphertexts = marvin_gen.generate()
 
-                    g_name = test_classes[index]
+                        status[0] = executed
 
-                    res = ciphertexts[g_name]
-                    assert len(res) == exp_key_size, len(res)
+                        g_name = test_classes[index]
 
-                    pms_file.write(res)
+                        res = ciphertexts[g_name]
+                        assert len(res) == exp_key_size, len(res)
+
+                        pms_file.write(res)
+                finally:
+                    status[2] = False
+                    progress.join()
+                    print()
 
             # fake the set of tests to run so it's just one
             pms_file = open(
