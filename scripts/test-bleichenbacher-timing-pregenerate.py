@@ -86,6 +86,8 @@ def help_msg():
     print("                Available: 'raw decrypted value', 'Hamming weight'")
     print(" --bit-sets     List of numerical values for Hamming weight tests,")
     print("                separated by spaces. Default: '0x01 0x02 0x04'")
+    print(" --alpha num    Acceptable probability of a false positive. Default:")
+    print("                1e-5")
     print(" --help         this message")
 
 
@@ -113,6 +115,7 @@ def main():
     bit_sets = (0x01, 0x02, 0x04)
     # how many random bytes to include in the randomised Hamming tests
     random_bytes = 8
+    alpha = 1e-5
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv,
@@ -124,7 +127,8 @@ def main():
                                 "cpu-list=",
                                 "static-enc",
                                 "test-set=",
-                                "bit-sets="])
+                                "bit-sets=",
+                                "alpha="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -180,6 +184,8 @@ def main():
                 int(i, 16) if i[:2] == '0x' else int(i)
                 for i in arg.split(" ")
             )
+        elif opt == "--alpha":
+            alpha = float(arg)
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -1300,7 +1306,8 @@ place where the timing leak happens:
                                          port,
                                          interface,
                                          affinity,
-                                         skip_extract=True)
+                                         skip_extract=True,
+                                         alpha=alpha)
             print("Pre-generating pre-master secret values...")
 
             with open(
@@ -1393,7 +1400,8 @@ place where the timing leak happens:
             if ret_val == 0:
                 print("No statistically significant difference detected")
             elif ret_val == 1:
-                print("Statisticaly significant difference detected")
+                print("Statisticaly significant difference detected at alpha="
+                      "{0}".format(alpha))
             else:
                 print("Error: Statistical analysis exited with {0}".format(ret_val))
             sys.exit(ret_val)
