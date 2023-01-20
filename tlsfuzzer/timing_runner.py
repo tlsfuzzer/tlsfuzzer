@@ -22,7 +22,8 @@ class TimingRunner:
     """Repeatedly runs tests and captures timing information."""
 
     def __init__(self, name, tests, out_dir, ip_address, port, interface,
-                 affinity=None, skip_extract=False):
+                 affinity=None, skip_extract=False, skip_analysis=False,
+                 alpha=None):
         """
         Check if tcpdump is present and setup instance parameters.
 
@@ -49,6 +50,8 @@ class TimingRunner:
         self.log = Log(os.path.join(self.out_dir, "log.csv"))
         self.affinity = affinity
         self.skip_extract = skip_extract
+        self.skip_analysis = skip_analysis
+        self.alpha = alpha
 
         self.tcpdump_running = True
         self.tcpdump_output = None
@@ -199,8 +202,9 @@ class TimingRunner:
             return 0
         print("Starting extraction...")
         if self.extract():
-            print("Starting analysis...")
-            return self.analyse()
+            if not self.skip_analysis:
+                print("Starting analysis...")
+                return self.analyse()
         return 2
 
     def extract(self):
@@ -228,7 +232,7 @@ class TimingRunner:
         """
         if self.check_analysis_availability():
             from tlsfuzzer.analysis import Analysis
-            analysis = Analysis(self.out_dir)
+            analysis = Analysis(self.out_dir, alpha=self.alpha)
             return analysis.generate_report()
 
         print("Analysis is not available. "
