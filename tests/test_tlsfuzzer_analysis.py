@@ -271,6 +271,13 @@ class TestReport(unittest.TestCase):
 
                                             self.assertIn("Conf interval graph", str(exc.exception))
 
+    def test_setting_alpha(self):
+        with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
+            analysis = Analysis("/tmp", alpha=1e-12)
+            self.mock_read_csv.assert_called_once()
+
+            self.assertEqual(analysis.alpha, 1e-12)
+
     def test_wilcoxon_test(self):
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
             analysis = Analysis("/tmp")
@@ -668,8 +675,8 @@ class TestCommandLine(unittest.TestCase):
                 with mock.patch("sys.argv", args):
                     main()
                     mock_report.assert_called_once()
-                    mock_init.assert_called_once_with(output, True, True,
-                                                      True, False, False, None)
+                    mock_init.assert_called_once_with(
+                        output, True, True, True, False, False, None, None)
 
     def test_call_with_multithreaded_plots(self):
         output = "/tmp"
@@ -681,8 +688,8 @@ class TestCommandLine(unittest.TestCase):
                 with mock.patch("sys.argv", args):
                     main()
                     mock_report.assert_called_once()
-                    mock_init.assert_called_once_with(output, True, True,
-                                                      True, True, False, None)
+                    mock_init.assert_called_once_with(
+                        output, True, True, True, True, False, None, None)
 
     def test_call_with_no_plots(self):
         output = "/tmp"
@@ -696,7 +703,7 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
-                        output, False, False, False, False, False, None)
+                        output, False, False, False, False, False, None, None)
 
     def test_call_with_frequency(self):
         output = "/tmp"
@@ -709,7 +716,20 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
-                        output, True, True, True, False, False, 10*1e6)
+                        output, True, True, True, False, False, 10*1e6, None)
+
+    def test_call_with_alpha(self):
+        output = "/tmp"
+        args = ["analysis.py", "-o", output, "--alpha", "1e-3"]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.analysis.Analysis.generate_report') as mock_report:
+            with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
+                with mock.patch("sys.argv", args):
+                    main()
+                    mock_report.assert_called_once()
+                    mock_init.assert_called_once_with(
+                        output, True, True, True, False, False, None, 1e-3)
 
     def test_help(self):
         args = ["analysis.py", "--help"]

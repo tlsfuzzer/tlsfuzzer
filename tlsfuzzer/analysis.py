@@ -61,6 +61,7 @@ def help_msg():
                 frequency 'freq' specified in MHz. Use when the clock source
                 are the raw reads from the Time Stamp Counter register or
                 similar.
+ --alpha num    Acceptable probability of a false positive. Default: 1e-5.
  --verbose      Print the current task
  --help         Display this message""")
 
@@ -74,12 +75,14 @@ def main():
     multithreaded_graph = False
     verbose = False
     clock_freq = None
+    alpha = None
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "o:",
                                ["help", "no-ecdf-plot", "no-scatter-plot",
                                 "no-conf-interval-plot",
                                 "multithreaded-graph",
                                 "clock-frequency=",
+                                "alpha=",
                                 "verbose"])
 
     for opt, arg in opts:
@@ -98,12 +101,14 @@ def main():
             multithreaded_graph = True
         elif opt == "--clock-frequency":
             clock_freq = float(arg) * 1000000  # in MHz
+        elif opt == "--alpha":
+            alpha = float(arg)
         elif opt == "--verbose":
             verbose = True
 
     if output:
         analysis = Analysis(output, ecdf_plot, scatter_plot, conf_int_plot,
-                            multithreaded_graph, verbose, clock_freq)
+                            multithreaded_graph, verbose, clock_freq, alpha)
         ret = analysis.generate_report()
         return ret
     else:
@@ -115,7 +120,7 @@ class Analysis(object):
 
     def __init__(self, output, draw_ecdf_plot=True, draw_scatter_plot=True,
                  draw_conf_interval_plot=True, multithreaded_graph=False,
-                 verbose=False, clock_frequency=None):
+                 verbose=False, clock_frequency=None, alpha=None):
         self.verbose = verbose
         self.output = output
         self.clock_frequency = clock_frequency
@@ -125,6 +130,10 @@ class Analysis(object):
         self.draw_scatter_plot = draw_scatter_plot
         self.draw_conf_interval_plot = draw_conf_interval_plot
         self.multithreaded_graph = multithreaded_graph
+        if alpha is None:
+            self.alpha = 1e-5
+        else:
+            self.alpha = alpha
 
     def _convert_to_binary(self):
         timing_bin_path = join(self.output, "timing.bin")
@@ -353,7 +362,7 @@ class Analysis(object):
 
         alternative: the alternative hypothesis, "two-sided" by default,
             can be "less" or "greater". If called with "less" and returned
-            p-value is much smaller than 0.05, then it's likely that the
+            p-value is much smaller than set alpha, then it's likely that the
             *second* sample in a pair is bigger than the first one. IOW,
             with "less" it tells the probability that second sample is smaller
             than the first sample.
@@ -945,10 +954,11 @@ class Analysis(object):
                           diff_stats["median"], diff_stats["IQR"],
                           diff_stats["MAD"]))
 
-                # if both tests or the sign test found a difference
-                # consider it a possible side-channel
-                if result and wilcox_results[pair] < 0.05 or \
-                        sign_results[pair] < 0.05:
+                # If either of the pairwise tests shows a small p-value with
+                # Bonferroni correction consider it a possible side-channel
+                if wilcox_results[pair] < self.alpha / len(sign_results) or \
+                        sign_results[pair] < self.alpha / len(sign_results) or\
+                        ttest_results[pair] < self.alpha / len(sign_results):
                     difference = 1
 
                 wilcox_p = wilcox_results[pair]
@@ -1175,8 +1185,6 @@ class Analysis(object):
             print(txt)
             txt_file.write(txt)
             txt_file.write('\n')
-            if p < 0.05:
-                difference = 1
 
             _, p = stats.kstest(sign_p_vals, 'uniform')
             txt = "KS-test for uniformity of p-values from sign test "
@@ -1195,11 +1203,6 @@ class Analysis(object):
             txt_file.write(txt)
             txt_file.write('\n')
 
-            # fail the overall test only when p-values from sign test
-            # are not uniform AND are skewed to the left
-            if p < 0.05 and np.mean(sign_p_vals) < 0.5:
-                difference = 1
-
             txt = "Friedman test (chisquare approximation) for all samples"
             print(txt)
             txt_file.write(txt)
@@ -1209,7 +1212,7 @@ class Analysis(object):
             print(txt)
             txt_file.write(txt)
             txt_file.write('\n')
-            if friedman_p < 0.05:
+            if friedman_p < self.alpha:
                 difference = 1
 
             txt = "Worst pair: {}({}), {}({})".format(
