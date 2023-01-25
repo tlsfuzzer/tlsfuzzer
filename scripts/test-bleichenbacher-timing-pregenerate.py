@@ -1388,15 +1388,15 @@ place where the timing leak happens:
             if not timing_runner.extract():
                 ret_val = 2
             else:
-                timing_runner.analyse()
+                ret_val = timing_runner.analyse()
 
             if ret_val == 0:
                 print("No statistically significant difference detected")
             elif ret_val == 1:
-                print("Statisticaly significant difference detected at alpha="
-                      "0.05")
+                print("Statisticaly significant difference detected")
             else:
-                print("Statistical analysis exited with {0}".format(ret_val))
+                print("Error: Statistical analysis exited with {0}".format(ret_val))
+            sys.exit(ret_val)
         else:
             print("Could not run timing tests because tcpdump is not present!")
             sys.exit(1)
