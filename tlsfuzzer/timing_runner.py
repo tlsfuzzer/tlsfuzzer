@@ -23,7 +23,7 @@ class TimingRunner:
 
     def __init__(self, name, tests, out_dir, ip_address, port, interface,
                  affinity=None, skip_extract=False, skip_analysis=False,
-                 alpha=None):
+                 alpha=None, no_quickack=False):
         """
         Check if tcpdump is present and setup instance parameters.
 
@@ -36,6 +36,8 @@ class TimingRunner:
         :param str affinity: The processor IDs to use for affinity of
             the `tcpdump` process. See taskset man page for description
             of --cpu-list option.
+        :param bool no_quickack: If True: don't assume QUICKACK to be in use,
+            impacts extraction from packet dump.
         """
         # first check tcpdump presence
         if not self.check_tcpdump():
@@ -52,6 +54,7 @@ class TimingRunner:
         self.skip_extract = skip_extract
         self.skip_analysis = skip_analysis
         self.alpha = alpha
+        self.no_quickack = no_quickack
 
         self.tcpdump_running = True
         self.tcpdump_output = None
@@ -216,7 +219,8 @@ class TimingRunner:
                                  os.path.join(self.out_dir, "capture.pcap"),
                                  self.out_dir,
                                  self.ip_address,
-                                 self.port)
+                                 self.port,
+                                 no_quickack=self.no_quickack)
             extraction.parse()
             return True
 

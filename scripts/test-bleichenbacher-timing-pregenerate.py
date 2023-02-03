@@ -88,6 +88,7 @@ def help_msg():
     print("                separated by spaces. Default: '0x01 0x02 0x04'")
     print(" --alpha num    Acceptable probability of a false positive. Default:")
     print("                1e-5")
+    print(" --no-quickack  Don't assume that QUICKACK is in use.")
     print(" --help         this message")
 
 
@@ -116,6 +117,7 @@ def main():
     # how many random bytes to include in the randomised Hamming tests
     random_bytes = 8
     alpha = 1e-5
+    no_quickack = False
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv,
@@ -128,7 +130,8 @@ def main():
                                 "static-enc",
                                 "test-set=",
                                 "bit-sets=",
-                                "alpha="])
+                                "alpha=",
+                                "no-quickack"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -186,6 +189,8 @@ def main():
             )
         elif opt == "--alpha":
             alpha = float(arg)
+        elif opt == "--no-quickack":
+            no_quickack = True
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -1307,7 +1312,8 @@ place where the timing leak happens:
                                          interface,
                                          affinity,
                                          skip_extract=True,
-                                         alpha=alpha)
+                                         alpha=alpha,
+                                         no_quickack=no_quickack)
             print("Pre-generating pre-master secret values...")
 
             with open(
