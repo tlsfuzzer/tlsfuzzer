@@ -3,6 +3,7 @@
 from __future__ import print_function
 import time
 import math
+from threading import Event
 
 """Rporting progress of a task and reporting estimated completion time."""
 
@@ -55,8 +56,12 @@ def progress_report(status, unit='', prefix='decimal', delay=2.0):
 
     status must be an array with three elements, first two specify a
     fraction of completed work (i.e. 0 <= status[0]/status[1] <= 1),
-    third specifies if the reporting process should continue running, a
-    False value there will cause the process to finish
+    third specifies if the reporting process should continue running.
+    It can either be a bool or a threading.Event instance.
+    A False bool value there will cause the thread to finish.
+    An Event object with flag set will cause the thread to finish
+    (using Event is recommended when the `delay` is long as that allows a
+    quick and clean shutdown of the process).
 
     `unit` is the first two elements in `status` (like 'B' for bytes or
     ' conn' for connections).
@@ -64,7 +69,7 @@ def progress_report(status, unit='', prefix='decimal', delay=2.0):
     `prefix` controls the exponent for the SI prefix, `decimal` for
     1000 and `binary` for 1024
 
-    `delay` sets how often to print the status line
+    `delay` sets how often to print the status line, in seconds
     """
     if len(status) != 3:
         raise ValueError("status is not a 3 element array")
@@ -77,9 +82,13 @@ def progress_report(status, unit='', prefix='decimal', delay=2.0):
     else:
         assert prefix == 'binary'
         prefix_format = _binary_prefix
-    while status[2]:
+    event_type = type(Event())
+    while True:
         old_exec = status[0]
-        time.sleep(delay)
+        if isinstance(status[2], event_type):
+            status[2].wait(delay)
+        else:
+            time.sleep(delay)
         now = time.time()
         elapsed = now-start_exec
         loop_time = now-prev_loop
@@ -104,3 +113,8 @@ def progress_report(status, unit='', prefix='decimal', delay=2.0):
                   unit,
                   " " * 4), end="\r")
 
+        if isinstance(status[2], event_type):
+            if status[2].is_set():
+                break
+        elif not status[2]:
+            break
