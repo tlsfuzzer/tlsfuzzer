@@ -43,6 +43,8 @@ def help_msg():
     print("                it will overwrite 'data.csv'")
     print(" --endian endian What endianness to use, 'little' or 'big', with")
     print("                little being the default")
+    print(" --no-quickack  Don't assume QUICKACK to be in use (affects capture")
+    print("                file parsing only)")
     print(" --help         Display this message")
     print("")
     print("When extracting data from a capture file, specifying the capture")
@@ -62,6 +64,7 @@ def main():
     col_name = None
     binary = None
     endian = 'little'
+    no_quickack = False
 
     argv = sys.argv[1:]
 
@@ -70,7 +73,8 @@ def main():
         sys.exit(1)
 
     opts, args = getopt.getopt(argv, "l:c:h:p:o:t:n:", ["help", "raw-times=",
-                                                        "binary=", "endian="])
+                                                        "binary=", "endian=",
+                                                        "no-quickack"])
     for opt, arg in opts:
         if opt == '-l':
             logfile = arg
@@ -90,6 +94,8 @@ def main():
             binary = int(arg)
         elif opt == "--endian":
             endian = arg
+        elif opt == "--no-quickack":
+            no_quickack = True
         elif opt == "--help":
             help_msg()
             sys.exit(0)
@@ -125,7 +131,7 @@ def main():
     log.read_log()
     analysis = Extract(
         log, capture, output, ip_address, port, raw_times, col_name,
-        binary=binary, endian=endian
+        binary=binary, endian=endian, no_quickack=no_quickack
     )
     analysis.parse()
 
@@ -136,7 +142,7 @@ class Extract:
     def __init__(self, log, capture=None, output=None, ip_address=None,
                  port=None, raw_times=None, col_name=None,
                  write_csv='timing.csv', write_pkt_csv='raw_times_detail.csv',
-                 binary=None, endian='little'):
+                 binary=None, endian='little', no_quickack=False):
         """
         Initialises instance and sets up class name generator from log.
 
@@ -147,6 +153,7 @@ class Extract:
         :param int port: TLS server port
         :param int binary: number of bytes per timing from raw times file
         :param str endian: endianess of the read numbers
+        :param bool no_quickack: If True, don't expect QUICKACK to be in use
         """
         self.capture = capture
         self.output = output
@@ -172,6 +179,7 @@ class Extract:
         self._exp_srv = None
         self._previous_lst_msg = None
         self._write_class_names = None
+        self.no_quickack = no_quickack
 
         # set up class names generator
         self.log = log
@@ -472,7 +480,10 @@ class Extract:
                 lst_clnt_ack = 0
                 for lst_clnt_ack in self.client_msgs_acks.values():
                     pass
-                time_diff = self.server_msgs[-1] - lst_clnt_ack
+                if self.no_quickack:
+                    time_diff = self.server_msgs[-1] - self.client_msgs[-1]
+                else:
+                    time_diff = self.server_msgs[-1] - lst_clnt_ack
                 self.timings[class_name].append(time_diff)
                 self.pckt_times.append((
                     self.initial_syn,
