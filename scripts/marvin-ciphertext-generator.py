@@ -5,7 +5,7 @@ from __future__ import print_function
 import sys
 import getopt
 import os
-from threading import Thread
+from threading import Thread, Event
 
 from tlslite.x509 import X509
 from tlslite.utils.keyfactory import parsePEMKey
@@ -132,7 +132,7 @@ def main():
         log.read_log()
         test_classes = log.get_classes()
 
-        status = [0, len(test_classes) * repetitions, True]
+        status = [0, len(test_classes) * repetitions, Event()]
         kwargs = dict()
         kwargs['delay'] = status_delay
         progress = Thread(target=progress_report, args=(status,),
@@ -157,7 +157,7 @@ def main():
 
                 pms_file.write(res)
         finally:
-            status[2] = False
+            status[2].set()
             progress.join()
             print()
 
