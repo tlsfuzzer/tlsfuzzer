@@ -10,7 +10,7 @@ import math
 import time
 from itertools import chain, repeat
 from random import sample
-from threading import Thread
+from threading import Thread, Event
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.timing_runner import TimingRunner
@@ -476,7 +476,9 @@ significant byte:
                 test_classes = log.get_classes()
                 queries = chain(repeat(0, WARM_UP), log.iterate_log())
 
-                status = [0, len(test_classes) * repetitions + WARM_UP, True]
+                status = [0,
+                          len(test_classes) * repetitions + WARM_UP,
+                          Event()]
                 kwargs = dict()
                 kwargs['delay'] = status_delay
                 progress = Thread(target=progress_report, args=(status,),
@@ -501,7 +503,7 @@ significant byte:
 
                         pms_file.write(res)
                 finally:
-                    status[2] = False
+                    status[2].set()
                     progress.join()
                     print()
 
