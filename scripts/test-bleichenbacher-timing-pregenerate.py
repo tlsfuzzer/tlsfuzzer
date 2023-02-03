@@ -90,7 +90,7 @@ def help_msg():
     print("                1e-5")
     print(" --no-quickack  Don't assume that QUICKACK is in use.")
     print(" --verbose-analysis Enable verbose progress of analysis.")
-    print(" --status-delay num How often to print the status line.")
+    print(" --status-delay num How often to print the status line. Default: 2.0 seconds")
     print(" --status-newline Use a newline for line end instead of carriage return.")
     print(" --help         this message")
 

@@ -131,7 +131,7 @@ def main():
     srv_cert = None
     pms_tls_version = None
     probe_reuse = 100
-    status_delay = 2.0
+    delay = 2.0
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv,
@@ -209,7 +209,7 @@ def main():
         elif opt == "--probe-reuse":
             probe_reuse = int(arg)
         elif opt == "--status-delay":
-            status_delay = float(arg)
+            delay = float(arg)
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -451,7 +451,8 @@ significant byte:
                                          port,
                                          interface,
                                          affinity,
-                                         skip_extract=True)
+                                         skip_extract=True,
+                                         delay=delay)
             print("Pre-generating pre-master secret values...")
 
             with open(
@@ -480,7 +481,7 @@ significant byte:
                           len(test_classes) * repetitions + WARM_UP,
                           Event()]
                 kwargs = dict()
-                kwargs['delay'] = status_delay
+                kwargs['delay'] = delay
                 progress = Thread(target=progress_report, args=(status,),
                                   kwargs=kwargs)
                 progress.start()
