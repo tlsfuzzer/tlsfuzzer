@@ -116,7 +116,7 @@ class TestClose(unittest.TestCase):
         close = Close()
         close.process(state)
 
-        state.msg_sock.sock.close.called_once_with()
+        state.msg_sock.sock.close.assert_called_once_with()
 
 class TestTCPBufferingEnable(unittest.TestCase):
     def test___init__(self):
@@ -458,9 +458,8 @@ class TestRawSocketWriteGenerator(unittest.TestCase):
 
         msg_gen.process(state)
 
-        self.assertTrue(
-            state.msg_sock._recordSocket.
-            sock.send.called_once_with(b'some data'))
+        state.msg_sock._recordSocket.sock.send.assert_called_once_with(
+            b'some data')
 
 
 class TestPlaintextMessageGenerator(unittest.TestCase):

@@ -3988,7 +3988,7 @@ class TestExpectKeyUpdate(unittest.TestCase):
 
         exp.process(state, ku)
 
-        state.msg_sock.calcTLS1_3PendingState.called_once_with(
+        state.msg_sock.calcTLS1_3KeyUpdate_sender.assert_called_once_with(
             cipher, cats, sats)
         self.assertIs(state.key['server application traffic secret'], ret)
 

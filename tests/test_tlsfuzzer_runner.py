@@ -190,10 +190,11 @@ class TestRunner(unittest.TestCase):
 
         runner.run()
 
-        internal_message = messages.Message(msg[0].type, msg[1].bytes)
-
-        node.is_match.called_once_with(internal_message)
-        node.process.called_once_with(runner.state, internal_message)
+        # as the message they're called with is generated inside the runner
+        # it will be a different object every time, so just assert that
+        # the methods were called
+        node.is_match.assert_called_once()
+        node.process.assert_called_once()
 
     def test_run_with_expect_and_closed_socket(self):
         node = ExpectClose()
@@ -279,7 +280,7 @@ class TestRunner(unittest.TestCase):
         with self.assertRaises(AssertionError):
             runner.run()
 
-        runner.state.msg_sock.sock.close.called_once_with()
+        runner.state.msg_sock.sock.close.assert_called_once_with()
 
     def test_run_with_generate_and_unexpected_closed_socket(self):
         node = mock.MagicMock()
