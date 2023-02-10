@@ -13,6 +13,7 @@ from __future__ import print_function
 import csv
 import getopt
 import sys
+import math
 import multiprocessing as mp
 import shutil
 from itertools import chain
@@ -20,6 +21,7 @@ from os.path import join
 from collections import namedtuple
 from itertools import combinations, repeat, chain
 import os
+import time
 
 import numpy as np
 from scipy import stats
@@ -27,15 +29,17 @@ import pandas as pd
 import matplotlib as mpl
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+import statsmodels.api as sm
 
 from tlsfuzzer.utils.ordered_dict import OrderedDict
+from tlsfuzzer.messages import div_ceil
 
 
 TestPair = namedtuple('TestPair', 'index1  index2')
 mpl.use('Agg')
 
 
-VERSION = 5
+VERSION = 6
 
 
 _diffs = None
@@ -53,6 +57,7 @@ def help_msg():
  --multithreaded-graph Create graph and calculate statistical tests at the
                 same time. Note: this increases memory usage of analysis by
                 a factor of 8.
+ --verbose      Print the current task
  --help         Display this message""")
 
 
@@ -63,11 +68,13 @@ def main():
     scatter_plot = True
     conf_int_plot = True
     multithreaded_graph = False
+    verbose = False
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "o:",
                                ["help", "no-ecdf-plot", "no-scatter-plot",
                                 "no-conf-interval-plot",
-                                "multithreaded-graph"])
+                                "multithreaded-graph",
+                                "verbose"])
 
     for opt, arg in opts:
         if opt == '-o':
@@ -83,10 +90,12 @@ def main():
             conf_int_plot = False
         elif opt == "--multithreaded-graph":
             multithreaded_graph = True
+        elif opt == "--verbose":
+            verbose = True
 
     if output:
         analysis = Analysis(output, ecdf_plot, scatter_plot, conf_int_plot,
-                            multithreaded_graph)
+                            multithreaded_graph, verbose)
         ret = analysis.generate_report()
         return ret
     else:
@@ -97,7 +106,9 @@ class Analysis(object):
     """Analyse extracted timing information from csv file."""
 
     def __init__(self, output, draw_ecdf_plot=True, draw_scatter_plot=True,
-                 draw_conf_interval_plot=True, multithreaded_graph=False):
+                 draw_conf_interval_plot=True, multithreaded_graph=False,
+                 verbose=False):
+        self.verbose = verbose
         self.output = output
         data = self.load_data()
         self.class_names = list(data)
@@ -117,6 +128,10 @@ class Analysis(object):
                 os.path.getmtime(timing_csv_path) < \
                 os.path.getmtime(timing_bin_path):
             return
+
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Converting the data from text to binary format")
 
         for chunk in pd.read_csv(timing_csv_path, chunksize=1,
                                  dtype=np.float64):
@@ -161,6 +176,10 @@ class Analysis(object):
             writer = csv.writer(f)
             writer.writerow(["nrow", "ncol"])
             writer.writerow([rows_written, ncol])
+
+        if self.verbose:
+            print("[i] Conversion of the data to binary format done in {:.3}s"
+                  .format(time.time() - start_time))
 
     def load_data(self):
         """Loads data into pandas Dataframe for generating plots and stats."""
@@ -227,11 +246,19 @@ class Analysis(object):
 
     def box_test(self):
         """Cross-test all classes with the box test"""
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Starting the box_test")
+
         results = {}
         comb = combinations(list(range(len(self.class_names))), 2)
         for index1, index2 in comb:
             result = self._box_test(index1, index2, 0.03, 0.04)
             results[TestPair(index1, index2)] = result
+
+        if self.verbose:
+            print("[i] box_test done in {:.3}s".format(time.time()-start_time))
+
         return results
 
     @staticmethod
@@ -240,7 +267,14 @@ class Analysis(object):
 
     def wilcoxon_test(self):
         """Cross-test all classes with the Wilcoxon signed-rank test"""
-        return self.mt_process(self._wilcox_test)
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Starting Wilcoxon signed-rank test.")
+        ret = self.mt_process(self._wilcox_test)
+        if self.verbose:
+            print("[i] Wilcoxon signed-rank test done in {:.3}s".format(
+                time.time()-start_time))
+        return ret
 
     @staticmethod
     def _rel_t_test(data1, data2):
@@ -250,7 +284,14 @@ class Analysis(object):
     def rel_t_test(self):
         """Cross-test all classes using the t-test for dependent, paired
         samples."""
-        return self.mt_process(self._rel_t_test)
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Starting t-test for dependent, paired samples")
+        ret = self.mt_process(self._rel_t_test)
+        if self.verbose:
+            print("[i] t-test for dependent, paired sample done in {:.3}s"
+                  .format(time.time()-start_time))
+        return ret
 
     # skip the coverage for this method as it doesn't have conditional
     # statements and is tested by mt_process() coverage (we don't see it
@@ -304,21 +345,34 @@ class Analysis(object):
             with "less" it tells the probability that second sample is smaller
             than the first sample.
         """
-        return self.mt_process(self._sign_test, (med, alternative))
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Starting {} sign test.".format(alternative))
+        ret = self.mt_process(self._sign_test, (med, alternative))
+        if self.verbose:
+            print("[i] Sign test for {} done in {:.3}s".format(
+                alternative, time.time()-start_time))
+        return ret
 
-    def friedman_test(self):
+    def friedman_test(self, result):
         """
         Test all classes using Friedman chi-square test.
 
         Note, as the scipy stats package uses a chisquare approximation, the
         test results are valid only when we have more than 10 samples.
         """
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Starting Friedman test")
         data = self.load_data()
         if len(self.class_names) < 3:
             return 1
         _, pval = stats.friedmanchisquare(
             *(data.iloc[:, i] for i in range(len(self.class_names))))
-        return pval
+        if self.verbose:
+            print("[i] Friedman test done in {:.3}s".format(
+                time.time()-start_time))
+        result.put(pval)
 
     def _calc_percentiles(self):
         data = self.load_data()
@@ -343,6 +397,9 @@ class Analysis(object):
 
     def box_plot(self):
         """Generate box plot for the test classes."""
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Generating the box plot.")
         fig = Figure(figsize=(16, 12))
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(1, 1, 1)
@@ -371,15 +428,24 @@ class Analysis(object):
         ax.set_xticklabels([''] + list(range(len(data.columns))))
 
         ax.set_title("Box plot")
-        ax.set_ylabel("Time [s]")
+        ax.set_ylabel("Time")
         ax.set_xlabel("Class index")
+
+        formatter = mpl.ticker.EngFormatter('s')
+        ax.get_yaxis().set_major_formatter(formatter)
+
         canvas.print_figure(join(self.output, "box_plot.png"),
                             bbox_inches="tight")
+        if self.verbose:
+            print("[i] Box plot done in {:.3}s".format(time.time()-start_time))
 
     def scatter_plot(self):
         """Generate scatter plot showing how the measurement went."""
         if not self.draw_scatter_plot:
             return None
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Generating the scatter plots.")
         data = self.load_data()
 
         fig = Figure(figsize=(16, 12))
@@ -388,10 +454,16 @@ class Analysis(object):
         ax.plot(data, ".", fillstyle='none', alpha=0.6)
 
         ax.set_title("Scatter plot")
-        ax.set_ylabel("Time [s]")
+        ax.set_ylabel("Time")
         ax.set_xlabel("Sample index")
+
+        formatter = mpl.ticker.EngFormatter('s')
+        ax.get_yaxis().set_major_formatter(formatter)
+
         ax.set_yscale("log")
+
         self.make_legend(ax)
+
         canvas.print_figure(join(self.output, "scatter_plot.png"),
                             bbox_inches="tight")
         quant = np.quantile(data, [0.005, 0.95])
@@ -401,11 +473,17 @@ class Analysis(object):
         ax.set_ylim(quant)
         canvas.print_figure(join(self.output, "scatter_plot_zoom_in.png"),
                             bbox_inches="tight")
+        if self.verbose:
+            print("[i] Scatter plots done in {:.3}s".format(
+                time.time()-start_time))
 
     def diff_scatter_plot(self):
         """Generate scatter plot showing differences between samples."""
         if not self.draw_scatter_plot:
             return
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Generating scatter plots of differences")
         data = self.load_data()
 
         fig = Figure(figsize=(16, 12))
@@ -424,8 +502,12 @@ class Analysis(object):
         axes.plot(values, ".", fillstyle='none', alpha=0.6)
 
         axes.set_title("Scatter plot of class differences")
-        axes.set_ylabel("Time [s]")
+        axes.set_ylabel("Time")
         axes.set_xlabel("Sample index")
+
+        formatter = mpl.ticker.EngFormatter('s')
+        axes.get_yaxis().set_major_formatter(formatter)
+
         axes.legend(values, ncol=6, loc='upper center',
                     bbox_to_anchor=(0.5, -0.15))
         canvas.print_figure(join(self.output, "diff_scatter_plot.png"),
@@ -436,23 +518,37 @@ class Analysis(object):
         axes.set_ylim(quant)
         canvas.print_figure(join(self.output, "diff_scatter_plot_zoom_in.png"),
                             bbox_inches="tight")
+        if self.verbose:
+            print("[i] scatter plots of differences done in {:.3}s".format(
+                time.time()-start_time))
 
     def ecdf_plot(self):
         """Generate ECDF plot comparing distributions of the test classes."""
         if not self.draw_ecdf_plot:
             return None
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Generating ECDF plots")
         data = self.load_data()
         fig = Figure(figsize=(16, 12))
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(1, 1, 1)
         for classname in data:
             values = data.loc[:, classname]
+            values = np.sort(values)
+            # provide only enough data points to plot a smooth graph
+            nbins = 16 * fig.dpi * 10
+            values = values[::max(len(values) // int(nbins), 1)]
             levels = np.linspace(1. / len(values), 1, len(values))
-            ax.step(sorted(values), levels, where='post')
+            ax.step(values, levels, where='post')
         self.make_legend(ax)
         ax.set_title("Empirical Cumulative Distribution Function")
-        ax.set_xlabel("Time [s]")
+        ax.set_xlabel("Time")
         ax.set_ylabel("Cumulative probability")
+
+        formatter = mpl.ticker.EngFormatter('s')
+        ax.get_xaxis().set_major_formatter(formatter)
+
         canvas.print_figure(join(self.output, "ecdf_plot.png"),
                             bbox_inches="tight")
         quant = np.quantile(values, [0.01, 0.95])
@@ -461,34 +557,35 @@ class Analysis(object):
         ax.set_xlim(quant)
         canvas.print_figure(join(self.output, "ecdf_plot_zoom_in.png"),
                             bbox_inches="tight")
+        if self.verbose:
+            print("[i] ECDF plots done in {:.3}s".format(
+                time.time()-start_time))
 
     def diff_ecdf_plot(self):
         """Generate ECDF plot of differences between test classes."""
         if not self.draw_ecdf_plot:
             return
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Generating ECDF plots of differences")
         data = self.load_data()
-        fig = Figure(figsize=(16, 12))
-        canvas = FigureCanvas(fig)
-        axes = fig.add_subplot(1, 1, 1)
         classnames = iter(data)
         base = next(classnames)
         base_data = data.loc[:, base]
 
         # parameters for the zoomed-in graphs of ecdf
-        zoom_params = OrderedDict([("98", (0.01, 0.99)),
+        zoom_params = OrderedDict([("", (0, 1)),
+                                   ("98", (0.01, 0.99)),
                                    ("33", (0.33, 0.66)),
                                    ("10", (0.45, 0.55))])
         zoom_values = OrderedDict((name, [float("inf"), float("-inf")])
                                   for name in zoom_params.keys())
 
+        # calculate the params for ECDF graphs
         for classname in classnames:
-            # calculate the ECDF
             values = data.loc[:, classname]
-            levels = np.linspace(1. / len(values), 1, len(values))
-            values = sorted(values-base_data)
-            axes.step(values, levels, where='post')
+            values = values-base_data
 
-            # calculate the bounds for the zoom positions
             quantiles = np.quantile(values, list(chain(*zoom_params.values())))
             quantiles = iter(quantiles)
             for low, high, name in \
@@ -496,34 +593,60 @@ class Analysis(object):
                 zoom_values[name][0] = min(zoom_values[name][0], low)
                 zoom_values[name][1] = max(zoom_values[name][1], high)
 
-        fig.legend(list("{0}-0".format(i)
-                        for i in range(1, len(list(values)))),
-                   ncol=6,
-                   loc='upper center',
-                   bbox_to_anchor=(0.5, -0.05))
-        axes.set_title("Empirical Cumulative Distribution Function of "
-                       "class differences")
-        axes.set_xlabel("Time")
-        axes.set_ylabel("Cumulative probability")
-
-        formatter = mpl.ticker.EngFormatter('s')
-        axes.get_xaxis().set_major_formatter(formatter)
-
-        canvas.print_figure(join(self.output, "diff_ecdf_plot.png"),
-                            bbox_inches="tight")
-
-        # now graph progressive zooms of the central portion
-        for name, quantiles, values in \
+        for name, quantiles, zoom_val in \
                 zip(zoom_params.keys(), zoom_params.values(),
                     zoom_values.values()):
-            axes.set_ylim(quantiles)
-            # make the bounds a little weaker so that the extreme positions
-            # are visible of graph too
-            axes.set_xlim([values[0]*0.98, values[1]*1.02])
-            canvas.print_figure(join(self.output,
-                                     "diff_ecdf_plot_zoom_in_{0}.png"
-                                     .format(name)),
-                                bbox_inches="tight")
+            fig = Figure(figsize=(16, 12))
+            canvas = FigureCanvas(fig)
+            axes = fig.add_subplot(1, 1, 1)
+
+            # rewind the iterator
+            classnames = iter(data)
+            next(classnames)
+
+            for classname in classnames:
+                # calculate the ECDF
+                values = data.loc[:, classname]
+                values = np.sort(values-base_data)
+                # provide only enough data points to plot a smooth graph
+                nbins = 16 * fig.dpi
+                min_pos = int(len(values) * quantiles[0])
+                max_pos = int(math.ceil(len(values) * quantiles[1]))
+                values = values[min_pos:max_pos:
+                                max((max_pos-min_pos) // int(nbins), 1)]
+                levels = np.linspace(quantiles[0], quantiles[1],
+                                     len(values))
+                axes.step(values, levels, where='post')
+
+            fig.legend(list("{0}-0".format(i)
+                            for i in range(1, len(list(values)))),
+                       ncol=6,
+                       loc='upper center',
+                       bbox_to_anchor=(0.5, -0.05))
+            axes.set_title("Empirical Cumulative Distribution Function of "
+                           "class differences")
+            axes.set_xlabel("Time")
+            axes.set_ylabel("Cumulative probability")
+
+            formatter = mpl.ticker.EngFormatter('s')
+            axes.get_xaxis().set_major_formatter(formatter)
+
+            if not name:
+                canvas.print_figure(join(self.output, "diff_ecdf_plot.png"),
+                                    bbox_inches="tight")
+            else:
+                axes.set_ylim(quantiles)
+                # make the bounds a little weaker so that the extreme positions
+                # are visible of graph too
+                axes.set_xlim([zoom_val[0]*0.98, zoom_val[1]*1.02])
+                canvas.print_figure(join(self.output,
+                                         "diff_ecdf_plot_zoom_in_{0}.png"
+                                         .format(name)),
+                                    bbox_inches="tight")
+
+        if self.verbose:
+            print("[i] ECDF plots of differences done in {:.3}s".format(
+                time.time()-start_time))
 
     def make_legend(self, fig):
         """Generate common legend for plots that need it."""
@@ -605,6 +728,9 @@ class Analysis(object):
             estimate of mean, median, trimmed mean (5% and 25%) and trimean
             of differences of observations
         """
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Calculating confidence intervals of central tendencies")
         cent_tend = self._bootstrap_differences(pair, reps)
 
         data = self.load_data()
@@ -626,12 +752,18 @@ class Analysis(object):
         for key, value in exact_values.items():
             calc_quant = np.quantile(cent_tend[key], quantiles)
             ret[key] = (calc_quant[0], value, calc_quant[1])
+        if self.verbose:
+            print("[i] Confidence intervals of central tendencies done in "
+                  "{:.3}s".format(time.time()-start_time))
         return ret
 
     def conf_interval_plot(self):
         """Generate the confidence inteval for differences between samples."""
         if not self.draw_conf_interval_plot:
             return
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Graphing confidence interval plots")
 
         reps = 5000
         boots = {"mean": pd.DataFrame(),
@@ -665,6 +797,9 @@ class Analysis(object):
             ax.set_xlabel("Class pairs")
             ax.set_ylabel("{0} of differences".format(name))
 
+            formatter = mpl.ticker.EngFormatter('s')
+            ax.get_yaxis().set_major_formatter(formatter)
+
             if name == "trim mean (5%)":
                 name = "trim_mean_05"
             elif name == "trim mean (25%)":
@@ -681,13 +816,23 @@ class Analysis(object):
                                      "conf_interval_plot_{0}.png"
                                      .format(name)),
                                 bbox_inches="tight")
+        if self.verbose:
+            print("[i] Confidence interval plots done in {:.3}s".format(
+                time.time()-start_time))
 
     def desc_stats(self):
         """Calculate the descriptive statistics for sample differences."""
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Calculating descriptive statistics of sample "
+                  "differences")
         data = self.load_data()
         results = {}
         comb = combinations(list(range(len(self.class_names))), 2)
         for index1, index2, in comb:
+            if self.verbose:
+                pair_start = time.time()
+                print("[i] Calculating {}-{}".format(index2, index1))
             data1 = data.iloc[:, index1]
             data2 = data.iloc[:, index2]
 
@@ -700,7 +845,19 @@ class Analysis(object):
             diff_stats["median"] = quantiles[1]
             diff_stats["IQR"] = quantiles[2] - quantiles[1]
             diff_stats["MAD"] = stats.median_abs_deviation(diff)
+            max_lag = min(200000, len(diff) // 2 - 1)
+            lags=[i for i in [1, 2, 3, max_lag] if i <= max_lag]
+            ljungbox_pval = sm.stats.diagnostic.acorr_ljungbox(
+                    diff[:400000], lags=lags, return_df=True)['lb_pvalue']
+            diff_stats["Ljung-Box lag 1"] = ljungbox_pval[1]
+            diff_stats["Ljung-Box min val"] = min(ljungbox_pval)
             results[TestPair(index1, index2)] = diff_stats
+            if self.verbose:
+                print("[i] Calculating {}-{} done in {:.3}s".format(
+                      index2, index1, time.time()-pair_start))
+        if self.verbose:
+            print("[i] Descriptive statistics of sample differences done in "
+                  "{:.3}s".format(time.time()-start_time))
         return results
 
     @staticmethod
@@ -712,6 +869,9 @@ class Analysis(object):
 
     def _write_individual_results(self):
         """Write results to report.csv"""
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Starting calculation of individual results")
         difference = 0
         # create a report with statistical tests
         box_results = self.box_test()
@@ -732,7 +892,8 @@ class Analysis(object):
                              "Sign test", "Sign test less",
                              "Sign test greater",
                              "paired t-test", "mean", "SD",
-                             "median", "IQR", "MAD"])
+                             "median", "IQR", "MAD", "Ljung-Box test lag 1",
+                             "Ljung-Box test min(A)"])
             worst_pair = None
             worst_p = None
             worst_median_difference = None
@@ -769,6 +930,10 @@ class Analysis(object):
                       .format(index2, sign_test_relation, index1))
                 print("Dependent t-test for paired samples {} vs {}: {:.3}"
                       .format(index1, index2, ttest_results[pair]))
+                print("Ljung-Box test of autocorrelation at lag 1: {:.3}"
+                      .format(diff_stats["Ljung-Box lag 1"]))
+                print("Ljung-Box test of autocorrelation (conf A): {:.3}"
+                      .format(diff_stats["Ljung-Box min val"]))
                 print("{} vs {} stats: mean: {:.3}, SD: {:.3}, median: {:.3}, "
                       "IQR: {:.3}, MAD: {:.3}".format(
                           index1, index2, diff_stats["mean"], diff_stats["SD"],
@@ -796,7 +961,9 @@ class Analysis(object):
                        diff_stats["SD"],
                        diff_stats["median"],
                        diff_stats["IQR"],
-                       diff_stats["MAD"]
+                       diff_stats["MAD"],
+                       diff_stats["Ljung-Box lag 1"],
+                       diff_stats["Ljung-Box min val"]
                        ]
                 writer.writerow(row)
 
@@ -811,6 +978,10 @@ class Analysis(object):
                     worst_p = wilcox_p
                     worst_median_difference = median_difference
 
+        if self.verbose:
+            print("[i] Calculation of individual results done in {:.3}s"
+                .format(time.time()-start_time))
+
         return difference, p_vals, sign_p_vals, worst_pair, worst_p
 
     def _write_legend(self):
@@ -824,6 +995,9 @@ class Analysis(object):
 
     def _write_sample_stats(self):
         """Write summary statistics of samples to sample_stats.csv file."""
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Writing summary statistics of samples to file")
         data = self.load_data()
         stats_filename = join(self.output, "sample_stats.csv")
         with open(stats_filename, "w") as csv_file:
@@ -836,6 +1010,168 @@ class Analysis(object):
                     np.mean(sample),
                     np.median(sample),
                     stats.median_abs_deviation(sample)])
+
+        if self.verbose:
+            print("[i] Summary statistics of samples written to file in {:.3}s"
+                .format(time.time()-start_time))
+
+    def _graph_hist_over_time(self, data, min_lvl, max_lvl, title, file_name):
+
+        fig = Figure(figsize=(16, 12))
+        canvas = FigureCanvas(fig)
+        dpi = fig.dpi
+
+        width_ppx = 16 * dpi
+        height_ppx = 12 * dpi
+
+        sample_size = len(data)
+
+        # make sure the individual histograms have something to work with
+        # but make them at least 2 pixels wide
+        bucket_width = int(max(256, div_ceil(sample_size, (width_ppx / 2))))
+        bucket_count = div_ceil(sample_size, bucket_width)
+
+        # make the rows 2 pixels high
+        bins_count = int(height_ppx / 2)
+        bin_width = (max_lvl - min_lvl) / bins_count
+
+        x_indexes = list(range(
+            bucket_width // 2,
+            # we're setting the indexes in the middle of the bin, ensure that
+            # they are in the list
+            sample_size + (bucket_width // 2) - 1,
+            bucket_width))
+        y_indexes = [min_lvl + i * bin_width for i in range(bins_count)]
+        assert len(x_indexes) == bucket_count, (len(x_indexes), bucket_count)
+        assert len(y_indexes) == bins_count, (len(y_indexes), bins_count)
+
+        data_hists = pd.DataFrame(
+            np.full((bins_count, bucket_count), float("NaN")),
+            columns=x_indexes,
+            index=y_indexes)
+
+        for name, start, end in zip(
+                x_indexes,
+                range(0, sample_size, bucket_width),
+                range(bucket_width, sample_size, bucket_width)):
+            bucket = data[start:end]
+            hist = np.histogram(
+                bucket, bins=bins_count,
+                range=(min_lvl, max_lvl))[0]
+            data_hists[name] = hist
+
+        axes = fig.add_subplot(1, 1, 1)
+        pcm = axes.pcolormesh(x_indexes, y_indexes, data_hists,
+                              shading="auto")
+        axes.set_title(title)
+        axes.set_xlabel("Index")
+        axes.set_ylabel("Time")
+
+        formatter = mpl.ticker.EngFormatter('s')
+        axes.get_yaxis().set_major_formatter(formatter)
+
+        cbar = fig.colorbar(pcm, ax=axes)
+        cbar.set_label("Counts")
+
+        canvas.print_figure(join(self.output,
+                                 file_name),
+                            bbox_inches="tight")
+
+    def _plot_pacf(self, data, title, file_name, lags=None):
+        fig = Figure(figsize=(16, 12))
+        canvas = FigureCanvas(fig)
+        axes = fig.add_subplot(1, 1, 1)
+
+        if lags is None:
+            # the maximal lag computable is for < 50% of sample size
+            # but do only up to 500 as it's computationally expensive
+            lags = min(len(data) // 2 - 1, 500)
+
+        sm.graphics.tsa.plot_pacf(data, axes, title=title, lags=lags,
+                                  zero=False)
+        axes.set_ylabel("Correlation coefficient")
+        axes.set_xlabel("Lag")
+
+        canvas.print_figure(join(self.output, file_name),
+                            bbox_inches="tight")
+
+    def graph_worst_pair(self, pair):
+        """Create heatmap plots for the most dissimilar sample pair"""
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Start graphing the worst pair data")
+        data = self.load_data()
+        index1, index2 = pair
+
+        data1 = data.iloc[:, index1]
+        data2 = data.iloc[:, index2]
+
+        # first plot the samples individually
+
+        # we want the same scale on both graphs, so use common min and max
+        global_min = min(min(data1), min(data2))
+        global_max = max(max(data1), max(data2))
+        # same for zoomed-in data
+        data1_q1, data1_q3 = np.quantile(data1, [0.05, 0.95])
+        data2_q1, data2_q3 = np.quantile(data2, [0.05, 0.95])
+        global_q1 = min(data1_q1, data2_q1)
+        global_q3 = max(data1_q3, data2_q3)
+
+        self._graph_hist_over_time(
+            data1, global_min, global_max,
+            "Sample {} heatmap".format(index1),
+            "sample_{}_heatmap.png".format(index1))
+        self._graph_hist_over_time(
+            data1, global_q1, global_q3,
+            "Sample {} heatmap".format(index1),
+            "sample_{}_heatmap_zoom_in.png".format(index1))
+        self._graph_hist_over_time(
+            data2, global_min, global_max,
+            "Sample {} heatmap".format(index2),
+            "sample_{}_heatmap.png".format(index2))
+        self._graph_hist_over_time(
+            data2, global_q1, global_q3,
+            "Sample {} heatmap".format(index2),
+            "sample_{}_heatmap_zoom_in.png".format(index2))
+        if len(data1) > 100000:
+            self._graph_hist_over_time(
+                    data1[:100000], global_q1, global_q3,
+                "Sample {} heatmap".format(index1),
+                "sample_{}_partial_heatmap_zoom_in.png".format(index1))
+            self._graph_hist_over_time(
+                    data2[:100000], global_q1, global_q3,
+                "Sample {} heatmap".format(index2),
+                "sample_{}_partial_heatmap_zoom_in.png".format(index2))
+
+        # and then plot the differences
+
+        diff = data2 - data1
+        diff_min, diff_q1, diff_q3, diff_max = \
+            np.quantile(diff, [0, 0.025, 0.975, 1])
+
+        self._graph_hist_over_time(
+            diff, diff_min, diff_max,
+            "Difference plot of ({}-{})".format(index2, index1),
+            "worst_pair_diff_heatmap.png")
+        self._graph_hist_over_time(
+            diff, diff_q1, diff_q3,
+            "Difference plot of ({}-{})".format(index2, index1),
+            "worst_pair_diff_heatmap_zoom_in.png")
+        if len(data1) > 100000:
+            self._graph_hist_over_time(
+                    diff[:100000], diff_q1, diff_q3,
+                "Difference plot of ({}-{})".format(index2, index1),
+                "worst_pair_diff_partial_heatmap_zoom_in.png")
+
+        self._plot_pacf(
+                diff[:min(100000, len(diff))],
+            "Partial autocorrelation function for sample ({}-{}) difference"
+            .format(index2, index1),
+            "worst_pair_diff_pacf.png")
+
+        if self.verbose:
+            print("[i] Worst pair data graphed in {:.3}s".format(
+                time.time()-start_time))
 
     def _write_summary(self, difference, p_vals, sign_p_vals, worst_pair,
                        worst_p, friedman_p):
@@ -951,6 +1287,13 @@ class Analysis(object):
 
         :return: int 0 if no difference was detected, 1 otherwise
         """
+        # the Friedman test is fairly long running, non-multithreadable
+        # and with fairly limited memory use, so run it in background
+        # unconditionally
+        friedman_result = mp.Queue()
+        friedman_process = mp.Process(target=self.friedman_test,
+                                      args=(friedman_result, ))
+        friedman_process.start()
         # plot in separate processes so that the matplotlib memory leaks are
         # not cumulative, see https://stackoverflow.com/q/28516828/462370
         processes = []
@@ -979,15 +1322,19 @@ class Analysis(object):
 
         self._write_sample_stats()
 
-        friedman_result = self.friedman_test()
-
         difference, p_vals, sign_p_vals, worst_pair, worst_p = \
             self._write_individual_results()
 
+        self.graph_worst_pair(worst_pair)
+
+        friedman_process.join()
+
         difference = self._write_summary(difference, p_vals, sign_p_vals,
                                          worst_pair,
-                                         worst_p, friedman_result)
+                                         worst_p, friedman_result.get())
 
+        friedman_result.close()
+        friedman_result.join_thread()
         self._stop_all_threads(processes)
 
         return difference

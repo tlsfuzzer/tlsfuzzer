@@ -8,3 +8,4 @@ isort==4.2.5
 inflect<4.0.0
 #mock==3.0.5 # it works on python3.3 but wheel forbids install, will manually install in github CI
 typing<3.7.4
+wrapt<1.13.0

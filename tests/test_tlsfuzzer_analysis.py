@@ -54,20 +54,21 @@ class TestReport(unittest.TestCase):
                         with mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter:
                             with mock.patch("tlsfuzzer.analysis.Analysis.diff_scatter_plot"):
                                 with mock.patch("tlsfuzzer.analysis.Analysis.conf_interval_plot") as mock_conf_int:
-                                    with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
-                                        with mock.patch("builtins.print"):
-                                            with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
-                                                analysis = Analysis("/tmp")
-                                                ret = analysis.generate_report()
+                                    with mock.patch("tlsfuzzer.analysis.Analysis.graph_worst_pair"):
+                                        with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
+                                            with mock.patch("builtins.print"):
+                                                with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
+                                                    analysis = Analysis("/tmp")
+                                                    ret = analysis.generate_report()
 
-                                                self.mock_read_csv.assert_called()
-                                                #mock_ecdf.assert_called_once()
-                                                #mock_box.assert_called_once()
-                                                #mock_scatter.assert_called_once()
-                                                # we're writing to report.csv, legend.csv,
-                                                # sample_stats.csv, and report.txt
-                                                self.assertEqual(mock_open.call_count, 4)
-                                                self.assertEqual(ret, 0)
+                                                    self.mock_read_csv.assert_called()
+                                                    #mock_ecdf.assert_called_once()
+                                                    #mock_box.assert_called_once()
+                                                    #mock_scatter.assert_called_once()
+                                                    # we're writing to report.csv, legend.csv,
+                                                    # sample_stats.csv, and report.txt
+                                                    self.assertEqual(mock_open.call_count, 4)
+                                                    self.assertEqual(ret, 0)
 
     def test_report_multithreaded(self):
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
@@ -77,26 +78,30 @@ class TestReport(unittest.TestCase):
                         with mock.patch("tlsfuzzer.analysis.Analysis.diff_scatter_plot"):
                             with mock.patch("tlsfuzzer.analysis.Analysis.conf_interval_plot") as mock_conf_int:
                                 with mock.patch("tlsfuzzer.analysis.Analysis.diff_ecdf_plot"):
-                                    with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
-                                        with mock.patch("builtins.print"):
-                                            with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
-                                                analysis = Analysis("/tmp",
-                                                    multithreaded_graph=True)
-                                                ret = analysis.generate_report()
+                                    with mock.patch("tlsfuzzer.analysis.Analysis.graph_worst_pair"):
+                                        with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
+                                            with mock.patch("builtins.print"):
+                                                with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
+                                                    analysis = Analysis("/tmp",
+                                                        multithreaded_graph=True)
+                                                    ret = analysis.generate_report()
 
-                                                self.mock_read_csv.assert_called()
-                                                #mock_ecdf.assert_called_once()
-                                                #mock_box.assert_called_once()
-                                                #mock_scatter.assert_called_once()
-                                                # we're writing to report.csv, legend.csv,
-                                                # sample_stats.csv, and report.txt
-                                                self.assertEqual(mock_open.call_count, 4)
-                                                self.assertEqual(ret, 0)
+                                                    self.mock_read_csv.assert_called()
+                                                    #mock_ecdf.assert_called_once()
+                                                    #mock_box.assert_called_once()
+                                                    #mock_scatter.assert_called_once()
+                                                    # we're writing to report.csv, legend.csv,
+                                                    # sample_stats.csv, and report.txt
+                                                    self.assertEqual(mock_open.call_count, 4)
+                                                    self.assertEqual(ret, 0)
 
     def test_report_neq(self):
         timings = pd.DataFrame(data=self.neq_data)
         mock_read_csv = mock.Mock()
         mock_read_csv.return_value = timings
+        def mock_friedman(self, result):
+            result.put(0)
+
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", mock_read_csv):
             with mock.patch("tlsfuzzer.analysis.Analysis.ecdf_plot") as mock_ecdf:
                 with mock.patch("tlsfuzzer.analysis.Analysis.diff_ecdf_plot") as mock_diff_ecdf:
@@ -104,21 +109,21 @@ class TestReport(unittest.TestCase):
                         with mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter:
                             with mock.patch("tlsfuzzer.analysis.Analysis.diff_scatter_plot"):
                                 with mock.patch("tlsfuzzer.analysis.Analysis.conf_interval_plot") as mock_conf_int:
-                                    with mock.patch("tlsfuzzer.analysis.Analysis.friedman_test") as mock_friedman:
-                                        with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
-                                            with mock.patch("builtins.print"):
-                                                mock_friedman.return_value = 0
-                                                analysis = Analysis("/tmp")
-                                                ret = analysis.generate_report()
+                                    with mock.patch("tlsfuzzer.analysis.Analysis.graph_worst_pair"):
+                                        with mock.patch("tlsfuzzer.analysis.Analysis.friedman_test", mock_friedman):
+                                            with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
+                                                with mock.patch("builtins.print"):
+                                                    analysis = Analysis("/tmp")
+                                                    ret = analysis.generate_report()
 
-                                                mock_read_csv.assert_called()
-                                                #mock_ecdf.assert_called_once()
-                                                #mock_box.assert_called_once()
-                                                #mock_scatter.assert_called_once()
-                                                # we're writing to report.csv, legend.csv,
-                                                # sample_stats.csv, and report.txt
-                                                self.assertEqual(mock_open.call_count, 4)
-                                                self.assertEqual(ret, 1)
+                                                    mock_read_csv.assert_called()
+                                                    #mock_ecdf.assert_called_once()
+                                                    #mock_box.assert_called_once()
+                                                    #mock_scatter.assert_called_once()
+                                                    # we're writing to report.csv, legend.csv,
+                                                    # sample_stats.csv, and report.txt
+                                                    self.assertEqual(mock_open.call_count, 4)
+                                                    self.assertEqual(ret, 1)
 
     def test_report_error_in_box_plot(self):
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
@@ -126,16 +131,17 @@ class TestReport(unittest.TestCase):
                 with mock.patch("tlsfuzzer.analysis.Analysis.box_plot") as mock_box:
                     with mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter:
                         with mock.patch("tlsfuzzer.analysis.Analysis.conf_interval_plot") as mock_conf_int:
-                            with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
-                                with mock.patch("builtins.print"):
-                                    with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
-                                        mock_box.side_effect = Exception("Test")
-                                        analysis = Analysis("/tmp")
+                            with mock.patch("tlsfuzzer.analysis.Analysis.graph_worst_pair"):
+                                with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
+                                    with mock.patch("builtins.print"):
+                                        with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
+                                            mock_box.side_effect = Exception("Test")
+                                            analysis = Analysis("/tmp")
 
-                                        with self.assertRaises(Exception) as exc:
-                                            ret = analysis.generate_report()
+                                            with self.assertRaises(Exception) as exc:
+                                                ret = analysis.generate_report()
 
-                                        self.assertIn("Box plot graph", str(exc.exception))
+                                            self.assertIn("Box plot graph", str(exc.exception))
 
     def test_report_error_in_scatter_plot(self):
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
@@ -143,16 +149,17 @@ class TestReport(unittest.TestCase):
                 with mock.patch("tlsfuzzer.analysis.Analysis.box_plot") as mock_box:
                     with mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter:
                         with mock.patch("tlsfuzzer.analysis.Analysis.conf_interval_plot") as mock_conf_int:
-                            with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
-                                with mock.patch("builtins.print"):
-                                    with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
-                                        mock_scatter.side_effect = Exception("Test")
-                                        analysis = Analysis("/tmp")
+                            with mock.patch("tlsfuzzer.analysis.Analysis.graph_worst_pair"):
+                                with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
+                                    with mock.patch("builtins.print"):
+                                        with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
+                                            mock_scatter.side_effect = Exception("Test")
+                                            analysis = Analysis("/tmp")
 
-                                        with self.assertRaises(Exception) as exc:
-                                            ret = analysis.generate_report()
+                                            with self.assertRaises(Exception) as exc:
+                                                ret = analysis.generate_report()
 
-                                        self.assertIn("Scatter plot graph", str(exc.exception))
+                                            self.assertIn("Scatter plot graph", str(exc.exception))
 
     def test_report_error_in_ecdf_plot(self):
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
@@ -160,16 +167,17 @@ class TestReport(unittest.TestCase):
                 with mock.patch("tlsfuzzer.analysis.Analysis.box_plot") as mock_box:
                     with mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter:
                         with mock.patch("tlsfuzzer.analysis.Analysis.conf_interval_plot") as mock_conf_int:
-                            with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
-                                with mock.patch("builtins.print"):
-                                    with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
-                                        mock_ecdf.side_effect = Exception("Test")
-                                        analysis = Analysis("/tmp")
+                            with mock.patch("tlsfuzzer.analysis.Analysis.graph_worst_pair"):
+                                with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
+                                    with mock.patch("builtins.print"):
+                                        with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
+                                            mock_ecdf.side_effect = Exception("Test")
+                                            analysis = Analysis("/tmp")
 
-                                        with self.assertRaises(Exception) as exc:
-                                            ret = analysis.generate_report()
+                                            with self.assertRaises(Exception) as exc:
+                                                ret = analysis.generate_report()
 
-                                        self.assertIn("ECDF graph", str(exc.exception))
+                                            self.assertIn("ECDF graph", str(exc.exception))
 
     def test_report_error_in_conf_interval_plot(self):
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
@@ -177,16 +185,17 @@ class TestReport(unittest.TestCase):
                 with mock.patch("tlsfuzzer.analysis.Analysis.box_plot") as mock_box:
                     with mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter:
                         with mock.patch("tlsfuzzer.analysis.Analysis.conf_interval_plot") as mock_conf_int:
-                            with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
-                                with mock.patch("builtins.print"):
-                                    with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
-                                        mock_conf_int.side_effect = Exception("Test")
-                                        analysis = Analysis("/tmp")
+                            with mock.patch("tlsfuzzer.analysis.Analysis.graph_worst_pair"):
+                                with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
+                                    with mock.patch("builtins.print"):
+                                        with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
+                                            mock_conf_int.side_effect = Exception("Test")
+                                            analysis = Analysis("/tmp")
 
-                                        with self.assertRaises(Exception) as exc:
-                                            ret = analysis.generate_report()
+                                            with self.assertRaises(Exception) as exc:
+                                                ret = analysis.generate_report()
 
-                                        self.assertIn("Conf interval graph", str(exc.exception))
+                                            self.assertIn("Conf interval graph", str(exc.exception))
 
     def test_report_error_in_MT_box_plot(self):
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
@@ -194,16 +203,17 @@ class TestReport(unittest.TestCase):
                 with mock.patch("tlsfuzzer.analysis.Analysis.box_plot") as mock_box:
                     with mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter:
                         with mock.patch("tlsfuzzer.analysis.Analysis.conf_interval_plot") as mock_conf_int:
-                            with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
-                                with mock.patch("builtins.print"):
-                                    with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
-                                        mock_box.side_effect = Exception("Test")
-                                        analysis = Analysis("/tmp", multithreaded_graph=True)
+                            with mock.patch("tlsfuzzer.analysis.Analysis.graph_worst_pair"):
+                                with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
+                                    with mock.patch("builtins.print"):
+                                        with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
+                                            mock_box.side_effect = Exception("Test")
+                                            analysis = Analysis("/tmp", multithreaded_graph=True)
 
-                                        with self.assertRaises(Exception) as exc:
-                                            ret = analysis.generate_report()
+                                            with self.assertRaises(Exception) as exc:
+                                                ret = analysis.generate_report()
 
-                                        self.assertIn("Box plot graph", str(exc.exception))
+                                            self.assertIn("Box plot graph", str(exc.exception))
 
     def test_report_error_in_MT_scatter_plot(self):
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
@@ -211,16 +221,17 @@ class TestReport(unittest.TestCase):
                 with mock.patch("tlsfuzzer.analysis.Analysis.box_plot") as mock_box:
                     with mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter:
                         with mock.patch("tlsfuzzer.analysis.Analysis.conf_interval_plot") as mock_conf_int:
-                            with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
-                                with mock.patch("builtins.print"):
-                                    with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
-                                        mock_scatter.side_effect = Exception("Test")
-                                        analysis = Analysis("/tmp", multithreaded_graph=True)
+                            with mock.patch("tlsfuzzer.analysis.Analysis.graph_worst_pair"):
+                                with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
+                                    with mock.patch("builtins.print"):
+                                        with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
+                                            mock_scatter.side_effect = Exception("Test")
+                                            analysis = Analysis("/tmp", multithreaded_graph=True)
 
-                                        with self.assertRaises(Exception) as exc:
-                                            ret = analysis.generate_report()
+                                            with self.assertRaises(Exception) as exc:
+                                                ret = analysis.generate_report()
 
-                                        self.assertIn("Scatter plot graph", str(exc.exception))
+                                            self.assertIn("Scatter plot graph", str(exc.exception))
 
     def test_report_error_in_MT_ecdf_plot(self):
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
@@ -228,16 +239,17 @@ class TestReport(unittest.TestCase):
                 with mock.patch("tlsfuzzer.analysis.Analysis.box_plot") as mock_box:
                     with mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter:
                         with mock.patch("tlsfuzzer.analysis.Analysis.conf_interval_plot") as mock_conf_int:
-                            with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
-                                with mock.patch("builtins.print"):
-                                    with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
-                                        mock_ecdf.side_effect = Exception("Test")
-                                        analysis = Analysis("/tmp", multithreaded_graph=True)
+                            with mock.patch("tlsfuzzer.analysis.Analysis.graph_worst_pair"):
+                                with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
+                                    with mock.patch("builtins.print"):
+                                        with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
+                                            mock_ecdf.side_effect = Exception("Test")
+                                            analysis = Analysis("/tmp", multithreaded_graph=True)
 
-                                        with self.assertRaises(Exception) as exc:
-                                            ret = analysis.generate_report()
+                                            with self.assertRaises(Exception) as exc:
+                                                ret = analysis.generate_report()
 
-                                        self.assertIn("ECDF graph", str(exc.exception))
+                                            self.assertIn("ECDF graph", str(exc.exception))
 
     def test_report_error_in_MT_conf_interval_plot(self):
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
@@ -245,16 +257,17 @@ class TestReport(unittest.TestCase):
                 with mock.patch("tlsfuzzer.analysis.Analysis.box_plot") as mock_box:
                     with mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot") as mock_scatter:
                         with mock.patch("tlsfuzzer.analysis.Analysis.conf_interval_plot") as mock_conf_int:
-                            with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
-                                with mock.patch("builtins.print"):
-                                    with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
-                                        mock_conf_int.side_effect = Exception("Test")
-                                        analysis = Analysis("/tmp", multithreaded_graph=True)
+                            with mock.patch("tlsfuzzer.analysis.Analysis.graph_worst_pair"):
+                                with mock.patch("__main__.__builtins__.open", mock.mock_open()) as mock_open:
+                                    with mock.patch("builtins.print"):
+                                        with mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary"):
+                                            mock_conf_int.side_effect = Exception("Test")
+                                            analysis = Analysis("/tmp", multithreaded_graph=True)
 
-                                        with self.assertRaises(Exception) as exc:
-                                            ret = analysis.generate_report()
+                                            with self.assertRaises(Exception) as exc:
+                                                ret = analysis.generate_report()
 
-                                        self.assertIn("Conf interval graph", str(exc.exception))
+                                            self.assertIn("Conf interval graph", str(exc.exception))
 
     def test_wilcoxon_test(self):
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
@@ -402,10 +415,10 @@ class TestReport(unittest.TestCase):
 class TestPlots(unittest.TestCase):
     def setUp(self):
         data = {
-            'A': [0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
-                0.000734843, 0.000754852, 0.000667378, 0.000671230, 0.000790935],
-            'B': [0.000758130, 0.000696718, 0.000980080, 0.000988899, 0.000875510,
-                0.000734843, 0.000754852, 0.000667378, 0.000671230, 0.000790935]
+            'A': [0.000758131, 0.000696718, 0.000980081, 0.000988899, 0.000875511,
+                0.000734843, 0.000754853, 0.000667378, 0.000671231, 0.000790935],
+            'B': [0.000758130, 0.000696719, 0.000980080, 0.000988900, 0.000875510,
+                0.000734844, 0.000754852, 0.000667379, 0.000671230, 0.000790936]
         }
         timings = pd.DataFrame(data=data)
         mock_read_csv = mock.Mock()
@@ -474,7 +487,7 @@ class TestPlots(unittest.TestCase):
         ret = self.analysis._calc_percentiles()
 
         self.assertIsNotNone(ret)
-        self.assertEqual(ret.values[0, 0], 0.0006691114)
+        self.assertEqual(ret.values[0, 0], 0.0006691118500000001)
         mock_copyfile.assert_called_once_with(
             "/tmp/timing.bin", "/tmp/.quantiles.tmp")
         mock_remove.assert_called_once_with("/tmp/.quantiles.tmp")
@@ -497,6 +510,28 @@ class TestPlots(unittest.TestCase):
                      mock.call('/tmp/conf_interval_plot_trimean.png',
                                bbox_inches='tight')])
 
+    def test_graph_worst_pair(self):
+        with mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure",
+                        mock.Mock()) as mock_save:
+            with mock.patch("__main__.__builtins__.open", mock.mock_open())\
+                    as mock_open:
+                self.analysis.graph_worst_pair((0, 1))
+                self.assertEqual(list(mock_save.call_args_list),
+                    [mock.call('/tmp/sample_0_heatmap.png',
+                               bbox_inches='tight'),
+                     mock.call('/tmp/sample_0_heatmap_zoom_in.png',
+                               bbox_inches='tight'),
+                     mock.call('/tmp/sample_1_heatmap.png',
+                               bbox_inches='tight'),
+                     mock.call('/tmp/sample_1_heatmap_zoom_in.png',
+                               bbox_inches='tight'),
+                     mock.call('/tmp/worst_pair_diff_heatmap.png',
+                               bbox_inches='tight'),
+                     mock.call('/tmp/worst_pair_diff_heatmap_zoom_in.png',
+                               bbox_inches='tight'),
+                     mock.call('/tmp/worst_pair_diff_pacf.png',
+                               bbox_inches='tight')])
+
 
 @unittest.skipIf(failed_import,
                  "Could not import analysis. Skipping related tests.")
@@ -512,7 +547,7 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(output, True, True,
-                                                      True, False)
+                                                      True, False, False)
 
     def test_call_with_multithreaded_plots(self):
         output = "/tmp"
@@ -525,7 +560,7 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(output, True, True,
-                                                      True, True)
+                                                      True, True, False)
 
     def test_call_with_no_plots(self):
         output = "/tmp"
@@ -539,7 +574,7 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
-                        output, False, False, False, False)
+                        output, False, False, False, False, False)
 
     def test_help(self):
         args = ["analysis.py", "--help"]
@@ -687,5 +722,27 @@ class TestDataLoad(unittest.TestCase):
 
         a = Analysis.__new__(Analysis)
         a.output = "/tmp"
+        a.verbose = False
+
+        a._convert_to_binary()
+
+    @mock.patch("tlsfuzzer.analysis.np.memmap")
+    @mock.patch("builtins.open")
+    @mock.patch("tlsfuzzer.analysis.pd.read_csv")
+    @mock.patch("tlsfuzzer.analysis.os.path.getmtime")
+    @mock.patch("tlsfuzzer.analysis.os.path.isfile")
+    @mock.patch("builtins.print")
+    def test__convert_to_binary_refresh_verbose(self, print_mock, isfile_mock,
+            getmtime_mock, read_csv_mock, open_mock, memmap_mock):
+        isfile_mock.return_value = True
+        getmtime_mock.return_value = 0
+        read_csv_mock.side_effect = lambda _, chunksize, dtype: \
+            iter(self.df[i:i+1] for i in range(self.df.shape[0]))
+        open_mock.side_effect = self.file_selector
+        memmap_mock.side_effect = self.mock_memmap
+
+        a = Analysis.__new__(Analysis)
+        a.output = "/tmp"
+        a.verbose = True
 
         a._convert_to_binary()
