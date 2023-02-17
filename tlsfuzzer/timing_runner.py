@@ -23,7 +23,7 @@ class TimingRunner:
 
     def __init__(self, name, tests, out_dir, ip_address, port, interface,
                  affinity=None, skip_extract=False, skip_analysis=False,
-                 alpha=None, no_quickack=False):
+                 alpha=None, no_quickack=False, verbose_analysis=False):
         """
         Check if tcpdump is present and setup instance parameters.
 
@@ -38,6 +38,8 @@ class TimingRunner:
             of --cpu-list option.
         :param bool no_quickack: If True: don't assume QUICKACK to be in use,
             impacts extraction from packet dump.
+        :param bool verbose_analysis: If True: run analysis with verbose flag
+            set.
         """
         # first check tcpdump presence
         if not self.check_tcpdump():
@@ -55,6 +57,7 @@ class TimingRunner:
         self.skip_analysis = skip_analysis
         self.alpha = alpha
         self.no_quickack = no_quickack
+        self.verbose_analysis = verbose_analysis
 
         self.tcpdump_running = True
         self.tcpdump_output = None
@@ -236,7 +239,8 @@ class TimingRunner:
         """
         if self.check_analysis_availability():
             from tlsfuzzer.analysis import Analysis
-            analysis = Analysis(self.out_dir, alpha=self.alpha)
+            analysis = Analysis(self.out_dir, alpha=self.alpha,
+                                verbose=self.verbose_analysis)
             return analysis.generate_report()
 
         print("Analysis is not available. "
