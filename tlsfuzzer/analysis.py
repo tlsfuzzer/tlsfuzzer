@@ -15,6 +15,7 @@ import getopt
 import sys
 import math
 import multiprocessing as mp
+from threading import Event, Thread
 import shutil
 from itertools import chain
 from os.path import join
@@ -31,6 +32,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
 from tlsfuzzer.utils.ordered_dict import OrderedDict
+from tlsfuzzer.utils.progress_report import progress_report
 from tlsfuzzer.messages import div_ceil
 
 
@@ -713,7 +715,7 @@ class Analysis(object):
         global _diffs
         _diffs = diffs
 
-    def _bootstrap_differences(self, pair, reps=5000):
+    def _bootstrap_differences(self, pair, reps=5000, status=None):
         """Return a list of bootstrapped central tendencies of differences."""
         # don't pickle the diffs as they are read-only, use a global to pass
         # it to workers
@@ -742,6 +744,8 @@ class Analysis(object):
                 # handle reps % job_size == 0
                 if not values:
                     continue
+                if status:
+                    status[0] += len(values)
                 # transpose the results so that they can be added to lists
                 chunk = list(map(list, zip(*values)))
                 for key, i in zip(keys, range(5)):
@@ -763,10 +767,24 @@ class Analysis(object):
             estimate of mean, median, trimmed mean (5% and 25%) and trimean
             of differences of observations
         """
+        status = None
         if self.verbose:
             start_time = time.time()
             print("[i] Calculating confidence intervals of central tendencies")
-        cent_tend = self._bootstrap_differences(pair, reps)
+            status = [0, reps, Event()]
+            kwargs = {}
+            kwargs['unit'] = ' bootstraps'
+            progress = Thread(target=progress_report, args=(status,),
+                              kwargs=kwargs)
+            progress.start()
+
+        try:
+            cent_tend = self._bootstrap_differences(pair, reps, status=status)
+        finally:
+            if self.verbose:
+                status[2].set()
+                progress.join()
+                print()
 
         data = self.load_data()
         diff = data.iloc[:, pair[1]] - data.iloc[:, pair[0]]
@@ -807,15 +825,32 @@ class Analysis(object):
                  "trim mean (25%)": pd.DataFrame(),
                  "trimean": pd.DataFrame()}
 
-        for i in range(1, len(self.class_names)):
-            pair = TestPair(0, i)
-            diffs = self._bootstrap_differences(pair, reps)
+        status = None
+        if self.verbose:
+            status = [0, reps * (len(self.class_names) - 1), Event()]
+            kwargs = {}
+            kwargs['unit'] = ' bootstraps'
+            progress = Thread(target=progress_report, args=(status, ),
+                              kwargs=kwargs)
+            progress.start()
 
-            boots["mean"]['{}-0'.format(i)] = diffs["mean"]
-            boots["median"]['{}-0'.format(i)] = diffs["median"]
-            boots["trim mean (5%)"]['{}-0'.format(i)] = diffs["trim_mean_05"]
-            boots["trim mean (25%)"]['{}-0'.format(i)] = diffs["trim_mean_25"]
-            boots["trimean"]['{}-0'.format(i)] = diffs["trimean"]
+        try:
+            for i in range(1, len(self.class_names)):
+                pair = TestPair(0, i)
+                diffs = self._bootstrap_differences(pair, reps, status)
+
+                boots["mean"]['{}-0'.format(i)] = diffs["mean"]
+                boots["median"]['{}-0'.format(i)] = diffs["median"]
+                boots["trim mean (5%)"]['{}-0'.format(i)] = \
+                    diffs["trim_mean_05"]
+                boots["trim mean (25%)"]['{}-0'.format(i)] = \
+                    diffs["trim_mean_25"]
+                boots["trimean"]['{}-0'.format(i)] = diffs["trimean"]
+        finally:
+            if self.verbose:
+                status[2].set()
+                progress.join()
+                print()
 
         for name, data in boots.items():
             fig = Figure(figsize=(16, 12))
