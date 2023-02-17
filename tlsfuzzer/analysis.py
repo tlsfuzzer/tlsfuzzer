@@ -989,7 +989,7 @@ class Analysis(object):
             print("[i] Calculation of individual results done in {:.3}s"
                   .format(time.time()-start_time))
 
-        return difference, p_vals, sign_p_vals, worst_pair, worst_p
+        return difference, p_vals, sign_p_vals, worst_pair
 
     def _write_legend(self):
         """Write the legend.csv file."""
@@ -1159,7 +1159,7 @@ class Analysis(object):
                 time.time()-start_time))
 
     def _write_summary(self, difference, p_vals, sign_p_vals, worst_pair,
-                       worst_p, friedman_p):
+                       friedman_p, worst_pair_conf_int):
         """Write the report.txt file and print summary."""
         report_filename = join(self.output, "report.csv")
         text_report_filename = join(self.output, "report.txt")
@@ -1197,7 +1197,7 @@ class Analysis(object):
             txt_file.write(txt)
             txt_file.write('\n')
 
-            diff_conf_int = self.calc_diff_conf_int(worst_pair)
+            diff_conf_int = worst_pair_conf_int
             # use 95% CI as that translates to 2 standard deviations, making
             # it easy to estimate higher CIs
             for name, key in (("Mean", "mean"), ("Median", "median"),
@@ -1287,8 +1287,10 @@ class Analysis(object):
 
         self._write_sample_stats()
 
-        difference, p_vals, sign_p_vals, worst_pair, worst_p = \
+        difference, p_vals, sign_p_vals, worst_pair = \
             self._write_individual_results()
+
+        worst_pair_conf_int = self.calc_diff_conf_int(worst_pair)
 
         self.graph_worst_pair(worst_pair)
 
@@ -1296,7 +1298,8 @@ class Analysis(object):
 
         difference = self._write_summary(difference, p_vals, sign_p_vals,
                                          worst_pair,
-                                         worst_p, friedman_result.get())
+                                         friedman_result.get(),
+                                         worst_pair_conf_int)
 
         friedman_result.close()
         friedman_result.join_thread()
