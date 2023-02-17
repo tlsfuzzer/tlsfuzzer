@@ -1174,29 +1174,6 @@ class Analysis(object):
                 "tlsfuzzer analyse.py version {0} analysis\n"
                 .format(VERSION))
 
-            _, p = stats.kstest(p_vals, 'uniform')
-            txt = ("KS-test for uniformity of p-values from Wilcoxon "
-                   "signed-rank test")
-            print(txt)
-            txt_file.write(txt)
-            txt_file.write('\n')
-
-            txt = "p-value: {}".format(p)
-            print(txt)
-            txt_file.write(txt)
-            txt_file.write('\n')
-
-            _, p = stats.kstest(sign_p_vals, 'uniform')
-            txt = "KS-test for uniformity of p-values from sign test "
-            print(txt)
-            txt_file.write(txt)
-            txt_file.write('\n')
-
-            txt = "p-value: {}".format(p)
-            print(txt)
-            txt_file.write(txt)
-            txt_file.write('\n')
-
             txt = ("Sign test mean p-value: {}, median p-value: {}"
                    .format(np.mean(sign_p_vals), np.median(sign_p_vals)))
             print(txt)
