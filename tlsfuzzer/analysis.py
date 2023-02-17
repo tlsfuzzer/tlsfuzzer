@@ -1174,8 +1174,10 @@ class Analysis(object):
                 "tlsfuzzer analyse.py version {0} analysis\n"
                 .format(VERSION))
 
-            txt = ("Sign test mean p-value: {}, median p-value: {}"
-                   .format(np.mean(sign_p_vals), np.median(sign_p_vals)))
+            txt = ("Sign test mean p-value: {0:.4}, median p-value: {1:.4}, "
+                   "min p-value: {2:.4}"
+                   .format(np.mean(sign_p_vals), np.median(sign_p_vals),
+                           np.min(sign_p_vals)))
             print(txt)
             txt_file.write(txt)
             txt_file.write('\n')
