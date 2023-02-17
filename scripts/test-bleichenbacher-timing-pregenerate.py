@@ -89,6 +89,7 @@ def help_msg():
     print(" --alpha num    Acceptable probability of a false positive. Default:")
     print("                1e-5")
     print(" --no-quickack  Don't assume that QUICKACK is in use.")
+    print(" --verbose-analysis Enable verbose progress of analysis.")
     print(" --help         this message")
 
 
@@ -118,6 +119,7 @@ def main():
     random_bytes = 8
     alpha = 1e-5
     no_quickack = False
+    verbose_analysis = False
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv,
@@ -131,7 +133,8 @@ def main():
                                 "test-set=",
                                 "bit-sets=",
                                 "alpha=",
-                                "no-quickack"])
+                                "no-quickack",
+                                "verbose-analysis"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -191,6 +194,8 @@ def main():
             alpha = float(arg)
         elif opt == "--no-quickack":
             no_quickack = True
+        elif opt == "--verbose-analysis":
+            verbose_analysis = True
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -1313,7 +1318,8 @@ place where the timing leak happens:
                                          affinity,
                                          skip_extract=True,
                                          alpha=alpha,
-                                         no_quickack=no_quickack)
+                                         no_quickack=no_quickack,
+                                         verbose_analysis=verbose_analysis)
             print("Pre-generating pre-master secret values...")
 
             with open(
