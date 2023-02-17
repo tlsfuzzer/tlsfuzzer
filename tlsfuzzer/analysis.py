@@ -855,9 +855,6 @@ class Analysis(object):
         results = {}
         comb = combinations(list(range(len(self.class_names))), 2)
         for index1, index2, in comb:
-            if self.verbose:
-                pair_start = time.time()
-                print("[i] Calculating {}-{}".format(index2, index1))
             data1 = data.iloc[:, index1]
             data2 = data.iloc[:, index2]
 
@@ -871,9 +868,6 @@ class Analysis(object):
             diff_stats["IQR"] = quantiles[2] - quantiles[1]
             diff_stats["MAD"] = stats.median_abs_deviation(diff)
             results[TestPair(index1, index2)] = diff_stats
-            if self.verbose:
-                print("[i] Calculating {}-{} done in {:.3}s".format(
-                      index2, index1, time.time()-pair_start))
         if self.verbose:
             print("[i] Descriptive statistics of sample differences done in "
                   "{:.3}s".format(time.time()-start_time))
