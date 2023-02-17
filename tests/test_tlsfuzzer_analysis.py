@@ -439,6 +439,17 @@ class TestReport(unittest.TestCase):
                 self.assertEqual(len(vals), 0)
                 self.assertEqual(vals, [])
 
+    def test__desc_stats(self):
+        ret = Analysis._desc_stats(self.neq_data.iloc[:,0],
+                                   self.neq_data.iloc[:,1])
+
+        self.assertEqual(ret, {
+            'mean': 0.5492081424999999,
+            'SD': 0.28726800639941136,
+            'median': 0.5491948234999999,
+            'IQR': 0.22511593000000008,
+            'MAD': 0.250156351})
+
 
 @unittest.skipIf(failed_import,
                  "Could not import analysis. Skipping related tests.")

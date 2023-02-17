@@ -849,29 +849,28 @@ class Analysis(object):
             print("[i] Confidence interval plots done in {:.3}s".format(
                 time.time()-start_time))
 
+    @staticmethod
+    def _desc_stats(data1, data2):
+        diff = data2 - data1
+
+        diff_stats = {}
+        diff_stats["mean"] = np.mean(diff)
+        diff_stats["SD"] = np.std(diff)
+        quantiles = np.quantile(diff, [0.25, 0.5, 0.75])
+        diff_stats["median"] = quantiles[1]
+        diff_stats["IQR"] = quantiles[2] - quantiles[1]
+        diff_stats["MAD"] = stats.median_abs_deviation(diff)
+        return diff_stats
+
     def desc_stats(self):
         """Calculate the descriptive statistics for sample differences."""
         if self.verbose:
             start_time = time.time()
             print("[i] Calculating descriptive statistics of sample "
                   "differences")
-        data = self.load_data()
-        results = {}
-        comb = combinations(list(range(len(self.class_names))), 2)
-        for index1, index2, in comb:
-            data1 = data.iloc[:, index1]
-            data2 = data.iloc[:, index2]
 
-            diff = data2 - data1
+        results = self.mt_process(self._desc_stats)
 
-            diff_stats = {}
-            diff_stats["mean"] = np.mean(diff)
-            diff_stats["SD"] = np.std(diff)
-            quantiles = np.quantile(diff, [0.25, 0.5, 0.75])
-            diff_stats["median"] = quantiles[1]
-            diff_stats["IQR"] = quantiles[2] - quantiles[1]
-            diff_stats["MAD"] = stats.median_abs_deviation(diff)
-            results[TestPair(index1, index2)] = diff_stats
         if self.verbose:
             print("[i] Descriptive statistics of sample differences done in "
                   "{:.3}s".format(time.time()-start_time))
