@@ -912,7 +912,7 @@ class Analysis(object):
             worst_pair = None
             worst_p = None
             worst_median_difference = None
-            for pair, result in box_results.items():
+            for pair, result in sorted(box_results.items()):
                 index1, index2 = pair
                 diff_stats = desc_stats[pair]
                 box_write = "="
