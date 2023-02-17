@@ -351,8 +351,12 @@ class Analysis(object):
     @staticmethod
     def _sign_test(data1, data2, med, alternative):
         diff = data2 - data1
-        return stats.binom_test([sum(diff < med), sum(diff > med)], p=0.5,
-                                alternative=alternative)
+        try:
+            return stats.binomtest(sum(diff < med), sum(diff != med), p=0.5,
+                                   alternative=alternative).pvalue
+        except AttributeError:
+            return stats.binom_test([sum(diff < med), sum(diff > med)], p=0.5,
+                                    alternative=alternative)
 
     def sign_test(self, med=0.0, alternative="two-sided"):
         """
