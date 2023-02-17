@@ -364,6 +364,27 @@ class TestReport(unittest.TestCase):
             for index, result in res.items():
                 self.assertEqual(result, None)
 
+    def test__box_test_neq(self):
+        ret = Analysis._box_test(self.neq_data.iloc[:,0],
+                                 self.neq_data.iloc[:,1],
+                                 0.03, 0.04)
+
+        self.assertEqual(ret, '<')
+
+    def test__box_test_neq_gt(self):
+        ret = Analysis._box_test(self.neq_data.iloc[:,1],
+                                 self.neq_data.iloc[:,0],
+                                 0.03, 0.04)
+
+        self.assertEqual(ret, '>')
+
+    def test__box_test_overlap(self):
+        ret = Analysis._box_test(self.neq_data.iloc[:,0],
+                                 self.neq_data.iloc[:,0],
+                                 0.03, 0.04)
+
+        self.assertEqual(ret, None)
+
     def test_box_test_neq(self):
         timings = pd.DataFrame(data=self.neq_data)
         mock_read_csv = mock.Mock()
