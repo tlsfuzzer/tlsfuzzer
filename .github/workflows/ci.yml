@@ -338,8 +338,10 @@ jobs:
           # more generally, it should be `1845 + len(sys.version.split()[0])`,
           # as http.server uses `sys_version = "Python/" + sys.version.split()[0]`
           # https://github.com/python/cpython/blob/2c050e52f1ccf5db03819e4ed70690521d67e9fa/Lib/http/server.py#L253
-          if [[ $PYTHON_VERSION == '2.7' || $PYTHON_VERSION == '3.4' || $PYTHON_VERSION == '3.5' || $PYTHON_VERSION == '3.6' || $PYTHON_VERSION == '3.7' || $PYTHON_VERSION == '3.8' || $PYTHON_VERSION == '3.9' || $PYTHON_VERSION == '3.10' ]]; then
+          if [[ $PYTHON_VERSION == '2.7' || $PYTHON_VERSION == '3.4' || $PYTHON_VERSION == '3.5' || $PYTHON_VERSION == '3.6' || $PYTHON_VERSION == '3.7' || $PYTHON_VERSION == '3.8' || $PYTHON_VERSION == '3.9' ]]; then
             export REPLY_SIZE=1850
+          elif [[ $PYTHON_VERSION == '3.10' ]]; then
+            export REPLY_SIZE=1851  # Server: SimpleHTTP/0.6 Python/3.10.10
           elif [[ $PYTHON_VERSION == 'nightly' ]]; then
             export REPLY_SIZE=1852  # Server: SimpleHTTP/0.6 Python/3.10.0a0
           else
