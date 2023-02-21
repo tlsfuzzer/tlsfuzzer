@@ -19,12 +19,6 @@ jobs:
           - name: py2.7
             os: ubuntu-20.04
             python-version: 2.7
-          - name: py3.3
-            os: ubuntu-20.04
-            python-version: 3.3
-          - name: py3.4
-            os: ubuntu-20.04
-            python-version: 3.4
           - name: py3.5
             os: ubuntu-20.04
             python-version: 3.5
@@ -52,14 +46,6 @@ jobs:
           - name: py2.7 with extract
             os: ubuntu-20.04
             python-version: 2.7
-            opt-deps: ['extract']
-          - name: py3.3 with extract
-            os: ubuntu-20.04
-            python-version: 3.3
-            opt-deps: ['extract']
-          - name: py3.4 with extract
-            os: ubuntu-20.04
-            python-version: 3.4
             opt-deps: ['extract']
           - name: py3.5 with extract
             os: ubuntu-20.04
