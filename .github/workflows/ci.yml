@@ -17,19 +17,19 @@ jobs:
             container: centos:6
             python-version: 2.6
           - name: py2.7
-            os: ubuntu-18.04
+            os: ubuntu-20.04
             python-version: 2.7
           - name: py3.3
-            os: ubuntu-18.04
+            os: ubuntu-20.04
             python-version: 3.3
           - name: py3.4
-            os: ubuntu-18.04
+            os: ubuntu-20.04
             python-version: 3.4
           - name: py3.5
-            os: ubuntu-18.04
+            os: ubuntu-20.04
             python-version: 3.5
           - name: py3.6
-            os: ubuntu-18.04
+            os: ubuntu-20.04
             python-version: 3.6
           - name: py3.7
             os: ubuntu-latest
@@ -50,23 +50,23 @@ jobs:
             python-version: 2.6
             opt-deps: ['extract']
           - name: py2.7 with extract
-            os: ubuntu-18.04
+            os: ubuntu-20.04
             python-version: 2.7
             opt-deps: ['extract']
           - name: py3.3 with extract
-            os: ubuntu-18.04
+            os: ubuntu-20.04
             python-version: 3.3
             opt-deps: ['extract']
           - name: py3.4 with extract
-            os: ubuntu-18.04
+            os: ubuntu-20.04
             python-version: 3.4
             opt-deps: ['extract']
           - name: py3.5 with extract
-            os: ubuntu-18.04
+            os: ubuntu-20.04
             python-version: 3.5
             opt-deps: ['extract']
           - name: py3.6 with extract
-            os: ubuntu-18.04
+            os: ubuntu-20.04
             python-version: 3.6
             opt-deps: ['extract']
           - name: py3.7 with extract
@@ -87,7 +87,7 @@ jobs:
             opt-deps: ['extract']
           # also test with just analysis tooling installed
           - name: py3.6 with analysis
-            os: ubuntu-18.04
+            os: ubuntu-20.04
             python-version: 3.6
             opt-deps: ['analysis']
           - name: py3.7 with analysis
@@ -108,7 +108,7 @@ jobs:
             opt-deps: ['analysis']
           # and with both extract and analysis
           - name: py3.6 with extract and analysis
-            os: ubuntu-18.04
+            os: ubuntu-20.04
             python-version: 3.6
             opt-deps: ['extract', 'analysis']
           - name: py3.7 with extract and analysis
