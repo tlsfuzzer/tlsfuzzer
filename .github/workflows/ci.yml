@@ -17,19 +17,13 @@ jobs:
             container: centos:6
             python-version: 2.6
           - name: py2.7
-            os: ubuntu-18.04
+            os: ubuntu-20.04
             python-version: 2.7
-          - name: py3.3
-            os: ubuntu-18.04
-            python-version: 3.3
-          - name: py3.4
-            os: ubuntu-18.04
-            python-version: 3.4
           - name: py3.5
-            os: ubuntu-18.04
+            os: ubuntu-20.04
             python-version: 3.5
           - name: py3.6
-            os: ubuntu-18.04
+            os: ubuntu-20.04
             python-version: 3.6
           - name: py3.7
             os: ubuntu-latest
@@ -50,23 +44,15 @@ jobs:
             python-version: 2.6
             opt-deps: ['extract']
           - name: py2.7 with extract
-            os: ubuntu-18.04
+            os: ubuntu-20.04
             python-version: 2.7
             opt-deps: ['extract']
-          - name: py3.3 with extract
-            os: ubuntu-18.04
-            python-version: 3.3
-            opt-deps: ['extract']
-          - name: py3.4 with extract
-            os: ubuntu-18.04
-            python-version: 3.4
-            opt-deps: ['extract']
           - name: py3.5 with extract
-            os: ubuntu-18.04
+            os: ubuntu-20.04
             python-version: 3.5
             opt-deps: ['extract']
           - name: py3.6 with extract
-            os: ubuntu-18.04
+            os: ubuntu-20.04
             python-version: 3.6
             opt-deps: ['extract']
           - name: py3.7 with extract
@@ -87,7 +73,7 @@ jobs:
             opt-deps: ['extract']
           # also test with just analysis tooling installed
           - name: py3.6 with analysis
-            os: ubuntu-18.04
+            os: ubuntu-20.04
             python-version: 3.6
             opt-deps: ['analysis']
           - name: py3.7 with analysis
@@ -108,7 +94,7 @@ jobs:
             opt-deps: ['analysis']
           # and with both extract and analysis
           - name: py3.6 with extract and analysis
-            os: ubuntu-18.04
+            os: ubuntu-20.04
             python-version: 3.6
             opt-deps: ['extract', 'analysis']
           - name: py3.7 with extract and analysis
@@ -338,15 +324,20 @@ jobs:
           # more generally, it should be `1845 + len(sys.version.split()[0])`,
           # as http.server uses `sys_version = "Python/" + sys.version.split()[0]`
           # https://github.com/python/cpython/blob/2c050e52f1ccf5db03819e4ed70690521d67e9fa/Lib/http/server.py#L253
-          if [[ $PYTHON_VERSION == '2.7' || $PYTHON_VERSION == '3.4' || $PYTHON_VERSION == '3.5' || $PYTHON_VERSION == '3.6' || $PYTHON_VERSION == '3.7' || $PYTHON_VERSION == '3.8' || $PYTHON_VERSION == '3.9' ]]; then
-            export REPLY_SIZE=1850
-          elif [[ $PYTHON_VERSION == '3.10' ]]; then
-            export REPLY_SIZE=1851  # Server: SimpleHTTP/0.6 Python/3.10.10
-          elif [[ $PYTHON_VERSION == 'nightly' ]]; then
-            export REPLY_SIZE=1852  # Server: SimpleHTTP/0.6 Python/3.10.0a0
-          else
-            export REPLY_SIZE=1849  # Server: SimpleHTTP/0.6 Python/3.8.6
-          fi
+          case $PYTHON_VERSION in
+            2.7 | 3.4 | 3.5 | 3.6 | 3.7 | 3.8 | 3.9)
+              export REPLY_SIZE=1850
+              ;;
+            3.10)
+              export REPLY_SIZE=1851  # Server: SimpleHTTP/0.6 Python/3.10.10
+              ;;
+            nightly)
+              export REPLY_SIZE=1852  # Server: SimpleHTTP/0.6 Python/3.10.0a0
+              ;;
+            *)
+              export REPLY_SIZE=1849  # Server: SimpleHTTP/0.6 Python/3.8.6
+              ;;
+          esac
           python tests/scripts_retention.py tests/tlslite-ng-random-subset.json `which tls.py` $REPLY_SIZE
       - name: Linter
         # pylint doesn't work on 2.6: https://bitbucket.org/logilab/pylint/issue/390/py26-compatiblity-broken
