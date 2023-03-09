@@ -65,6 +65,10 @@ def help_msg():
                 similar.
  --alpha num    Acceptable probability of a false positive. Default: 1e-5.
  --verbose      Print the current task
+ --workers num  Number of worker processes to use for paralelizable
+                computation. More workers will finish analysis faster, but
+                will require more memory to do so. By default: number of
+                threads available on the system (`os.cpu_count()`).
  --help         Display this message""")
 
 
@@ -78,6 +82,7 @@ def main():
     verbose = False
     clock_freq = None
     alpha = None
+    workers = None
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "o:",
                                ["help", "no-ecdf-plot", "no-scatter-plot",
@@ -85,6 +90,7 @@ def main():
                                 "multithreaded-graph",
                                 "clock-frequency=",
                                 "alpha=",
+                                "workers=",
                                 "verbose"])
 
     for opt, arg in opts:
@@ -105,12 +111,15 @@ def main():
             clock_freq = float(arg) * 1000000  # in MHz
         elif opt == "--alpha":
             alpha = float(arg)
+        elif opt == "--workers":
+            workers = int(arg)
         elif opt == "--verbose":
             verbose = True
 
     if output:
         analysis = Analysis(output, ecdf_plot, scatter_plot, conf_int_plot,
-                            multithreaded_graph, verbose, clock_freq, alpha)
+                            multithreaded_graph, verbose, clock_freq, alpha,
+                            workers)
         ret = analysis.generate_report()
         return ret
     else:
@@ -122,7 +131,8 @@ class Analysis(object):
 
     def __init__(self, output, draw_ecdf_plot=True, draw_scatter_plot=True,
                  draw_conf_interval_plot=True, multithreaded_graph=False,
-                 verbose=False, clock_frequency=None, alpha=None):
+                 verbose=False, clock_frequency=None, alpha=None,
+                 workers=None):
         self.verbose = verbose
         self.output = output
         self.clock_frequency = clock_frequency
@@ -132,6 +142,7 @@ class Analysis(object):
         self.draw_scatter_plot = draw_scatter_plot
         self.draw_conf_interval_plot = draw_conf_interval_plot
         self.multithreaded_graph = multithreaded_graph
+        self.workers = workers
         if alpha is None:
             self.alpha = 1e-5
         else:
@@ -341,7 +352,7 @@ class Analysis(object):
         """
         comb = list(combinations(list(range(len(self.class_names))), 2))
         job_size = max(len(comb) // os.cpu_count(), 1)
-        with mp.Pool() as pool:
+        with mp.Pool(self.workers) as pool:
             pvals = list(pool.imap_unordered(
                 self._mt_process_runner,
                 zip(comb, repeat(sum_func), repeat(args)),
@@ -734,8 +745,8 @@ class Analysis(object):
 
         ret = dict((k, list()) for k in keys)
 
-        with mp.Pool(initializer=self._import_diffs, initargs=(_diffs,)) \
-                as pool:
+        with mp.Pool(self.workers, initializer=self._import_diffs,
+                     initargs=(_diffs,)) as pool:
             cent_tend = pool.imap_unordered(
                 self._cent_tend_of_random_sample,
                 chain(repeat(job_size, reps // job_size), [reps % job_size]))
