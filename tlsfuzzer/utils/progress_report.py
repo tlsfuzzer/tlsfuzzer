@@ -98,7 +98,9 @@ def progress_report(status, unit='', prefix='decimal', delay=2.0):
         try:
             remaining = (100-done)*elapsed/done
         except ZeroDivisionError:
-            remaining = status[1]
+            # if none done assume that each work unit will take as
+            # much as current runtime
+            remaining = status[1]*elapsed
         remaining_str = _format_seconds(remaining)
         eta = time.strftime("%H:%M:%S %d-%m-%Y",
                             time.localtime(now+remaining))
