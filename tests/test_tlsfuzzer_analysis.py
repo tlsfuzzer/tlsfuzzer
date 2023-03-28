@@ -610,6 +610,8 @@ class TestPlots(unittest.TestCase):
                                bbox_inches='tight'),
                      mock.call('/tmp/conf_interval_plot_trim_mean_25.png',
                                bbox_inches='tight'),
+                     mock.call('/tmp/conf_interval_plot_trim_mean_45.png',
+                               bbox_inches='tight'),
                      mock.call('/tmp/conf_interval_plot_trimean.png',
                                bbox_inches='tight')])
 

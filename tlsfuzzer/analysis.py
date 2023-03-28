@@ -701,7 +701,7 @@ class Analysis(object):
     @staticmethod
     def _cent_tend_of_random_sample(reps=100):
         """
-        Calculate mean, median, trimmed means (5% and 25%) and trimean with
+        Calculate mean, median, trimmed means (5%, 25%, 45%) and trimean with
         bootstrapping.
         """
         ret = []
@@ -718,6 +718,7 @@ class Analysis(object):
                         median,
                         stats.trim_mean(boot, 0.05, 0),
                         stats.trim_mean(boot, 0.25, 0),
+                        stats.trim_mean(boot, 0.45, 0),
                         (q1+2*median+q3)/4))
         return ret
 
@@ -741,7 +742,8 @@ class Analysis(object):
         job_count = os.cpu_count() * 4
         job_size = max(reps // job_count, 1)
 
-        keys = ("mean", "median", "trim_mean_05", "trim_mean_25", "trimean")
+        keys = ("mean", "median", "trim_mean_05", "trim_mean_25",
+                "trim_mean_45", "trimean")
 
         ret = dict((k, list()) for k in keys)
 
@@ -759,7 +761,7 @@ class Analysis(object):
                     status[0] += len(values)
                 # transpose the results so that they can be added to lists
                 chunk = list(map(list, zip(*values)))
-                for key, i in zip(keys, range(5)):
+                for key, i in zip(keys, range(len(keys))):
                     ret[key].extend(chunk[i])
         _diffs = None
         return ret
@@ -775,7 +777,7 @@ class Analysis(object):
         :param float ci: confidence interval for the low and high estimate.
             0.95, i.e. "2 sigma", by default
         :return: dictionary of tuples with low estimate, estimate, and high
-            estimate of mean, median, trimmed mean (5% and 25%) and trimean
+            estimate of mean, median, trimmed mean (5%, 25%, 45%) and trimean
             of differences of observations
         """
         status = None
@@ -803,6 +805,7 @@ class Analysis(object):
         q1, median, q3 = np.quantile(diff, [0.25, 0.5, 0.75])
         trim_mean_05 = stats.trim_mean(diff, 0.05, 0)
         trim_mean_25 = stats.trim_mean(diff, 0.25, 0)
+        trim_mean_45 = stats.trim_mean(diff, 0.45, 0)
         trimean = (q1 + 2*median + q3)/4
 
         quantiles = [(1-ci)/2, 1-(1-ci)/2]
@@ -810,6 +813,7 @@ class Analysis(object):
         exact_values = {"mean": mean, "median": median,
                         "trim_mean_05": trim_mean_05,
                         "trim_mean_25": trim_mean_25,
+                        "trim_mean_45": trim_mean_45,
                         "trimean": trimean}
 
         ret = {}
@@ -834,6 +838,7 @@ class Analysis(object):
                  "median": pd.DataFrame(),
                  "trim mean (5%)": pd.DataFrame(),
                  "trim mean (25%)": pd.DataFrame(),
+                 "trim mean (45%)": pd.DataFrame(),
                  "trimean": pd.DataFrame()}
 
         status = None
@@ -856,6 +861,8 @@ class Analysis(object):
                     diffs["trim_mean_05"]
                 boots["trim mean (25%)"]['{}-0'.format(i)] = \
                     diffs["trim_mean_25"]
+                boots["trim mean (45%)"]['{}-0'.format(i)] = \
+                    diffs["trim_mean_45"]
                 boots["trimean"]['{}-0'.format(i)] = diffs["trimean"]
         finally:
             if self.verbose:
@@ -885,6 +892,8 @@ class Analysis(object):
                 name = "trim_mean_05"
             elif name == "trim mean (25%)":
                 name = "trim_mean_25"
+            elif name == "trim mean (45%)":
+                name = "trim_mean_45"
 
             with open(join(self.output,
                            "bootstrapped_{0}.csv".format(name)),
@@ -1255,6 +1264,7 @@ class Analysis(object):
             for name, key in (("Mean", "mean"), ("Median", "median"),
                               ("Trimmed mean (5%)", "trim_mean_05"),
                               ("Trimmed mean (25%)", "trim_mean_25"),
+                              ("Trimmed mean (45%)", "trim_mean_45"),
                               ("Trimean", "trimean")):
                 self._write_stats(
                     name,
