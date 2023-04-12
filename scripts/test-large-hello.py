@@ -16,37 +16,41 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         split_message, FlushMessageList
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose
+        ExpectAlert, ExpectApplicationData, ExpectClose, \
+        ExpectServerKeyExchange
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType
-from tlslite.extensions import PaddingExtension, TLSExtension
+        ExtensionType, GroupName, HashAlgorithm, SignatureAlgorithm, SignatureScheme
+from tlslite.extensions import PaddingExtension, TLSExtension, \
+        SupportedGroupsExtension, SignatureAlgorithmsExtension, \
+        SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
-
 
 version = 3
 
 
 def help_msg():
     print("Usage: <script-name> [-h hostname] [-p port] [[probe-name] ...]")
-    print(" -h hostname    name of the host to run the test against")
-    print("                localhost by default")
-    print(" -p port        port number to use for connection, 4433 by default")
-    print(" probe-name     if present, will run only the probes with given")
-    print("                names and not all of them, e.g \"sanity\"")
-    print(" -e probe-name  exclude the probe from the list of the ones run")
-    print("                may be specified multiple times")
-    print(" -x probe-name  expect the probe to fail. When such probe passes despite being marked like this")
-    print("                it will be reported in the test summary and the whole script will fail.")
-    print("                May be specified multiple times.")
-    print(" -X message     expect the `message` substring in exception raised during")
-    print("                execution of preceding expected failure probe")
-    print("                usage: [-x probe-name] [-X exception], order is compulsory!")
-    print(" -n num         run 'num' or all(if 0) tests instead of default(50)")
-    print("                (excluding \"sanity\" tests)")
-    print(" -m min-ext-no  the minimum extension number to use (default=52)")
-    print("                (the test uses random extensions past this number)")
-    print(" --help         this message")
+    print(" -h hostname                     name of the host to run the test against")
+    print("                                 localhost by default")
+    print(" -p port                         port number to use for connection, 4433 by default")
+    print(" probe-name                      if present, will run only the probes with given")
+    print("                                 names and not all of them, e.g \"sanity\"")
+    print(" -e probe-name                   exclude the probe from the list of the ones run")
+    print("                                 may be specified multiple times")
+    print(" -x probe-name                   expect the probe to fail. When such probe passes despite being marked like this")
+    print("                                 it will be reported in the test summary and the whole script will fail.")
+    print("                                 May be specified multiple times.")
+    print(" -X message                      expect the `message` substring in exception raised during")
+    print("                                 execution of preceding expected failure probe")
+    print("                                 usage: [-x probe-name] [-X exception], order is compulsory!")
+    print(" -n num                          run 'num' or all(if 0) tests instead of default(50)")
+    print("                                 (excluding \"sanity\" tests)")
+    print(" -d                              negotiate (EC)DHE instead of RSA key exchange")
+    print(" -m min-ext-no                   the minimum extension number to use (default=52)")
+    print("                                 (the test uses random extensions past this number)")
+    print(" --shorten-huge-hello-by amount  shorten the 'Huge hello' test by amount number of bytes (default=0)")
+    print(" --help                          this message")
 
 
 def main():
@@ -57,9 +61,17 @@ def main():
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
+    dhe = False
+    huge_hello_reduction = 0
+    SIGS = [(getattr(HashAlgorithm, x), SignatureAlgorithm.rsa) for x in
+               ['sha512', 'sha256']] + [
+                   SignatureScheme.rsa_pss_rsae_sha256,
+                   SignatureScheme.rsa_pss_rsae_sha512,
+                   SignatureScheme.rsa_pss_pss_sha256,
+                   SignatureScheme.rsa_pss_pss_sha512]
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:m:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:m:d", ["help", "shorten-huge-hello-by="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -76,8 +88,15 @@ def main():
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '-d':
+            dhe = True
         elif opt == '-m':
             min_ext = int(arg)
+        elif opt == '--shorten-huge-hello-by':
+            if arg[:2] == '0x': 
+                huge_hello_reduction = int(arg, 16) 
+            else: 
+                huge_hello_reduction = int(arg)
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -93,11 +112,29 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers))
+    if dhe:
+        ext = {}
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(SIGS)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(SIGS)
+        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ext = None
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -115,16 +152,35 @@ def main():
     conversations["sanity"] = conversation
 
     # send client hello with large padding extension
+    final_size = 0xffff-4 if not dhe else  0xffff-50
     for i in chain(range(10), range(0x3f00, 0x4010), range(0x1ff0, 0x2010),
-                   range(0x8ff0, 0x9010), range(0xff00, 0xffff-4)):
+                   range(0x8ff0, 0x9010), range(0xff00, final_size)):
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        ext = {ExtensionType.client_hello_padding:PaddingExtension().create(i)}
+        if dhe:
+            ext = {}
+            groups = [GroupName.secp256r1,
+                    GroupName.ffdhe2048]
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                .create(groups)
+            ext[ExtensionType.signature_algorithms] = \
+                SignatureAlgorithmsExtension().create(SIGS)
+            ext[ExtensionType.signature_algorithms_cert] = \
+                SignatureAlgorithmsCertExtension().create(SIGS)
+            ext[ExtensionType.client_hello_padding] = PaddingExtension().create(i)
+            ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        else:
+            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+            ext = {ExtensionType.client_hello_padding:PaddingExtension().create(i)}
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(ClientKeyExchangeGenerator())
         node = node.add_child(ChangeCipherSpecGenerator())
@@ -141,16 +197,35 @@ def main():
         conversations["ext padding, {0} bytes".format(i)] = conversation
 
     # send large extension from unallocated range
+    final_size = 0xffff-4 if not dhe else  0xffff-50
     for i in chain(range(10), range(0x3f00, 0x4010), range(0x1ff0, 0x2010),
-                   range(0x8ff0, 0x9010), range(0xff00, 0xffff-4)):
+                   range(0x8ff0, 0x9010), range(0xff00, final_size)):
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        ext = {80:TLSExtension(extType=80).create(bytearray(i))}
+        if dhe:
+            ext = {}
+            groups = [GroupName.secp256r1,
+                    GroupName.ffdhe2048]
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                .create(groups)
+            ext[ExtensionType.signature_algorithms] = \
+                SignatureAlgorithmsExtension().create(SIGS)
+            ext[ExtensionType.signature_algorithms_cert] = \
+                SignatureAlgorithmsCertExtension().create(SIGS)
+            ext[80] = TLSExtension(extType=80).create(bytearray(i))
+            ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        else:
+            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+            ext = {80:TLSExtension(extType=80).create(bytearray(i))}
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(ClientKeyExchangeGenerator())
         node = node.add_child(ChangeCipherSpecGenerator())
@@ -168,19 +243,39 @@ def main():
 
     # send two extensions, where one is large (4096) and the other is
     # changing size
+    final_size = 0xefff-8 if not dhe else  0xefff-58
     for i in chain(range(10), range(0x2f00, 0x3010),
                    range(0x3f00, 0x4010), range(0x1ff0, 0x2010),
-                   range(0x8ff0, 0x9010), range(0xef00, 0xefff-8)):
+                   range(0x8ff0, 0x9010), range(0xef00, final_size)):
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        ext = {80:TLSExtension(extType=80).create(bytearray(i)),
-               ExtensionType.client_hello_padding:
+        if dhe:
+            ext = {}
+            groups = [GroupName.secp256r1,
+                    GroupName.ffdhe2048]
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                .create(groups)
+            ext[ExtensionType.signature_algorithms] = \
+                SignatureAlgorithmsExtension().create(SIGS)
+            ext[ExtensionType.signature_algorithms_cert] = \
+                SignatureAlgorithmsCertExtension().create(SIGS)
+            ext[80] = TLSExtension(extType=80).create(bytearray(i))
+            ext[ExtensionType.client_hello_padding] = PaddingExtension().create(0x1000)
+            ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        else:
+            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+            ext = {80:TLSExtension(extType=80).create(bytearray(i)),
+                ExtensionType.client_hello_padding:
                    PaddingExtension().create(0x1000)}
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(ClientKeyExchangeGenerator())
         node = node.add_child(ChangeCipherSpecGenerator())
@@ -197,27 +292,53 @@ def main():
         conversations["two ext, #80 {0} bytes".format(i)] = conversation
 
     # send client hello messages with multiple extensions
+    final_size = 0x10000//4 if not dhe else  0x10000//4 - 11
     for i in chain(range(10//4), range(0x3f00//4, 0x4010//4),
                    range(0x1ff0//4, 0x2010//4),
-                   range(0x8ff0//4, 0x9010//4), range(0xff00//4, 0x10000//4)):
+                   range(0x8ff0//4, 0x9010//4), range(0xff00//4, final_size)):
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        high_num_ext = (ExtensionType.supports_npn,
-                        ExtensionType.tack,
-                        ExtensionType.renegotiation_info)
-        # increase the count if some extension points will be skipped because
-        # they are meaningful
-        for num in high_num_ext:
-            if i+min_ext > num:
-                i+=1
-        ext = dict((j, TLSExtension(extType=j))
-                    for j in range(min_ext, min_ext+i)
-                    if j not in high_num_ext)
+        if dhe:
+            high_num_ext = (ExtensionType.supports_npn,
+                            ExtensionType.tack,
+                            ExtensionType.renegotiation_info)
+            for num in high_num_ext:
+                if i+min_ext > num:
+                    i+=1
+            ext = dict((j, TLSExtension(extType=j))
+                        for j in range(min_ext, min_ext+i)
+                        if j not in high_num_ext)
+            groups = [GroupName.secp256r1,
+                    GroupName.ffdhe2048]
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                .create(groups)
+            ext[ExtensionType.signature_algorithms] = \
+                SignatureAlgorithmsExtension().create(SIGS)
+            ext[ExtensionType.signature_algorithms_cert] = \
+                SignatureAlgorithmsCertExtension().create(SIGS)
+            ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        else:
+            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+            high_num_ext = (ExtensionType.supports_npn,
+                            ExtensionType.tack,
+                            ExtensionType.renegotiation_info)
+            # increase the count if some extension points will be skipped because
+            # they are meaningful
+            for num in high_num_ext:
+                if i+min_ext > num:
+                    i+=1
+            ext = dict((j, TLSExtension(extType=j))
+                        for j in range(min_ext, min_ext+i)
+                        if j not in high_num_ext)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(ClientKeyExchangeGenerator())
         node = node.add_child(ChangeCipherSpecGenerator())
@@ -235,9 +356,10 @@ def main():
 
     # send client hello with large number of ciphersuites but overall
     # even length
+    final_size = 0xffff//2-2 if not dhe else  0xffff//2-3
     for i in chain(range(1, 10//2), range(0x3f00//2, 0x4010//2),
                    range(0x1ff0//2, 0x2010//2),
-                   range(0x8ff0//2, 0x9010//2), range(0xff00//2, 0xffff//2-2)):
+                   range(0x8ff0//2, 0x9010//2), range(0xff00//2, final_size)):
         conversation = Connect(host, port)
         node = conversation
         if i < 0x5600 - 0x0100:
@@ -246,11 +368,29 @@ def main():
             ciphers = list(range(0x0100, 0x5600))
             i -= 0x5600 - 0x0100
             ciphers += list(range(0x5601, 0x5601 + i))
-        ciphers += [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
-                    CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-        node = node.add_child(ClientHelloGenerator(ciphers))
+        if dhe:
+            ext = {}
+            groups = [GroupName.secp256r1,
+                        GroupName.ffdhe2048]
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                .create(groups)
+            ext[ExtensionType.signature_algorithms] = \
+                SignatureAlgorithmsExtension().create(SIGS)
+            ext[ExtensionType.signature_algorithms_cert] = \
+                SignatureAlgorithmsCertExtension().create(SIGS)
+            ciphers += [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        else:
+            ext = None
+            ciphers += [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
+                        CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(ClientKeyExchangeGenerator())
         node = node.add_child(ChangeCipherSpecGenerator())
@@ -268,9 +408,10 @@ def main():
 
     # send client hello with large number of ciphersuites but overall
     # odd length
+    final_size = 0xffff//2-2 if not dhe else  0xffff//2-3
     for i in chain(range(1, 10//2), range(0x3f00//2, 0x4010//2),
                    range(0x1ff0//2, 0x2010//2),
-                   range(0x8ff0//2, 0x9010//2), range(0xff00//2, 0xffff//2-2)):
+                   range(0x8ff0//2, 0x9010//2), range(0xff00//2, final_size)):
         conversation = Connect(host, port)
         node = conversation
         if i < 0x5600 - 0x0100:
@@ -279,14 +420,32 @@ def main():
             ciphers = list(range(0x0100, 0x5600))
             i -= 0x5600 - 0x0100
             ciphers += list(range(0x5601, 0x5601 + i))
-        ext = {ExtensionType.client_hello_padding:
-                   PaddingExtension().create(1)}
-        ciphers += [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
-                    CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+        if dhe:
+            ext = {}
+            groups = [GroupName.secp256r1,
+                    GroupName.ffdhe2048]
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                .create(groups)
+            ext[ExtensionType.signature_algorithms] = \
+                SignatureAlgorithmsExtension().create(SIGS)
+            ext[ExtensionType.signature_algorithms_cert] = \
+                SignatureAlgorithmsCertExtension().create(SIGS)
+            ext[ExtensionType.client_hello_padding] = PaddingExtension().create(1)
+            ciphers += [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        else:
+            ext = {ExtensionType.client_hello_padding:
+                    PaddingExtension().create(1)}
+            ciphers += [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
+                        CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(ClientKeyExchangeGenerator())
         node = node.add_child(ChangeCipherSpecGenerator())
@@ -303,19 +462,38 @@ def main():
         conversations["ciphers odd {0}".format(i)] = conversation
 
     # hello split over at least two records, first very small (2B)
+    final_size = 0xffff-4 if not dhe else  0xffff-50
     for i in chain(range(10), range(0x3f00, 0x4010), range(0x1ff0, 0x2010),
-                   range(0x8ff0, 0x9010), range(0xff00, 0xffff-4)):
+                   range(0x8ff0, 0x9010), range(0xff00, final_size)):
         fragment_list = []
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        ext = {ExtensionType.client_hello_padding:PaddingExtension().create(i)}
+        if dhe:
+            ext = {}
+            groups = [GroupName.secp256r1,
+                    GroupName.ffdhe2048]
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                .create(groups)
+            ext[ExtensionType.signature_algorithms] = \
+                SignatureAlgorithmsExtension().create(SIGS)
+            ext[ExtensionType.signature_algorithms_cert] = \
+                SignatureAlgorithmsCertExtension().create(SIGS)
+            ext[ExtensionType.client_hello_padding] = PaddingExtension().create(i)
+            ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        else:
+            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+            ext = {ExtensionType.client_hello_padding:PaddingExtension().create(i)}
         hello_gen = ClientHelloGenerator(ciphers, extensions=ext)
         node = node.add_child(split_message(hello_gen, fragment_list, 2))
         node = node.add_child(FlushMessageList(fragment_list))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(ClientKeyExchangeGenerator())
         node = node.add_child(ChangeCipherSpecGenerator())
@@ -335,13 +513,31 @@ def main():
     fragment_list = []
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    hello_gen = ClientHelloGenerator(ciphers)
+    if dhe:
+        ext = {}
+        groups = [GroupName.secp256r1,
+                GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(SIGS)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(SIGS)
+        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ext=None
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    hello_gen = ClientHelloGenerator(ciphers, extensions=ext)
     node = node.add_child(split_message(hello_gen, fragment_list, 2))
     node = node.add_child(FlushMessageList(fragment_list))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
+    if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -360,20 +556,38 @@ def main():
     # test with ciphers and extensions filled to the brim
     conversation = Connect(host, port)
     node = conversation
-    i = 0xfffe // 2 - 2  # two ciphers are constant
+    i = 0xfffe // 2 - 2 if not dhe else 0xfffe // 2 - 4 # two ciphers are constant or four with ECDHE key
     if i < 0x5600 - 0x0100:
         ciphers = list(range(0x0100, 0x0100 + i))
     else:
         ciphers = list(range(0x0100, 0x5600))
         i -= 0x5600 - 0x0100
         ciphers += list(range(0x5601, 0x5601 + i))
-    ciphers += [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
-                CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    # the 4 bytes subtracted from 0xffff are for ext ID and ext len
-    ext = {80:TLSExtension(extType=80).create(bytearray(0xffff-4))}
+    if dhe:
+        ext = {}
+        groups = [GroupName.secp256r1,
+                GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(SIGS)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(SIGS)
+        ext[80] = TLSExtension(extType=80).create(bytearray(0xffff - 50 - huge_hello_reduction))
+        ciphers += [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ciphers += [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
+                    CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+        # the 4 bytes subtracted from 0xffff are for ext ID and ext len
+        ext = {80:TLSExtension(extType=80).create(bytearray(0xffff - 4 - huge_hello_reduction))}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
+    if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
