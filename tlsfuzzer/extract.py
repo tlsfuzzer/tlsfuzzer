@@ -80,6 +80,10 @@ def main():
             help_msg()
             sys.exit(0)
 
+    if args:
+        raise ValueError(
+            "Unexpected arguments: {0}".format(args))
+
     if raw_times and capture:
         raise ValueError(
             "Can't specify both a capture file and external timing log")
