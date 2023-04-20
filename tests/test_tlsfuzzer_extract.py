@@ -95,6 +95,27 @@ class TestExtraction(unittest.TestCase):
             mock_file.side_effect = self.file_selector
             extract.parse()
 
+    def test_extraction_from_external_source_with_wrong_file(self):
+        extract = Extract(self.log, None, "/tmp", None, None,
+                          join(dirname(abspath(__file__)),
+                               "raw_times_detail.csv"))
+
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_selector
+            with self.assertRaises(ValueError) as exc:
+                extract.parse()
+
+            self.assertIn("Multiple columns", str(exc.exception))
+
+    def test_extraction_from_external_source_with_multiple_columns(self):
+        extract = Extract(self.log, None, "/tmp", None, None,
+                          join(dirname(abspath(__file__)),
+                               "raw_times_detail.csv"), col_name="clnt_0_rtt")
+
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_selector
+            extract.parse()
+
     def test_extraction(self):
         extract = Extract(self.log,
                           join(dirname(abspath(__file__)), "capture.pcap"),
@@ -136,12 +157,36 @@ class TestCommandLine(unittest.TestCase):
                     mock.ANY, capture, output, host, int(port),
                     None, None)
 
-
     @mock.patch('tlsfuzzer.extract.Log')
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
     @mock.patch('tlsfuzzer.extract.Extract._write_csv')
     @mock.patch('tlsfuzzer.extract.Extract.parse')
     def test_raw_times(self, mock_parse, mock_write, mock_write_pkt, mock_log):
+        raw_times = "raw_times_detail.csv"
+        logfile = "log.csv"
+        output = "/tmp"
+        column_name = "clnt_0_rtt"
+        args = ["extract.py",
+                "-l", logfile,
+                "-o", output,
+                "--raw-times", raw_times,
+                "-n", column_name]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
+            with mock.patch("sys.argv", args):
+                main()
+                mock_log.assert_called_once_with(logfile)
+                mock_init.assert_called_once_with(
+                    mock.ANY, None, output, None, None,
+                    raw_times, column_name)
+
+    @mock.patch('tlsfuzzer.extract.Log')
+    @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
+    @mock.patch('tlsfuzzer.extract.Extract._write_csv')
+    @mock.patch('tlsfuzzer.extract.Extract.parse')
+    def test_raw_times_with_column_name(self, mock_parse, mock_write,
+            mock_write_pkt, mock_log):
         raw_times = "times-log.csv"
         logfile = "log.csv"
         output = "/tmp"

@@ -209,7 +209,8 @@ class Extract:
         return "{0:.2f} {1}".format(ret, lvls[lvl])
 
     @staticmethod
-    def _format_seconds(sec):
+    def _format_seconds(sec):  # pragma: no cover
+        # will move to other module, no point in creating test coverage now
         """Format number of seconds into a more readable string."""
         elems = []
         msec, sec = math.modf(sec)
@@ -482,22 +483,26 @@ class Extract:
 
     def _write_pkts(self):
         for _, _, _, clnt_msgs, clnt_msgs_acks, srv_msgs, srv_msgs_acks, _, _, _ in self.pckt_times:
-            if len(clnt_msgs) != len(clnt_msgs_acks):
+            if len(clnt_msgs) != len(clnt_msgs_acks): # pragma: no cover
+                # no coverage; assert
                 print(clnt_msgs)
                 print()
                 print(clnt_msgs_acks)
                 raise ValueError("client message ACKs mismatch: {0} vs {1}"
                     .format(len(clnt_msgs), len(clnt_msgs_acks)))
-            if len(srv_msgs) != len(srv_msgs_acks):
+            if len(srv_msgs) != len(srv_msgs_acks):  # pragma: no cover
+                # no coverage; assert
                 print(srv_msgs)
                 print()
                 print(srv_msgs_acks)
                 raise ValueError("server message ACKs mismatch")
 
-            if len(clnt_msgs) != self._exp_clnt:
+            if len(clnt_msgs) != self._exp_clnt:  # pragma: no cover
+                # no coverage; assert
                 raise ValueError("inconsistent count of client messages")
 
-            if len(srv_msgs) != self._exp_srv:
+            if len(srv_msgs) != self._exp_srv:  # pragma: no cover
+                # no coverage: assert
                 raise ValueError("inconsistent count of server messages")
 
         if self._previous_lst_msg is None:
@@ -557,13 +562,15 @@ class Extract:
 
         for _, _, _, clnt_msgs, clnt_msgs_acks, srv_msgs, srv_msgs_acks, \
                 _, _, _ in self.pckt_times:
-            if len(clnt_msgs) != len(clnt_msgs_acks):
+            if len(clnt_msgs) != len(clnt_msgs_acks):  # pragma: no cover
+                # no overage; assert
                 print(clnt_msgs)
                 print()
                 print(clnt_msgs_acks)
                 raise ValueError("client message ACKs mismatch: {0} vs {1}"
                     .format(len(clnt_msgs), len(clnt_msgs_acks)))
-            if len(srv_msgs) != len(srv_msgs_acks):
+            if len(srv_msgs) != len(srv_msgs_acks):  # pragma: no cover
+                # no coverage; assert
                 print(srv_msgs)
                 print()
                 print(srv_msgs_acks)
@@ -572,7 +579,8 @@ class Extract:
             self._exp_clnt = len(clnt_msgs)
             self._exp_srv = len(srv_msgs)
 
-        if self._exp_srv != self._exp_clnt:
+        if self._exp_srv != self._exp_clnt:  # pragma: no cover
+            # no coverage; assert
             raise ValueError("For every client query we need a response")
 
         filename = join(self.output, self.write_pkt_csv)
