@@ -31,7 +31,7 @@ def _si_prefix(count):
     ret = count
     lvl = 0
     lvls = {0: '', 1: 'k', 2: 'M', 3: 'G', 4: 'T', 5: 'E'}
-    while ret > 2000:
+    while ret > 2000 and lvl <= max(lvls):
         ret /= 1000.0
         lvl += 1
 
@@ -43,7 +43,7 @@ def _binary_prefix(count):
     ret = count
     lvl = 0
     lvls = {0: '', 1: 'ki', 2: 'Mi', 3: 'Gi', 4: 'Ti', 5: 'Ei'}
-    while ret > 2000:
+    while ret > 2048 and lvl <= max(lvls):
         ret /= 1024.0
         lvl += 1
 
