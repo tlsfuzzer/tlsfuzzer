@@ -23,10 +23,10 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
 from tlslite.extensions import SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import SIG_ALL
+from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
 
 
-version = 8
+version = 9
 
 
 def help_msg():
@@ -50,6 +50,7 @@ def help_msg():
     print("                additional extensions, usually used for (EC)DHE ciphers")
     print(" -C ciph        Use specified ciphersuite. Either numerical value or")
     print("                IETF name.")
+    print(" -M | --ems     Advertise support for Extended Master Secret")
     print(" --help         this message")
     # already used single-letter options:
     # -m test-large-hello.py - min extension number for fuzz testing
@@ -85,9 +86,10 @@ def main():
     last_exp_tmp = None
     dhe = False
     ciphers = None
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:M", ["help", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -114,6 +116,8 @@ def main():
                     ciphers = [getattr(CipherSuite, arg)]
                 except AttributeError:
                     ciphers = [int(arg)]
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -144,8 +148,10 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
-        ext = {}
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
@@ -154,7 +160,7 @@ def main():
             SignatureAlgorithmsExtension().create(SIG_ALL)
         ext[ExtensionType.signature_algorithms_cert] = \
             SignatureAlgorithmsCertExtension().create(SIG_ALL)
-    else:
+    if not ext:
         ext = None
     node = node.add_child(ClientHelloGenerator(
         ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
