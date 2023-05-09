@@ -25,10 +25,10 @@ from tlslite.extensions import StatusRequestExtension, \
         SupportedGroupsExtension
 
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import RSA_SIG_ALL
+from tlsfuzzer.helpers import RSA_SIG_ALL, AutoEmptyExtension
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -53,6 +53,7 @@ def help_msg():
     print("                1 by default")
     print(" --no-status    don't expect ocsp to be supported")
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
+    print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -66,9 +67,11 @@ def main():
     dhe = False
     renego = 1
     status = True
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:n:e:x:X:r:d", ["help", "no-status"])
+    opts, args = getopt.getopt(argv, "h:p:n:e:x:X:r:dM", ["help", "no-status",
+                                                          "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -91,6 +94,8 @@ def main():
             renego = int(arg)
         elif opt == '--no-status':
             status = False
+        elif opt == '-M' or ems == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -109,6 +114,8 @@ def main():
     node = conversation
     ocsp = StatusRequestExtension().create()
     ext = {ExtensionType.status_request: ocsp}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
@@ -126,6 +133,8 @@ def main():
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext_srv = {ExtensionType.renegotiation_info: None}
+    if ems:
+        ext_srv[ExtensionType.extended_master_secret] = None
     if status:
         ext_srv[ExtensionType.status_request] = None
     node = node.add_child(ExpectServerHello(extensions=ext_srv))
@@ -154,6 +163,8 @@ def main():
     node = conversation
     ocsp = StatusRequestExtension().create()
     ext = {ExtensionType.status_request: ocsp}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     if dhe:
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
@@ -173,6 +184,8 @@ def main():
     ext_srv = {ExtensionType.renegotiation_info: None}
     if status:
         ext_srv[ExtensionType.status_request] = None
+    if ems:
+        ext_srv[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext_srv))
     node = node.add_child(ExpectCertificate())
     if status:
@@ -200,6 +213,8 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     # renegotiate
     node = node.add_child(ResetHandshakeHashes())
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext,
@@ -247,10 +262,14 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext_srv = {ExtensionType.renegotiation_info: None}
     if status:
         ext_srv[ExtensionType.status_request] = None
+    if ems:
+        ext_srv[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext_srv))
     node = node.add_child(ExpectCertificate())
     if status:
@@ -278,6 +297,8 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     # renegotiate
     for _ in range(renego):
         node = node.add_child(ResetHandshakeHashes())
