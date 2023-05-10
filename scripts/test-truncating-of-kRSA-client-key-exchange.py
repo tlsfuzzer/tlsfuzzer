@@ -12,7 +12,7 @@ from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        ResetHandshakeHashes, pad_handshake, truncate_handshake
+        pad_handshake, truncate_handshake
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose
@@ -199,12 +199,12 @@ def main():
                 xpassed.append(c_name)
                 print("XPASS-expected failure but test passed\n")
             else:
-                if expected_failures[c_name] is not None and  \
-                    expected_failures[c_name] not in str(exception):
-                        bad += 1
-                        failed.append(c_name)
-                        print("Expected error message: {0}\n"
-                            .format(expected_failures[c_name]))
+                if (expected_failures[c_name] is not None and
+                    expected_failures[c_name] not in str(exception)):
+                    bad += 1
+                    failed.append(c_name)
+                    print("Expected error message: {0}\n"
+                        .format(expected_failures[c_name]))
                 else:
                     xfail += 1
                     print("OK-expected failure\n")
