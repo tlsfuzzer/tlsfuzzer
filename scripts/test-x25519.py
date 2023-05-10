@@ -5,7 +5,6 @@ from __future__ import print_function
 import traceback
 import sys
 import getopt
-import re
 from itertools import chain
 from random import sample
 
@@ -24,7 +23,7 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType, HashAlgorithm, SignatureAlgorithm, GroupName, \
         ECPointFormat
 from tlslite.utils.x25519 import X25519_ORDER_SIZE, X448_ORDER_SIZE
-from tlslite.extensions import SignatureAlgorithmsExtension, TLSExtension, \
+from tlslite.extensions import SignatureAlgorithmsExtension, \
         SupportedGroupsExtension, ECPointFormatsExtension, \
         SignatureAlgorithmsCertExtension
 from tlslite.utils.cryptomath import numberToByteArray
