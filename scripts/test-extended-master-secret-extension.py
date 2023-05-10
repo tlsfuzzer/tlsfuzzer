@@ -17,7 +17,8 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectApplicationData, \
         ExpectServerKeyExchange
-from tlsfuzzer.helpers import AutoEmptyExtension
+from tlsfuzzer.helpers import RSA_SIG_ALL, AutoEmptyExtension
+from tlsfuzzer.utils.lists import natural_sort_keys
 
 from tlslite.extensions import TLSExtension
 from tlslite.extensions import SupportedGroupsExtension
@@ -25,11 +26,9 @@ from tlslite.extensions import SignatureAlgorithmsExtension, \
         SignatureAlgorithmsCertExtension
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType, GroupName
-from tlsfuzzer.helpers import RSA_SIG_ALL
-from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -51,6 +50,8 @@ def help_msg():
     print("                (\"sanity\" tests are always executed)")
     print(" --no-http      don't send HTTP query")
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
+    print(" -M | --ems     Expect that the server mandates use of Extended")
+    print("                Master Secret")
     print(" --help         this message")
 
 
@@ -63,9 +64,11 @@ def main():
     last_exp_tmp = None
     http = True
     dhe = False
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:d", ["help", "no-http"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dM", ["help", "no-http",
+                                                        "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -89,6 +92,8 @@ def main():
             sys.exit(0)
         elif opt == '--no-http':
             http = False
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -103,6 +108,8 @@ def main():
     conversation = Connect(host, port)
     node = conversation
     ext = {ExtensionType.renegotiation_info: None}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1, GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
@@ -116,8 +123,11 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    srv_ext = {ExtensionType.renegotiation_info:None}
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(
-        extensions={ExtensionType.renegotiation_info:None}))
+        extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
         node = node.add_child(ExpectServerKeyExchange())
@@ -143,6 +153,8 @@ def main():
     conversation = Connect(host, port)
     node = conversation
     ext = {ExtensionType.renegotiation_info: None}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1, GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
@@ -156,8 +168,11 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384]
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    srv_ext = {ExtensionType.renegotiation_info:None}
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(
-        extensions={ExtensionType.renegotiation_info:None}))
+        extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
         node = node.add_child(ExpectServerKeyExchange())
@@ -183,6 +198,8 @@ def main():
     conversation = Connect(host, port)
     node = conversation
     ext = {ExtensionType.renegotiation_info: None}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1, GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
@@ -198,9 +215,12 @@ def main():
 
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 2),
                                                extensions=ext))
+    srv_ext = {ExtensionType.renegotiation_info:None}
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(
         version=(3, 2),
-        extensions={ExtensionType.renegotiation_info:None}))
+        extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
         node = node.add_child(ExpectServerKeyExchange())
@@ -466,20 +486,25 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello(
-        extensions={ExtensionType.renegotiation_info:None}))
-    node = node.add_child(ExpectCertificate())
-    if dhe:
-        node = node.add_child(ExpectServerKeyExchange())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator(
-        extended_master_secret=True))
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                      AlertDescription.bad_record_mac))
-    node = node.add_child(ExpectClose())
-    node = node.add_child(Close())
+    if ems:
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.handshake_failure))
+        node = node.add_child(Close())
+    else:
+        node = node.add_child(ExpectServerHello(
+            extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator(
+            extended_master_secret=True))
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.bad_record_mac))
+        node = node.add_child(ExpectClose())
+        node = node.add_child(Close())
 
     conversations["no EMS by default"] = conversation
 
@@ -745,7 +770,8 @@ def main():
     node.next_sibling.add_child(Close())
     node.add_child(Close())
 
-    conversations["resume non-EMS session with EMS extension"] = \
+    if not ems:
+        conversations["resume non-EMS session with EMS extension"] = \
             conversation
 
     # EMS with renegotiation
@@ -872,7 +898,9 @@ def main():
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
     node = node.add_child(Close())
-    conversations["renegotiate with EMS in session without EMS"] = conversation
+    if not ems:
+        conversations["renegotiate with EMS in session without EMS"] = \
+            conversation
 
     # renegotiation of non-EMS session in EMS session
     conversation = Connect(host, port)
@@ -919,26 +947,31 @@ def main():
         ciphers,
         session_id=bytearray(0), # do not resume
         extensions=ext))
-    node = node.add_child(ExpectServerHello(
-        extensions={ExtensionType.renegotiation_info:None}))
-    node = node.add_child(ExpectCertificate())
-    if dhe:
-        node = node.add_child(ExpectServerKeyExchange())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
-    if http:
-        node = node.add_child(ApplicationDataGenerator(
-            bytearray(b"GET / HTTP/1.0\n\n")))
-        node = node.add_child(ExpectApplicationData())
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                         AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
-    node = node.add_child(Close())
+    if ems:
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.handshake_failure))
+        node.add_child(ExpectClose())
+    else:
+        node = node.add_child(ExpectServerHello(
+            extensions={ExtensionType.renegotiation_info:None}))
+        node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        if http:
+            node = node.add_child(ApplicationDataGenerator(
+                bytearray(b"GET / HTTP/1.0\n\n")))
+            node = node.add_child(ExpectApplicationData())
+        node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                             AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert())
+        node.next_sibling = ExpectClose()
+        node = node.add_child(Close())
 
     conversations["renegotiate without EMS in session with EMS"] = conversation
 
