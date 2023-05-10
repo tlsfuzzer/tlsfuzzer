@@ -236,22 +236,22 @@ def main():
                     xpassed.append(c_name)
                     print("XPASS-expected failure but test passed\n")
                 else:
-                    if expected_failures[c_name] is not None and  \
-                        expected_failures[c_name] not in str(exception):
-                            bad += 1
-                            failed.append(c_name)
-                            print("Expected error message: {0}\n"
-                                .format(expected_failures[c_name]))
+                    if (expected_failures[c_name] is not None and
+                        expected_failures[c_name] not in str(exception)):
+                        bad += 1
+                        failed.append(c_name)
+                        print("Expected error message: {0}\n"
+                            .format(expected_failures[c_name]))
                     else:
                         xfail += 1
                         print("OK-expected failure\n")
             else:
-                    if res:
-                        good += 1
-                        print("OK\n")
-                    else:
-                        bad += 1
-                        failed.append(c_name)
+                if res:
+                    good += 1
+                    print("OK\n")
+                else:
+                    bad += 1
+                    failed.append(c_name)
 
     failed_tests = uniqueness_check(variables_check, good + bad)
     if failed_tests:
