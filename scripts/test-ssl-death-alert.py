@@ -23,10 +23,10 @@ from tlslite.extensions import SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.helpers import flexible_getattr
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import RSA_SIG_ALL
+from tlsfuzzer.helpers import RSA_SIG_ALL, AutoEmptyExtension
 
 
-version = 6
+version = 7
 
 
 def help_msg():
@@ -54,6 +54,7 @@ def help_msg():
     print("                      alert from server, fatal by default")
     print(" --alert-description  expected Alert.description of the")
     print("                      abort alert from server, None (any) by default")
+    print(" -M | --ems           Enable support for Extended Master Secret")
     print(" --help               this message")
 
 
@@ -68,11 +69,12 @@ def main():
     alert_level = AlertLevel.fatal
     alert_description = None
     dhe = False
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:d",
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dM",
                                ["help", "alerts=", "alert-level=",
-                                "alert-description="])
+                                "alert-description=", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             hostname = arg
@@ -100,6 +102,8 @@ def main():
             alert_level = flexible_getattr(arg, AlertLevel)
         elif opt == '--alert-description':
             alert_description = flexible_getattr(arg, AlertDescription)
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -112,8 +116,8 @@ def main():
 
     conversation = Connect(hostname, port, version=(3, 3))
     node = conversation
+    ext = {}
     if dhe:
-        ext = {}
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
@@ -125,8 +129,11 @@ def main():
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
     else:
-        ext = None
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    if not ext:
+        ext = None
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     for _ in range(number_of_alerts):  # sending alerts during handshake
         node = node.add_child(AlertGenerator(  # alert description: 46, 41, 43
@@ -150,8 +157,8 @@ def main():
 
     conversation = Connect(hostname, port, version=(3, 3))
     node = conversation
+    ext = {}
     if dhe:
-        ext = {}
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
@@ -163,8 +170,11 @@ def main():
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
     else:
-        ext = None
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    if not ext:
+        ext = None
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     for _ in range(number_of_alerts+1):
         node = node.add_child(AlertGenerator(
