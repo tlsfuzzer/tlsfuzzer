@@ -107,7 +107,6 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {}
     groups = [GroupName.secp256r1]
-    key_shares = []
     ext[ExtensionType.key_share] = key_share_ext_gen(groups)
     ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
         .create([TLS_1_3_DRAFT, (3, 3)])
@@ -152,7 +151,6 @@ def main():
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {}
         groups = [group]
-        key_shares = []
         ext[ExtensionType.key_share] = key_share_ext_gen(groups)
         ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
             .create([TLS_1_3_DRAFT, (3, 3)])
