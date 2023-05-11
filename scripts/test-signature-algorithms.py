@@ -24,12 +24,13 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         GroupName
 from tlslite.extensions import SignatureAlgorithmsExtension, \
         SignatureAlgorithmsCertExtension, SupportedGroupsExtension
-from tlsfuzzer.helpers import RSA_SIG_ALL, SIG_ALL, ECDSA_SIG_ALL
+from tlsfuzzer.helpers import RSA_SIG_ALL, SIG_ALL, ECDSA_SIG_ALL, \
+        AutoEmptyExtension
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 6
+version = 7
 
 
 def help_msg():
@@ -54,6 +55,7 @@ def help_msg():
     print(" --no-sha1      expect conversations with explicit/implicit sha1")
     print("                to fail")
     print(" --ecdsa        Use ecdsa sigalgs instead of rsa.")
+    print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -68,9 +70,12 @@ def main():
     no_sha1 = False
     expected_signature = SignatureAlgorithm.rsa
     expected_sig_list = RSA_SIG_ALL
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:x:X:", ["help", "alert=", "no-sha1", "ecdsa"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:x:X:M", ["help", "alert=",
+                                                       "no-sha1", "ecdsa",
+                                                       "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -94,6 +99,8 @@ def main():
         elif opt == '--ecdsa':
             expected_signature = SignatureAlgorithm.ecdsa
             expected_sig_list = ECDSA_SIG_ALL
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -117,6 +124,8 @@ def main():
         SignatureAlgorithmsExtension().create(SIG_ALL)
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
@@ -150,6 +159,8 @@ def main():
                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3), extensions=ext))
     if no_sha1:
         node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -193,6 +204,8 @@ def main():
            SignatureAlgorithmsCertExtension().create(expected_sig_list)}
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                extensions=ext))
     if no_sha1:
@@ -233,6 +246,8 @@ def main():
            SignatureAlgorithmsCertExtension().create(expected_sig_list)}
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -269,6 +284,8 @@ def main():
            SignatureAlgorithmsCertExtension().create(expected_sig_list)}
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -305,6 +322,8 @@ def main():
            SignatureAlgorithmsCertExtension().create(expected_sig_list)}
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -342,6 +361,8 @@ def main():
            SignatureAlgorithmsCertExtension().create(expected_sig_list)}
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -379,6 +400,8 @@ def main():
            SignatureAlgorithmsCertExtension().create(expected_sig_list)}
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -415,6 +438,8 @@ def main():
            SignatureAlgorithmsCertExtension().create(expected_sig_list)}
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -448,6 +473,8 @@ def main():
     ext = {ExtensionType.signature_algorithms: sig_alg}
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -478,11 +505,13 @@ def main():
     # 2 bytes for length of list inside extension, leaving 65528 bytes)
     sig_alg.create(list(chain(
         ((i, j) for i in range(10, 224) for j in range(10, 163)),
-        ((i, 163) for i in range(10, 27)),
+        ((i, 163) for i in range(10, 27-4 if ems else 27)),
         [(HashAlgorithm.sha256, expected_signature)])))
     ext = {ExtensionType.signature_algorithms: sig_alg}
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -513,7 +542,7 @@ def main():
     # extension leaving 65522 bytes)
     sigs = list(chain(
         ((i, j) for i in range(10, 224) for j in range(10, 86)),
-        ((i, 163) for i in range(10, 123)),
+        ((i, 163) for i in range(10, 123-4 if ems else 123)),
         [(HashAlgorithm.sha256, expected_signature)]))
     ext = {ExtensionType.signature_algorithms :
            SignatureAlgorithmsExtension().create(sigs),
@@ -521,6 +550,8 @@ def main():
            SignatureAlgorithmsCertExtension().create(sigs)}
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -550,6 +581,8 @@ def main():
     # (4 bytes for extensions header, 2 bytes for length of list inside
     # extension leaving 65522 bytes)
     n = 32757
+    if ems:
+        n -= 4
     n = n - 1  # this is the mandatory method in the end
     n = n - len(expected_sig_list)  # number of methods in sig_alg_cert extension
     sigs = list(chain(
@@ -562,6 +595,8 @@ def main():
            SignatureAlgorithmsCertExtension().create(expected_sig_list)}
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -594,6 +629,8 @@ def main():
            SignatureAlgorithmsCertExtension().create(SIG_ALL)}
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
     .create(groups)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     hello = ClientHelloGenerator(ciphers, version=(3, 3),
                                  extensions=ext)
     node = node.add_child(hello)
@@ -615,6 +652,8 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         n = n - 1  # this is the mandatory method in the end
+        if ems:
+            n -= 4
         n = n - len(expected_sig_list)  # number of methods in sig_alg_cert extension
         sigs = [(HashAlgorithm.sha1, SignatureAlgorithm.dsa)] * n
         sigs += [(HashAlgorithm.sha256, expected_signature)]
@@ -624,6 +663,8 @@ def main():
                SignatureAlgorithmsCertExtension().create(expected_sig_list)}
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
+        if ems:
+            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                    extensions=ext))
         node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -684,6 +725,8 @@ def main():
            SignatureAlgorithmsCertExtension().create(expected_sig_list)}
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
     .create(groups)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                 extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
@@ -722,6 +765,8 @@ def main():
         sig_alg.create([(HashAlgorithm.sha256, expected_signature),
                         (HashAlgorithm.sha1, expected_signature)])
         ext = OrderedDict()
+        if ems:
+            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
         ext[ExtensionType.signature_algorithms] = sig_alg
