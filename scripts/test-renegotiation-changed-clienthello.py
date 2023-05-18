@@ -31,7 +31,7 @@ from tlsfuzzer.helpers import SIG_ALL, psk_ext_gen, AutoEmptyExtension, \
         key_share_ext_gen, psk_session_ext_gen, psk_ext_updater
 
 
-version = 2
+version = 3
 
 
 def help_msg():
@@ -53,6 +53,7 @@ def help_msg():
     print("                (\"sanity\" tests are always executed)")
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
     print(" --ocsp-enabled Expect the OCSP response from server")
+    print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
     # already used single-letter options:
     # -m test-large-hello.py - min extension number for fuzz testing
@@ -88,9 +89,11 @@ def main():
     last_exp_tmp = None
     dhe = False
     ocsp = False
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:d", ["help", "ocsp-enabled"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dM",
+                               ["help", "ocsp-enabled", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -111,6 +114,8 @@ def main():
             dhe = True
         elif opt == '--ocsp-enabled':
             ocsp = True
+        elif opt == "-M" or opt == "--ems":
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -126,8 +131,10 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
-        ext = {}
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
@@ -141,9 +148,10 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     else:
-        ext = None
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if not ext:
+        ext = None
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(description="first"))
     node = node.add_child(ExpectCertificate())
@@ -201,6 +209,8 @@ def main():
     ext[ExtensionType.pre_shared_key] = psk_ext_gen(psk_settings)
     mods = []
     mods.append(psk_ext_updater(psk_settings))
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
