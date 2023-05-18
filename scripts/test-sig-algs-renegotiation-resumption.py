@@ -24,10 +24,10 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
 from tlslite.extensions import SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import SIG_ALL
+from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
 
 
-version = 2
+version = 3
 
 
 def help_msg():
@@ -51,6 +51,7 @@ def help_msg():
     print(" --sig-algs-drop-ok Don't expect connection abort for connections that advertise")
     print("                signature_algorithms_cert but no signature_algorithms")
     print(" --no-renego    Expect that the server does not support renegotiation")
+    print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
     # already used single-letter options:
     # -m test-large-hello.py - min extension number for fuzz testing
@@ -87,9 +88,12 @@ def main():
     dhe = False
     sig_algs_drop_ok = False
     no_renego = False
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:d", ["help", "sig-algs-drop-ok", "no-renego"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dM",
+                               ["help", "sig-algs-drop-ok", "no-renego",
+                                "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -112,6 +116,8 @@ def main():
             sig_algs_drop_ok = True
         elif opt == '--no-renego':
             no_renego = True
+        elif opt == "-M" or opt == "--ems":
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -132,6 +138,8 @@ def main():
         SignatureAlgorithmsExtension().create(SIG_ALL)
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
@@ -173,6 +181,8 @@ def main():
         SignatureAlgorithmsExtension().create(SIG_ALL)
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
@@ -219,8 +229,11 @@ def main():
         node = node.add_child(ExpectApplicationData())
         node.add_child(Close())
     else:
+        srv_ext = {ExtensionType.renegotiation_info:None}
+        if ems:
+            srv_ext[ExtensionType.extended_master_secret] = None
         node = node.add_child(ExpectServerHello(
-            extensions={ExtensionType.renegotiation_info:None}))
+            extensions=srv_ext))
         node = node.add_child(ExpectCertificate())
         if dhe:
             node = node.add_child(ExpectServerKeyExchange())
@@ -249,6 +262,8 @@ def main():
         SignatureAlgorithmsExtension().create(SIG_ALL)
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
@@ -275,7 +290,7 @@ def main():
     node = node.add_child(ResetHandshakeHashes())
     renego_exts = dict(ext)
     # use None for autogeneration of the renegotiation_info with correct
-    # paylod
+    # payload
     renego_exts[ExtensionType.renegotiation_info] = None
     renego_ciphers = list(ciphers)
     renego_ciphers.remove(CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV)
@@ -294,8 +309,11 @@ def main():
         node = node.add_child(ExpectApplicationData())
         node.add_child(Close())
     else:
+        srv_ext = {ExtensionType.renegotiation_info:None}
+        if ems:
+            srv_ext[ExtensionType.extended_master_secret] = None
         node = node.add_child(ExpectServerHello(
-            extensions={ExtensionType.renegotiation_info:None},
+            extensions=srv_ext,
             resume=True))
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectFinished())
@@ -316,6 +334,8 @@ def main():
     conversation = Connect(host, port)
     node = conversation
     ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
@@ -355,6 +375,8 @@ def main():
     ext = {}
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
@@ -401,6 +423,8 @@ def main():
         SignatureAlgorithmsExtension().create(SIG_ALL)
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
@@ -452,8 +476,11 @@ def main():
                                           AlertDescription.handshake_failure))
         node.next_sibling = ExpectClose()
     else:
+        srv_ext = {ExtensionType.renegotiation_info:None}
+        if ems:
+            srv_ext[ExtensionType.extended_master_secret] = None
         node = node.add_child(ExpectServerHello(
-            extensions={ExtensionType.renegotiation_info:None}))
+            extensions=srv_ext))
         node = node.add_child(ExpectCertificate())
         if dhe:
             node = node.add_child(ExpectServerKeyExchange())
@@ -480,6 +507,8 @@ def main():
     ext = {}
     ext[ExtensionType.signature_algorithms] = \
         SignatureAlgorithmsExtension().create(SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(SIG_ALL)
     if dhe:
@@ -529,8 +558,11 @@ def main():
         node = node.add_child(ExpectApplicationData())
         node.add_child(Close())
     else:
+        srv_ext = {ExtensionType.renegotiation_info: None}
+        if ems:
+            srv_ext[ExtensionType.extended_master_secret] = None
         node = node.add_child(ExpectServerHello(
-            extensions={ExtensionType.renegotiation_info:None}))
+            extensions=srv_ext))
         node = node.add_child(ExpectCertificate())
         if dhe:
             node = node.add_child(ExpectServerKeyExchange())
@@ -559,6 +591,8 @@ def main():
         SignatureAlgorithmsExtension().create(SIG_ALL)
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
@@ -607,8 +641,11 @@ def main():
         node = node.add_child(ExpectApplicationData())
         node.add_child(Close())
     else:
+        srv_ext = {ExtensionType.renegotiation_info:None}
+        if ems:
+            srv_ext[ExtensionType.extended_master_secret] = None
         node = node.add_child(ExpectServerHello(
-            extensions={ExtensionType.renegotiation_info:None}))
+            extensions=srv_ext))
         node = node.add_child(ExpectCertificate())
         if dhe:
             node = node.add_child(ExpectServerKeyExchange())
@@ -637,6 +674,8 @@ def main():
         SignatureAlgorithmsExtension().create(SIG_ALL)
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
@@ -683,8 +722,11 @@ def main():
         node = node.add_child(ExpectApplicationData())
         node.add_child(Close())
     else:
+        srv_ext = {ExtensionType.renegotiation_info:None}
+        if ems:
+            srv_ext[ExtensionType.extended_master_secret] = None
         node = node.add_child(ExpectServerHello(
-            extensions={ExtensionType.renegotiation_info:None},
+            extensions=srv_ext,
             resume=True))
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectFinished())
@@ -705,6 +747,8 @@ def main():
     conversation = Connect(host, port)
     node = conversation
     ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     ext[ExtensionType.signature_algorithms] = \
         SignatureAlgorithmsExtension().create(SIG_ALL)
     ext[ExtensionType.signature_algorithms_cert] = \
@@ -756,8 +800,11 @@ def main():
         node = node.add_child(ExpectApplicationData())
         node.add_child(Close())
     else:
+        srv_ext = {ExtensionType.renegotiation_info:None}
+        if ems:
+            srv_ext[ExtensionType.extended_master_secret] = None
         node = node.add_child(ExpectServerHello(
-            extensions={ExtensionType.renegotiation_info:None},
+            extensions=srv_ext,
             resume=True))
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectFinished())
@@ -782,6 +829,8 @@ def main():
         SignatureAlgorithmsExtension().create(SIG_ALL)
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
@@ -828,8 +877,11 @@ def main():
         node = node.add_child(ExpectApplicationData())
         node.add_child(Close())
     else:
+        srv_ext = {ExtensionType.renegotiation_info:None}
+        if ems:
+            srv_ext[ExtensionType.extended_master_secret] = None
         node = node.add_child(ExpectServerHello(
-            extensions={ExtensionType.renegotiation_info:None},
+            extensions=srv_ext,
             resume=True))
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectFinished())
