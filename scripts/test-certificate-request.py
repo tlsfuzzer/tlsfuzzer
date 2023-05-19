@@ -22,7 +22,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectApplicationData, ExpectServerKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import sig_algs_to_ids, RSA_SIG_ALL, \
-        client_cert_types_to_ids
+        client_cert_types_to_ids, AutoEmptyExtension
 from tlslite.extensions import SignatureAlgorithmsExtension, \
         SignatureAlgorithmsCertExtension, SupportedGroupsExtension
 from tlslite.constants import CipherSuite, AlertDescription, \
@@ -33,7 +33,7 @@ from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 
 
-version = 10
+version = 11
 
 
 def help_msg():
@@ -61,6 +61,7 @@ def help_msg():
     print(" -c certfile    file with the certificate of client")
     print(" -T cert_types  certificate types that the server is expected to")
     print("                support. \"rsa_sign ecdsa_sign\" by default")
+    print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -75,6 +76,7 @@ def main():
     cert = None
     dhe = False
     private_key = None
+    ems = False
 
     sigalgs = [SignatureScheme.ed25519,
                SignatureScheme.ed448,
@@ -98,7 +100,7 @@ def main():
                   ClientCertificateType.ecdsa_sign]
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:s:k:c:T:d", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:s:k:c:T:dM", ["help", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             hostname = arg
@@ -135,6 +137,8 @@ def main():
                 text_cert = str(text_cert, 'utf-8')
             cert = X509()
             cert.parse(text_cert)
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -149,6 +153,8 @@ def main():
     conversation = Connect(hostname, port)
     node = conversation
     ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
@@ -203,6 +209,8 @@ def main():
         conversation = Connect(hostname, port)
         node = conversation
         ext = {}
+        if ems:
+            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         if dhe:
             ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                        CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
@@ -257,6 +265,8 @@ def main():
     conversation = Connect(hostname, port)
     node = conversation
     ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
@@ -310,6 +320,8 @@ def main():
     conversation = Connect(hostname, port)
     node = conversation
     ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
