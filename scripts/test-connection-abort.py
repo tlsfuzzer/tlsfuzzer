@@ -23,10 +23,10 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
 from tlslite.extensions import SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import SIG_ALL
+from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
 
 
-version = 1
+version = 2
 
 
 def help_msg():
@@ -52,6 +52,7 @@ def help_msg():
     print("                IETF name.")
     print(" -t time        Time to wait for messages in seconds, 5.0 by default")
     print(" --repeat num   How many times to repeat the connections, 10 by default")
+    print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
     # already used single-letter options:
     # -m test-large-hello.py - min extension number for fuzz testing
@@ -89,9 +90,11 @@ def main():
     ciphers = None
     repeat = 10
     timeout = 5
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:t:", ["help", "repeat="])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:t:M",
+                               ["help", "repeat=", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -122,6 +125,8 @@ def main():
                     ciphers = [getattr(CipherSuite, arg)]
                 except AttributeError:
                     ciphers = [int(arg)]
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -161,6 +166,8 @@ def main():
                   GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     ext[ExtensionType.signature_algorithms] = \
         SignatureAlgorithmsExtension().create(SIG_ALL)
     ext[ExtensionType.signature_algorithms_cert] = \
@@ -364,8 +371,6 @@ def main():
     node = conversation
     node = node.add_child(Close())
     conversations["Before ClientHello"] = conversation
-
-
 
     # run the conversation
     good = 0
