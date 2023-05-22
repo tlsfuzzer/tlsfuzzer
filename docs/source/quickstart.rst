@@ -168,11 +168,17 @@ This command should provide the following output if everything went fine:
     cipher, TLS 1.2 or earlier and RSA key exchange (or (EC)DHE if
     -d option is used)
 
-    version: 4
-
     Test end
-    successful: 2
-    failed: 0
+    ====================
+    version: 8
+    ====================
+    TOTAL: 2
+    SKIP: 0
+    PASS: 2
+    XFAIL: 0
+    FAIL: 0
+    XPASS: 0
+    ====================
 
 All the test scripts support at least ``--help`` option. For this script it
 will provide the following information:
@@ -187,9 +193,18 @@ will provide the following information:
                     names and not all of them, e.g "sanity"
      -e probe-name  exclude the probe from the list of the ones run
                     may be specified multiple times
-     -n num         only run `num` random tests instead of a full set
+     -x probe-name  expect the probe to fail. When such probe passes despite being marked like this
+                    it will be reported in the test summary and the whole script will fail.
+                    May be specified multiple times.
+     -X message     expect the `message` substring in exception raised during
+                    execution of preceding expected failure probe
+                    usage: [-x probe-name] [-X exception], order is compulsory!
+     -n num         run 'num' or all(if 0) tests instead of default(all)
                     ("sanity" tests are always executed)
-     -d             negotiate (EC)DHE instead of RSA key exchange
+     -d             negotiate (EC)DHE instead of RSA key exchange, send
+                    additional extensions, usually used for (EC)DHE ciphers
+     -C ciph        Use specified ciphersuite. Either numerical value or
+                    IETF name.
      --help         this message
 
 Almost all scripts support this set of command line options.
@@ -214,11 +229,17 @@ This produces similar output:
     Check if communication with typical group and cipher works with
     the TLS 1.3 server.
 
-    version: 2
-
     Test end
-    successful: 2
-    failed: 0
+    ====================
+    version: 7
+    ====================
+    TOTAL: 2
+    SKIP: 0
+    PASS: 2
+    XFAIL: 0
+    FAIL: 0
+    XPASS: 0
+    ====================
 
 Similarly to the :term:`TLS` 1.2 script, this one supports a set of options:
 
@@ -232,8 +253,16 @@ Similarly to the :term:`TLS` 1.2 script, this one supports a set of options:
                     names and not all of them, e.g "sanity"
      -e probe-name  exclude the probe from the list of the ones run
                     may be specified multiple times
-     -n num         only run `num` random tests instead of a full set
+     -x probe-name  expect the probe to fail. When such probe passes despite being marked like this
+                    it will be reported in the test summary and the whole script will fail.
+                    May be specified multiple times.
+     -X message     expect the `message` substring in exception raised during
+                    execution of preceding expected failure probe
+                    usage: [-x probe-name] [-X exception], order is compulsory!
+     -n num         run 'num' or all(if 0) tests instead of default(all)
                     ("sanity" tests are always executed)
+     -C ciph        Use specified ciphersuite. Either numerical value or
+                    IETF name.
      --help         this message
 
 As cryptographic parameter negotiation happens differently in :term:`TLS` 1.3
