@@ -114,20 +114,32 @@ def main():
     for opt, arg in opts:
         if opt == '-h':
             host = arg
-        elif opt == '-p':
+            continue
+
+        if opt == '-p':
             port = int(arg)
-        elif opt == '-e':
+            continue
+
+        if opt == '-e':
             run_exclude.add(arg)
-        elif opt == '-x':
+            continue
+
+        if opt == '-x':
             expected_failures[arg] = None
             last_exp_tmp = str(arg)
-        elif opt == '-X':
+            continue
+        
+        if opt == '-X':
             if not last_exp_tmp:
                 raise ValueError("-x has to be specified before -X")
             expected_failures[last_exp_tmp] = str(arg)
-        elif opt == '-n':
+            continue
+
+        if opt == '-n':
             num_limit = int(arg)
-        elif opt == '-C':
+            continue
+
+        if opt == '-C':
             if arg[:2] == '0x':
                 cipher = int(arg, 16)
             else:
@@ -135,32 +147,54 @@ def main():
                     cipher = getattr(CipherSuite, arg)
                 except AttributeError:
                     cipher = int(arg)
-        elif opt == '-t':
+            continue
+
+        if opt == '-t':
             timeout = float(arg)
-        elif opt == '-a':
+            continue
+
+        if opt == '-a':
             alert = int(arg)
-        elif opt == '-l':
+            continue
+
+        if opt == '-l':
             level = int(arg)
-        elif opt == "-i":
+            continue
+
+        if opt == "-i":
             timing = True
             interface = arg
-        elif opt == '-o':
+            continue
+
+        if opt == '-o':
             outdir = arg
-        elif opt == "--repeat":
+            continue
+
+        if opt == "--repeat":
             repetitions = int(arg)
-        elif opt == "--no-safe-renego":
+            continue
+
+        if opt == "--no-safe-renego":
             srv_extensions = None
-        elif opt == "--no-sni":
+            continue
+
+        if opt == "--no-sni":
             no_sni = True
-        elif opt == "--cpu-list":
+            continue
+
+        if opt == "--cpu-list":
             affinity = arg
-        elif opt == "--static-enc":
+            continue
+
+        if opt == "--static-enc":
             reuse_rsa_ciphertext = True
-        elif opt == '--help':
+            continue
+
+        if opt == '--help':
             help_msg()
             sys.exit(0)
-        else:
-            raise ValueError("Unknown option: {0}".format(opt))
+        
+        raise ValueError("Unknown option: {0}".format(opt))
 
     if args:
         run_only = set(args)
