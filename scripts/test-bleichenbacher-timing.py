@@ -79,120 +79,10 @@ def help_msg():
     print(" --help         this message")
 
 
-def main():
-    """Check if server is not vulnerable to Bleichenbacher attack"""
-    host = "localhost"
-    port = 4433
-    num_limit = None
-    run_exclude = set()
-    expected_failures = {}
-    last_exp_tmp = None
+def return_tests(host, port, cipher, level, reuse_rsa_ciphertext, srv_extensions, no_sni):
+    conversations = OrderedDict()
+
     alert = AlertDescription.bad_record_mac
-    level = AlertLevel.fatal
-    srv_extensions = {ExtensionType.renegotiation_info: None}
-    no_sni = False
-    repetitions = 100
-    interface = None
-    timing = False
-    outdir = "/tmp"
-    cipher = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA
-    affinity = None
-    reuse_rsa_ciphertext = False
-
-    argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv,
-                               "h:p:e:x:X:t:n:a:l:l:o:i:C:",
-                               ["help",
-                                "no-safe-renego",
-                                "no-sni",
-                                "repeat=",
-                                "cpu-list=",
-                                "static-enc"])
-    for opt, arg in opts:
-        if opt == '-h':
-            host = arg
-            continue
-
-        if opt == '-p':
-            port = int(arg)
-            continue
-
-        if opt == '-e':
-            run_exclude.add(arg)
-            continue
-
-        if opt == '-x':
-            expected_failures[arg] = None
-            last_exp_tmp = str(arg)
-            continue
-        
-        if opt == '-X':
-            if not last_exp_tmp:
-                raise ValueError("-x has to be specified before -X")
-            expected_failures[last_exp_tmp] = str(arg)
-            continue
-
-        if opt == '-n':
-            num_limit = int(arg)
-            continue
-
-        if opt == '-C':
-            if arg[:2] == '0x':
-                cipher = int(arg, 16)
-            else:
-                try:
-                    cipher = getattr(CipherSuite, arg)
-                except AttributeError:
-                    cipher = int(arg)
-            continue
-
-        if opt == '-a':
-            alert = int(arg)
-            continue
-
-        if opt == '-l':
-            level = int(arg)
-            continue
-
-        if opt == "-i":
-            timing = True
-            interface = arg
-            continue
-
-        if opt == '-o':
-            outdir = arg
-            continue
-
-        if opt == "--repeat":
-            repetitions = int(arg)
-            continue
-
-        if opt == "--no-safe-renego":
-            srv_extensions = None
-            continue
-
-        if opt == "--no-sni":
-            no_sni = True
-            continue
-
-        if opt == "--cpu-list":
-            affinity = arg
-            continue
-
-        if opt == "--static-enc":
-            reuse_rsa_ciphertext = True
-            continue
-
-        if opt == '--help':
-            help_msg()
-            sys.exit(0)
-        
-        raise ValueError("Unknown option: {0}".format(opt))
-
-    if args:
-        run_only = set(args)
-    else:
-        run_only = None
 
     cln_extensions = {ExtensionType.renegotiation_info: None}
     if is_valid_hostname(host) and not no_sni:
@@ -235,7 +125,7 @@ def main():
     runner = Runner(conversation)
     try:
         runner.run()
-    except Exception as exp:
+    except Exception as _:
         # Exception means the server rejected the ciphersuite
         print("Failing on {0} because server does not support it. ".format(CipherSuite.ietfNames[cipher]))
         print(20 * '=')
@@ -950,6 +840,125 @@ def main():
     node.add_child(ExpectClose())
 
     conversations["very high Hamming weight RSA plaintext"] = conversation
+
+    return conversations
+
+def main():
+    """Check if server is not vulnerable to Bleichenbacher attack"""
+    host = "localhost"
+    port = 4433
+    num_limit = None
+    run_exclude = set()
+    expected_failures = {}
+    last_exp_tmp = None
+    repetitions = 100
+    interface = None
+    timing = False
+    outdir = "/tmp"
+    affinity = None
+    cipher = CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA
+    level = AlertLevel.fatal
+    reuse_rsa_ciphertext = False
+    srv_extensions = {ExtensionType.renegotiation_info: None}
+    no_sni = False
+
+    argv = sys.argv[1:]
+    opts, args = getopt.getopt(argv,
+                               "h:p:e:x:X:t:n:a:l:l:o:i:C:",
+                               ["help",
+                                "no-safe-renego",
+                                "no-sni",
+                                "repeat=",
+                                "cpu-list=",
+                                "static-enc"])
+    
+    for opt, arg in opts:
+        if opt == '-h':
+            host = arg
+            continue
+
+        if opt == '-p':
+            port = int(arg)
+            continue
+
+        if opt == '-e':
+            run_exclude.add(arg)
+            continue
+
+        if opt == '-x':
+            expected_failures[arg] = None
+            last_exp_tmp = str(arg)
+            continue
+        
+        if opt == '-X':
+            if not last_exp_tmp:
+                raise ValueError("-x has to be specified before -X")
+            expected_failures[last_exp_tmp] = str(arg)
+            continue
+
+        if opt == '-n':
+            num_limit = int(arg)
+            continue
+
+        if opt == '-C':
+            if arg[:2] == '0x':
+                cipher = int(arg, 16)
+            else:
+                try:
+                    cipher = getattr(CipherSuite, arg)
+                except AttributeError:
+                    cipher = int(arg)
+            continue
+
+        if opt == '-a':
+            alert = int(arg)
+            continue
+
+        if opt == '-l':
+            level = int(arg)
+            continue
+
+        if opt == "-i":
+            timing = True
+            interface = arg
+            continue
+
+        if opt == '-o':
+            outdir = arg
+            continue
+
+        if opt == "--repeat":
+            repetitions = int(arg)
+            continue
+
+        if opt == "--no-safe-renego":
+            srv_extensions = None
+            continue
+
+        if opt == "--no-sni":
+            no_sni = True
+            continue
+
+        if opt == "--cpu-list":
+            affinity = arg
+            continue
+
+        if opt == "--static-enc":
+            reuse_rsa_ciphertext = True
+            continue
+
+        if opt == '--help':
+            help_msg()
+            sys.exit(0)
+        
+        raise ValueError("Unknown option: {0}".format(opt))
+
+    if args:
+        run_only = set(args)
+    else:
+        run_only = None
+
+    conversations = return_tests(host, port, cipher, level, reuse_rsa_ciphertext, srv_extensions, no_sni)
 
     # run the conversation
     good = 0
