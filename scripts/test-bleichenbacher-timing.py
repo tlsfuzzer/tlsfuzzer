@@ -47,8 +47,6 @@ def help_msg():
     print(" -X message     expect the `message` substring in exception raised during")
     print("                execution of preceding expected failure probe")
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
-    print(" -t timeout     how long to wait before assuming the server won't")
-    print("                send a message at incorrect time, 1.0s by default")
     print(" -n num         run 'num' or all(if 0) tests instead of default(50)")
     print("                (excluding \"sanity\" tests)")
     print(" -a desc        the expected alert description for invalid Finished")
@@ -89,7 +87,6 @@ def main():
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
-    timeout = 1.0
     alert = AlertDescription.bad_record_mac
     level = AlertLevel.fatal
     srv_extensions = {ExtensionType.renegotiation_info: None}
@@ -147,10 +144,6 @@ def main():
                     cipher = getattr(CipherSuite, arg)
                 except AttributeError:
                     cipher = int(arg)
-            continue
-
-        if opt == '-t':
-            timeout = float(arg)
             continue
 
         if opt == '-a':
