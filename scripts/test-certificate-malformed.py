@@ -76,35 +76,52 @@ def main():
     for opt, arg in opts:
         if opt == '-h':
             host = arg
-        elif opt == '-p':
+            continue
+
+        if opt == '-p':
             port = int(arg)
-        elif opt == '-e':
+            continue
+        
+        if opt == '-e':
             run_exclude.add(arg)
-        elif opt == '-n':
+            continue
+
+        
+        if opt == '-n':
             num_limit = int(arg)
-        elif opt == '-x':
+            continue
+
+        if opt == '-x':
             expected_failures[arg] = None
             last_exp_tmp = str(arg)
-        elif opt == '-X':
+            continue
+
+        if opt == '-X':
             if not last_exp_tmp:
                 raise ValueError("-x has to be specified before -X")
             expected_failures[last_exp_tmp] = str(arg)
-        elif opt == '--help':
+            continue
+        
+        if opt == '--help':
             help_msg()
             sys.exit(0)
-        elif opt == '-k':
+
+        if opt == '-k':
             text_key = open(arg, 'rb').read()
             if sys.version_info[0] >= 3:
                 text_key = str(text_key, 'utf-8')
             private_key = parsePEMKey(text_key, private=True)
-        elif opt == '-c':
+            continue
+        
+        if opt == '-c':
             text_cert = open(arg, 'rb').read()
             if sys.version_info[0] >= 3:
                 text_cert = str(text_cert, 'utf-8')
             cert = X509()
             cert.parse(text_cert)
-        else:
-            raise ValueError("Unknown option: {0}".format(opt))
+            continue
+
+        raise ValueError("Unknown option: {0}".format(opt))
 
     if not private_key:
         raise ValueError("Specify private key file using -k")
