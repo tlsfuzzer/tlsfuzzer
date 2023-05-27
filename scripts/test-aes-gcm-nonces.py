@@ -47,66 +47,13 @@ def help_msg():
     print(" -j filename    JSON output into a filename")
     print(" --help         this message")
 
-
-def main():
-    """Check if nonces used by server are monotonically increasing"""
-    host = "localhost"
-    port = 4433
-    num_limit = None
-    run_exclude = set()
-    expected_failures = {}
-    last_exp_tmp = None
-    json_filename = None
-
-    argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:j:", ["help"])
-    for opt, arg in opts:
-        if opt == '-j':
-            json_filename = arg
-            continue
-
-        if opt == '-h':
-            host = arg
-            continue
-
-        if opt == '-p':
-            port = int(arg)
-            continue
-
-        if opt == '-e':
-            run_exclude.add(arg)
-            continue
-
-        if opt == '-x':
-            expected_failures[arg] = None
-            last_exp_tmp = str(arg)
-            continue
-
-        if opt == '-X':
-            if not last_exp_tmp:
-                raise ValueError("-x has to be specified before -X")
-            expected_failures[last_exp_tmp] = str(arg)
-            continue
-
-        if opt == '-n':
-            num_limit = int(arg)
-            continue
-
-        if opt == '--help':
-            help_msg()
-            sys.exit(0)
-        
-        raise ValueError("Unknown option: {0}".format(opt))
-
-    if args:
-        run_only = set(args)
-    else:
-        run_only = None
+def return_tests(host, port):
     conversations = {}
     nonces = []
 
     conversation = Connect(host, port)
     node = conversation
+
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers))
@@ -177,6 +124,66 @@ def main():
     node.next_sibling = ExpectClose()
 
     conversations["aes-256-gcm cipher"] = conversation
+
+    return conversations, nonces, nonces256
+
+
+def main():
+    """Check if nonces used by server are monotonically increasing"""
+    host = "localhost"
+    port = 4433
+    num_limit = None
+    run_exclude = set()
+    expected_failures = {}
+    last_exp_tmp = None
+    json_filename = None
+
+    argv = sys.argv[1:]
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:j:", ["help"])
+    for opt, arg in opts:
+        if opt == '-j':
+            json_filename = arg
+            continue
+
+        if opt == '-h':
+            host = arg
+            continue
+
+        if opt == '-p':
+            port = int(arg)
+            continue
+
+        if opt == '-e':
+            run_exclude.add(arg)
+            continue
+
+        if opt == '-x':
+            expected_failures[arg] = None
+            last_exp_tmp = str(arg)
+            continue
+
+        if opt == '-X':
+            if not last_exp_tmp:
+                raise ValueError("-x has to be specified before -X")
+            expected_failures[last_exp_tmp] = str(arg)
+            continue
+
+        if opt == '-n':
+            num_limit = int(arg)
+            continue
+
+        if opt == '--help':
+            help_msg()
+            sys.exit(0)
+        
+        raise ValueError("Unknown option: {0}".format(opt))
+
+    if args:
+        run_only = set(args)
+    else:
+        run_only = None
+
+    conversations, nonces, nonces256 = return_tests(host, port)
 
     outcome = {
         'good' : [],
