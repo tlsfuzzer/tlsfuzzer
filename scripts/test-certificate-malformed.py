@@ -57,83 +57,10 @@ def help_msg():
     print(" -c file.pem    file with certificate for client")
     print(" --help         this message")
 
-
-
-def main():
-    """Check if malformed messages related to client certs are rejected."""
+def return_tests(host, port, private_key, cert):
     conversations = {}
-    host = "localhost"
-    port = 4433
-    num_limit = 1000
-    run_exclude = set()
-    expected_failures = {}
-    last_exp_tmp = None
-    private_key = None
-    cert = None
 
-    argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:k:c:n:", ["help"])
-    for opt, arg in opts:
-        if opt == '-h':
-            host = arg
-            continue
-
-        if opt == '-p':
-            port = int(arg)
-            continue
-        
-        if opt == '-e':
-            run_exclude.add(arg)
-            continue
-
-        
-        if opt == '-n':
-            num_limit = int(arg)
-            continue
-
-        if opt == '-x':
-            expected_failures[arg] = None
-            last_exp_tmp = str(arg)
-            continue
-
-        if opt == '-X':
-            if not last_exp_tmp:
-                raise ValueError("-x has to be specified before -X")
-            expected_failures[last_exp_tmp] = str(arg)
-            continue
-        
-        if opt == '--help':
-            help_msg()
-            sys.exit(0)
-
-        if opt == '-k':
-            text_key = open(arg, 'rb').read()
-            if sys.version_info[0] >= 3:
-                text_key = str(text_key, 'utf-8')
-            private_key = parsePEMKey(text_key, private=True)
-            continue
-        
-        if opt == '-c':
-            text_cert = open(arg, 'rb').read()
-            if sys.version_info[0] >= 3:
-                text_cert = str(text_cert, 'utf-8')
-            cert = X509()
-            cert.parse(text_cert)
-            continue
-
-        raise ValueError("Unknown option: {0}".format(opt))
-
-    if not private_key:
-        raise ValueError("Specify private key file using -k")
-    if not cert:
-        raise ValueError("Specify certificate file using -c")
-
-    if args:
-        run_only = set(args)
-    else:
-        run_only = None
-
-    # sanity check for Client Certificates
+        # sanity check for Client Certificates
     conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
@@ -492,6 +419,84 @@ def main():
 
         conversations["fuzz middle certificate(empty) length - {0}"
                       .format(i)] = conversation
+
+    return conversations
+
+
+def main():
+    """Check if malformed messages related to client certs are rejected."""
+    host = "localhost"
+    port = 4433
+    num_limit = 1000
+    run_exclude = set()
+    expected_failures = {}
+    last_exp_tmp = None
+    private_key = None
+    cert = None
+
+    argv = sys.argv[1:]
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:k:c:n:", ["help"])
+    for opt, arg in opts:
+        if opt == '-h':
+            host = arg
+            continue
+
+        if opt == '-p':
+            port = int(arg)
+            continue
+        
+        if opt == '-e':
+            run_exclude.add(arg)
+            continue
+
+        
+        if opt == '-n':
+            num_limit = int(arg)
+            continue
+
+        if opt == '-x':
+            expected_failures[arg] = None
+            last_exp_tmp = str(arg)
+            continue
+
+        if opt == '-X':
+            if not last_exp_tmp:
+                raise ValueError("-x has to be specified before -X")
+            expected_failures[last_exp_tmp] = str(arg)
+            continue
+        
+        if opt == '--help':
+            help_msg()
+            sys.exit(0)
+
+        if opt == '-k':
+            text_key = open(arg, 'rb').read()
+            if sys.version_info[0] >= 3:
+                text_key = str(text_key, 'utf-8')
+            private_key = parsePEMKey(text_key, private=True)
+            continue
+        
+        if opt == '-c':
+            text_cert = open(arg, 'rb').read()
+            if sys.version_info[0] >= 3:
+                text_cert = str(text_cert, 'utf-8')
+            cert = X509()
+            cert.parse(text_cert)
+            continue
+
+        raise ValueError("Unknown option: {0}".format(opt))
+
+    if not private_key:
+        raise ValueError("Specify private key file using -k")
+    if not cert:
+        raise ValueError("Specify certificate file using -c")
+
+    if args:
+        run_only = set(args)
+    else:
+        run_only = None
+
+    conversations = return_tests(host, port, private_key, cert)
 
     # run the conversation
     good = 0
