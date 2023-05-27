@@ -60,65 +60,11 @@ def help_msg():
     print(" --help         this message")
 
 
-def main():
-    """Check if server is not vulnerable to Bleichenbacher attack"""
-    host = "localhost"
-    port = 4433
-    num_limit = 50
-    run_exclude = set()
-    expected_failures = {}
-    last_exp_tmp = None
-    timeout = 1.0
-    alert = AlertDescription.bad_record_mac
-    level = AlertLevel.fatal
-    srv_extensions = {ExtensionType.renegotiation_info:None}
-    no_sni = False
-
-    argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:t:n:a:l:", ["help",
-                                                        "no-safe-renego",
-                                                        "no-sni"])
-    for opt, arg in opts:
-        if opt == '-h':
-            host = arg
-        elif opt == '-p':
-            port = int(arg)
-        elif opt == '-e':
-            run_exclude.add(arg)
-        elif opt == '-x':
-            expected_failures[arg] = None
-            last_exp_tmp = str(arg)
-        elif opt == '-X':
-            if not last_exp_tmp:
-                raise ValueError("-x has to be specified before -X")
-            expected_failures[last_exp_tmp] = str(arg)
-        elif opt == '-n':
-            num_limit = int(arg)
-        elif opt == '--help':
-            help_msg()
-            sys.exit(0)
-        elif opt == '-t':
-            timeout = float(arg)
-        elif opt == '-a':
-            alert = int(arg)
-        elif opt == '-l':
-            level = int(arg)
-        elif opt == "--no-safe-renego":
-            srv_extensions = None
-        elif opt == "--no-sni":
-            no_sni = True
-        else:
-            raise ValueError("Unknown option: {0}".format(opt))
-
-    if args:
-        run_only = set(args)
-    else:
-        run_only = None
-
+def return_tests(host, port, no_sni, srv_extensions, timeout, level, alert):
     cln_extensions = {ExtensionType.renegotiation_info:None}
     if is_valid_hostname(host) and not no_sni:
         cln_extensions[ExtensionType.server_name] = \
-                SNIExtension().create(bytearray(host, 'ascii'))
+            SNIExtension().create(bytearray(host, 'ascii'))
 
     conversations = {}
 
@@ -1131,6 +1077,87 @@ def main():
         node.add_child(ExpectClose())
 
         conversations["too long PKCS padding - with wait - {0}".format(CipherSuite.ietfNames[cipher])] = conversation
+
+    return conversations
+
+def main():
+    """Check if server is not vulnerable to Bleichenbacher attack"""
+    host = "localhost"
+    port = 4433
+    num_limit = 50
+    run_exclude = set()
+    expected_failures = {}
+    last_exp_tmp = None
+    timeout = 1.0
+    alert = AlertDescription.bad_record_mac
+    level = AlertLevel.fatal
+    srv_extensions = {ExtensionType.renegotiation_info:None}
+    no_sni = False
+
+    argv = sys.argv[1:]
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:t:n:a:l:", ["help",
+                                                        "no-safe-renego",
+                                                        "no-sni"])
+    for opt, arg in opts:
+        if opt == '-h':
+            host = arg
+            continue
+
+        if opt == '-p':
+            port = int(arg)
+            continue
+
+        if opt == '-e':
+            run_exclude.add(arg)
+            continue
+
+        if opt == '-x':
+            expected_failures[arg] = None
+            last_exp_tmp = str(arg)
+            continue
+
+        if opt == '-X':
+            if not last_exp_tmp:
+                raise ValueError("-x has to be specified before -X")
+            expected_failures[last_exp_tmp] = str(arg)
+            continue
+
+        if opt == '-n':
+            num_limit = int(arg)
+            continue
+
+        if opt == '--help':
+            help_msg()
+            sys.exit(0)
+
+        if opt == '-t':
+            timeout = float(arg)
+            continue
+
+        if opt == '-a':
+            alert = int(arg)
+            continue
+
+        if opt == '-l':
+            level = int(arg)
+            continue
+
+        if opt == "--no-safe-renego":
+            srv_extensions = None
+            continue
+
+        if opt == "--no-sni":
+            no_sni = True
+            continue
+        
+        raise ValueError("Unknown option: {0}".format(opt))
+
+    if args:
+        run_only = set(args)
+    else:
+        run_only = None
+
+    conversations = return_tests(host, port, no_sni, srv_extensions, timeout, level, alert)
 
     # run the conversation
     good = 0
