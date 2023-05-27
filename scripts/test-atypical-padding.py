@@ -83,28 +83,43 @@ def main():
     for opt, arg in opts:
         if opt == '-h':
             host = arg
-        elif opt == '-p':
+            continue
+        
+        if opt == '-p':
             port = int(arg)
-        elif opt == '-e':
+            continue
+
+        if opt == '-e':
             run_exclude.add(arg)
-        elif opt == '-x':
+            continue
+
+        if opt == '-x':
             expected_failures[arg] = None
             last_exp_tmp = str(arg)
-        elif opt == '-X':
+            continue
+
+        if opt == '-X':
             if not last_exp_tmp:
                 raise ValueError("-x has to be specified before -X")
             expected_failures[last_exp_tmp] = str(arg)
-        elif opt == '-n':
+            continue
+
+        if opt == '-n':
             num_limit = int(arg)
-        elif opt == '-d':
+            continue
+
+        if opt == '-d':
             dhe = True
-        elif opt == '--help':
+            continue
+        
+        if opt == '--help':
             help_msg()
             sys.exit(0)
-        elif opt == '--echo-headers':
+
+        if opt == '--echo-headers':
             echo = True
-        else:
-            raise ValueError("Unknown option: {0}".format(opt))
+        
+        raise ValueError("Unknown option: {0}".format(opt))
 
     if args:
         run_only = set(args)
