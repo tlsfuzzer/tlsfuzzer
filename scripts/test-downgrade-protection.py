@@ -25,10 +25,10 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL, \
-        protocol_name_to_tuple
+        protocol_name_to_tuple, AutoEmptyExtension
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -51,6 +51,7 @@ def help_msg():
     print(" --server-max-protocol   TLS max protocol version the server is")
     print("                         set to use ('TLSv1.3', 'TLSv1.2', ...)")
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
+    print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -63,9 +64,10 @@ def main():
     last_exp_tmp = None
     srv_max_prot=None
     dhe = False
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:d", ["help",
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dM", ["help", "ems",
                                                   "server-max-protocol="])
     for opt, arg in opts:
         if opt == '-h':
@@ -90,6 +92,8 @@ def main():
             sys.exit(0)
         elif opt == '--server-max-protocol':
             srv_max_prot = protocol_name_to_tuple(arg)
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -123,6 +127,7 @@ def main():
             SignatureAlgorithmsExtension().create(sig_algs)
         ext[ExtensionType.signature_algorithms_cert] = \
             SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        # TLS 1.3 needs to be be negotiable without EMS, so don't advertise ems
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectChangeCipherSpec())
@@ -145,8 +150,10 @@ def main():
         node = node.add_child(ExpectAlert())
         node.next_sibling = ExpectClose()
     else:
+        ext = {}
+        if ems:
+            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         if dhe:
-            ext = {}
             groups = [GroupName.secp256r1,
                       GroupName.ffdhe2048]
             ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
@@ -157,9 +164,10 @@ def main():
                        CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         else:
-            ext = None
             ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        if not ext:
+            ext = None
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
@@ -187,8 +195,8 @@ def main():
             continue
         conversation = Connect(host, port)
         node = conversation
+        ext = {}
         if dhe:
-            ext = {}
             groups = [GroupName.secp256r1,
                       GroupName.ffdhe2048]
             ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
@@ -199,9 +207,12 @@ def main():
                        CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         else:
-            ext = None
             ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        if ems:
+            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+        if not ext:
+            ext = None
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext, version=prot))
         node = node.add_child(ExpectServerHello(
             server_max_protocol=srv_max_prot))

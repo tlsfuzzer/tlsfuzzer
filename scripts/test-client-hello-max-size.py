@@ -24,10 +24,10 @@ from tlslite.extensions import ALPNExtension, TLSExtension, \
         SupportedGroupsExtension, SignatureAlgorithmsExtension, \
         SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import RSA_SIG_ALL
+from tlsfuzzer.helpers import RSA_SIG_ALL, AutoEmptyExtension
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -48,6 +48,7 @@ def help_msg():
     print("                execution of preceding expected failure probe")
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
+    print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
 
 def main():
@@ -58,6 +59,7 @@ def main():
     expected_failures = {}
     last_exp_tmp = None
     dhe = False
+    ems = False
     sigalgs = [SignatureScheme.rsa_pkcs1_sha256,
                SignatureScheme.rsa_pkcs1_sha384,
                SignatureScheme.rsa_pkcs1_sha512,
@@ -69,7 +71,7 @@ def main():
                SignatureScheme.rsa_pss_pss_sha512]
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:x:X:d", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:x:X:dM", ["help", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -88,6 +90,8 @@ def main():
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-d':
             dhe = True
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -103,8 +107,8 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
     if dhe:
-        ext = {}
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
@@ -117,9 +121,12 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     else:
-        ext = None
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    if not ext:
+        ext = None
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
@@ -148,11 +155,15 @@ def main():
     lista.append(proto)
     for p in range(1, 255):
         lista.append(proto)
-    # max size with
+    # max size with DHE cipher enabled is smaller because of the
+    # additional extensions
+    reduce = 0
     if dhe:
-        lista.append(bytearray(b'B' * 181))
-    else:
-        lista.append(bytearray(b'B' * 239))
+        reduce += 239 - 181
+    # same when EMS is enabled
+    if ems:
+        reduce += 4
+    lista.append(bytearray(b'B' * (239 - reduce)))
     lista.append(bytearray(b'http/1.1'))
     # cipher suites array length 2^16-2, ciphers are two bytes
     # max number of ciphers can be 32767
@@ -188,6 +199,8 @@ def main():
     ciphers.append(CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV)
     # cipher suites array filled with 32767 2bytes values
     ext = {ExtensionType.alpn: ALPNExtension().create(lista)}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
@@ -204,6 +217,8 @@ def main():
                                                compression=range(0, 255)))
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectCertificate())
     if dhe:

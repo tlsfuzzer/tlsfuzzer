@@ -22,7 +22,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectApplicationData, ExpectServerKeyExchange
 from tlsfuzzer.fuzzers import structured_random_iter, StructuredRandom
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import SIG_ALL
+from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         GroupName, ExtensionType
@@ -30,7 +30,7 @@ from tlslite.extensions import SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 
 
-version = 9
+version = 10
 
 
 def help_msg():
@@ -72,6 +72,7 @@ def help_msg():
     print("                mitigation (should not be used with TLS 1.1 or up)")
     print(" --0/n          Expect the 0/n record splitting for BEAST")
     print("                mitigation (should not be used with TLS 1.1 or up)")
+    print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -86,13 +87,15 @@ def add_dhe_extensions(extensions):
         SignatureAlgorithmsCertExtension().create(SIG_ALL)
 
 
-def add_app_data_conversation(conversations, host, port, cipher, dhe, data):
+def add_app_data_conversation(conversations, host, port, cipher, dhe, data, ems):
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
-        ext = {}
         add_dhe_extensions(ext)
-    else:
+    if not ext:
         ext = None
     ciphers = [cipher,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -131,13 +134,15 @@ def add_app_data_conversation(conversations, host, port, cipher, dhe, data):
             conversation
 
 
-def add_handshake_conversation(conversations, host, port, cipher, dhe, data):
+def add_handshake_conversation(conversations, host, port, cipher, dhe, data, ems):
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
-        ext = {}
         add_dhe_extensions(ext)
-    else:
+    if not ext:
         ext = None
     ciphers = [cipher,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -204,10 +209,11 @@ def main():
     dhe = False
     cipher = None
     splitting = None
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:", ["help", "random=",
-                                                     "1/n-1", "0/n"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:M", ["help", "random=",
+                                                     "1/n-1", "0/n", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -240,6 +246,8 @@ def main():
                     cipher = getattr(CipherSuite, arg)
                 except AttributeError:
                     cipher = int(arg)
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -278,10 +286,12 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
     if dhe:
-        ext = {}
         add_dhe_extensions(ext)
-    else:
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    if not ext:
         ext = None
     ciphers = [cipher,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -354,14 +364,15 @@ def main():
 
     if not run_only:
         for data in chain(mono, rand):
-            add_app_data_conversation(conversations, host, port, cipher, dhe, data)
+            add_app_data_conversation(conversations, host, port, cipher, dhe,
+                                      data, ems)
     else:
         for conv in run_only:
             if "Application Data" in conv:
                 params = parse_structured_random_params(conv)
                 data = StructuredRandom(params)
                 add_app_data_conversation(conversations, host, port, cipher,
-                                          dhe, data)
+                                          dhe, data, ems)
 
     # do th same thing but for handshake record
     # (note, while the type is included in the MAC, we are never
@@ -400,7 +411,7 @@ def main():
     if not run_only:
         for data in chain(mono, rand):
             add_handshake_conversation(conversations, host, port, cipher, dhe,
-                                       data)
+                                       data, ems)
     else:
         for conv in run_only:
             if "Handshake" in conv:
@@ -408,7 +419,7 @@ def main():
                 data = StructuredRandom(params)
                 add_handshake_conversation(conversations, host,
                                            port, cipher,
-                                           dhe, data)
+                                           dhe, data, ems)
 
     # run the conversation
     good = 0

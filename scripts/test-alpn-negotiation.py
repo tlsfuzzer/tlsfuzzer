@@ -24,11 +24,11 @@ from tlslite.extensions import ALPNExtension, TLSExtension, \
         SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import RSA_SIG_ALL
+from tlsfuzzer.helpers import RSA_SIG_ALL, AutoEmptyExtension
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -49,6 +49,7 @@ def help_msg():
     print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
     print("                (\"sanity\" tests are always executed)")
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
+    print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -71,9 +72,10 @@ def main():
     expected_failures = {}
     last_exp_tmp = None
     dhe = False
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:d", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dM", ["help", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -92,6 +94,8 @@ def main():
             num_limit = int(arg)
         elif opt == '-d':
             dhe = True
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -107,8 +111,10 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
-        ext = {}
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
@@ -123,9 +129,10 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     else:
-        ext = None
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if not ext:
+        ext = None
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
@@ -149,6 +156,8 @@ def main():
     conversation = Connect(host, port)
     node = conversation
     ext = {ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         add_dhe_extensions(ext)
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
@@ -160,6 +169,8 @@ def main():
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -190,6 +201,8 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.no_application_protocol))
@@ -207,6 +220,8 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.no_application_protocol))
@@ -225,9 +240,13 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -258,6 +277,8 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decode_error))
@@ -275,6 +296,8 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decode_error))
@@ -292,6 +315,8 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decode_error))
@@ -312,6 +337,8 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     ext[ExtensionType.alpn] = ALPNExtension().create([bytearray(b'http/1.1'),
                                                       bytearray(b'http/2')])
     msg = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -337,6 +364,8 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     ext[ExtensionType.alpn] = ALPNExtension().create([bytearray(b'http/1.1'),
                                                       bytearray(b'http/2')])
     msg = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -362,6 +391,8 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     ext[ExtensionType.alpn] = ALPNExtension().create([bytearray(b'http/1.1'),
                                                       bytearray(b'http/2')])
     msg = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -385,9 +416,13 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -404,9 +439,14 @@ def main():
            ExtensionType.renegotiation_info:None}
     if dhe:
         add_dhe_extensions(ext)
-    node = node.add_child(ClientHelloGenerator(ciphers, session_id=bytearray(0), extensions=ext))
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    node = node.add_child(ClientHelloGenerator(ciphers, session_id=bytearray(0),
+                                               extensions=ext))
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/2')])}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -436,9 +476,13 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -455,9 +499,13 @@ def main():
            ExtensionType.renegotiation_info:None}
     if dhe:
         add_dhe_extensions(ext)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, session_id=bytearray(0), extensions=ext))
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -485,8 +533,12 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext = {ExtensionType.renegotiation_info: None}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -503,9 +555,14 @@ def main():
            ExtensionType.renegotiation_info:None}
     if dhe:
         add_dhe_extensions(ext)
-    node = node.add_child(ClientHelloGenerator(ciphers, session_id=bytearray(0), extensions=ext))
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    node = node.add_child(ClientHelloGenerator(ciphers, session_id=bytearray(0),
+                                               extensions=ext))
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -534,9 +591,13 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -563,9 +624,13 @@ def main():
            ExtensionType.renegotiation_info:None}
     if dhe:
         add_dhe_extensions(ext)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext = {ExtensionType.renegotiation_info:None,
            ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext, resume=True))
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
@@ -590,9 +655,13 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -619,9 +688,13 @@ def main():
            ExtensionType.renegotiation_info:None}
     if dhe:
         add_dhe_extensions(ext)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext = {ExtensionType.renegotiation_info:None,
            ExtensionType.alpn: ALPNExtension().create([bytearray(b'h2')])}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext, resume=True))
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
@@ -645,8 +718,12 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext = {ExtensionType.renegotiation_info: None}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -673,9 +750,13 @@ def main():
            ExtensionType.renegotiation_info:None}
     if dhe:
         add_dhe_extensions(ext)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext = {ExtensionType.renegotiation_info:None,
            ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext, resume=True))
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
@@ -726,9 +807,13 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.alpn: ALPNExtension().create([bytearray(b'http/1.1')])}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectCertificate())
     if dhe:

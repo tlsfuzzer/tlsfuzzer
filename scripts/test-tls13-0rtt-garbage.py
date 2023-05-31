@@ -33,11 +33,11 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
         SignatureAlgorithmsExtension, PskKeyExchangeModesExtension, \
         PreSharedKeyExtension, PskIdentity, TLSExtension, \
         SignatureAlgorithmsCertExtension
-from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL
+from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL, AutoEmptyExtension
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -61,6 +61,7 @@ def help_msg():
     print("                16384 by default")
     print(" --cookie       expect cookie extension in HRR message")
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
+    print(" -M | --ems     Enable Extended Master Secret for TLS 1.2 connections")
     print(" --help         this message")
 
 
@@ -74,10 +75,11 @@ def main():
     num_bytes = 2**14
     cookie = False
     dhe = False
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:d", ["help", "num-bytes=",
-                                                  "cookie"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dM",
+                               ["help", "num-bytes=", "ems", "cookie"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -101,6 +103,8 @@ def main():
             num_bytes = int(arg)
         elif opt == '--cookie':
             cookie = True
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '-d':
             dhe = True
         else:
@@ -654,6 +658,8 @@ def main():
         .create([(3, 5), (3, 3)])
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
