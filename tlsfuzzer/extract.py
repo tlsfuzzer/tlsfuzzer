@@ -13,7 +13,7 @@ import math
 from os.path import join, splitext
 from collections import defaultdict
 from socket import inet_aton, gethostbyname, gaierror, error
-from threading import Thread
+from threading import Thread, Event
 import pandas as pd
 import numpy as np
 
@@ -23,6 +23,7 @@ from tlsfuzzer.utils.log import Log
 from tlsfuzzer.utils.statics import WARM_UP
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.utils.ordered_dict import OrderedDict
+from tlsfuzzer.utils.progress_report import progress_report
 from tlslite.utils.cryptomath import bytesToNumber
 
 
@@ -45,6 +46,9 @@ def help_msg():
     print("                little being the default")
     print(" --no-quickack  Don't assume QUICKACK to be in use (affects")
     print("                capture file parsing only)")
+    print(" --status-delay num How often to print the status line.")
+    print(" --status-newline Use newline instead of carriage return for")
+    print("                printing status line.")
     print(" --help         Display this message")
     print("")
     print("When extracting data from a capture file, specifying the capture")
@@ -65,6 +69,8 @@ def main():
     binary = None
     endian = 'little'
     no_quickack = False
+    delay = None
+    carriage_return = None
 
     argv = sys.argv[1:]
 
@@ -72,9 +78,10 @@ def main():
         help_msg()
         sys.exit(1)
 
-    opts, args = getopt.getopt(argv, "l:c:h:p:o:t:n:", ["help", "raw-times=",
-                                                        "binary=", "endian=",
-                                                        "no-quickack"])
+    opts, args = getopt.getopt(argv, "l:c:h:p:o:t:n:",
+                               ["help", "raw-times=", "binary=", "endian=",
+                                "no-quickack", "status-delay=",
+                                "status-newline"])
     for opt, arg in opts:
         if opt == '-l':
             logfile = arg
@@ -96,6 +103,10 @@ def main():
             endian = arg
         elif opt == "--no-quickack":
             no_quickack = True
+        elif opt == "--status-delay":
+            delay = float(arg)
+        elif opt == "--status-newline":
+            carriage_return = '\n'
         elif opt == "--help":
             help_msg()
             sys.exit(0)
@@ -131,7 +142,8 @@ def main():
     log.read_log()
     analysis = Extract(
         log, capture, output, ip_address, port, raw_times, col_name,
-        binary=binary, endian=endian, no_quickack=no_quickack
+        binary=binary, endian=endian, no_quickack=no_quickack,
+        delay=delay, carriage_return=carriage_return,
     )
     analysis.parse()
 
@@ -142,7 +154,8 @@ class Extract:
     def __init__(self, log, capture=None, output=None, ip_address=None,
                  port=None, raw_times=None, col_name=None,
                  write_csv='timing.csv', write_pkt_csv='raw_times_detail.csv',
-                 binary=None, endian='little', no_quickack=False):
+                 binary=None, endian='little', no_quickack=False, delay=None,
+                 carriage_return=None):
         """
         Initialises instance and sets up class name generator from log.
 
@@ -154,6 +167,8 @@ class Extract:
         :param int binary: number of bytes per timing from raw times file
         :param str endian: endianess of the read numbers
         :param bool no_quickack: If True, don't expect QUICKACK to be in use
+        :param float delay: How often to print the status line.
+        :param str carriage_return: What chacarter to use as status line end.
         """
         self.capture = capture
         self.output = output
@@ -180,6 +195,8 @@ class Extract:
         self._previous_lst_msg = None
         self._write_class_names = None
         self.no_quickack = no_quickack
+        self.delay = delay
+        self.carriage_return = carriage_return
 
         # set up class names generator
         self.log = log
@@ -261,77 +278,6 @@ class Extract:
         self._write_csv_header()
         self._write_csv()
 
-    @staticmethod
-    def _bytes_prefix(count):
-        ret = count
-        lvl = 0
-        lvls = {0: 'B', 1: 'KiB', 2: 'MiB', 3: 'GiB', 4: 'TiB', 5: 'EiB'}
-        while ret > 2000:
-            ret /= 1024.0
-            lvl += 1
-
-        return "{0:.2f} {1}".format(ret, lvls[lvl])
-
-    @staticmethod
-    def _format_seconds(sec):  # pragma: no cover
-        # will move to other module, no point in creating test coverage now
-        """Format number of seconds into a more readable string."""
-        elems = []
-        msec, sec = math.modf(sec)
-        sec = int(sec)
-        days, rem = divmod(sec, 60*60*24)
-        if days:
-            elems.append("{0}d".format(days))
-        hours, rem = divmod(rem, 60*60)
-        if hours or elems:
-            elems.append("{0}h".format(hours))
-        minutes, sec = divmod(rem, 60)
-        if minutes or elems:
-            elems.append("{0}m".format(minutes))
-        elems.append("{0:.2f}s".format(sec+msec))
-        return " ".join(elems)
-
-    @classmethod
-    def _report_progress(cls, status):
-        """
-        Periodically report progress of task in status, thread runner.
-
-        status must be an array with three elements, first two specify a
-        fraction of completed work (i.e. 0 <= status[0]/status[1] <= 1),
-        third specifies if the reporting process should continue running, a
-        False value there will cause the process to finish
-        """
-        # technically that should be time.monotonic(), but it's not supported
-        # on python2.7
-        start_exec = time.time()
-        prev_loop = start_exec
-        delay = 2.0
-        while status[2]:
-            old_exec = status[0]
-            time.sleep(delay)
-            now = time.time()
-            elapsed = now-start_exec
-            loop_time = now-prev_loop
-            prev_loop = now
-            elapsed_str = cls._format_seconds(elapsed)
-            done = status[0]*100.0/status[1]
-            try:
-                remaining = (100-done)*elapsed/done
-            except ZeroDivisionError:
-                remaining = status[1]
-            remaining_str = cls._format_seconds(remaining)
-            eta = time.strftime("%H:%M:%S %d-%m-%Y",
-                                time.localtime(now+remaining))
-            print("Done: {0:6.2f}%, elapsed: {1}, speed: {2}/s, "
-                  "avg speed: {3}/s, remaining: {4}, ETA: {5}{6}"
-                  .format(
-                      done, elapsed_str,
-                      cls._bytes_prefix((status[0] - old_exec)/loop_time),
-                      cls._bytes_prefix(status[0]/elapsed),
-                      remaining_str,
-                      eta,
-                      " " * 4), end="\r")
-
     def _parse_pcap(self):
         """Process capture file."""
         with open(self.capture, 'rb') as pcap:
@@ -340,8 +286,14 @@ class Extract:
                 pcap.seek(0, 2)
                 exp_len = pcap.tell()
                 pcap.seek(0, 0)
-                status = [0, exp_len, True]
-                progress = Thread(target=self._report_progress, args=(status,))
+                status = [0, exp_len, Event()]
+                kwargs = {}
+                kwargs['unit'] = 'B'
+                kwargs['prefix'] = 'binary'
+                kwargs['delay'] = self.delay
+                kwargs['end'] = self.carriage_return
+                progress = Thread(target=progress_report, args=(status,),
+                                  kwargs=kwargs)
                 progress.start()
 
                 capture = dpkt.pcap.Reader(pcap)
@@ -467,7 +419,7 @@ class Extract:
                 # deal with the last connection
                 self.add_timing()
             finally:
-                status[2] = False
+                status[2].set()
                 progress.join()
                 print()
 
