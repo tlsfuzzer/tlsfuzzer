@@ -67,6 +67,11 @@ from tlslite.mathtls import goodGroupParameters
 from tlslite.utils.cryptomath import secureHash
 
 
+if sys.version_info < (3, 0):
+    BUILTIN_PRINT = "__builtin__.print"
+else:
+    BUILTIN_PRINT = "builtins.print"
+
 srv_raw_key = str(
     "-----BEGIN RSA PRIVATE KEY-----\n"\
     "MIICXQIBAAKBgQDRCQR5qRLJX8sy1N4BF1G1fml1vNW5S6o4h3PeWDtg7JEn+jIt\n"\
@@ -3287,7 +3292,8 @@ class TestExpectServerKeyExchange(unittest.TestCase):
 
         exp.process(state, msg)
 
-    def test_process_with_ECDHE_RSA_bad_signature(self):
+    @mock.patch(BUILTIN_PRINT)
+    def test_process_with_ECDHE_RSA_bad_signature(self, mock_print):
         exp = ExpectServerKeyExchange()
 
         state = ConnectionState()
@@ -3322,9 +3328,10 @@ class TestExpectServerKeyExchange(unittest.TestCase):
         msg = srv_key_exchange.makeServerKeyExchange('sha256')
         msg.signature[-1] ^= 1
 
-        print("Error printed below is expected", file=sys.stderr)
         with self.assertRaises(TLSDecryptionFailed):
             exp.process(state, msg)
+
+        self.assertIn("Bad signature", mock_print.call_args[0][0])
 
     def test_process_with_default_signature_algorithm(self):
         exp = ExpectServerKeyExchange()
