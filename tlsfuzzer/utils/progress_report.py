@@ -50,7 +50,7 @@ def _binary_prefix(count):
     return "{0:.2f}{1}".format(ret, lvls[lvl])
 
 
-def progress_report(status, unit='', prefix='decimal', delay=2.0, end='\r'):
+def progress_report(status, unit='', prefix='decimal', delay=None, end=None):
     """
     Periodically report progress of a task in ``status``, a thread runner.
 
@@ -78,6 +78,10 @@ def progress_report(status, unit='', prefix='decimal', delay=2.0, end='\r'):
     """
     if len(status) != 3:
         raise ValueError("status is not a 3 element array")
+    if delay is None:
+        delay = 2
+    if end is None:
+        end = '\r'
     # technically that should be time.monotonic(), but it's not supported
     # on python2.7
     start_exec = time.time()
