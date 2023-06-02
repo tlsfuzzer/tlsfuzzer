@@ -858,7 +858,7 @@ class Analysis(object):
         diff_stats["SD"] = np.std(diff)
         quantiles = np.quantile(diff, [0.25, 0.5, 0.75])
         diff_stats["median"] = quantiles[1]
-        diff_stats["IQR"] = quantiles[2] - quantiles[1]
+        diff_stats["IQR"] = quantiles[2] - quantiles[0]
         diff_stats["MAD"] = stats.median_abs_deviation(diff)
         return diff_stats
 
