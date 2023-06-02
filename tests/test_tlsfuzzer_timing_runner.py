@@ -110,6 +110,15 @@ class TestRunner(unittest.TestCase):
             TimingRunner("test", [], "/outdir", "localhost", 4433, "lo")
             mock_mkdir.assert_called_once()
 
+    def test_create_dir_with_duplicate(self):
+        with mock.patch('tlsfuzzer.timing_runner.os.mkdir') as mock_mkdir:
+            if version_info > (3, 0):
+                mock_mkdir.side_effect = [FileExistsError("Dir exists"), None]
+            else:
+                mock_mkdir.side_effect = [OSError("Dir exists"), None]
+            TimingRunner("test", [], "/outdir", "localhost", 4433, "lo")
+            self.assertEqual(2, len(mock_mkdir.mock_calls))
+
     def test_check_extraction_availability(self):
         extraction_present = True
         try:
