@@ -50,26 +50,31 @@ def _binary_prefix(count):
     return "{0:.2f}{1}".format(ret, lvls[lvl])
 
 
-def progress_report(status, unit='', prefix='decimal', delay=2.0):
+def progress_report(status, unit='', prefix='decimal', delay=2.0, end='\r'):
     """
-    Periodically report progress of a task in `status`, a thread runner.
+    Periodically report progress of a task in ``status``, a thread runner.
 
-    status must be an array with three elements, first two specify a
-    fraction of completed work (i.e. 0 <= status[0]/status[1] <= 1),
+    :param list status: must be a list with three elements, first two
+    specify a fraction of completed work (i.e.
+    ``0 <= status[0]/status[1] <= 1``),
     third specifies if the reporting process should continue running.
-    It can either be a bool or a threading.Event instance.
-    A False bool value there will cause the thread to finish.
-    An Event object with flag set will cause the thread to finish
-    (using Event is recommended when the `delay` is long as that allows a
+    It can either be a ``bool`` or a :py:class:`threading.Event` instance.
+    A ``False`` bool value there will cause the thread to finish.
+    An ``Event`` object with flag set will cause the thread to finish
+    (using Event is recommended when the ``delay`` is long as that allows a
     quick and clean shutdown of the process).
 
-    `unit` is the first two elements in `status` (like 'B' for bytes or
-    ' conn' for connections).
+    :param str unit: is the first name of the unit of the two elements in
+    ``status`` (like ``B`` for bytes or `` conn`` for connections).
 
-    `prefix` controls the exponent for the SI prefix, `decimal` for
-    1000 and `binary` for 1024
+    :param str prefix: controls the exponent for the SI prefix, use ``decimal``
+    for 1000 and ``binary`` for 1024
 
-    `delay` sets how often to print the status line, in seconds
+    :param float delay: sets how often to print the status line, in seconds
+
+    :param str end: line terminator to use when printing the status line,
+    use ``\r`` to overwrite the line when printing (default), or ``\n`` to
+    print a whole new line every time.
     """
     if len(status) != 3:
         raise ValueError("status is not a 3 element array")
@@ -113,7 +118,7 @@ def progress_report(status, unit='', prefix='decimal', delay=2.0):
                   remaining_str,
                   eta,
                   unit,
-                  " " * 4), end="\r")
+                  " " * 4), end=end)
 
         if isinstance(status[2], event_type):
             if status[2].is_set():
