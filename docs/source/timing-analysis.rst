@@ -96,10 +96,17 @@ Then you can install tlsfuzzer dependencies to speed-up the test execution:
 
 .. code:: bash
 
+   dnf install python3 python3-devel tcpdump gmp-devel swig mpfr-devel \
+   libmpc openssl-devel make gcc gcc-c++ git libmpc-devel python3-six
+
+(and on other platforms, where you need to compile scipy from sources)
+
+.. code:: bash
+
    dnf install -y python3 python3-devel tcpdump gmp-devel swig mpfr-devel \
    libmpc openssl-devel make gcc gcc-c++ git libmpc-devel python3-six \
    meson openblas-devel gcc-gfortran lapack-devel zlib-devel \
-   libtiff-devel libjpeg-devel openjpeg2-devel zlib-devel freetype-devel \
+   libtiff-devel libjpeg-devel openjpeg2-devel freetype-devel \
    lcms2-devel libwebp-devel tcl-devel tk-devel harfbuzz-devel fribidi-devel \
    libxcb-devel
 
