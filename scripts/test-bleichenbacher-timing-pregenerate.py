@@ -90,6 +90,8 @@ def help_msg():
     print("                1e-5")
     print(" --no-quickack  Don't assume that QUICKACK is in use.")
     print(" --verbose-analysis Enable verbose progress of analysis.")
+    print(" --status-delay num How often to print the status line.")
+    print(" --status-newline Use a newline for line end instead of carriage return.")
     print(" --help         this message")
 
 
@@ -120,6 +122,8 @@ def main():
     alpha = 1e-5
     no_quickack = False
     verbose_analysis = False
+    delay = None
+    carriage_return = None
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv,
@@ -134,7 +138,9 @@ def main():
                                 "bit-sets=",
                                 "alpha=",
                                 "no-quickack",
-                                "verbose-analysis"])
+                                "verbose-analysis",
+                                "status-delay=",
+                                "status-newline"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -196,6 +202,10 @@ def main():
             no_quickack = True
         elif opt == "--verbose-analysis":
             verbose_analysis = True
+        elif opt == "--status-delay":
+            delay = float(arg)
+        elif opt == "--status-newline":
+            carriage_return = '\n'
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -1319,7 +1329,9 @@ place where the timing leak happens:
                                          skip_extract=True,
                                          alpha=alpha,
                                          no_quickack=no_quickack,
-                                         verbose_analysis=verbose_analysis)
+                                         verbose_analysis=verbose_analysis,
+                                         delay=delay,
+                                         carriage_return=carriage_return)
             print("Pre-generating pre-master secret values...")
 
             with open(
