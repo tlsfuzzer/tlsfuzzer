@@ -69,6 +69,10 @@ def help_msg():
                 computation. More workers will finish analysis faster, but
                 will require more memory to do so. By default: number of
                 threads available on the system (`os.cpu_count()`).
+ --status-delay num How often to print the status line for long-running tasks
+                in seconds.
+ --status-newline Use newline for printing status line, not carriage return,
+                works better with output redirection to file.
  --help         Display this message""")
 
 
@@ -83,6 +87,8 @@ def main():
     clock_freq = None
     alpha = None
     workers = None
+    delay = None
+    carriage_return = None
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "o:",
                                ["help", "no-ecdf-plot", "no-scatter-plot",
@@ -91,6 +97,8 @@ def main():
                                 "clock-frequency=",
                                 "alpha=",
                                 "workers=",
+                                "status-delay=",
+                                "status-newline",
                                 "verbose"])
 
     for opt, arg in opts:
@@ -115,11 +123,15 @@ def main():
             workers = int(arg)
         elif opt == "--verbose":
             verbose = True
+        elif opt == "--status-delay":
+            delay = float(arg)
+        elif opt == "--status-newline":
+            carriage_return = '\n'
 
     if output:
         analysis = Analysis(output, ecdf_plot, scatter_plot, conf_int_plot,
                             multithreaded_graph, verbose, clock_freq, alpha,
-                            workers)
+                            workers, delay, carriage_return)
         ret = analysis.generate_report()
         return ret
     else:
@@ -132,7 +144,7 @@ class Analysis(object):
     def __init__(self, output, draw_ecdf_plot=True, draw_scatter_plot=True,
                  draw_conf_interval_plot=True, multithreaded_graph=False,
                  verbose=False, clock_frequency=None, alpha=None,
-                 workers=None):
+                 workers=None, delay=None, carriage_return=None):
         self.verbose = verbose
         self.output = output
         self.clock_frequency = clock_frequency
@@ -147,6 +159,8 @@ class Analysis(object):
             self.alpha = 1e-5
         else:
             self.alpha = alpha
+        self.delay = delay
+        self.carriage_return = carriage_return
 
     def _convert_to_binary(self):
         timing_bin_path = join(self.output, "timing.bin")
@@ -787,6 +801,8 @@ class Analysis(object):
             status = [0, reps, Event()]
             kwargs = {}
             kwargs['unit'] = ' bootstraps'
+            kwargs['delay'] = self.delay
+            kwargs['end'] = self.carriage_return
             progress = Thread(target=progress_report, args=(status,),
                               kwargs=kwargs)
             progress.start()
@@ -846,6 +862,8 @@ class Analysis(object):
             status = [0, reps * (len(self.class_names) - 1), Event()]
             kwargs = {}
             kwargs['unit'] = ' bootstraps'
+            kwargs['delay'] = self.delay
+            kwargs['end'] = self.carriage_return
             progress = Thread(target=progress_report, args=(status, ),
                               kwargs=kwargs)
             progress.start()
