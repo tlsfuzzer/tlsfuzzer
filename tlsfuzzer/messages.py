@@ -57,6 +57,23 @@ class Command(TreeNode):
     def process(self, state):
         """Change the state of the connection."""
         raise NotImplementedError("Subclasses need to implement this!")
+    
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = []
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
 
 class Connect(Command):
@@ -78,6 +95,23 @@ class Connect(Command):
         self.port = port
         self.version = version
         self.timeout = timeout
+
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["hostname", "port", "version", "timeout"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
     def process(self, state):
         """Connect to a server."""
@@ -396,8 +430,21 @@ class RawSocketWriteGenerator(Command):
         self.description = description
 
     def __repr__(self):
-        """Return human readable representation of the object."""
-        return self._repr(["data", "description"])
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["data", "description"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
     def process(self, state):
         """Send the message over the socket."""
@@ -427,15 +474,21 @@ class PlaintextMessageGenerator(Command):
         self.description = description
 
     def __repr__(self):
-        """Return human readable representation of the object."""
-        vals = []
-        vals.append(('content_type', self.content_type))
-        vals.append(('data', repr(self.data)))
-        if self.description:
-            vals.append(('description', repr(self.description)))
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["content_type", "data", "description"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
 
-        return "PlaintextMessageGenerator({0})".format(
-                ", ".join("{0}={1}".format(i[0], i[1]) for i in vals))
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
     def process(self, state):
         """Send the message over the socket."""
@@ -504,14 +557,21 @@ class RawMessageGenerator(MessageGenerator):
         return message
 
     def __repr__(self):
-        """Return human readable representation of the object."""
-        if self.description is None:
-            return "RawMessageGenerator(content_type={0!s}, data={1!r})".\
-                   format(self.content_type, self.data)
-        else:
-            return "RawMessageGenerator(content_type={0!s}, data={1!r}, " \
-                   "description={2!r})".format(self.content_type, self.data,
-                                               self.description)
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["content_type", "data", "description"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
 
 class HandshakeProtocolMessageGenerator(MessageGenerator):
@@ -588,24 +648,19 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
     def __repr__(self):
         """Human readable representation of the object."""
         ret = []
-        if self.ssl2:
-            ret.append("ssl2={0!r}".format(self.ssl2))
-        if self.version:
-            ret.append("version={0!r}".format(self.version))
-        if self.ciphers:
-            ret.append("ciphers={0!r}".format(self.ciphers))
-        if self.random:
-            ret.append("random={0!r}".format(self.random))
-        if self.session_id:
-            ret.append("session_id={0!r}".format(self.session_id))
-        if self.compression:
-            ret.append("compression={0!r}".format(self.compression))
-        if self.extensions:
-            ret.append("extensions={0!r}".format(self.extensions))
-        if self.modifiers:
-            ret.append("modifiers={0!r}".format(self.modifiers))
+        
+        init_args = ["version", "ciphers", "extensions", "session_id", "random", "compression", "ssl2", "modifiers"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
 
-        return "ClientHelloGenerator({0})".format(", ".join(ret))
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
     def _generate_extensions(self, state):
         """Convert extension generators to extension objects."""
@@ -759,6 +814,29 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
         if p_as_share and p_1_as_share:
             raise ValueError("Can't set both p_as_share and p_1_as_share at "
                              "the same time")
+
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["cipher", "version", "client_version",
+                 "dh_Yc", "padding_subs", "padding_xors",
+                 "ecdh_Yc", "encrypted_premaster",
+                 "modulus_as_encrypted_premaster", "p_as_share",
+                 "p_1_as_share", "premaster_secret",
+                 "padding_byte", "reuse_encrypted_premaster"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+
 
     def generate(self, status):
         """Create a Client Key Exchange message."""
@@ -1344,6 +1422,23 @@ class ChangeCipherSpecGenerator(MessageGenerator):
         super(ChangeCipherSpecGenerator, self).__init__()
         self.extended_master_secret = extended_master_secret
         self.fake = fake
+        
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["extended_master_secret", "fake"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
     def generate(self, status):
         """Create a message for sending to server."""
@@ -1425,6 +1520,23 @@ class FinishedGenerator(HandshakeProtocolMessageGenerator):
         self.pad_left = pad_left
         self.pad_right = pad_right
         self.context = context
+        
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["protocol", "server_finish_hh", "trunc_start", "trunc_end", "pad_byte", "pad_left", "pad_right", "context"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
     def generate(self, status):
         """Create a Finished message."""
@@ -1540,6 +1652,23 @@ class ApplicationDataGenerator(MessageGenerator):
         super(ApplicationDataGenerator, self).__init__()
         self.payload = payload
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["payload"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+    
     def generate(self, status):
         """Send data to server in Application Data messages."""
         app_data = ApplicationData().create(self.payload)

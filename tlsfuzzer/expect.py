@@ -57,6 +57,23 @@ class Expect(TreeNode):
         super(Expect, self).__init__()
         self.content_type = content_type
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["content_type"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+    
     def is_expect(self):
         """Flag to tell if the object is a message processor"""
         return True
@@ -200,6 +217,23 @@ class ExpectHandshake(ExpectMessage):
         super(ExpectHandshake, self).__init__(content_type)
         self.handshake_type = handshake_type
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["content_type", "handshake_type"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+    
     def is_match(self, msg):
         """Check if message is a given type of handshake protocol message"""
         if not super(ExpectHandshake, self).is_match(msg):
@@ -619,12 +653,36 @@ class ExpectServerHello(_ExpectExtensionsMessage):
         self.srv_max_prot = server_max_protocol
         self.description = description
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["cipher", "version", "resume", "server_max_protocol", "description"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+
     def __str__(self):
         """Return human redable representation of the object."""
+        cmd = ""
         if self.description:
-            return "ExpectServerHello(description={0!r})"\
+            cmd = "ExpectServerHello(description={0!r})\n"\
                    .format(self.description)
-        return "ExpectServerHello()"
+        else:
+            cmd = "ExpectServerHello()\n"
+            
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
     @staticmethod
     def _get_autohandler(ext_id):
@@ -995,6 +1053,23 @@ class ExpectCertificate(ExpectHandshake):
         self.cert_type = cert_type
         self._old_cert = None
         self._old_cert_bytes = None
+
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["cert_type"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
     def process(self, state, msg):
         """
@@ -1762,8 +1837,21 @@ class ExpectNewSessionTicket(ExpectHandshake):
         state.session_tickets.append(ticket)
 
     def __repr__(self):
-        """Return human readable representation of object."""
-        return self._repr(['description'])
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["description"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
 
 class ExpectHelloRequest(ExpectHandshake):
@@ -1801,8 +1889,21 @@ class ExpectHelloRequest(ExpectHandshake):
         HelloRequest().parse(parser)
 
     def __repr__(self):
-        """Return human readable representation of object."""
-        return self._repr(['description'])
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["description"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
 
 class ExpectAlert(Expect):
@@ -1846,8 +1947,21 @@ class ExpectAlert(Expect):
             raise AssertionError(problem_desc)
 
     def __repr__(self):
-        """Return human readable representation of object."""
-        return self._repr(["level", "description"])
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["level", "description"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
 
 class ExpectSSL2Alert(ExpectHandshake):
