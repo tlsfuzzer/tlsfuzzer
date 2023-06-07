@@ -559,6 +559,23 @@ class _ExpectExtensionsMessage(ExpectHandshake):
             content_type, msg_type)
         self.extensions = extensions
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["content_type", "msg_type", "extensions"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+
     def _compare_extensions(self, message):
         """
         Verify that server provided extensions match exactly expected list.
@@ -657,7 +674,7 @@ class ExpectServerHello(_ExpectExtensionsMessage):
         """Human readable representation of the object."""
         ret = []
         
-        init_args = ["cipher", "version", "resume", "server_max_protocol", "description"]
+        init_args = ["extensions", "cipher", "version", "resume", "server_max_protocol", "description"]
         
         for arg in init_args:
             if self.__getattribute__(arg):
@@ -958,6 +975,23 @@ class ExpectHelloRetryRequest(ExpectServerHello):
         self._ch_hh = None
         self._msg = None
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["extensions", "cipher", "version"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+
     def process(self, state, msg):
         self._ch_hh = state.handshake_hashes.copy()
         self._msg = msg
@@ -1000,6 +1034,23 @@ class ExpectServerHello2(ExpectHandshake):
         super(ExpectServerHello2, self).__init__(c_type,
                                                  h_type)
         self.version = version
+
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["version"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
     def process(self, state, msg):
         """
@@ -1103,6 +1154,23 @@ class ExpectCertificateVerify(ExpectHandshake):
             HandshakeType.certificate_verify)
         self.version = version
         self.sig_alg = sig_alg
+        
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["version", "sig_alg"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
     def process(self, state, msg):
         """
@@ -1226,6 +1294,23 @@ class ExpectServerKeyExchange(ExpectHandshake):
         self.valid_params = valid_params
         if self.valid_groups and self.valid_params:
             raise ValueError("valid_groups and valid_params are exclusive")
+
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["version", "cipher_suite", "valid_sig_algs", "valid_groups", "valid_params"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
     def _checkParams(self, server_key_exchange):
         groups = []
@@ -1400,6 +1485,24 @@ class ExpectCertificateRequest(_ExpectExtensionsMessage):
             raise ValueError("Can't set sig_algs and extensions at the same "
                              "time")
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["sig_algs", "cert_types",
+                 "sanity_check_cert_types", "extensions", "context"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+
     @staticmethod
     def _sanity_check_cert_types(cert_request):
         """Verify that the CertificateRequest is self-consistent."""
@@ -1515,6 +1618,23 @@ class ExpectServerHelloDone(ExpectHandshake):
               self).__init__(ContentType.handshake,
                              HandshakeType.server_hello_done)
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = []
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+
     def process(self, state, msg):
         """
         :type state: ConnectionState
@@ -1549,6 +1669,23 @@ class ExpectChangeCipherSpec(Expect):
         super(ExpectChangeCipherSpec,
               self).__init__(ContentType.change_cipher_spec)
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = []
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+
     def process(self, state, msg):
         """
         :type state: ConnectionState
@@ -1579,6 +1716,23 @@ class ExpectVerify(ExpectHandshake):
         super(ExpectVerify, self).__init__(ContentType.handshake,
                                            SSL2HandshakeType.server_verify)
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = []
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+    
     def process(self, state, msg):
         """Check if the VERIFY message has expected value"""
         assert msg.contentType == ContentType.handshake
@@ -1609,6 +1763,23 @@ class ExpectFinished(ExpectHandshake):
             super(ExpectFinished, self).__init__(ContentType.handshake,
                                                  HandshakeType.finished)
         self.version = version
+
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["version"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
     def process(self, state, msg):
         """
@@ -1708,6 +1879,23 @@ class ExpectEncryptedExtensions(_ExpectExtensionsMessage):
             ContentType.handshake,
             HandshakeType.encrypted_extensions,
             extensions)
+
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["extensions"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
     def _compare_extensions_in_ee(self, srv_exts, cln_hello):
         """
@@ -1824,6 +2012,24 @@ class ExpectNewSessionTicket(ExpectHandshake):
             HandshakeType.new_session_ticket)
         self.description = description
 
+
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["description"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+    
     def process(self, state, msg):
         """Parse, verify and process the message."""
         assert msg.contentType == ContentType.handshake
@@ -1878,6 +2084,23 @@ class ExpectHelloRequest(ExpectHandshake):
             HandshakeType.hello_request)
         self.description = description
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["description"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+
     def process(self, state, msg):
         """Parse, verify and process the message."""
         assert msg.contentType == ContentType.handshake
@@ -1914,6 +2137,23 @@ class ExpectAlert(Expect):
         self.level = level
         self.description = description
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["level", "description"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+    
     def process(self, state, msg):
         assert msg.contentType == ContentType.alert
         parser = Parser(msg.write())
@@ -1972,6 +2212,23 @@ class ExpectSSL2Alert(ExpectHandshake):
                                               SSL2HandshakeType.error)
         self.error = error
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["error"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+
     def process(self, state, msg):
         """Analyse the error message"""
         assert msg.contentType == ContentType.handshake
@@ -1995,6 +2252,23 @@ class ExpectApplicationData(Expect):
         self.output = output
         self.description = description
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["data", "size", "outptut", "description"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+    
     def __str__(self):
         """Return human readable representation of the object."""
         return self._repr(['data', 'size', 'description'])
@@ -2038,6 +2312,23 @@ class ExpectHeartbeat(ExpectMessage):
         self.payload = payload
         self.padding_size = padding_size
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["message_type", "payload", "padding_size"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+
     def process(self, state, msg):
         """Check if the ``msg`` meets the requirements for the message."""
         assert msg.contentType == ContentType.heartbeat
@@ -2078,6 +2369,23 @@ class ExpectNoMessage(Expect):
         super(ExpectNoMessage, self).__init__(None)
         self.timeout = timeout
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["timeout"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+    
     def process(self, state, msg):
         """Do nothing."""
         pass
@@ -2089,6 +2397,23 @@ class ExpectClose(Expect):
     def __init__(self):
         super(ExpectClose, self).__init__(None)
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = []
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+    
     def process(self, state, msg):
         """Close our side"""
         state.msg_sock.sock.close()
@@ -2102,6 +2427,24 @@ class ExpectCertificateStatus(ExpectHandshake):
               self).__init__(ContentType.handshake,
                              HandshakeType.certificate_status)
 
+
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = []
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+    
     def process(self, state, msg):
         assert msg.contentType == ContentType.handshake
 
@@ -2131,6 +2474,23 @@ class ExpectKeyUpdate(ExpectHandshake):
             HandshakeType.key_update)
         self.message_type = message_type
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["message_type"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+    
     def process(self, state, msg):
         """
         Parse, verify and process the message.
