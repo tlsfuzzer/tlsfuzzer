@@ -96,9 +96,7 @@ def return_tests(host, port, cipher, level, reuse_rsa_ciphertext, srv_extensions
     # RSA key exchange check
     if cipher not in CipherSuite.certSuites:
         print("Ciphersuite has to use RSA key exchange.")
-        exit(1)
-
-    conversations = OrderedDict()
+        sys.exit(1)
 
     conversation = Connect(host, port)
     node = conversation
