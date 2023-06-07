@@ -22,10 +22,10 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
 from tlslite.extensions import SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import RSA_SIG_ALL
+from tlsfuzzer.helpers import RSA_SIG_ALL, AutoEmptyExtension
 
 
-version = 7
+version = 8
 
 
 def help_msg():
@@ -48,6 +48,7 @@ def help_msg():
     print("                (excluding \"sanity\" tests)")
     print(" --no-ssl2      expect the server to not support SSL2 Client Hello")
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
+    print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -66,9 +67,11 @@ def main():
     last_exp_tmp = None
     dhe = False
     no_ssl2 = False
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:d", ["help", "no-ssl2"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dM", ["help", "no-ssl2",
+                                                        "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -89,6 +92,8 @@ def main():
             dhe = True
         elif opt == '--no-ssl2':
             no_ssl2 = True
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -104,8 +109,10 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
-        ext = {}
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
@@ -118,9 +125,10 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     else:
-        ext = None
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if not ext:
+        ext = None
     if no_ssl2:
         # any unassigned ciphers are ok, they just work as padding
         # we use them to set the length byte of the cipher list in SSLv2 to
@@ -130,6 +138,8 @@ def main():
         # receives them
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext={ExtensionType.renegotiation_info:None}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectCertificate())
     if dhe:

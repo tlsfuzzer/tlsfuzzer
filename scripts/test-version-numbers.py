@@ -23,10 +23,10 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
 from tlslite.extensions import SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import SIG_ALL
+from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -50,6 +50,7 @@ def help_msg():
     print("                additional extensions, usually used for (EC)DHE ciphers")
     print(" -C ciph        Use specified ciphersuite. Either numerical value or")
     print("                IETF name.")
+    print(" -M | --ems     Advertise support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -63,9 +64,10 @@ def main():
     last_exp_tmp = None
     dhe = False
     ciphers = None
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:M", ["help", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -92,6 +94,8 @@ def main():
                     ciphers = [getattr(CipherSuite, arg)]
                 except AttributeError:
                     ciphers = [int(arg)]
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -117,8 +121,10 @@ def main():
         else:
             ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
 
+    ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
-        ext = {}
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
@@ -127,7 +133,7 @@ def main():
             SignatureAlgorithmsExtension().create(SIG_ALL)
         ext[ExtensionType.signature_algorithms_cert] = \
             SignatureAlgorithmsCertExtension().create(SIG_ALL)
-    else:
+    if not ext:
         ext = None
 
     conversations = {}
@@ -167,8 +173,11 @@ def main():
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext,
                                                version=(254, 254)))
+    srv_ext = {ExtensionType.renegotiation_info:None}
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(version=(3, 3),
-                                            extensions={ExtensionType.renegotiation_info:None}))
+                                            extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
         node = node.add_child(ExpectServerKeyExchange())
@@ -192,8 +201,11 @@ def main():
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext,
                                                version=(4, 1)))
+    srv_ext = {ExtensionType.renegotiation_info:None}
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(version=(3, 3),
-                                            extensions={ExtensionType.renegotiation_info:None}))
+                                            extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
         node = node.add_child(ExpectServerKeyExchange())
@@ -217,8 +229,11 @@ def main():
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext,
                                                version=(6, 3)))
+    srv_ext = {ExtensionType.renegotiation_info:None}
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(version=(3, 3),
-                                            extensions={ExtensionType.renegotiation_info:None}))
+                                            extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
         node = node.add_child(ExpectServerKeyExchange())
@@ -252,8 +267,11 @@ def main():
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext,
                                                version=(3, 3)))
+    srv_ext = {ExtensionType.renegotiation_info:None}
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(version=(3, 3),
-                                            extensions={ExtensionType.renegotiation_info:None}))
+                                            extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
         node = node.add_child(ExpectServerKeyExchange())
@@ -277,8 +295,11 @@ def main():
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext,
                                                version=(3, 3)))
+    srv_ext = {ExtensionType.renegotiation_info:None}
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(version=(3, 3),
-                                            extensions={ExtensionType.renegotiation_info:None}))
+                                            extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
         node = node.add_child(ExpectServerKeyExchange())
@@ -302,8 +323,11 @@ def main():
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext,
                                                version=(254, 254)))
+    srv_ext = {ExtensionType.renegotiation_info:None}
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(version=(3, 3),
-                                            extensions={ExtensionType.renegotiation_info:None}))
+                                            extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
         node = node.add_child(ExpectServerKeyExchange())

@@ -2629,7 +2629,6 @@ class TestFinishedGenerator(unittest.TestCase):
 
         ret = fg.generate(state)
 
-        print(repr(ret.verify_data))
         self.assertEqual(ret.verify_data,
             bytearray(b'q\xf1l\x05\x94\xb8"\xb2L7\xce\xd5\xb3\x00\xa6\r\x17*'
                       b'\xcc\xe7\xdc\xa6\xf0c\xd7\x90I\x11}\xbfq:'))

@@ -118,7 +118,10 @@ class TimingRunner:
             elapsed = time.time()-start_exec
             elapsed_str = TimingRunner._format_seconds(elapsed)
             done = status[0]*100.0/status[1]
-            remaining = (100-done)*elapsed/done
+            try:
+                remaining = (100-done)*elapsed/done
+            except ZeroDivisionError:
+                remaining = status[1]*elapsed
             remaining_str = TimingRunner._format_seconds(remaining)
             eta = time.strftime("%H:%M:%S %d-%m-%Y",
                                 time.localtime(time.time()+remaining))
@@ -241,7 +244,7 @@ class TimingRunner:
                                                                self.port)
         flags = ['-i', self.interface,
                  '-s', '0',
-                 '--time-stamp-precision', 'nano'
+                 '--time-stamp-precision', 'nano',
                  '--buffer-size=102400']  # units are KiB
 
         output_file = os.path.join(self.out_dir, "capture.pcap")
@@ -333,8 +336,20 @@ class TimingRunner:
         :param str name: Name of the test being run
         :return: str Path to newly created directory
         """
-        test_name = os.path.basename(name)
-        out_dir = os.path.join(os.path.abspath(self.out_dir),
-                               "{0}_{1}".format(test_name, int(time.time())))
-        os.mkdir(out_dir)
+        if sys.version_info >= (3, 0):
+            exc = FileExistsError
+        else:
+            exc = OSError
+
+        while True:
+            test_name = os.path.basename(name)
+            out_dir = os.path.join(os.path.abspath(self.out_dir),
+                                   "{0}_{1}".format(
+                                       test_name,
+                                       int(time.time())))
+            try:
+                os.mkdir(out_dir)
+            except exc:
+                continue
+            break
         return out_dir

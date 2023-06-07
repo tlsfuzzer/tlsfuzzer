@@ -27,7 +27,7 @@ from tlsfuzzer.helpers import RSA_SIG_ALL
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -49,6 +49,7 @@ def help_msg():
     print(" -X message     expect the `message` substring in exception raised during")
     print("                execution of preceding expected failure probe")
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
+    print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help               this message")
 
 
@@ -60,9 +61,10 @@ def main():
     expected_failures = {}
     last_exp_tmp = None
     dhe = False
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:x:X:d", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:x:X:dM", ["help", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             hostname = arg
@@ -81,6 +83,8 @@ def main():
             if not last_exp_tmp:
                 raise ValueError("-x has to be specified before -X")
             expected_failures[last_exp_tmp] = str(arg)
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -97,6 +101,8 @@ def main():
     conversation = Connect(hostname, port)
     node = conversation
     ext = {ExtensionType.encrypt_then_mac: AutoEmptyExtension()}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1, GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
@@ -114,6 +120,8 @@ def main():
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     extensions = {ExtensionType.encrypt_then_mac:None,
                   ExtensionType.renegotiation_info:None}
+    if ems:
+        extensions[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=extensions))
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -137,6 +145,8 @@ def main():
     node = conversation
     # 1st handshake without encrypt-then-mac extension
     ext = {ExtensionType.renegotiation_info: None}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1, GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension() \
@@ -151,6 +161,8 @@ def main():
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     extensions = {ExtensionType.renegotiation_info: None}
+    if ems:
+        extensions[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=extensions))
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -173,11 +185,15 @@ def main():
             SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
         ext[ExtensionType.signature_algorithms_cert] = \
             SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                session_id=bytearray(0),
                                                extensions=ext))
     extensions = {ExtensionType.encrypt_then_mac:None,
                   ExtensionType.renegotiation_info:None}
+    if ems:
+        extensions[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=extensions))
     node = node.add_child(ExpectCertificate())
     if dhe:

@@ -23,6 +23,12 @@ def is_33():
     return (3, 3) == version_info[:2]
 
 
+if version_info < (3, 0):
+    BUILTIN_PRINT = "__builtin__.print"
+else:
+    BUILTIN_PRINT = "builtins.print"
+
+
 class TestRunner(unittest.TestCase):
     def setUp(self):
         with mock.patch('tlsfuzzer.timing_runner.os.mkdir'):
@@ -107,8 +113,20 @@ class TestRunner(unittest.TestCase):
 
     def test_create_dir(self):
         with mock.patch('tlsfuzzer.timing_runner.os.mkdir') as mock_mkdir:
-            TimingRunner("test", [], "/outdir", "localhost", 4433, "lo")
+            with mock.patch(
+                    'tlsfuzzer.timing_runner.TimingRunner.check_tcpdump',
+                    return_value=True):
+                TimingRunner("test", [], "/outdir", "localhost", 4433, "lo")
             mock_mkdir.assert_called_once()
+
+    def test_create_dir_with_duplicate(self):
+        with mock.patch('tlsfuzzer.timing_runner.os.mkdir') as mock_mkdir:
+            if version_info > (3, 0):
+                mock_mkdir.side_effect = [FileExistsError("Dir exists"), None]
+            else:
+                mock_mkdir.side_effect = [OSError("Dir exists"), None]
+            TimingRunner("test", [], "/outdir", "localhost", 4433, "lo")
+            self.assertEqual(2, len(mock_mkdir.mock_calls))
 
     def test_check_extraction_availability(self):
         extraction_present = True
@@ -128,7 +146,8 @@ class TestRunner(unittest.TestCase):
 
         self.assertEqual(TimingRunner.check_analysis_availability(), analysis_present)
 
-    def test_extract(self):
+    @mock.patch(BUILTIN_PRINT)
+    def test_extract(self, mock_print):
         check_extract = mock.Mock()
         check_extract.return_value = False
 
@@ -139,7 +158,13 @@ class TestRunner(unittest.TestCase):
         with mock.patch("__main__.__builtins__.__import__"):
             self.assertTrue(self.runner.extract())
 
-    def test_analyse(self):
+        mock_print.assert_called_once()
+        self.assertIn(
+            "Extraction is not available. Install required packages to enable",
+            mock_print.call_args[0][0])
+
+    @mock.patch(BUILTIN_PRINT)
+    def test_analyse(self, mock_print):
         check_analysis = mock.Mock()
         check_analysis.return_value = False
 
@@ -149,6 +174,10 @@ class TestRunner(unittest.TestCase):
         self.runner.log = mock.Mock(autospec=True)
         with mock.patch("__main__.__builtins__.__import__"):
             self.assertNotEqual(self.runner.analyse(), 2)
+
+        self.assertIn(
+            "Analysis is not available. Install required packages to enable.",
+            mock_print.call_args[0][0])
 
     def test_run(self):
         self.runner.tests = {"A": None, "B": None, "C": None}

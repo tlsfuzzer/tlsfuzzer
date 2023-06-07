@@ -27,7 +27,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
 
 
-version = 2
+version = 3
 
 
 def help_msg():
@@ -60,6 +60,7 @@ def help_msg():
     print(" --size-limit num Send a max_fragment_length extension advertising")
     print("                num as the max size we're willing to receive.")
     print("                Valid values are 512, 1024, 2048 and 4096")
+    print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
     # already used single-letter options:
     # -m test-large-hello.py - min extension number for fuzz testing
@@ -99,10 +100,11 @@ def main():
     etm = False
     size_limit = None
     timeout = 5.0
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:t:",
-        ["help", "extra-exts", "etm", "size-limit="])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:t:M",
+        ["help", "extra-exts", "etm", "size-limit=", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -147,6 +149,8 @@ def main():
                     cipher = int(arg)
         elif opt == '-t':
             timeout = float(arg)
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -169,6 +173,8 @@ def main():
     conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if extra_exts:
         groups = [GroupName.secp256r1,
                   GroupName.secp384r1,
@@ -193,6 +199,8 @@ def main():
     srv_ext = {ExtensionType.renegotiation_info: None}
     if etm:
         srv_ext[ExtensionType.encrypt_then_mac] = None
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
     if size_limit:
         srv_ext[ExtensionType.max_fragment_length] =\
             TLSExtension(extType=1).create(bytearray([size_limit]))
@@ -222,6 +230,8 @@ def main():
         conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ext = {}
+        if ems:
+            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         if extra_exts:
             groups = [GroupName.secp256r1,
                       GroupName.secp384r1,
@@ -246,6 +256,8 @@ def main():
         srv_ext = {ExtensionType.renegotiation_info: None}
         if etm:
             srv_ext[ExtensionType.encrypt_then_mac] = None
+        if ems:
+            srv_ext[ExtensionType.extended_master_secret] = None
         if size_limit:
             srv_ext[ExtensionType.max_fragment_length] =\
                 TLSExtension(extType=1).create(bytearray([size_limit]))
