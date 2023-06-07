@@ -5,7 +5,7 @@ from __future__ import print_function
 import traceback
 import sys
 import getopt
-from itertools import chain, islice
+from itertools import chain
 from random import sample
 
 from tlsfuzzer.runner import Runner

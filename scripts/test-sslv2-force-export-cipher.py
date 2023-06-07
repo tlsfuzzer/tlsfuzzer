@@ -4,8 +4,6 @@
 from __future__ import print_function
 import traceback
 import sys
-import re
-from random import sample
 import getopt
 
 from tlsfuzzer.runner import Runner

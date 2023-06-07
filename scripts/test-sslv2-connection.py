@@ -4,10 +4,8 @@
 """Test if server supports any of the SSLv2 ciphers"""
 
 from __future__ import print_function
-from random import sample
 import traceback
 import sys
-import re
 import getopt
 
 from tlsfuzzer.runner import Runner

@@ -5,7 +5,7 @@ from __future__ import print_function
 import traceback
 import sys
 import getopt
-from itertools import chain, islice
+from itertools import chain
 from random import sample
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
@@ -16,10 +16,9 @@ from tlslite.extensions import ClientKeyShareExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+        ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
         ExpectEncryptedExtensions, ExpectCertificateVerify, \
         ExpectNewSessionTicket

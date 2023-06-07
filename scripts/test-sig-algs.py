@@ -5,7 +5,6 @@ from __future__ import print_function
 import traceback
 import sys
 import getopt
-import re
 from itertools import chain
 from random import sample
 

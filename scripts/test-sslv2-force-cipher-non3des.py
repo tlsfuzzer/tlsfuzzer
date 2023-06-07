@@ -4,23 +4,19 @@
 from __future__ import print_function
 import traceback
 import sys
-import re
 from random import sample
 import getopt
 
-from tlsfuzzer.runner import Runner
-from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        ClientMasterKeyGenerator
-from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, \
-        ExpectAlert, ExpectClose, ExpectApplicationData, ExpectServerHello2, \
-        ExpectVerify, ExpectSSL2Alert
-
 from tlslite.constants import CipherSuite, AlertLevel, \
         ExtensionType, SSL2ErrorDescription
+from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
+        ClientMasterKeyGenerator
+from tlsfuzzer.expect import ExpectAlert, ExpectClose, \
+     ExpectServerHello2, \
+     ExpectSSL2Alert
+
 from tlsfuzzer.utils.lists import natural_sort_keys
+from tlsfuzzer.runner import Runner
 
 
 version = 3

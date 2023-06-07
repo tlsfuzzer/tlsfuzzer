@@ -7,8 +7,7 @@ from __future__ import print_function
 import traceback
 import sys
 import getopt
-import re
-from itertools import chain, islice
+from itertools import chain
 from random import sample
 
 from tlsfuzzer.runner import Runner
@@ -70,52 +69,52 @@ def help_msg():
     print(" --help         this message")
 
 
-def hashes_to_list(arg):
-    hlist = []
-    for h in arg.split():
-        name = None
-        hnum = getattr(HashAlgorithm, h, None)
-        if not hnum:
-            try:
-                hnum = int(h)
-            except ValueError:
-                pass
-        if hnum:
-            name = HashAlgorithm.toRepr(hnum)
-        if not name:
-            raise ValueError("Invalid Hash Id or Name {0}".format(h))
-        hlist.append(name)
-    if len(hlist) < 2:
-        raise ValueError(
-            "The ordered list of hashes must contain at least 2 elements," +
-            " found {0}".format(len(hlist)))
-    return hlist
+# def hashes_to_list(arg):
+#     hlist = []
+#     for h in arg.split():
+#         name = None
+#         hnum = getattr(HashAlgorithm, h, None)
+#         if not hnum:
+#             try:
+#                 hnum = int(h)
+#             except ValueError:
+#                 pass
+#         if hnum:
+#             name = HashAlgorithm.toRepr(hnum)
+#         if not name:
+#             raise ValueError("Invalid Hash Id or Name {0}".format(h))
+#         hlist.append(name)
+#     if len(hlist) < 2:
+#         raise ValueError(
+#             "The ordered list of hashes must contain at least 2 elements," +
+#             " found {0}".format(len(hlist)))
+#     return hlist
 
 
-def sigalg_select(alg_type, hash_pref, supported=None, cert_type=None):
-    for hash_name in hash_pref:
-        if not cert_type:
-            name = "_".join([alg_type, hash_name])
-        elif cert_type == "rsa":
-            name = "_".join([alg_type, "rsae", hash_name])
-        elif cert_type == "rsa-pss":
-            name = "_".join([alg_type, "pss", hash_name])
-        elif cert_type == "ecdsa":
-            name = "_".join([alg_type, hash_name])
-        else:
-            raise ValueError("Unknown certificate type {0}".format(cert_type))
+# def sigalg_select(alg_type, hash_pref, supported=None, cert_type=None):
+#     for hash_name in hash_pref:
+#         if not cert_type:
+#             name = "_".join([alg_type, hash_name])
+#         elif cert_type == "rsa":
+#             name = "_".join([alg_type, "rsae", hash_name])
+#         elif cert_type == "rsa-pss":
+#             name = "_".join([alg_type, "pss", hash_name])
+#         elif cert_type == "ecdsa":
+#             name = "_".join([alg_type, hash_name])
+#         else:
+#             raise ValueError("Unknown certificate type {0}".format(cert_type))
 
-        sigalg = getattr(SignatureScheme, name)
+#         sigalg = getattr(SignatureScheme, name)
 
-        if supported is None:
-            return sigalg
-        if sigalg in supported:
-            return sigalg
+#         if supported is None:
+#             return sigalg
+#         if sigalg in supported:
+#             return sigalg
 
-    raise ValueError(
-        "Couldn't find a supported Signature Algorithm that  matches the" +
-        " provided parameters: {0}, {1}, {3}".format(alg_type, hash_pref,
-                                                    cert_type))
+#     raise ValueError(
+#         "Couldn't find a supported Signature Algorithm that  matches the" +
+#         " provided parameters: {0}, {1}, {3}".format(alg_type, hash_pref,
+#                                                     cert_type))
 
 
 def main():
@@ -158,7 +157,7 @@ def main():
                 SignatureScheme.rsa_pss_rsae_sha384,
                 SignatureScheme.rsa_pss_pss_sha384]
 
-    hashalgs = hashes_to_list("sha256 sha384 sha512")
+    # hashalgs = hashes_to_list("sha256 sha384 sha512")
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "h:p:e:x:X:n:s:k:c:", ["help", "hash-order="])
@@ -183,8 +182,8 @@ def main():
             sys.exit(0)
         elif opt == '-s':
             cr_sigalgs = sig_algs_to_ids(arg)
-        elif opt == '--hash-order':
-            hashalgs = hashes_to_list(arg)
+        # elif opt == '--hash-order':
+        #     hashalgs = hashes_to_list(arg)
         elif opt == '-k':
             text_key = open(arg, 'rb').read()
             if sys.version_info[0] >= 3:

@@ -25,7 +25,7 @@ from tlslite.extensions import SignatureAlgorithmsExtension, \
         ECPointFormatsExtension
 from tlslite.constants import CipherSuite, AlertDescription, \
         HashAlgorithm, SignatureAlgorithm, ExtensionType, GroupName, \
-        ECPointFormat, AlertLevel, AlertDescription
+        ECPointFormat, AlertLevel
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain

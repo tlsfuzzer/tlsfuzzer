@@ -5,21 +5,16 @@ from __future__ import print_function
 import traceback
 import sys
 import getopt
-import re
 from itertools import chain
 from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        ResetHandshakeHashes, Close
-from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose
+        Close
+from tlsfuzzer.expect import ExpectServerHello
 
-from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType
+from tlslite.constants import CipherSuite
+
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
