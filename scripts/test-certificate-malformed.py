@@ -5,7 +5,6 @@ from __future__ import print_function
 import traceback
 import sys
 import getopt
-import re
 from itertools import chain
 from random import sample
 
@@ -23,9 +22,9 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectApplicationData
 from tlslite.extensions import SignatureAlgorithmsExtension, \
         SignatureAlgorithmsCertExtension
-from tlslite.constants import CipherSuite, AlertDescription, \
+from tlslite.constants import CipherSuite, \
         HashAlgorithm, SignatureAlgorithm, ExtensionType, AlertLevel, \
-        AlertDescription, ContentType
+        AlertDescription
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
@@ -60,7 +59,7 @@ def help_msg():
 def return_tests(host, port, private_key, cert):
     conversations = {}
 
-        # sanity check for Client Certificates
+    # sanity check for Client Certificates
     conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
