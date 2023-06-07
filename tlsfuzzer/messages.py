@@ -41,22 +41,6 @@ class Command(TreeNode):
     def __init__(self):
         """Create object."""
         super(Command, self).__init__()
-
-    def is_command(self):
-        """Define object as a command node."""
-        return True
-
-    def is_expect(self):
-        """Define object as a command node."""
-        return False
-
-    def is_generator(self):
-        """Define object as a command node."""
-        return False
-
-    def process(self, state):
-        """Change the state of the connection."""
-        raise NotImplementedError("Subclasses need to implement this!")
     
     def __repr__(self):
         """Human readable representation of the object."""
@@ -74,6 +58,23 @@ class Command(TreeNode):
             cmd += f"{self.child}"
             
         return cmd
+
+    def is_command(self):
+        """Define object as a command node."""
+        return True
+
+    def is_expect(self):
+        """Define object as a command node."""
+        return False
+
+    def is_generator(self):
+        """Define object as a command node."""
+        return False
+
+    def process(self, state):
+        """Change the state of the connection."""
+        raise NotImplementedError("Subclasses need to implement this!")
+    
 
 
 class Connect(Command):
@@ -140,6 +141,23 @@ class SetRecordVersion(Command):
         super(SetRecordVersion, self).__init__()
         self.version = version
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["version"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+    
     def process(self, state):
         state.msg_sock.version = self.version
 
@@ -212,6 +230,23 @@ class SetMaxRecordSize(Command):
         super(SetMaxRecordSize, self).__init__()
         self.max_size = max_size
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["max_size"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+    
     def process(self, state):
         """Change the size of messages in record layer."""
         if self.max_size is None:
@@ -231,6 +266,24 @@ class SetPaddingCallback(Command):
         """Set the padding callback"""
         super(SetPaddingCallback, self).__init__()
         self.padding_cb = cb
+        
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["padding_cb"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+
 
     @staticmethod
     def fixed_length_cb(size):
@@ -345,6 +398,23 @@ class CollectNonces(Command):
         """Link the list for storing nonces with the object."""
         super(CollectNonces, self).__init__()
         self.nonces = nonces
+        
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["nonces"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
     def process(self, state):
         """Monkey patch the seal() method."""
@@ -393,6 +463,23 @@ class CopyVariables(Command):
         """Link the randoms to log with session."""
         super(CopyVariables, self).__init__()
         self.log = log
+        
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["log"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
     def process(self, state):
         """Copy current variables to log arrays."""
@@ -505,6 +592,23 @@ class MessageGenerator(TreeNode):
         """Initialize the object."""
         super(MessageGenerator, self).__init__()
         self.msg = None
+        
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["msg"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
     def is_command(self):
         """Define object as a generator node."""
@@ -551,10 +655,6 @@ class RawMessageGenerator(MessageGenerator):
         self.data = data
         self.description = description
 
-    def generate(self, state):
-        """Create a tlslite-ng message that can be send."""
-        message = Message(self.content_type, self.data)
-        return message
 
     def __repr__(self):
         """Human readable representation of the object."""
@@ -572,6 +672,11 @@ class RawMessageGenerator(MessageGenerator):
             cmd += f"{self.child}"
             
         return cmd
+
+    def generate(self, state):
+        """Create a tlslite-ng message that can be send."""
+        message = Message(self.content_type, self.data)
+        return message
 
 
 class HandshakeProtocolMessageGenerator(MessageGenerator):
@@ -929,6 +1034,23 @@ class ClientMasterKeyGenerator(HandshakeProtocolMessageGenerator):
         super(ClientMasterKeyGenerator, self).__init__()
         self.cipher = cipher
         self.master_key = master_key
+        
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["cipher", "master_key"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
     def generate(self, state):
         """Generate a new CLIENT-MASTER-KEY message."""
@@ -988,6 +1110,23 @@ class CertificateGenerator(HandshakeProtocolMessageGenerator):
         self.cert_type = cert_type
         self.version = version
         self.context = context
+
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["certs", "cert_type", "version", "context"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
     def generate(self, status):
         """Create a Certificate message."""
@@ -1084,6 +1223,34 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         self.padding_subs = padding_subs
         self.mgf1_hash = mgf1_hash
         self.context = context
+        
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["private_key", 
+            "msg_alg", 
+            "msg_version", 
+            "sig_version", 
+            "sig_alg", 
+            "signature", 
+            "rsa_pss_salt_len", 
+            "padding_xors", 
+            "padding_subs", 
+            "mgf1_hash", 
+            "context"
+        ]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
     @staticmethod
     def _sig_alg_for_rsa_key(key_alg, accept_sig_algs, version):
@@ -1398,6 +1565,23 @@ class ClearContext(Command):
     def __init__(self, context):
         super(ClearContext, self).__init__()
         self.context = context
+        
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["context"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
     def process(self, state):
         """Zero out the associated context"""
@@ -1637,6 +1821,23 @@ class AlertGenerator(MessageGenerator):
         super(AlertGenerator, self).__init__()
         self.level = level
         self.description = description
+        
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["level", "description"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
 
     def generate(self, status):
         """Send the Alert to server."""
@@ -1683,6 +1884,22 @@ class KeyUpdateGenerator(MessageGenerator):
         super(KeyUpdateGenerator, self).__init__()
         self.message_type = message_type
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["message_type"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
     def generate(self, state):
         """Generate a KeyUpdate message."""
         del state  # needed only for API compatibility
@@ -1741,6 +1958,23 @@ class HeartbeatGenerator(MessageGenerator):
             padding_length = 16
         self.padding = getRandomBytes(padding_length)
 
+    def __repr__(self):
+        """Human readable representation of the object."""
+        ret = []
+        
+        init_args = ["message_type", "payload", "padding_length"]
+        
+        for arg in init_args:
+            if self.__getattribute__(arg):
+                ret.append("{1}={0!r}".format(self.__getattribute__(arg), arg))
+
+        cmd = "{1}({0})\n".format(", ".join(ret), self.__class__.__name__)
+        
+        if self.child:
+            cmd += f"{self.child}"
+            
+        return cmd
+            
     def generate(self, state):
         """
         Create a Heartbeat message.
