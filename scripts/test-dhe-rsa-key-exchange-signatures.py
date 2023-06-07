@@ -8,7 +8,6 @@ import traceback
 import sys
 import getopt
 from random import sample
-import re
 from itertools import chain
 
 from tlsfuzzer.runner import Runner
