@@ -524,6 +524,9 @@ class Analysis(object):
         # make sure the quantile point is visible on the graph
         quant[0] *= 0.98
         quant[1] *= 1.02
+        # XXX try to diagnose the warning about non-positive ylim on log-scale axis
+        if quant[0] < 0 or quant[1] < 0:
+            print(quant)
         ax.set_ylim(quant)
         canvas.print_figure(join(self.output, "scatter_plot_zoom_in.png"),
                             bbox_inches="tight")
