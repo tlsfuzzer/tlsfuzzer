@@ -22,7 +22,7 @@ class TimingRunner:
     """Repeatedly runs tests and captures timing information."""
 
     def __init__(self, name, tests, out_dir, ip_address, port, interface,
-                 affinity=None):
+                 affinity=None, skip_extract=False):
         """
         Check if tcpdump is present and setup instance parameters.
 
@@ -48,6 +48,7 @@ class TimingRunner:
         self.interface = interface
         self.log = Log(os.path.join(self.out_dir, "log.csv"))
         self.affinity = affinity
+        self.skip_extract = skip_extract
 
         self.tcpdump_running = True
         self.tcpdump_output = None
@@ -194,6 +195,8 @@ class TimingRunner:
                     "Try reducing disk load or capture to a RAM disk")
 
         # start extraction and analysis
+        if self.skip_extract:
+            return 0
         print("Starting extraction...")
         if self.extract():
             print("Starting analysis...")
