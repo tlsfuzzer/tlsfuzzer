@@ -23,6 +23,7 @@ from collections import namedtuple
 from itertools import combinations, repeat, chain
 import os
 import time
+import warnings
 
 import numpy as np
 from scipy import stats
@@ -418,7 +419,8 @@ class Analysis(object):
             print("[i] Starting Friedman test")
         data = self.load_data()
         if len(self.class_names) < 3:
-            result.put(None)
+            warnings.warn("Friedman test requires more than 3 classes")
+            result.put(1)
             return
         _, pval = stats.friedmanchisquare(
             *(data.iloc[:, i] for i in range(len(self.class_names))))
