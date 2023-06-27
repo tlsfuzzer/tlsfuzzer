@@ -710,6 +710,19 @@ class TestCommandLine(unittest.TestCase):
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None)
 
+    def test_call_with_verbose(self):
+        output = "/tmp"
+        args = ["analysis.py", "-o", output, "--verbose"]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.analysis.Analysis.generate_report') as mock_report:
+            with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
+                with mock.patch("sys.argv", args):
+                    main()
+                    mock_report.assert_called_once()
+                    mock_init.assert_called_once_with(
+                        output, True, True, True, False, True, None, None)
+
     def test_call_with_multithreaded_plots(self):
         output = "/tmp"
         args = ["analysis.py", "-o", output, "--multithreaded-graph"]
