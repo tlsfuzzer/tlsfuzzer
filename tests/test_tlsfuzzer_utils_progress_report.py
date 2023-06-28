@@ -26,3 +26,11 @@ class TestFormatSeconds(unittest.TestCase):
             60 * 60 * 5 +
             60 * 14 +
             7), " 4d  5h 14m  7.00s")
+
+
+class TestBinaryPrefix(unittest.TestCase):
+    def test_bytes(self):
+        self.assertEquals(_binary_prefix(12), "12.00")
+
+    def test_kilobytes(self):
+        self.assertEquals(_binary_prefix(1024*12), "12.00ki")
