@@ -56,6 +56,12 @@ def help_msg():
  --multithreaded-graph Create graph and calculate statistical tests at the
                 same time. Note: this increases memory usage of analysis by
                 a factor of 8.
+ --clock-frequency freq Assume that the times in the file are not specified in
+                seconds but rather in clock cycles of a clock running at
+                frequency 'freq' specified in MHz. Use when the clock source
+                are the raw reads from the Time Stamp Counter register or
+                similar.
+ --alpha num    Acceptable probability of a false positive. Default: 1e-5.
  --verbose      Print the current task
  --help         Display this message""")
 
@@ -68,11 +74,15 @@ def main():
     conf_int_plot = True
     multithreaded_graph = False
     verbose = False
+    clock_freq = None
+    alpha = None
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "o:",
                                ["help", "no-ecdf-plot", "no-scatter-plot",
                                 "no-conf-interval-plot",
                                 "multithreaded-graph",
+                                "clock-frequency=",
+                                "alpha=",
                                 "verbose"])
 
     for opt, arg in opts:
@@ -89,12 +99,16 @@ def main():
             conf_int_plot = False
         elif opt == "--multithreaded-graph":
             multithreaded_graph = True
+        elif opt == "--clock-frequency":
+            clock_freq = float(arg) * 1000000  # in MHz
+        elif opt == "--alpha":
+            alpha = float(arg)
         elif opt == "--verbose":
             verbose = True
 
     if output:
         analysis = Analysis(output, ecdf_plot, scatter_plot, conf_int_plot,
-                            multithreaded_graph, verbose)
+                            multithreaded_graph, verbose, clock_freq, alpha)
         ret = analysis.generate_report()
         return ret
     else:
@@ -106,15 +120,20 @@ class Analysis(object):
 
     def __init__(self, output, draw_ecdf_plot=True, draw_scatter_plot=True,
                  draw_conf_interval_plot=True, multithreaded_graph=False,
-                 verbose=False):
+                 verbose=False, clock_frequency=None, alpha=None):
         self.verbose = verbose
         self.output = output
+        self.clock_frequency = clock_frequency
         data = self.load_data()
         self.class_names = list(data)
         self.draw_ecdf_plot = draw_ecdf_plot
         self.draw_scatter_plot = draw_scatter_plot
         self.draw_conf_interval_plot = draw_conf_interval_plot
         self.multithreaded_graph = multithreaded_graph
+        if alpha is None:
+            self.alpha = 1e-5
+        else:
+            self.alpha = alpha
 
     def _convert_to_binary(self):
         timing_bin_path = join(self.output, "timing.bin")
@@ -152,6 +171,8 @@ class Analysis(object):
         csv_reader = pd.read_csv(timing_csv_path, chunksize=512000,
                                  dtype=np.float64)
         chunk = next(csv_reader)
+        if self.clock_frequency:
+            chunk = chunk / self.clock_frequency
         timing_bin = np.memmap(timing_bin_path, dtype=np.float64,
                                mode="w+",
                                shape=(len(chunk.index), ncol),
@@ -166,6 +187,8 @@ class Analysis(object):
                                    shape=(rows_written + len(chunk.index),
                                           ncol),
                                    order="C")
+            if self.clock_frequency:
+                chunk = chunk / self.clock_frequency
             timing_bin[rows_written:, :] = chunk.iloc[:, :]
             rows_written += len(chunk.index)
 
@@ -210,7 +233,8 @@ class Analysis(object):
         data = pd.DataFrame(timing_bin, columns=columns, copy=False)
         return data
 
-    def _box_test(self, interval1, interval2, quantile_start, quantile_end):
+    @staticmethod
+    def _box_test(data1, data2, quantile_start, quantile_end):
         """
         Internal configurable function to perform the box test.
 
@@ -221,26 +245,28 @@ class Analysis(object):
         :return: None on no difference, int index of smaller sample if there
             is a difference
         """
-        data = self.load_data()
-        box1_start = np.quantile(data.iloc[:, interval1], quantile_start)
-        box1_end = np.quantile(data.iloc[:, interval1], quantile_end)
+        box1_start, box1_end = np.quantile(data1,
+                                           [quantile_start, quantile_end])
 
-        box2_start = np.quantile(data.iloc[:, interval2], quantile_start)
-        box2_end = np.quantile(data.iloc[:, interval2], quantile_end)
+        box2_start, box2_end = np.quantile(data2,
+                                           [quantile_start, quantile_end])
 
         if box1_start == box2_start or box1_end == box2_end:
             # can return early because the intervals overlap
             return None
 
-        intervals = {interval1: (box1_start, box1_end),
-                     interval2: (box2_start, box2_end)}
+        intervals = {1: (box1_start, box1_end),
+                     2: (box2_start, box2_end)}
         is_smaller = min(box1_start, box2_start) == box1_start
-        smaller = interval1 if is_smaller else interval2
-        bigger = interval2 if smaller == interval1 else interval1
+        smaller = 1 if is_smaller else 2
+        bigger = 2 if smaller == 1 else 1
 
         if (intervals[smaller][0] < intervals[bigger][0] and
                 intervals[smaller][1] < intervals[bigger][0]):
-            return smaller, bigger
+            if smaller == 1:
+                return '<'
+            else:
+                return '>'
         return None
 
     def box_test(self):
@@ -249,11 +275,7 @@ class Analysis(object):
             start_time = time.time()
             print("[i] Starting the box_test")
 
-        results = {}
-        comb = combinations(list(range(len(self.class_names))), 2)
-        for index1, index2 in comb:
-            result = self._box_test(index1, index2, 0.03, 0.04)
-            results[TestPair(index1, index2)] = result
+        results = self.mt_process(self._box_test, (0.03, 0.04))
 
         if self.verbose:
             print("[i] box_test done in {:.3}s".format(time.time()-start_time))
@@ -328,8 +350,12 @@ class Analysis(object):
     @staticmethod
     def _sign_test(data1, data2, med, alternative):
         diff = data2 - data1
-        return stats.binom_test([sum(diff < med), sum(diff > med)], p=0.5,
-                                alternative=alternative)
+        try:
+            return stats.binomtest(sum(diff < med), sum(diff != med), p=0.5,
+                                   alternative=alternative).pvalue
+        except AttributeError:
+            return stats.binom_test([sum(diff < med), sum(diff > med)], p=0.5,
+                                    alternative=alternative)
 
     def sign_test(self, med=0.0, alternative="two-sided"):
         """
@@ -339,7 +365,7 @@ class Analysis(object):
 
         alternative: the alternative hypothesis, "two-sided" by default,
             can be "less" or "greater". If called with "less" and returned
-            p-value is much smaller than 0.05, then it's likely that the
+            p-value is much smaller than set alpha, then it's likely that the
             *second* sample in a pair is bigger than the first one. IOW,
             with "less" it tells the probability that second sample is smaller
             than the first sample.
@@ -690,10 +716,12 @@ class Analysis(object):
         # because the samples are not independent, we calculate mean of
         # differences not a difference of means
         data = self.load_data()
-        _diffs = data.iloc[:, pair.index2] -\
-            data.iloc[:, pair.index1]
+        index1, index2 = pair
+        _diffs = data.iloc[:, index2] -\
+            data.iloc[:, index1]
 
-        job_size = os.cpu_count() * 10
+        job_count = os.cpu_count() * 4
+        job_size = max(reps // job_count, 1)
 
         keys = ("mean", "median", "trim_mean_05", "trim_mean_25", "trimean")
 
@@ -702,7 +730,7 @@ class Analysis(object):
         with mp.Pool() as pool:
             cent_tend = pool.imap_unordered(
                 self._cent_tend_of_random_sample,
-                chain(repeat(job_size, reps//job_size), [reps % job_size]))
+                chain(repeat(job_size, reps // job_size), [reps % job_size]))
 
             for values in cent_tend:
                 # handle reps % job_size == 0
@@ -735,7 +763,7 @@ class Analysis(object):
         cent_tend = self._bootstrap_differences(pair, reps)
 
         data = self.load_data()
-        diff = data.iloc[:, pair.index2] - data.iloc[:, pair.index1]
+        diff = data.iloc[:, pair[1]] - data.iloc[:, pair[0]]
         mean = np.mean(diff)
         q1, median, q3 = np.quantile(diff, [0.25, 0.5, 0.75])
         trim_mean_05 = stats.trim_mean(diff, 0.05, 0)
@@ -821,35 +849,28 @@ class Analysis(object):
             print("[i] Confidence interval plots done in {:.3}s".format(
                 time.time()-start_time))
 
+    @staticmethod
+    def _desc_stats(data1, data2):
+        diff = data2 - data1
+
+        diff_stats = {}
+        diff_stats["mean"] = np.mean(diff)
+        diff_stats["SD"] = np.std(diff)
+        quantiles = np.quantile(diff, [0.25, 0.5, 0.75])
+        diff_stats["median"] = quantiles[1]
+        diff_stats["IQR"] = quantiles[2] - quantiles[0]
+        diff_stats["MAD"] = stats.median_abs_deviation(diff)
+        return diff_stats
+
     def desc_stats(self):
         """Calculate the descriptive statistics for sample differences."""
         if self.verbose:
             start_time = time.time()
             print("[i] Calculating descriptive statistics of sample "
                   "differences")
-        data = self.load_data()
-        results = {}
-        comb = combinations(list(range(len(self.class_names))), 2)
-        for index1, index2, in comb:
-            if self.verbose:
-                pair_start = time.time()
-                print("[i] Calculating {}-{}".format(index2, index1))
-            data1 = data.iloc[:, index1]
-            data2 = data.iloc[:, index2]
 
-            diff = data2 - data1
+        results = self.mt_process(self._desc_stats)
 
-            diff_stats = {}
-            diff_stats["mean"] = np.mean(diff)
-            diff_stats["SD"] = np.std(diff)
-            quantiles = np.quantile(diff, [0.25, 0.5, 0.75])
-            diff_stats["median"] = quantiles[1]
-            diff_stats["IQR"] = quantiles[2] - quantiles[1]
-            diff_stats["MAD"] = stats.median_abs_deviation(diff)
-            results[TestPair(index1, index2)] = diff_stats
-            if self.verbose:
-                print("[i] Calculating {}-{} done in {:.3}s".format(
-                      index2, index1, time.time()-pair_start))
         if self.verbose:
             print("[i] Descriptive statistics of sample differences done in "
                   "{:.3}s".format(time.time()-start_time))
@@ -891,18 +912,15 @@ class Analysis(object):
             worst_pair = None
             worst_p = None
             worst_median_difference = None
-            for pair, result in box_results.items():
-                index1 = pair.index1
-                index2 = pair.index2
+            for pair, result in sorted(box_results.items()):
+                index1, index2 = pair
                 diff_stats = desc_stats[pair]
                 box_write = "="
                 if result:
-                    smaller, bigger = result
-                    print("Box test {} vs {}: {} < {}".format(index1,
-                                                              index2,
-                                                              smaller,
-                                                              bigger))
-                    box_write = "<" if smaller == index1 else ">"
+                    print("Box test {0} vs {1}: {0} {2} {1}".format(index1,
+                                                                    index2,
+                                                                    result))
+                    box_write = result
                 else:
                     print("Box test {} vs {}: No difference".format(index1,
                                                                     index2))
@@ -930,10 +948,11 @@ class Analysis(object):
                           diff_stats["median"], diff_stats["IQR"],
                           diff_stats["MAD"]))
 
-                # if both tests or the sign test found a difference
-                # consider it a possible side-channel
-                if result and wilcox_results[pair] < 0.05 or \
-                        sign_results[pair] < 0.05:
+                # If either of the pairwise tests shows a small p-value with
+                # Bonferroni correction consider it a possible side-channel
+                if wilcox_results[pair] < self.alpha / len(sign_results) or \
+                        sign_results[pair] < self.alpha / len(sign_results) or\
+                        ttest_results[pair] < self.alpha / len(sign_results):
                     difference = 1
 
                 wilcox_p = wilcox_results[pair]
@@ -970,7 +989,7 @@ class Analysis(object):
             print("[i] Calculation of individual results done in {:.3}s"
                   .format(time.time()-start_time))
 
-        return difference, p_vals, sign_p_vals, worst_pair, worst_p
+        return difference, p_vals, sign_p_vals, worst_pair
 
     def _write_legend(self):
         """Write the legend.csv file."""
@@ -1140,7 +1159,7 @@ class Analysis(object):
                 time.time()-start_time))
 
     def _write_summary(self, difference, p_vals, sign_p_vals, worst_pair,
-                       worst_p, friedman_p):
+                       friedman_p, worst_pair_conf_int):
         """Write the report.txt file and print summary."""
         report_filename = join(self.output, "report.csv")
         text_report_filename = join(self.output, "report.txt")
@@ -1149,41 +1168,13 @@ class Analysis(object):
                 "tlsfuzzer analyse.py version {0} analysis\n"
                 .format(VERSION))
 
-            _, p = stats.kstest(p_vals, 'uniform')
-            txt = ("KS-test for uniformity of p-values from Wilcoxon "
-                   "signed-rank test")
+            txt = ("Sign test mean p-value: {0:.4}, median p-value: {1:.4}, "
+                   "min p-value: {2:.4}"
+                   .format(np.mean(sign_p_vals), np.median(sign_p_vals),
+                           np.min(sign_p_vals)))
             print(txt)
             txt_file.write(txt)
             txt_file.write('\n')
-
-            txt = "p-value: {}".format(p)
-            print(txt)
-            txt_file.write(txt)
-            txt_file.write('\n')
-            if p < 0.05:
-                difference = 1
-
-            _, p = stats.kstest(sign_p_vals, 'uniform')
-            txt = "KS-test for uniformity of p-values from sign test "
-            print(txt)
-            txt_file.write(txt)
-            txt_file.write('\n')
-
-            txt = "p-value: {}".format(p)
-            print(txt)
-            txt_file.write(txt)
-            txt_file.write('\n')
-
-            txt = ("Sign test mean p-value: {}, median p-value: {}"
-                   .format(np.mean(sign_p_vals), np.median(sign_p_vals)))
-            print(txt)
-            txt_file.write(txt)
-            txt_file.write('\n')
-
-            # fail the overall test only when p-values from sign test
-            # are not uniform AND are skewed to the left
-            if p < 0.05 and np.mean(sign_p_vals) < 0.5:
-                difference = 1
 
             txt = "Friedman test (chisquare approximation) for all samples"
             print(txt)
@@ -1194,19 +1185,19 @@ class Analysis(object):
             print(txt)
             txt_file.write(txt)
             txt_file.write('\n')
-            if friedman_p < 0.05:
+            if friedman_p < self.alpha:
                 difference = 1
 
             txt = "Worst pair: {}({}), {}({})".format(
-                worst_pair.index1,
-                self.class_names[worst_pair.index1],
-                worst_pair.index2,
-                self.class_names[worst_pair.index2])
+                worst_pair[0],
+                self.class_names[worst_pair[0]],
+                worst_pair[1],
+                self.class_names[worst_pair[1]])
             print(txt)
             txt_file.write(txt)
             txt_file.write('\n')
 
-            diff_conf_int = self.calc_diff_conf_int(worst_pair)
+            diff_conf_int = worst_pair_conf_int
             # use 95% CI as that translates to 2 standard deviations, making
             # it easy to estimate higher CIs
             for name, key in (("Mean", "mean"), ("Median", "median"),
@@ -1244,8 +1235,16 @@ class Analysis(object):
         if not self.multithreaded_graph:
             return
 
+        errors = []
+
         for proc, err_desc in threads:
-            self._stop_thread(proc, err_desc)
+            try:
+                self._stop_thread(proc, err_desc)
+            except Exception as e:
+                errors.append(str(e))
+
+        if errors:
+            raise Exception(str(errors))
 
     def generate_report(self):
         """
@@ -1288,8 +1287,10 @@ class Analysis(object):
 
         self._write_sample_stats()
 
-        difference, p_vals, sign_p_vals, worst_pair, worst_p = \
+        difference, p_vals, sign_p_vals, worst_pair = \
             self._write_individual_results()
+
+        worst_pair_conf_int = self.calc_diff_conf_int(worst_pair)
 
         self.graph_worst_pair(worst_pair)
 
@@ -1297,7 +1298,8 @@ class Analysis(object):
 
         difference = self._write_summary(difference, p_vals, sign_p_vals,
                                          worst_pair,
-                                         worst_p, friedman_result.get())
+                                         friedman_result.get(),
+                                         worst_pair_conf_int)
 
         friedman_result.close()
         friedman_result.join_thread()

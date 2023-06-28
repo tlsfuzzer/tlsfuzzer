@@ -271,6 +271,13 @@ class TestReport(unittest.TestCase):
 
                                             self.assertIn("Conf interval graph", str(exc.exception))
 
+    def test_setting_alpha(self):
+        with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
+            analysis = Analysis("/tmp", alpha=1e-12)
+            self.mock_read_csv.assert_called_once()
+
+            self.assertEqual(analysis.alpha, 1e-12)
+
     def test_wilcoxon_test(self):
         with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
             analysis = Analysis("/tmp")
@@ -357,6 +364,27 @@ class TestReport(unittest.TestCase):
             for index, result in res.items():
                 self.assertEqual(result, None)
 
+    def test__box_test_neq(self):
+        ret = Analysis._box_test(self.neq_data.iloc[:,0],
+                                 self.neq_data.iloc[:,1],
+                                 0.03, 0.04)
+
+        self.assertEqual(ret, '<')
+
+    def test__box_test_neq_gt(self):
+        ret = Analysis._box_test(self.neq_data.iloc[:,1],
+                                 self.neq_data.iloc[:,0],
+                                 0.03, 0.04)
+
+        self.assertEqual(ret, '>')
+
+    def test__box_test_overlap(self):
+        ret = Analysis._box_test(self.neq_data.iloc[:,0],
+                                 self.neq_data.iloc[:,0],
+                                 0.03, 0.04)
+
+        self.assertEqual(ret, None)
+
     def test_box_test_neq(self):
         timings = pd.DataFrame(data=self.neq_data)
         mock_read_csv = mock.Mock()
@@ -410,6 +438,17 @@ class TestReport(unittest.TestCase):
 
                 self.assertEqual(len(vals), 0)
                 self.assertEqual(vals, [])
+
+    def test__desc_stats(self):
+        ret = Analysis._desc_stats(self.neq_data.iloc[:,0],
+                                   self.neq_data.iloc[:,1])
+
+        self.assertEqual(ret, {
+            'mean': 0.5492081424999999,
+            'SD': 0.28726800639941136,
+            'median': 0.5491948234999999,
+            'IQR': 0.45029303825,
+            'MAD': 0.250156351})
 
 
 @unittest.skipIf(failed_import,
@@ -668,8 +707,21 @@ class TestCommandLine(unittest.TestCase):
                 with mock.patch("sys.argv", args):
                     main()
                     mock_report.assert_called_once()
-                    mock_init.assert_called_once_with(output, True, True,
-                                                      True, False, False)
+                    mock_init.assert_called_once_with(
+                        output, True, True, True, False, False, None, None)
+
+    def test_call_with_verbose(self):
+        output = "/tmp"
+        args = ["analysis.py", "-o", output, "--verbose"]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.analysis.Analysis.generate_report') as mock_report:
+            with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
+                with mock.patch("sys.argv", args):
+                    main()
+                    mock_report.assert_called_once()
+                    mock_init.assert_called_once_with(
+                        output, True, True, True, False, True, None, None)
 
     def test_call_with_multithreaded_plots(self):
         output = "/tmp"
@@ -681,8 +733,8 @@ class TestCommandLine(unittest.TestCase):
                 with mock.patch("sys.argv", args):
                     main()
                     mock_report.assert_called_once()
-                    mock_init.assert_called_once_with(output, True, True,
-                                                      True, True, False)
+                    mock_init.assert_called_once_with(
+                        output, True, True, True, True, False, None, None)
 
     def test_call_with_no_plots(self):
         output = "/tmp"
@@ -696,7 +748,33 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
-                        output, False, False, False, False, False)
+                        output, False, False, False, False, False, None, None)
+
+    def test_call_with_frequency(self):
+        output = "/tmp"
+        args = ["analysis.py", "-o", output, "--clock-frequency", "10.0"]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.analysis.Analysis.generate_report') as mock_report:
+            with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
+                with mock.patch("sys.argv", args):
+                    main()
+                    mock_report.assert_called_once()
+                    mock_init.assert_called_once_with(
+                        output, True, True, True, False, False, 10*1e6, None)
+
+    def test_call_with_alpha(self):
+        output = "/tmp"
+        args = ["analysis.py", "-o", output, "--alpha", "1e-3"]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.analysis.Analysis.generate_report') as mock_report:
+            with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
+                with mock.patch("sys.argv", args):
+                    main()
+                    mock_report.assert_called_once()
+                    mock_init.assert_called_once_with(
+                        output, True, True, True, False, False, None, 1e-3)
 
     def test_help(self):
         args = ["analysis.py", "--help"]
@@ -845,6 +923,28 @@ class TestDataLoad(unittest.TestCase):
         a = Analysis.__new__(Analysis)
         a.output = "/tmp"
         a.verbose = False
+        a.clock_frequency = None
+
+        a._convert_to_binary()
+
+    @mock.patch("tlsfuzzer.analysis.np.memmap")
+    @mock.patch("builtins.open")
+    @mock.patch("tlsfuzzer.analysis.pd.read_csv")
+    @mock.patch("tlsfuzzer.analysis.os.path.getmtime")
+    @mock.patch("tlsfuzzer.analysis.os.path.isfile")
+    def test__convert_to_binary_custom_freq(self, isfile_mock, getmtime_mock,
+            read_csv_mock, open_mock, memmap_mock):
+        isfile_mock.return_value = True
+        getmtime_mock.return_value = 0
+        read_csv_mock.side_effect = lambda _, chunksize, dtype: \
+            iter(self.df[i:i+1] for i in range(self.df.shape[0]))
+        open_mock.side_effect = self.file_selector
+        memmap_mock.side_effect = self.mock_memmap
+
+        a = Analysis.__new__(Analysis)
+        a.output = "/tmp"
+        a.verbose = False
+        a.clock_frequency = 1e-5
 
         a._convert_to_binary()
 
@@ -866,5 +966,6 @@ class TestDataLoad(unittest.TestCase):
         a = Analysis.__new__(Analysis)
         a.output = "/tmp"
         a.verbose = True
+        a.clock_frequency = None
 
         a._convert_to_binary()
