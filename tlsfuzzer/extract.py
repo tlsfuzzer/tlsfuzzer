@@ -10,7 +10,7 @@ import sys
 import csv
 import time
 import math
-from os.path import join
+from os.path import join, splitext
 from collections import defaultdict
 from socket import inet_aton, gethostbyname, gaierror, error
 from threading import Thread
@@ -23,6 +23,7 @@ from tlsfuzzer.utils.log import Log
 from tlsfuzzer.utils.statics import WARM_UP
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.utils.ordered_dict import OrderedDict
+from tlslite.utils.cryptomath import bytesToNumber
 
 
 def help_msg():
@@ -35,7 +36,13 @@ def help_msg():
     print(" -p port        TLS server port")
     print(" -n name        column name to use from the raw-times file")
     print(" --raw-times FILE Read the timings from an external file, not")
-    print("                the packet capture")
+    print("                the packet capture.")
+    print(" --binary num   Expect the raw-times file to store binary numbers")
+    print("                'num' bytes each. Note: using it will overwrite")
+    print("                the csv counterpart to FILE (if FILE is 'data.bin'")
+    print("                it will overwrite 'data.csv'")
+    print(" --endian endian What endianness to use, 'little' or 'big', with")
+    print("                little being the default")
     print(" --help         Display this message")
     print("")
     print("When extracting data from a capture file, specifying the capture")
@@ -53,6 +60,8 @@ def main():
     port = None
     raw_times = None
     col_name = None
+    binary = None
+    endian = 'little'
 
     argv = sys.argv[1:]
 
@@ -60,7 +69,8 @@ def main():
         help_msg()
         sys.exit(1)
 
-    opts, args = getopt.getopt(argv, "l:c:h:p:o:t:n:", ["help", "raw-times="])
+    opts, args = getopt.getopt(argv, "l:c:h:p:o:t:n:", ["help", "raw-times=",
+                                                        "binary=", "endian="])
     for opt, arg in opts:
         if opt == '-l':
             logfile = arg
@@ -76,6 +86,10 @@ def main():
             port = int(arg)
         elif opt == "--raw-times":
             raw_times = arg
+        elif opt == "--binary":
+            binary = int(arg)
+        elif opt == "--endian":
+            endian = arg
         elif opt == "--help":
             help_msg()
             sys.exit(0)
@@ -88,6 +102,18 @@ def main():
         raise ValueError(
             "Can't specify both a capture file and external timing log")
 
+    if binary and col_name:
+        raise ValueError(
+            "Binary format doesn't support column names")
+
+    if binary and not raw_times:
+        raise ValueError(
+            "Can't specify binary number size without raw-times file")
+
+    if endian not in ('little', 'big'):
+        raise ValueError(
+            "Only 'little' and 'big' endianess supported")
+
     if not all([logfile, output]):
         raise ValueError(
             "Specifying logfile and output is mandatory")
@@ -98,7 +124,8 @@ def main():
     log = Log(logfile)
     log.read_log()
     analysis = Extract(
-        log, capture, output, ip_address, port, raw_times, col_name
+        log, capture, output, ip_address, port, raw_times, col_name,
+        binary=binary, endian=endian
     )
     analysis.parse()
 
@@ -108,7 +135,8 @@ class Extract:
 
     def __init__(self, log, capture=None, output=None, ip_address=None,
                  port=None, raw_times=None, col_name=None,
-                 write_csv='timing.csv', write_pkt_csv='raw_times_detail.csv'):
+                 write_csv='timing.csv', write_pkt_csv='raw_times_detail.csv',
+                 binary=None, endian='little'):
         """
         Initialises instance and sets up class name generator from log.
 
@@ -117,6 +145,8 @@ class Extract:
         :param str output: Directory where to output results
         :param str ip_address: TLS server ip address
         :param int port: TLS server port
+        :param int binary: number of bytes per timing from raw times file
+        :param str endian: endianess of the read numbers
         """
         self.capture = capture
         self.output = output
@@ -132,6 +162,8 @@ class Extract:
         self.initial_ack = None
         self.warm_up_messages_left = WARM_UP
         self.raw_times = raw_times
+        self.binary = binary
+        self.endian = endian
         self.pckt_times = []
         self.col_name = col_name
         self.write_csv = write_csv
@@ -155,6 +187,18 @@ class Extract:
             return self._parse_pcap()
         return self._parse_raw_times()
 
+    def _convert_binary_file(self, raw_times_name):
+        """Convert the binary file format to csv before further processing."""
+        with open(self.raw_times, 'rb') as raw_times_bin:
+            with open(raw_times_name, 'w') as raw_times:
+                raw_times.write("raw times\n")
+                while True:
+                    val = raw_times_bin.read(self.binary)
+                    if not val:
+                        break
+                    raw_times.write(
+                        str(bytesToNumber(val, endian=self.endian)) + '\n')
+
     def _parse_raw_times(self):
         """Classify already extracted times."""
         # as unlike with capture file, we don't know how many sanity tests,
@@ -163,11 +207,18 @@ class Extract:
         # skip. Count the probes, the times, and then use the last len(probes)
         # of times for classification
 
+        raw_times_name = self.raw_times
+
+        # if we got a binary file on input, first transform it into a csv file
+        if self.binary:
+            raw_times_name = splitext(self.raw_times)[0] + ".csv"
+            self._convert_binary_file(raw_times_name)
+
         # do counting in memory efficient way
         probe_count = sum(1 for _ in self.class_generator)
         self.log.read_log()
         self.class_generator = self.log.iterate_log()
-        with open(self.raw_times, 'r') as raw_times:
+        with open(raw_times_name, 'r') as raw_times:
             # skip the header line
             raw_times.readline()
             times_count = 0
@@ -175,11 +226,12 @@ class Extract:
                 pass
         if probe_count > times_count:
             raise ValueError(
-                "Insufficient number of times for provided log file")
+                "Insufficient number of times for provided log file "
+                "(expected: {0}, found: {1})".format(probe_count, times_count))
 
         self.warm_up_messages_left = times_count - probe_count
 
-        data = pd.read_csv(self.raw_times, dtype=np.float64)
+        data = pd.read_csv(raw_times_name, dtype=np.float64)
 
         data.drop(range(self.warm_up_messages_left), inplace=True)
 
