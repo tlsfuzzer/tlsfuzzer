@@ -53,6 +53,39 @@ def _binary_prefix(count):
     return _prefix_handler(count, 'i', 1024.0)
 
 
+def _wait(status, delay, event_type=type(Event())):
+    if isinstance(status[2], event_type):
+        status[2].wait(delay)
+    else:
+        time.sleep(delay)
+
+
+def _sanitize_args(status, prefix, delay, end):
+    """Check if params are sane and set defaults."""
+    if len(status) != 3:
+        raise ValueError("status is not a 3 element array")
+    if delay is None:
+        delay = 2
+    if end is None:
+        end = '\r'
+    if prefix == 'decimal':
+        prefix_format = _si_prefix
+    else:
+        assert prefix == 'binary'
+        prefix_format = _binary_prefix
+
+    return delay, end, prefix_format
+
+
+def _done(status, event_type=type(Event())):
+    if isinstance(status[2], event_type):
+        if status[2].is_set():
+            return True
+    elif not status[2]:
+        return True
+    return False
+
+
 def progress_report(status, unit='', prefix='decimal', delay=None, end=None):
     """
     Periodically report progress of a task in ``status``, a thread runner.
@@ -79,28 +112,15 @@ def progress_report(status, unit='', prefix='decimal', delay=None, end=None):
     use ``\r`` to overwrite the line when printing (default), or ``\n`` to
     print a whole new line every time.
     """
-    if len(status) != 3:
-        raise ValueError("status is not a 3 element array")
-    if delay is None:
-        delay = 2
-    if end is None:
-        end = '\r'
+    delay, end, prefix_format = _sanitize_args(status, prefix, delay, end)
     # technically that should be time.monotonic(), but it's not supported
     # on python2.7
     start_exec = time.time()
     prev_loop = start_exec
-    if prefix == 'decimal':
-        prefix_format = _si_prefix
-    else:
-        assert prefix == 'binary'
-        prefix_format = _binary_prefix
     event_type = type(Event())
     while True:
         old_exec = status[0]
-        if isinstance(status[2], event_type):
-            status[2].wait(delay)
-        else:
-            time.sleep(delay)
+        _wait(status, delay)
         now = time.time()
         elapsed = now-start_exec
         loop_time = now-prev_loop
@@ -127,8 +147,5 @@ def progress_report(status, unit='', prefix='decimal', delay=None, end=None):
                   unit,
                   " " * 4), end=end)
 
-        if isinstance(status[2], event_type):
-            if status[2].is_set():
-                break
-        elif not status[2]:
+        if _done(status):
             break
