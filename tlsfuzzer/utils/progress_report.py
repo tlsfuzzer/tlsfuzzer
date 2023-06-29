@@ -26,28 +26,31 @@ def _format_seconds(sec):
     return " ".join(elems)
 
 
-def _si_prefix(count):
-    """Format the number with a SI prefix"""
+def _prefix_handler(count, suffix, divisor):
+    """Format the number with a given suffix and divisor"""
     ret = count
     lvl = 0
-    lvls = {0: '', 1: 'k', 2: 'M', 3: 'G', 4: 'T', 5: 'E'}
-    while ret > 2000 and lvl <= max(lvls):
-        ret /= 1000.0
+    lvls = {0: '',
+            1: 'k' + suffix,
+            2: 'M' + suffix,
+            3: 'G' + suffix,
+            4: 'T' + suffix,
+            5: 'E' + suffix}
+    while ret > 2 * divisor and lvl <= max(lvls):
+        ret /= divisor
         lvl += 1
 
     return "{0:.2f}{1}".format(ret, lvls[lvl])
+
+
+def _si_prefix(count):
+    """Format the number with a SI prefix"""
+    return _prefix_handler(count, '', 1000.0)
 
 
 def _binary_prefix(count):
     """Format the number with a binary prefix"""
-    ret = count
-    lvl = 0
-    lvls = {0: '', 1: 'ki', 2: 'Mi', 3: 'Gi', 4: 'Ti', 5: 'Ei'}
-    while ret > 2048 and lvl <= max(lvls):
-        ret /= 1024.0
-        lvl += 1
-
-    return "{0:.2f}{1}".format(ret, lvls[lvl])
+    return _prefix_handler(count, 'i', 1024.0)
 
 
 def progress_report(status, unit='', prefix='decimal', delay=None, end=None):
