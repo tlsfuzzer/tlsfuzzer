@@ -15,6 +15,7 @@ import getopt
 import sys
 import math
 import multiprocessing as mp
+from threading import Event, Thread
 import shutil
 from itertools import chain
 from os.path import join
@@ -31,6 +32,7 @@ from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
 from tlsfuzzer.utils.ordered_dict import OrderedDict
+from tlsfuzzer.utils.progress_report import progress_report
 from tlsfuzzer.messages import div_ceil
 
 
@@ -63,6 +65,10 @@ def help_msg():
                 similar.
  --alpha num    Acceptable probability of a false positive. Default: 1e-5.
  --verbose      Print the current task
+ --workers num  Number of worker processes to use for paralelizable
+                computation. More workers will finish analysis faster, but
+                will require more memory to do so. By default: number of
+                threads available on the system (`os.cpu_count()`).
  --help         Display this message""")
 
 
@@ -76,6 +82,7 @@ def main():
     verbose = False
     clock_freq = None
     alpha = None
+    workers = None
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "o:",
                                ["help", "no-ecdf-plot", "no-scatter-plot",
@@ -83,6 +90,7 @@ def main():
                                 "multithreaded-graph",
                                 "clock-frequency=",
                                 "alpha=",
+                                "workers=",
                                 "verbose"])
 
     for opt, arg in opts:
@@ -103,12 +111,15 @@ def main():
             clock_freq = float(arg) * 1000000  # in MHz
         elif opt == "--alpha":
             alpha = float(arg)
+        elif opt == "--workers":
+            workers = int(arg)
         elif opt == "--verbose":
             verbose = True
 
     if output:
         analysis = Analysis(output, ecdf_plot, scatter_plot, conf_int_plot,
-                            multithreaded_graph, verbose, clock_freq, alpha)
+                            multithreaded_graph, verbose, clock_freq, alpha,
+                            workers)
         ret = analysis.generate_report()
         return ret
     else:
@@ -120,7 +131,8 @@ class Analysis(object):
 
     def __init__(self, output, draw_ecdf_plot=True, draw_scatter_plot=True,
                  draw_conf_interval_plot=True, multithreaded_graph=False,
-                 verbose=False, clock_frequency=None, alpha=None):
+                 verbose=False, clock_frequency=None, alpha=None,
+                 workers=None):
         self.verbose = verbose
         self.output = output
         self.clock_frequency = clock_frequency
@@ -130,6 +142,7 @@ class Analysis(object):
         self.draw_scatter_plot = draw_scatter_plot
         self.draw_conf_interval_plot = draw_conf_interval_plot
         self.multithreaded_graph = multithreaded_graph
+        self.workers = workers
         if alpha is None:
             self.alpha = 1e-5
         else:
@@ -339,7 +352,7 @@ class Analysis(object):
         """
         comb = list(combinations(list(range(len(self.class_names))), 2))
         job_size = max(len(comb) // os.cpu_count(), 1)
-        with mp.Pool() as pool:
+        with mp.Pool(self.workers) as pool:
             pvals = list(pool.imap_unordered(
                 self._mt_process_runner,
                 zip(comb, repeat(sum_func), repeat(args)),
@@ -688,7 +701,7 @@ class Analysis(object):
     @staticmethod
     def _cent_tend_of_random_sample(reps=100):
         """
-        Calculate mean, median, trimmed means (5% and 25%) and trimean with
+        Calculate mean, median, trimmed means (5%, 25%, 45%) and trimean with
         bootstrapping.
         """
         ret = []
@@ -705,10 +718,16 @@ class Analysis(object):
                         median,
                         stats.trim_mean(boot, 0.05, 0),
                         stats.trim_mean(boot, 0.25, 0),
+                        stats.trim_mean(boot, 0.45, 0),
                         (q1+2*median+q3)/4))
         return ret
 
-    def _bootstrap_differences(self, pair, reps=5000):
+    @staticmethod
+    def _import_diffs(diffs):
+        global _diffs
+        _diffs = diffs
+
+    def _bootstrap_differences(self, pair, reps=5000, status=None):
         """Return a list of bootstrapped central tendencies of differences."""
         # don't pickle the diffs as they are read-only, use a global to pass
         # it to workers
@@ -723,11 +742,13 @@ class Analysis(object):
         job_count = os.cpu_count() * 4
         job_size = max(reps // job_count, 1)
 
-        keys = ("mean", "median", "trim_mean_05", "trim_mean_25", "trimean")
+        keys = ("mean", "median", "trim_mean_05", "trim_mean_25",
+                "trim_mean_45", "trimean")
 
         ret = dict((k, list()) for k in keys)
 
-        with mp.Pool() as pool:
+        with mp.Pool(self.workers, initializer=self._import_diffs,
+                     initargs=(_diffs,)) as pool:
             cent_tend = pool.imap_unordered(
                 self._cent_tend_of_random_sample,
                 chain(repeat(job_size, reps // job_size), [reps % job_size]))
@@ -736,9 +757,11 @@ class Analysis(object):
                 # handle reps % job_size == 0
                 if not values:
                     continue
+                if status:
+                    status[0] += len(values)
                 # transpose the results so that they can be added to lists
                 chunk = list(map(list, zip(*values)))
-                for key, i in zip(keys, range(5)):
+                for key, i in zip(keys, range(len(keys))):
                     ret[key].extend(chunk[i])
         _diffs = None
         return ret
@@ -754,13 +777,27 @@ class Analysis(object):
         :param float ci: confidence interval for the low and high estimate.
             0.95, i.e. "2 sigma", by default
         :return: dictionary of tuples with low estimate, estimate, and high
-            estimate of mean, median, trimmed mean (5% and 25%) and trimean
+            estimate of mean, median, trimmed mean (5%, 25%, 45%) and trimean
             of differences of observations
         """
+        status = None
         if self.verbose:
             start_time = time.time()
             print("[i] Calculating confidence intervals of central tendencies")
-        cent_tend = self._bootstrap_differences(pair, reps)
+            status = [0, reps, Event()]
+            kwargs = {}
+            kwargs['unit'] = ' bootstraps'
+            progress = Thread(target=progress_report, args=(status,),
+                              kwargs=kwargs)
+            progress.start()
+
+        try:
+            cent_tend = self._bootstrap_differences(pair, reps, status=status)
+        finally:
+            if self.verbose:
+                status[2].set()
+                progress.join()
+                print()
 
         data = self.load_data()
         diff = data.iloc[:, pair[1]] - data.iloc[:, pair[0]]
@@ -768,6 +805,7 @@ class Analysis(object):
         q1, median, q3 = np.quantile(diff, [0.25, 0.5, 0.75])
         trim_mean_05 = stats.trim_mean(diff, 0.05, 0)
         trim_mean_25 = stats.trim_mean(diff, 0.25, 0)
+        trim_mean_45 = stats.trim_mean(diff, 0.45, 0)
         trimean = (q1 + 2*median + q3)/4
 
         quantiles = [(1-ci)/2, 1-(1-ci)/2]
@@ -775,6 +813,7 @@ class Analysis(object):
         exact_values = {"mean": mean, "median": median,
                         "trim_mean_05": trim_mean_05,
                         "trim_mean_25": trim_mean_25,
+                        "trim_mean_45": trim_mean_45,
                         "trimean": trimean}
 
         ret = {}
@@ -799,17 +838,37 @@ class Analysis(object):
                  "median": pd.DataFrame(),
                  "trim mean (5%)": pd.DataFrame(),
                  "trim mean (25%)": pd.DataFrame(),
+                 "trim mean (45%)": pd.DataFrame(),
                  "trimean": pd.DataFrame()}
 
-        for i in range(1, len(self.class_names)):
-            pair = TestPair(0, i)
-            diffs = self._bootstrap_differences(pair, reps)
+        status = None
+        if self.verbose:
+            status = [0, reps * (len(self.class_names) - 1), Event()]
+            kwargs = {}
+            kwargs['unit'] = ' bootstraps'
+            progress = Thread(target=progress_report, args=(status, ),
+                              kwargs=kwargs)
+            progress.start()
 
-            boots["mean"]['{}-0'.format(i)] = diffs["mean"]
-            boots["median"]['{}-0'.format(i)] = diffs["median"]
-            boots["trim mean (5%)"]['{}-0'.format(i)] = diffs["trim_mean_05"]
-            boots["trim mean (25%)"]['{}-0'.format(i)] = diffs["trim_mean_25"]
-            boots["trimean"]['{}-0'.format(i)] = diffs["trimean"]
+        try:
+            for i in range(1, len(self.class_names)):
+                pair = TestPair(0, i)
+                diffs = self._bootstrap_differences(pair, reps, status)
+
+                boots["mean"]['{}-0'.format(i)] = diffs["mean"]
+                boots["median"]['{}-0'.format(i)] = diffs["median"]
+                boots["trim mean (5%)"]['{}-0'.format(i)] = \
+                    diffs["trim_mean_05"]
+                boots["trim mean (25%)"]['{}-0'.format(i)] = \
+                    diffs["trim_mean_25"]
+                boots["trim mean (45%)"]['{}-0'.format(i)] = \
+                    diffs["trim_mean_45"]
+                boots["trimean"]['{}-0'.format(i)] = diffs["trimean"]
+        finally:
+            if self.verbose:
+                status[2].set()
+                progress.join()
+                print()
 
         for name, data in boots.items():
             fig = Figure(figsize=(16, 12))
@@ -833,6 +892,8 @@ class Analysis(object):
                 name = "trim_mean_05"
             elif name == "trim mean (25%)":
                 name = "trim_mean_25"
+            elif name == "trim mean (45%)":
+                name = "trim_mean_45"
 
             with open(join(self.output,
                            "bootstrapped_{0}.csv".format(name)),
@@ -1203,6 +1264,7 @@ class Analysis(object):
             for name, key in (("Mean", "mean"), ("Median", "median"),
                               ("Trimmed mean (5%)", "trim_mean_05"),
                               ("Trimmed mean (25%)", "trim_mean_25"),
+                              ("Trimmed mean (45%)", "trim_mean_45"),
                               ("Trimean", "trimean")):
                 self._write_stats(
                     name,
