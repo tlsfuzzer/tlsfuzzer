@@ -10,19 +10,22 @@ import time
 import subprocess
 import sys
 import math
-from threading import Thread
+from threading import Thread, Event
 from itertools import chain, repeat
 
 from tlsfuzzer.utils.log import Log
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.utils.statics import WARM_UP
+from tlsfuzzer.utils.progress_report import progress_report
 
 
 class TimingRunner:
     """Repeatedly runs tests and captures timing information."""
 
     def __init__(self, name, tests, out_dir, ip_address, port, interface,
-                 affinity=None, skip_extract=False):
+                 affinity=None, skip_extract=False, skip_analysis=False,
+                 alpha=None, no_quickack=False, verbose_analysis=False,
+                 delay=None, carriage_return=None):
         """
         Check if tcpdump is present and setup instance parameters.
 
@@ -35,6 +38,13 @@ class TimingRunner:
         :param str affinity: The processor IDs to use for affinity of
             the `tcpdump` process. See taskset man page for description
             of --cpu-list option.
+        :param bool no_quickack: If True: don't assume QUICKACK to be in use,
+            impacts extraction from packet dump.
+        :param bool verbose_analysis: If True: run analysis with verbose flag
+            set.
+        :param float delay: How often to print progress information, in
+            seconds.
+        :param str carriage_return: What character to use for carriage_return.
         """
         # first check tcpdump presence
         if not self.check_tcpdump():
@@ -49,6 +59,12 @@ class TimingRunner:
         self.log = Log(os.path.join(self.out_dir, "log.csv"))
         self.affinity = affinity
         self.skip_extract = skip_extract
+        self.skip_analysis = skip_analysis
+        self.alpha = alpha
+        self.no_quickack = no_quickack
+        self.verbose_analysis = verbose_analysis
+        self.delay = delay
+        self.carriage_return = carriage_return
 
         self.tcpdump_running = True
         self.tcpdump_output = None
@@ -81,61 +97,6 @@ class TimingRunner:
 
         self.log.write()
 
-    @staticmethod
-    def _format_seconds(sec):
-        """Format number of seconds into a more readable string."""
-        elems = []
-        msec, sec = math.modf(sec)
-        sec = int(sec)
-        days, rem = divmod(sec, 60*60*24)
-        if days:
-            elems.append("{0}d".format(days))
-        hours, rem = divmod(rem, 60*60)
-        if hours or elems:
-            elems.append("{0}h".format(hours))
-        minutes, sec = divmod(rem, 60)
-        if minutes or elems:
-            elems.append("{0}m".format(minutes))
-        elems.append("{0:.2f}s".format(sec+msec))
-        return " ".join(elems)
-
-    @staticmethod
-    def _report_progress(status):  # pragma: no cover
-        """
-        Periodically report progress of task in status, thread runner.
-
-        status must be an array with three elements, first two specify a
-        fraction of completed work (i.e. 0 <= status[0]/status[1] <= 1),
-        third specifies if the reporting process should continue running, a
-        False value there will cause the process to finish
-        """
-        # technically that should be time.monotonic(), but it's not supported
-        # on python2.7
-        start_exec = time.time()
-        delay = 2.0
-        while status[2]:
-            old_exec = status[0]
-            time.sleep(delay)
-            elapsed = time.time()-start_exec
-            elapsed_str = TimingRunner._format_seconds(elapsed)
-            done = status[0]*100.0/status[1]
-            try:
-                remaining = (100-done)*elapsed/done
-            except ZeroDivisionError:
-                remaining = status[1]*elapsed
-            remaining_str = TimingRunner._format_seconds(remaining)
-            eta = time.strftime("%H:%M:%S %d-%m-%Y",
-                                time.localtime(time.time()+remaining))
-            print("Done: {0:6.2f}%, elapsed: {1}, speed: {2:.2f}conn/s, "
-                  "avg speed: {3:.2f}conn/s, remaining: {4}, ETA: {5}{6}"
-                  .format(
-                      done, elapsed_str,
-                      (status[0] - old_exec)/delay,
-                      status[0]/elapsed,
-                      remaining_str,
-                      eta,
-                      " " * 4), end="\r")
-
     def run(self):
         """
         Run test the specified number of times and start analysis
@@ -151,8 +112,14 @@ class TimingRunner:
             test_classes = self.log.get_classes()
             # prepend the conversations with few warm-up ones
             exp_len = WARM_UP + sum(1 for _ in self.log.iterate_log())
-            status = [0, exp_len, True]
-            progress = Thread(target=self._report_progress, args=(status,))
+            status = [0, exp_len, Event()]
+
+            kwargs = {}
+            kwargs['unit'] = ' conn'
+            kwargs['delay'] = self.delay
+            kwargs['end'] = self.carriage_return
+            progress = Thread(target=progress_report, args=(status,),
+                              kwargs=kwargs)
             progress.start()
             self.log.read_log()
             queries = chain(repeat(0, WARM_UP), self.log.iterate_log())
@@ -181,7 +148,7 @@ class TimingRunner:
         finally:
             # stop sniffing and give tcpdump time to write all buffered packets
             self.tcpdump_running = False
-            status[2] = False
+            status[2].set()
             time.sleep(2)
             sniffer.terminate()
             sniffer.wait()
@@ -199,8 +166,9 @@ class TimingRunner:
             return 0
         print("Starting extraction...")
         if self.extract():
-            print("Starting analysis...")
-            return self.analyse()
+            if not self.skip_analysis:
+                print("Starting analysis...")
+                return self.analyse()
         return 2
 
     def extract(self):
@@ -212,7 +180,10 @@ class TimingRunner:
                                  os.path.join(self.out_dir, "capture.pcap"),
                                  self.out_dir,
                                  self.ip_address,
-                                 self.port)
+                                 self.port,
+                                 no_quickack=self.no_quickack,
+                                 delay=self.delay,
+                                 carriage_return=self.carriage_return)
             extraction.parse()
             return True
 
@@ -228,7 +199,10 @@ class TimingRunner:
         """
         if self.check_analysis_availability():
             from tlsfuzzer.analysis import Analysis
-            analysis = Analysis(self.out_dir)
+            analysis = Analysis(self.out_dir, alpha=self.alpha,
+                                verbose=self.verbose_analysis,
+                                delay=self.delay,
+                                carriage_return=self.carriage_return)
             return analysis.generate_report()
 
         print("Analysis is not available. "

@@ -33,7 +33,7 @@ from tlsfuzzer.utils.statics import WARM_UP
 from tlsfuzzer.utils.log import Log
 
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -86,6 +86,12 @@ def help_msg():
     print("                Available: 'raw decrypted value', 'Hamming weight'")
     print(" --bit-sets     List of numerical values for Hamming weight tests,")
     print("                separated by spaces. Default: '0x01 0x02 0x04'")
+    print(" --alpha num    Acceptable probability of a false positive. Default:")
+    print("                1e-5")
+    print(" --no-quickack  Don't assume that QUICKACK is in use.")
+    print(" --verbose-analysis Enable verbose progress of analysis.")
+    print(" --status-delay num How often to print the status line.")
+    print(" --status-newline Use a newline for line end instead of carriage return.")
     print(" --help         this message")
 
 
@@ -113,6 +119,11 @@ def main():
     bit_sets = (0x01, 0x02, 0x04)
     # how many random bytes to include in the randomised Hamming tests
     random_bytes = 8
+    alpha = 1e-5
+    no_quickack = False
+    verbose_analysis = False
+    delay = None
+    carriage_return = None
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv,
@@ -124,7 +135,12 @@ def main():
                                 "cpu-list=",
                                 "static-enc",
                                 "test-set=",
-                                "bit-sets="])
+                                "bit-sets=",
+                                "alpha=",
+                                "no-quickack",
+                                "verbose-analysis",
+                                "status-delay=",
+                                "status-newline"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -180,6 +196,16 @@ def main():
                 int(i, 16) if i[:2] == '0x' else int(i)
                 for i in arg.split(" ")
             )
+        elif opt == "--alpha":
+            alpha = float(arg)
+        elif opt == "--no-quickack":
+            no_quickack = True
+        elif opt == "--verbose-analysis":
+            verbose_analysis = True
+        elif opt == "--status-delay":
+            delay = float(arg)
+        elif opt == "--status-newline":
+            carriage_return = '\n'
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -258,7 +284,7 @@ def main():
     conversations = OrderedDict()
     generators = OrderedDict()
 
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -293,7 +319,7 @@ def main():
 
     # check if a certain number doesn't trip up the server
     # (essentially a second sanity test)
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -320,7 +346,7 @@ def main():
     for i in range(1, 4):
         # create a CKE with PMS the runner doesn't know/use
         # (benchmark to measure other tests to)
-        conversation = Connect(host, port)
+        conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
@@ -358,7 +384,7 @@ def main():
             cke_node
 
     # set 2nd byte of padding to 3 (invalid value)
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -384,7 +410,7 @@ def main():
     generators["set PKCS#1 padding type to 3"] = cke_node
 
     # set 2nd byte of padding to 1 (signing)
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -410,7 +436,7 @@ def main():
     generators["set PKCS#1 padding type to 1"] = cke_node
 
     # use the padding for signing (type 1)
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -438,7 +464,7 @@ def main():
     generators["use PKCS#1 padding type 1"] = cke_node
 
     # test early zero in random data
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -464,7 +490,7 @@ def main():
     generators["zero byte in random padding"] = cke_node
 
     # check if early padding separator is detected
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -490,7 +516,7 @@ def main():
     generators["zero byte in last byte of random padding"] = cke_node
 
     # check if separator without any random padding is detected
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -516,7 +542,7 @@ def main():
     generators["zero byte in first byte of random padding"] = cke_node
 
     # check if invalid first byte of encoded value is correctly detecte
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -542,7 +568,7 @@ def main():
     generators["invalid version number in padding"] = cke_node
 
     # check if no null separator in padding is detected
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -569,7 +595,7 @@ def main():
 
     # check if no null separator in padding is detected
     # but with PMS bytes set to non-zero
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -596,7 +622,7 @@ def main():
     generators["no null separator in encrypted value"] = cke_node
 
     # completely random plaintext
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -625,7 +651,7 @@ def main():
     generators["random plaintext"] = cke_node
 
     # check if too short PMS is detected
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -651,7 +677,7 @@ def main():
     generators["two byte long PMS (TLS version only)"] = cke_node
 
     # check if no encrypted payload is detected
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -680,7 +706,7 @@ def main():
     generators["no encrypted value"] = cke_node
 
     # check if too short encrypted payload is detected
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -709,7 +735,7 @@ def main():
     generators["one byte encrypted value"] = cke_node
 
     # check if too short PMS is detected
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -735,7 +761,7 @@ def main():
     generators["too short (47-byte) pre master secret"] = cke_node
 
     # check if too short PMS is detected
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -761,7 +787,7 @@ def main():
     generators["very short (4-byte) pre master secret"] = cke_node
 
     # check if too long PMS is detected
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -787,7 +813,7 @@ def main():
     generators["too long (49-byte) pre master secret"] = cke_node
 
     # check if very long PMS is detected
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -812,7 +838,7 @@ def main():
     conversations["very long (124-byte) pre master secret"] = conversation
     generators["very long (124-byte) pre master secret"] = cke_node
 
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -838,7 +864,7 @@ def main():
     generators["very long (96-byte) pre master secret"] = cke_node
 
     # check if wrong TLS version number is rejected
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -864,7 +890,7 @@ def main():
     generators["wrong TLS version (2, 2) in pre master secret"] = cke_node
 
     # check if wrong TLS version number is rejected
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -892,7 +918,7 @@ def main():
     for rep in range(4 if reuse_rsa_ciphertext else 1):
         for i in [1, 4, 8]:
             # check if too short PKCS padding is detected
-            conversation = Connect(host, port)
+            conversation = Connect(host, port, timeout=timeout)
             node = conversation
             ciphers = [cipher]
             node = node.add_child(ClientHelloGenerator(ciphers,
@@ -932,7 +958,7 @@ def main():
 
     for j in range(4 if reuse_rsa_ciphertext else 1):
         # check if very short PKCS padding doesn't have a different behaviour
-        conversation = Connect(host, port)
+        conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
@@ -969,7 +995,7 @@ def main():
             .format(suffix)] = cke_node
 
     # check if too long PKCS padding is detected
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -999,7 +1025,7 @@ def main():
 
     # test for Hamming weight sensitivity:
     # very low Hamming weight:
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -1029,7 +1055,7 @@ def main():
     # low Hamming weight:
     for place in ('high', 'low'):
         for bit_set in bit_sets:
-            conversation = Connect(host, port)
+            conversation = Connect(host, port, timeout=timeout)
             node = conversation
             ciphers = [cipher]
             node = node.add_child(ClientHelloGenerator(ciphers,
@@ -1068,7 +1094,7 @@ def main():
 
     # test for Hamming weight sensitivity:
     # very high Hamming weight:
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -1300,7 +1326,12 @@ place where the timing leak happens:
                                          port,
                                          interface,
                                          affinity,
-                                         skip_extract=True)
+                                         skip_extract=True,
+                                         alpha=alpha,
+                                         no_quickack=no_quickack,
+                                         verbose_analysis=verbose_analysis,
+                                         delay=delay,
+                                         carriage_return=carriage_return)
             print("Pre-generating pre-master secret values...")
 
             with open(
@@ -1348,7 +1379,7 @@ place where the timing leak happens:
                 "rb"
             )
 
-            conversation = Connect(host, port)
+            conversation = Connect(host, port, timeout=timeout)
             node = conversation
             ciphers = [cipher]
             node = node.add_child(ClientHelloGenerator(ciphers,
@@ -1393,7 +1424,8 @@ place where the timing leak happens:
             if ret_val == 0:
                 print("No statistically significant difference detected")
             elif ret_val == 1:
-                print("Statisticaly significant difference detected")
+                print("Statisticaly significant difference detected at alpha="
+                      "{0}".format(alpha))
             else:
                 print("Error: Statistical analysis exited with {0}".format(ret_val))
             sys.exit(ret_val)

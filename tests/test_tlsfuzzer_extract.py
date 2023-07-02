@@ -114,6 +114,20 @@ class TestExtraction(unittest.TestCase):
             "21313.000000000,56487.000000000\n"
             )
 
+        self.expected_no_quickack = (
+            "A,B\n"
+            "0.000758130,0.000747009\n"
+            "0.000696718,0.000920462\n"
+            "0.000980080,0.001327954\n"
+            "0.000988899,0.000904547\n"
+            "0.000875510,0.000768453\n"
+            "0.000734843,0.000752226\n"
+            "0.000754852,0.000862102\n"
+            "0.000667378,0.000706491\n"
+            "0.000671230,0.000668237\n"
+            "0.000790935,0.000992733\n"
+            )
+
     def file_selector(self, *args, **kwargs):
         name = args[0]
         mode = args[1]
@@ -121,6 +135,16 @@ class TestExtraction(unittest.TestCase):
             r = mock.mock_open()(name, mode)
             r.write.side_effect = lambda s: self.assertIn(
                     s.strip(), self.expected.splitlines())
+            return r
+        return self.builtin_open(*args, **kwargs)
+
+    def file_selector_no_quickack(self, *args, **kwargs):
+        name = args[0]
+        mode = args[1]
+        if "timing.csv" in name:
+            r = mock.mock_open()(name, mode)
+            r.write.side_effect = lambda s: self.assertIn(
+                    s.strip(), self.expected_no_quickack.splitlines())
             return r
         return self.builtin_open(*args, **kwargs)
 
@@ -179,6 +203,15 @@ class TestExtraction(unittest.TestCase):
             mock_file.side_effect = self.file_selector
             extract.parse()
 
+    def test_extraction_with_no_quickack(self):
+        extract = Extract(self.log,
+                          join(dirname(abspath(__file__)), "capture.pcap"),
+                          "/tmp", "localhost", 4433, no_quickack=True)
+
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_selector_no_quickack
+            extract.parse()
+
     def test_binary_convert(self):
         extract = Extract(self.log, None, "/tmp", None, None,
                           join(dirname(abspath(__file__)),
@@ -218,7 +251,67 @@ class TestCommandLine(unittest.TestCase):
                 mock_log.assert_called_once_with(logfile)
                 mock_init.assert_called_once_with(
                     mock.ANY, capture, output, host, int(port),
-                    None, None, binary=None, endian="little")
+                    None, None, binary=None, endian="little",
+                    no_quickack=False, delay=None, carriage_return=None)
+
+    @mock.patch('tlsfuzzer.extract.Log')
+    @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
+    @mock.patch('tlsfuzzer.extract.Extract._write_csv')
+    @mock.patch('tlsfuzzer.extract.Extract.parse')
+    def test_delay_and_CR(self, mock_parse, mock_write, mock_write_pkt,
+                          mock_log):
+        capture = "capture.pcap"
+        logfile = "log.csv"
+        host = "localhost"
+        port = "4433"
+        output = "/tmp"
+        args = ["extract.py",
+                "-l", logfile,
+                "-c", capture,
+                "-h", host,
+                "-p", port,
+                "-o", output,
+                "--status-delay", "3.5",
+                "--status-newline"]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
+            with mock.patch("sys.argv", args):
+                main()
+                mock_log.assert_called_once_with(logfile)
+                mock_init.assert_called_once_with(
+                    mock.ANY, capture, output, host, int(port),
+                    None, None, binary=None, endian="little",
+                    no_quickack=False, delay=3.5, carriage_return='\n')
+
+    @mock.patch('tlsfuzzer.extract.Log')
+    @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
+    @mock.patch('tlsfuzzer.extract.Extract._write_csv')
+    @mock.patch('tlsfuzzer.extract.Extract.parse')
+    def test_no_quickack(self, mock_parse, mock_write, mock_write_pkt,
+                          mock_log):
+        capture = "capture.pcap"
+        logfile = "log.csv"
+        host = "localhost"
+        port = "4433"
+        output = "/tmp"
+        args = ["extract.py",
+                "-l", logfile,
+                "-c", capture,
+                "-h", host,
+                "-p", port,
+                "-o", output,
+                "--no-quickack"]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
+            with mock.patch("sys.argv", args):
+                main()
+                mock_log.assert_called_once_with(logfile)
+                mock_init.assert_called_once_with(
+                    mock.ANY, capture, output, host, int(port),
+                    None, None, binary=None, endian="little",
+                    no_quickack=True, delay=None, carriage_return=None)
 
     @mock.patch('tlsfuzzer.extract.Log')
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
@@ -242,7 +335,8 @@ class TestCommandLine(unittest.TestCase):
                 mock_log.assert_called_once_with(logfile)
                 mock_init.assert_called_once_with(
                     mock.ANY, None, output, None, None,
-                    raw_times, column_name, binary=None, endian='little')
+                    raw_times, column_name, binary=None, endian='little',
+                    no_quickack=False, delay=None, carriage_return=None)
 
     @mock.patch('tlsfuzzer.extract.Log')
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
@@ -267,7 +361,8 @@ class TestCommandLine(unittest.TestCase):
                 mock_log.assert_called_once_with(logfile)
                 mock_init.assert_called_once_with(
                     mock.ANY, None, output, None, None,
-                    raw_times, None, binary=4, endian='big')
+                    raw_times, None, binary=4, endian='big',
+                    no_quickack=False, delay=None, carriage_return=None)
 
     @mock.patch('tlsfuzzer.extract.Log')
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
@@ -363,7 +458,8 @@ class TestCommandLine(unittest.TestCase):
                 mock_log.assert_called_once_with(logfile)
                 mock_init.assert_called_once_with(
                     mock.ANY, None, output, None, None,
-                    raw_times, None, binary=None, endian='little')
+                    raw_times, None, binary=None, endian='little',
+                    no_quickack=False, delay=None, carriage_return=None)
 
     @mock.patch('__main__.__builtins__.print')
     @mock.patch('tlsfuzzer.extract.help_msg')

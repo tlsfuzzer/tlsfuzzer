@@ -34,10 +34,13 @@ fewest observations.
 Hardware selection
 ------------------
 
-You will want a server with at least 3 physical cores: one to run
-the OS, tlsfuzzer script, etc., one to run the tcpdump process (to ensure
-consistent timestamping of captured packets) and one to run the system under
-test (to ensure consistent response times).
+You will want a server with at least 2 physical cores, and optimally with
+3 physical cores: one to run
+the OS, handle IRQs, etc. one to run the tlsfuzzer and tcpdump processes (to
+ensure consistent timestamping of captured packets) and one to run the system
+under test (to ensure consistent response times). If that's not available,
+running the OS, tlsfuzzer and tcpdump on one core and the SUT on isolated
+core is also an option (though it will provide lower quality measurements).
 
 While you can run the tests against a network server, this manual
 doesn't describe how to ensure low latency and low jitter
@@ -74,7 +77,10 @@ file:
 
    You should isolate both processors of the hyper-threaded pair (or quadruple,
    or octect...). Use a tool like ``lscpu -p`` to identify which Linux CPUs
-   run on which physical cores.
+   share physical resources: optimally you should run on separate Cores that
+   don't share cache, but are still in the same socket and the same NUMA Node.
+   All the CPUs that do share Cores (and if possible, L1 and L2 cache) should
+   also be isolated but left unused.
 
 Then apply the profile:
 
@@ -86,13 +92,49 @@ and restart the system to apply the changes to the kernel.
 
 Then you can install tlsfuzzer dependencies to speed-up the test execution:
 
+(on x86_64 and aarch64, for which there are binary wheels on PyPI)
+
 .. code:: bash
 
    dnf install python3 python3-devel tcpdump gmp-devel swig mpfr-devel \
    libmpc openssl-devel make gcc gcc-c++ git libmpc-devel python3-six
 
+(and on other platforms, where you need to compile scipy from sources)
+
+.. code:: bash
+
+   dnf install -y python3 python3-devel tcpdump gmp-devel swig mpfr-devel \
+   libmpc openssl-devel make gcc gcc-c++ git libmpc-devel python3-six \
+   meson openblas-devel gcc-gfortran lapack-devel zlib-devel \
+   libtiff-devel libjpeg-devel openjpeg2-devel freetype-devel \
+   lcms2-devel libwebp-devel tcl-devel tk-devel harfbuzz-devel fribidi-devel \
+   libxcb-devel
+
+On RHEL you also need to patch up pkgconfig for scipy to be compilable
+(necessary for source installation, wheels don't need it):
+
+.. code:: bash
+
+   cat > /usr/lib64/pkgconfig/openblas.pc <<EOF
+   prefix=/usr
+   libdir=/usr/lib64
+   includedir=/usr/include/openblas
+   Name: openblas
+   Description: OpenBLAS
+   Version: 0.3.15
+   URL: http://www.openblas.net/
+   Libs: -L/usr/lib64 -lopenblas
+   Libs.private: -lm
+   Cflags: -I/usr/include/openblas/
+   EOF
+
+On all platforms:
+
+.. code:: bash
+
    pip3 install m2crypto gmpy2
    pip3 install --pre tlslite-ng
+
 
 And the general requirements to collect and analyse timing results:
 
@@ -105,8 +147,7 @@ And the general requirements to collect and analyse timing results:
    Because the tests use packet capture to collect timing information and
    they buffer the messages until all of them have been created, the use
    of ``m2crypto`` and ``gmpy2`` does not have an effect on collected
-   data points, using them will only make tlsfuzzer run the tests at a higher
-   frequency.
+   data points, using them will only make tlsfuzzer run the tests faster.
 
 .. note::
    RHEL-8 doesn't respect the QUICKACK setting on the C API. The users need

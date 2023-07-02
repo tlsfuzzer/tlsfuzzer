@@ -710,7 +710,23 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
-                        output, True, True, True, False, False, None, None, None)
+                        output, True, True, True, False, False, None, None,
+                        None, None, None)
+
+    def test_call_with_delay_and_CR(self):
+        output = "/tmp"
+        args = ["analysis.py", "-o", output, '--status-delay', '3.5',
+                '--status-newline']
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.analysis.Analysis.generate_report') as mock_report:
+            with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
+                with mock.patch("sys.argv", args):
+                    main()
+                    mock_report.assert_called_once()
+                    mock_init.assert_called_once_with(
+                        output, True, True, True, False, False, None, None,
+                        None, 3.5, '\n')
 
     def test_call_with_workers(self):
         output = "/tmp"
@@ -723,7 +739,8 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
-                        output, True, True, True, False, False, None, None, 200)
+                        output, True, True, True, False, False, None, None,
+                        200, None, None)
 
     def test_call_with_verbose(self):
         output = "/tmp"
@@ -736,7 +753,8 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
-                        output, True, True, True, False, True, None, None, None)
+                        output, True, True, True, False, True, None, None,
+                        None, None, None)
 
     def test_call_with_multithreaded_plots(self):
         output = "/tmp"
@@ -749,7 +767,8 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
-                        output, True, True, True, True, False, None, None, None)
+                        output, True, True, True, True, False, None, None,
+                        None, None, None)
 
     def test_call_with_no_plots(self):
         output = "/tmp"
@@ -763,7 +782,8 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
-                        output, False, False, False, False, False, None, None, None)
+                        output, False, False, False, False, False, None, None,
+                        None, None, None)
 
     def test_call_with_frequency(self):
         output = "/tmp"
@@ -776,7 +796,8 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
-                        output, True, True, True, False, False, 10*1e6, None, None)
+                        output, True, True, True, False, False, 10*1e6, None,
+                        None, None, None)
 
     def test_call_with_alpha(self):
         output = "/tmp"
@@ -789,7 +810,8 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
-                        output, True, True, True, False, False, None, 1e-3, None)
+                        output, True, True, True, False, False, None, 1e-3,
+                        None, None, None)
 
     def test_help(self):
         args = ["analysis.py", "--help"]
