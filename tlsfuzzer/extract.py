@@ -10,10 +10,15 @@ import sys
 import csv
 import time
 import math
-from os.path import join, splitext
+from os import remove
+from os.path import join, splitext, getsize
 from collections import defaultdict
 from socket import inet_aton, gethostbyname, gaierror, error
 from threading import Thread, Event
+import hashlib
+import tempfile
+from random import choice
+import ecdsa
 import pandas as pd
 import numpy as np
 
@@ -49,11 +54,25 @@ def help_msg():
     print(" --status-delay num How often to print the status line.")
     print(" --status-newline Use newline instead of carriage return for")
     print("                printing status line.")
+    print(" --raw-data FILE Read the data used to sign from an external file.")
+    print("                The file must be in binary format.")
+    print(" --data-size num The size of data used for each signature.")
+    print(" --raw-sigs FILE Read the signatures from an external file.")
+    print("                The file must be in binary format.")
+    print(" --priv-key-ecdsa FILE Read the ecdsa private key from PEM file.")
+    print(" --clock-frequency freq Assume that the times in the file are not")
+    print("                specified in seconds but rather in clock cycles of")
+    print("                f a clock running at requency 'freq' specified in")
+    print("                MHz. Use when the clock source are the raw reads")
+    print("                from the Time Stamp Counter register or similar.")
+    print(" --verbose      Print's a more verbose output.")
     print(" --help         Display this message")
     print("")
     print("When extracting data from a capture file, specifying the capture")
     print("file, host and port is necessary.")
     print("When using the external timing source, only it, and the always")
+    print("When doing signature extraction, data file, data size, signatures")
+    print("file, and one private key are necessary.")
     print("required options: logfile and output dir are necessary.")
 
 
@@ -71,6 +90,13 @@ def main():
     no_quickack = False
     delay = None
     carriage_return = None
+    data = None
+    data_size = None
+    sigs = None
+    priv_key = {}
+    key_type = None
+    freq = None
+    verbose = False
 
     argv = sys.argv[1:]
 
@@ -81,7 +107,9 @@ def main():
     opts, args = getopt.getopt(argv, "l:c:h:p:o:t:n:",
                                ["help", "raw-times=", "binary=", "endian=",
                                 "no-quickack", "status-delay=",
-                                "status-newline"])
+                                "status-newline", "raw-data=", "data-size=",
+                                "raw-sigs=", "priv-key-ecdsa=",
+                                "clock-frequency=", "verbose"])
     for opt, arg in opts:
         if opt == '-l':
             logfile = arg
@@ -107,6 +135,23 @@ def main():
             delay = float(arg)
         elif opt == "--status-newline":
             carriage_return = '\n'
+        elif opt == "--raw-data":
+            data = arg
+        elif opt == "--data-size":
+            data_size = int(arg)
+        elif opt == "--raw-sigs":
+            sigs = arg
+        elif opt == "--priv-key-ecdsa":
+            priv_key = arg
+            if not key_type:
+                key_type = "ecdsa"
+            else:
+                raise ValueError(
+                    "Can't specify more than private keys.")
+        elif opt == "--verbose":
+            verbose = True
+        elif opt == "--clock-frequency":
+            freq = float(arg) * 1e6
         elif opt == "--help":
             help_msg()
             sys.exit(0)
@@ -131,31 +176,49 @@ def main():
         raise ValueError(
             "Only 'little' and 'big' endianess supported")
 
-    if not all([logfile, output]):
+    if not all([any([logfile, sigs]), output]):
         raise ValueError(
-            "Specifying logfile and output is mandatory")
+            "Specifying either logfile or raw sigs and output is mandatory")
 
     if capture and not all([logfile, output, ip_address, port]):
         raise ValueError("Some arguments are missing!")
 
-    log = Log(logfile)
-    log.read_log()
+    if any([sigs, priv_key]) \
+       and not all([raw_times, data, data_size, sigs, priv_key]):
+        raise ValueError(
+            "When doing signature extraction, data file, data size and \
+signatures file and one private key are necessary.")
+
+    log = None
+    if logfile:
+        log = Log(logfile)
+        log.read_log()
+
     analysis = Extract(
         log, capture, output, ip_address, port, raw_times, col_name,
         binary=binary, endian=endian, no_quickack=no_quickack,
         delay=delay, carriage_return=carriage_return,
+        data=data, data_size=data_size, sigs=sigs, priv_key=priv_key,
+        key_type=key_type, frequency=freq, verbose=verbose
     )
     analysis.parse()
+
+    if all([raw_times, data, data_size, sigs, priv_key]):
+        analysis.process_measurements_and_create_csv_file(
+            analysis.ecdsa_iter(), 256
+        )
 
 
 class Extract:
     """Extract timing information from packet capture."""
 
-    def __init__(self, log, capture=None, output=None, ip_address=None,
+    def __init__(self, log=None, capture=None, output=None, ip_address=None,
                  port=None, raw_times=None, col_name=None,
                  write_csv='timing.csv', write_pkt_csv='raw_times_detail.csv',
+                 measurements_csv="measurements.csv",
                  binary=None, endian='little', no_quickack=False, delay=None,
-                 carriage_return=None):
+                 carriage_return=None, data=None, data_size=None, sigs=None,
+                 priv_key=None, key_type=None, frequency=None, verbose=False):
         """
         Initialises instance and sets up class name generator from log.
 
@@ -164,6 +227,12 @@ class Extract:
         :param str output: Directory where to output results
         :param str ip_address: TLS server ip address
         :param int port: TLS server port
+        :param str data: Name of file with data used for signing
+        :param int data_size: Size of data used for each signature
+        :param str sigs: Signature filename
+        :param str priv_key: Private key filename
+        :param str key_type: The type of the private key
+        :param bool sanity: If True, include sanity values to measurements
         :param int binary: number of bytes per timing from raw times file
         :param str endian: endianess of the read numbers
         :param bool no_quickack: If True, don't expect QUICKACK to be in use
@@ -197,11 +266,41 @@ class Extract:
         self.no_quickack = no_quickack
         self.delay = delay
         self.carriage_return = carriage_return
+        self.data = data
+        self.data_size = data_size
+        self.sigs = sigs
+        self.key_type = key_type
+        self.measurements_csv = measurements_csv
+        self.verbose = verbose
+        self._total_measurements = None
+        self._measurents_fp = None
+        self._intermedian_fp = None
+        self._current_line = {
+            "before": {}
+        }
+        self._next_line = None
+        self._line_to_write = {}
+        self._max_tuple_size = 0
+        self._measurements_dropped = 0
+        self._selections = defaultdict(lambda: defaultdict(lambda: 0))
+        self._row = 0
+        self._max_value = None
+        self._ecdsa_data_iter = None
+        self._frequency = frequency
+
+        if data and data_size:
+            self._total_measurements = int(getsize(data) / data_size)
+
+        self.priv_key = None
+        if key_type == "ecdsa":
+            with open(priv_key) as f:
+                self.priv_key = ecdsa.SigningKey.from_pem(f.read())
 
         # set up class names generator
         self.log = log
-        self.class_generator = log.iterate_log()
-        self.class_names = log.get_classes()
+        if log:
+            self.class_generator = log.iterate_log()
+            self.class_names = log.get_classes()
 
     def parse(self):
         """
@@ -238,6 +337,9 @@ class Extract:
         if self.binary:
             raw_times_name = splitext(self.raw_times)[0] + ".csv"
             self._convert_binary_file(raw_times_name)
+
+        if not self.log:
+            return
 
         # do counting in memory efficient way
         probe_count = sum(1 for _ in self.class_generator)
@@ -622,8 +724,331 @@ class Extract:
                 "lst_srv_to_clnt_fin",
                 "second_fin_to_ack"
             ])
-
             writer.writerow(columns)
+
+    def _ecdsa_get_data_from_file(self):
+        with open(self.data, "rb") as data_fp:
+            data = data_fp.read(self.data_size)
+            while data:
+                yield data
+                data = data_fp.read(self.data_size)
+
+    def _ecdsa_get_singature_from_file(self):
+        with open(self.sigs, "rb") as sigs_fp:
+            sig = sigs_fp.read(1)
+            while sig:
+                if (ecdsa.der.is_sequence(sig)):
+                    length_bytes = sigs_fp.read(1)
+                    sig_length = 0
+                    try:
+                        sig_length = ecdsa.der.read_length(length_bytes)[0]
+                    except ecdsa.UnexpectedDER:
+                        length_bytes += sigs_fp.read(1)
+                        try:
+                            sig_length = ecdsa.der.read_length(length_bytes)[0]
+                        except ecdsa.UnexpectedDER:
+                            raise \
+                                ValueError("Couldn't read size of a signature.")
+                    sig += length_bytes + sigs_fp.read(sig_length)
+                else:
+                    raise \
+                        ValueError("There was an error in parsing signatures.")
+                yield sig
+                sig = sigs_fp.read(1)
+
+    def _get_time_from_file(self):
+        if self.binary:
+            filename = self.raw_times + '.csv'
+        else:
+            filename = self.raw_times
+
+        with open(filename, "r") as times_fp:
+            time_reader = csv.reader(times_fp)
+            # Skip the headers
+            next(time_reader)
+
+            for row in time_reader:
+                time_value = float(row[0])
+                if self._frequency:
+                    time_value /= self._frequency
+                yield time_value
+
+    def _ecdsa_message_to_int(self):
+        msg = next(self._ecdsa_data_iter)
+        hashed = self._ecdsa_hash_func(msg).digest()
+        hashed = hashed[: self.priv_key.curve.baselen]
+        number = int.from_bytes(hashed, 'big')
+        max_length = ecdsa.util.bit_length(self.priv_key.curve.order)
+        length = len(hashed) * 8
+        number >>= max(0, length - max_length)
+        return number
+
+    def _ecdsa_calculate_k_and_k_size(self, r_value, s_value):
+        hashed = self._ecdsa_message_to_int()
+        n_value = self.priv_key.curve.order
+        k_value = (
+            (hashed + (r_value * self.priv_key.privkey.secret_multiplier))
+            * ecdsa.ecdsa.numbertheory.inverse_mod(s_value, n_value)
+            ) % n_value
+        k_size = ecdsa.util.bit_length(k_value)
+        return k_value, k_size
+
+    def ecdsa_iter(self, return_type="k-size"):
+        if return_type not in ["k-size", "hamming-weight"]:
+            raise StopIteration
+
+        self._ecdsa_data_iter = self._ecdsa_get_data_from_file()
+        sigs_iter = self._ecdsa_get_singature_from_file()
+
+        g_value = self.priv_key.curve.generator
+        curve_order_len = ecdsa.util.bit_length(self.priv_key.curve.order)
+
+        if curve_order_len == 224:
+            self._ecdsa_hash_func = hashlib.sha224
+        elif curve_order_len == 256:
+            self._ecdsa_hash_func = hashlib.sha256
+        elif curve_order_len == 384:
+            self._ecdsa_hash_func = hashlib.sha384
+        elif curve_order_len == 512 or curve_order_len == 521:
+            self._ecdsa_hash_func = hashlib.sha512
+
+        time_iter = self._get_time_from_file()
+
+        with open(join(self.output, "k-time-map.csv"), "w") as out_fp:
+            for sig, time_value in zip(sigs_iter, time_iter):
+                r_value, s_value = ecdsa.util.sigdecode_der(
+                    sig, self.priv_key.curve.order
+                )
+                k_value, k_size = self._ecdsa_calculate_k_and_k_size(
+                    r_value, s_value
+                )
+                kxg = (k_value * g_value).to_affine().x()
+
+                if kxg == r_value:
+                    out_fp.write("{0},{1}\n".format(k_value, time_value))
+
+                    if return_type == "k-size":
+                        yield k_size
+                    elif return_type == "hamming-weight":
+                        yield bin(k_value).count("1")
+
+    # It takes te current line, chooses randomly pairs
+    # from the given and creates a line to be written in
+    # the measurements file
+    def _create_and_write_line(self):
+        self._line_to_write = {
+            self._max_value: self._current_line[self._max_value]
+        }
+
+        final_choices = {}
+
+        for stage in ['before', 'after']:
+            for size in self._current_line[stage]:
+                if size not in final_choices:
+                    final_choices[size] = {}
+
+                num_of_values = len(self._current_line[stage][size])
+                if num_of_values == 1:
+                    final_choices[size][stage] = \
+                        self._current_line[stage][size][0]
+                else:
+                    final_choices[size][stage] = \
+                        choice(self._current_line[stage][size])
+
+                    self._measurements_dropped += num_of_values - 1
+
+        for size in final_choices:
+            ranom_choice = choice(['before', 'after'])
+
+            if ranom_choice not in final_choices[size]:
+                if ranom_choice == 'before':
+                    ranom_choice = 'after'
+                else:
+                    ranom_choice = 'before'
+
+            self._line_to_write[size] = final_choices[size][ranom_choice]
+            self._selections[size][ranom_choice] += 1
+
+        line = ""
+        for size in self._line_to_write:
+            line += '{0},{1},'.format(
+                size, self._line_to_write[size]
+            )
+        self._intermedian_fp.write(line[:-1] + '\n')
+
+    def _write_selections(self):
+        selections_keys_sorted = sorted(self._selections.keys(), reverse=True)
+
+        with open(
+            join(self.output, "selections.csv"), 'w', encoding="utf-8"
+        ) as out_fp:
+            out_fp.write("value,before,after\n")
+            for size in selections_keys_sorted:
+                out_fp.write('{0},{1},{2}\n'.format(
+                    size,
+                    self._selections[size]['before'],
+                    self._selections[size]['after']
+                ))
+
+    def _append_sanity_to_line(self, data):
+        self._measurents_fp.write('{0},{1},{2}\n'.format(
+                                self._row, data[0], data[1]
+                            ))
+
+    def _create_and_write_sanity_entries(self):
+        temp_file_path = self._intermedian_fp.name
+        self._intermedian_fp.close()
+        state = 0
+        last_single_max_value = None
+        self._row -= 1
+        sanity_entries_count = 0
+
+        with open(temp_file_path, "r") as in_fp:
+            reader = csv.reader(in_fp)
+            for row in reader:
+                if len(row) > 2:
+                    self._row += 1
+                    for i in range(0, len(row), 2):
+                        self._measurents_fp.write(
+                            '{0},{1},{2}\n'.format(
+                                self._row, row[i], row[i + 1]
+                            )
+                        )
+
+                    if len(row) / 2 > self._max_tuple_size:
+                        self._max_tuple_size = len(row) / 2
+
+                if state != 2 and len(row) == 2:
+                    if state == 1:
+                        self._measurements_dropped += 1
+
+                    last_single_max_value = row.copy()
+                    state = 1
+                elif state == 1 and len(row) > 2:
+                    state = 2
+                elif state == 2 and len(row) == 2:
+                    ranom_choice = choice([0, 1])
+                    sanity_entries_count += 1
+
+                    if ranom_choice == 0: # use the one before
+                        self._create_and_write_sanity_entries(
+                            last_single_max_value
+                        )
+                        last_single_max_value = row.copy()
+                        state = 1
+                    else: # use the one after
+                        self._create_and_write_sanity_entries(row)
+                        state = 0
+                else:
+                    if state > 0:
+                        self._measurements_dropped += 1
+
+                    state = 0
+
+        remove(temp_file_path)
+
+        if self.verbose:
+            print('Added {0:,} {1}-sized sanity entries.'.format(
+                sanity_entries_count, self._max_value
+            ))
+
+    def process_measurements_and_create_csv_file(self, values_iter, comparing_value):
+        self._measurents_fp = open(
+            join(self.output, self.measurements_csv), "w"
+        )
+        self._intermedian_fp = tempfile.NamedTemporaryFile(
+            mode="w", delete=False
+        )
+        self._max_value = comparing_value
+
+        time_iter = self._get_time_from_file()
+
+        progress = None
+        if self.verbose and self._total_measurements:
+            status = [0, self._total_measurements, Event()]
+            kwargs = {}
+            kwargs['unit'] = ' signatures'
+            kwargs['prefix'] = 'decimal'
+            kwargs['delay'] = self.delay
+            kwargs['end'] = self.carriage_return
+            progress = Thread(target=progress_report, args=(status,),
+                            kwargs=kwargs)
+            progress.start()
+
+        i = 0
+        for value, time_value in zip(values_iter, time_iter):
+
+            if progress:
+                status[0] = i
+                i += 1
+
+            if value == comparing_value:
+
+                if self._next_line is None:
+                    self._current_line[value] = time_value
+                    self._current_line['after'] = {}
+                    self._next_line = {
+                        'before': {}
+                    }
+                else:
+                    self._create_and_write_line()
+
+                    self._current_line = self._next_line
+                    self._current_line[value] = time_value
+                    self._current_line['after'] = {}
+                    self._next_line = {
+                        'before': {}
+                    }
+
+            else:
+                if self._next_line is not None:
+                    ranom_choice = choice([0, 1])
+
+                    if ranom_choice == 0:
+                        line = self._current_line
+                    else:
+                        line = self._next_line
+                else:
+                    line = self._current_line
+
+                if "after" in line:
+                    stage = "after"
+                else:
+                    stage = "before"
+
+                if value not in line[stage]:
+                    line[stage][value] = []
+
+                line[stage][value].append(time_value)
+
+        if self._next_line:
+            for size in self._next_line["before"]:
+                self._measurements_dropped += \
+                    len(self._next_line["before"][size])
+
+        self._create_and_write_line()
+
+        self._write_selections()
+
+        if progress:
+            status[2].set()
+            progress.join()
+            print()
+
+        self._create_and_write_sanity_entries()
+
+        if self.verbose:
+            if self._total_measurements:
+                print('There was {0} measurements that have been dropped. ({1}%)'.format(
+                    self._measurements_dropped,
+                    round((self._measurements_dropped * 100) / self._total_measurements, 2)
+                    ))
+            print('The biggest tuple in file is of size {0}.'.format(
+                int(self._max_tuple_size)
+            ))
+            print('{0} rows was written.'.format(self._row))
+
+        self._measurents_fp.close()
 
     @staticmethod
     def hostname_to_ip(hostname):

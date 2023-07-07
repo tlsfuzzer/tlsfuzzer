@@ -252,7 +252,9 @@ class TestCommandLine(unittest.TestCase):
                 mock_init.assert_called_once_with(
                     mock.ANY, capture, output, host, int(port),
                     None, None, binary=None, endian="little",
-                    no_quickack=False, delay=None, carriage_return=None)
+                    no_quickack=False, delay=None, carriage_return=None,
+                    data=None, data_size=None, sigs=None, priv_key={},
+                    key_type=None, frequency=None, verbose=False)
 
     @mock.patch('tlsfuzzer.extract.Log')
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
@@ -282,7 +284,9 @@ class TestCommandLine(unittest.TestCase):
                 mock_init.assert_called_once_with(
                     mock.ANY, capture, output, host, int(port),
                     None, None, binary=None, endian="little",
-                    no_quickack=False, delay=3.5, carriage_return='\n')
+                    no_quickack=False, delay=3.5, carriage_return='\n',
+                    data=None, data_size=None, sigs=None, priv_key={},
+                    key_type=None, frequency=None, verbose=False)
 
     @mock.patch('tlsfuzzer.extract.Log')
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
@@ -311,7 +315,9 @@ class TestCommandLine(unittest.TestCase):
                 mock_init.assert_called_once_with(
                     mock.ANY, capture, output, host, int(port),
                     None, None, binary=None, endian="little",
-                    no_quickack=True, delay=None, carriage_return=None)
+                    no_quickack=True, delay=None, carriage_return=None,
+                    data=None, data_size=None, sigs=None, priv_key={},
+                    key_type=None, frequency=None, verbose=False)
 
     @mock.patch('tlsfuzzer.extract.Log')
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
@@ -336,7 +342,9 @@ class TestCommandLine(unittest.TestCase):
                 mock_init.assert_called_once_with(
                     mock.ANY, None, output, None, None,
                     raw_times, column_name, binary=None, endian='little',
-                    no_quickack=False, delay=None, carriage_return=None)
+                    no_quickack=False, delay=None, carriage_return=None,
+                    data=None, data_size=None, sigs=None, priv_key={},
+                    key_type=None, frequency=None, verbose=False)
 
     @mock.patch('tlsfuzzer.extract.Log')
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
@@ -362,7 +370,9 @@ class TestCommandLine(unittest.TestCase):
                 mock_init.assert_called_once_with(
                     mock.ANY, None, output, None, None,
                     raw_times, None, binary=4, endian='big',
-                    no_quickack=False, delay=None, carriage_return=None)
+                    no_quickack=False, delay=None, carriage_return=None,
+                    data=None, data_size=None, sigs=None, priv_key={},
+                    key_type=None, frequency=None, verbose=False)
 
     @mock.patch('tlsfuzzer.extract.Log')
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
@@ -459,7 +469,9 @@ class TestCommandLine(unittest.TestCase):
                 mock_init.assert_called_once_with(
                     mock.ANY, None, output, None, None,
                     raw_times, None, binary=None, endian='little',
-                    no_quickack=False, delay=None, carriage_return=None)
+                    no_quickack=False, delay=None, carriage_return=None,
+                    data=None, data_size=None, sigs=None, priv_key={},
+                    key_type=None, frequency=None, verbose=False)
 
     @mock.patch('__main__.__builtins__.print')
     @mock.patch('tlsfuzzer.extract.help_msg')
@@ -499,3 +511,102 @@ class TestCommandLine(unittest.TestCase):
         with mock.patch("sys.argv", args):
             with self.assertRaises(ValueError):
                 main()
+
+    @mock.patch('tlsfuzzer.extract.Log')
+    @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
+    @mock.patch('tlsfuzzer.extract.Extract._write_csv')
+    @mock.patch('tlsfuzzer.extract.Extract.parse')
+    def test_ecdsa_signs_options(self, mock_parse, mock_write, mock_write_pkt,
+                          mock_log):
+        output = "/tmp"
+        raw_data = "/tmp/data"
+        data_size = "32"
+        raw_sigs = "/tmp/sigs"
+        raw_times = "/tmp/times"
+        priv_key = "/tmp/key"
+        args = ["extract.py",
+                "-o", output,
+                "--raw-data", raw_data,
+                "--data-size", data_size,
+                "--raw-sigs", raw_sigs,
+                "--raw-times", raw_times,
+                "--priv-key-ecdsa", priv_key]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
+            with mock.patch("sys.argv", args):
+                main()
+                mock_init.assert_called_once_with(
+                    mock.ANY, None, output, None, None,
+                    raw_times, None, binary=None, endian="little",
+                    no_quickack=True, delay=None, carriage_return=None,
+                    data=raw_data, data_size=data_size, sigs=raw_sigs,
+                    priv_key=mock.ANY, key_type="ecdsa", frequency=None,
+                    verbose=False)
+
+    @mock.patch('tlsfuzzer.extract.Log')
+    @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
+    @mock.patch('tlsfuzzer.extract.Extract._write_csv')
+    @mock.patch('tlsfuzzer.extract.Extract.parse')
+    def test_verbose_options(self, mock_parse, mock_write, mock_write_pkt,
+                          mock_log):
+        output = "/tmp"
+        raw_data = "/tmp/data"
+        data_size = "32"
+        raw_sigs = "/tmp/sigs"
+        raw_times = "/tmp/times"
+        priv_key = "/tmp/key"
+        args = ["extract.py",
+                "-o", output,
+                "--raw-data", raw_data,
+                "--data-size", data_size,
+                "--raw-sigs", raw_sigs,
+                "--raw-times", raw_times,
+                "--priv-key-ecdsa", priv_key,
+                "--verbose"]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
+            with mock.patch("sys.argv", args):
+                main()
+                mock_init.assert_called_once_with(
+                    mock.ANY, None, output, None, None,
+                    raw_times, None, binary=None, endian="little",
+                    no_quickack=True, delay=None, carriage_return=None,
+                    data=raw_data, data_size=data_size, sigs=raw_sigs,
+                    priv_key=mock.ANY, key_type="ecdsa", frequency=None,
+                    verbose=True)
+
+    @mock.patch('tlsfuzzer.extract.Log')
+    @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
+    @mock.patch('tlsfuzzer.extract.Extract._write_csv')
+    @mock.patch('tlsfuzzer.extract.Extract.parse')
+    def test_ecdsa_signs_options(self, mock_parse, mock_write, mock_write_pkt,
+                          mock_log):
+        output = "/tmp"
+        raw_data = "/tmp/data"
+        data_size = "32"
+        raw_sigs = "/tmp/sigs"
+        raw_times = "/tmp/times"
+        priv_key = "/tmp/key"
+        frequency = 711.45
+        args = ["extract.py",
+                "-o", output,
+                "--raw-data", raw_data,
+                "--data-size", data_size,
+                "--raw-sigs", raw_sigs,
+                "--raw-times", raw_times,
+                "--clock-frequency", frequency,
+                "--priv-key-ecdsa", priv_key]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
+            with mock.patch("sys.argv", args):
+                main()
+                mock_init.assert_called_once_with(
+                    mock.ANY, None, output, None, None,
+                    raw_times, None, binary=None, endian="little",
+                    no_quickack=True, delay=None, carriage_return=None,
+                    data=raw_data, data_size=data_size, sigs=raw_sigs,
+                    priv_key=mock.ANY, key_type="ecdsa", frequency=frequency,
+                    verbose=False)
