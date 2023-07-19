@@ -24,11 +24,11 @@ from tlslite.extensions import SignatureAlgorithmsExtension, \
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType, HashAlgorithm, SignatureAlgorithm
-from tlsfuzzer.helpers import RSA_SIG_ALL
+from tlsfuzzer.helpers import RSA_SIG_ALL, AutoEmptyExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -48,6 +48,7 @@ def help_msg():
     print(" -X message     expect the `message` substring in exception raised during")
     print("                execution of preceding expected failure probe")
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
+    print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -59,9 +60,10 @@ def main():
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:x:X:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:x:X:M", ["help", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -78,6 +80,8 @@ def main():
             if not last_exp_tmp:
                 raise ValueError("-x has to be specified before -X")
             expected_failures[last_exp_tmp] = str(arg)
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -106,10 +110,14 @@ def main():
            SignatureAlgorithmsExtension().create(sig_algs),
            ExtensionType.signature_algorithms_cert :
            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    srv_ext = {ExtensionType.renegotiation_info:None}
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(version=(3, 3),
-                                            extensions={ExtensionType.
-                                                     renegotiation_info:None}))
+                                            extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange(valid_sig_algs=sig_algs))
     node = node.add_child(ExpectServerHelloDone())
@@ -144,10 +152,14 @@ def main():
                    SignatureAlgorithmsExtension().create(sig_algs),
                    ExtensionType.signature_algorithms_cert :
                    SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+            if ems:
+                ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
             node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+            srv_ext = {ExtensionType.renegotiation_info:None}
+            if ems:
+                srv_ext[ExtensionType.extended_master_secret] = None
             node = node.add_child(ExpectServerHello(version=(3, 3),
-                                                    extensions={ExtensionType.
-                                                             renegotiation_info:None}))
+                                                    extensions=srv_ext))
             node = node.add_child(ExpectCertificate())
             node = node.add_child(ExpectServerKeyExchange(valid_sig_algs=sig_algs))
             node = node.add_child(ExpectServerHelloDone())
