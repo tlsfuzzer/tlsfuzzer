@@ -28,11 +28,11 @@ from tlslite.constants import CipherSuite, AlertDescription, \
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
-from tlsfuzzer.helpers import RSA_SIG_ALL
+from tlsfuzzer.helpers import RSA_SIG_ALL, AutoEmptyExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 7
+version = 8
 
 
 def help_msg():
@@ -55,6 +55,7 @@ def help_msg():
     print(" -k keyfile     file with private key")
     print(" -c certfile    file with certificate of client")
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
+    print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -70,9 +71,10 @@ def main():
     private_key = None
     cert = None
     dhe = False
+    ems = False
 
     argv = sys.argv[1:]
-    opts, argv = getopt.getopt(argv, "h:p:e:x:X:k:c:d", ["help"])
+    opts, argv = getopt.getopt(argv, "h:p:e:x:X:k:c:dM", ["help"])
 
     for opt, arg in opts:
         if opt == '-k':
@@ -106,6 +108,8 @@ def main():
             sys.exit(0)
         elif opt == '-d':
             dhe = True
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -139,6 +143,8 @@ def main():
     if dhe:
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create([GroupName.secp256r1, GroupName.ffdhe2048])
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())
@@ -196,6 +202,8 @@ def main():
                 ext[ExtensionType.supported_groups] = \
                     SupportedGroupsExtension().create(
                         [GroupName.secp256r1, GroupName.ffdhe2048])
+            if ems:
+                ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
             node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
             node = node.add_child(ExpectServerHello(version=(3, 3)))
             node = node.add_child(ExpectCertificate())
