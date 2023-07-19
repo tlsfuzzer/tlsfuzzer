@@ -22,7 +22,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         srv_ext_handler_supp_vers, gen_srv_ext_handler_psk, \
         srv_ext_handler_key_share, ExpectHelloRetryRequest
 from tlsfuzzer.helpers import key_share_ext_gen, RSA_SIG_ALL, \
-        psk_session_ext_gen, psk_ext_updater, key_share_gen
+        psk_session_ext_gen, psk_ext_updater, key_share_gen, AutoEmptyExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
@@ -35,7 +35,7 @@ from tlslite.extensions import RecordSizeLimitExtension, \
 from tlslite.utils.compat import compatAscii2Bytes
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -70,6 +70,7 @@ def help_msg():
     print(" --request      the request to send to server, HTTP/1.0 GET by")
     print("                default. Needs to include the two new lines for")
     print("                HTTP requests")
+    print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -87,9 +88,10 @@ def main():
     reply_size = None
     cookie = False
     request = b"GET / HTTP/1.0\r\n\r\n"
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:",
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:M",
                                ["help", "expect-size=", "minimal-size=",
                                 "supported-groups", "reply-AD-size=",
                                 "cookie", "hrr-supported-groups",
@@ -127,6 +129,8 @@ def main():
             cookie = True
         elif opt == "--request":
             request = compatAscii2Bytes(arg)
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -146,6 +150,8 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     extensions = {ExtensionType.record_size_limit:
                   RecordSizeLimitExtension().create(2**14+1)}
+    if ems:
+        extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=extensions))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
@@ -184,6 +190,8 @@ def main():
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -218,6 +226,8 @@ def main():
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         extensions = {ExtensionType.record_size_limit:
                       RecordSizeLimitExtension().create(2**14+1)}
+        if ems:
+            extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         node = node.add_child(ClientHelloGenerator(
             ciphers, version=vers, extensions=extensions))
         ext = {ExtensionType.record_size_limit:
@@ -257,6 +267,8 @@ def main():
                       1:
                       TLSExtension(extType=1)
                       .create(bytearray(b'\x01'))}
+        if ems:
+            extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         node = node.add_child(ClientHelloGenerator(
             ciphers, version=vers, extensions=extensions))
         ext = {ExtensionType.record_size_limit:
@@ -292,6 +304,8 @@ def main():
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         extensions = {ExtensionType.record_size_limit:
                       RecordSizeLimitExtension().create(minimal_size)}
+        if ems:
+            extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         node = node.add_child(ClientHelloGenerator(
             ciphers, version=vers, extensions=extensions))
         ext = {ExtensionType.record_size_limit:
@@ -328,6 +342,8 @@ def main():
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         extensions = {ExtensionType.record_size_limit:
                       RecordSizeLimitExtension().create(2**16-1)}
+        if ems:
+            extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         node = node.add_child(ClientHelloGenerator(
             ciphers, version=vers, extensions=extensions))
         ext = {ExtensionType.record_size_limit:
@@ -363,6 +379,8 @@ def main():
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         extensions = {ExtensionType.record_size_limit:
                       RecordSizeLimitExtension().create(2**14+1)}
+        if ems:
+            extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         node = node.add_child(ClientHelloGenerator(
             ciphers, version=(3, 3), extensions=extensions))
         ext = {ExtensionType.record_size_limit:
@@ -405,6 +423,8 @@ def main():
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -459,6 +479,8 @@ def main():
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -512,6 +534,8 @@ def main():
                 .create(sig_algs)
             ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
                 .create(RSA_SIG_ALL)
+            if ems:
+                ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
             node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
             node = node.add_child(ExpectServerHello())
             node = node.add_child(ExpectChangeCipherSpec())
@@ -559,6 +583,8 @@ def main():
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -615,6 +641,8 @@ def main():
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -651,6 +679,8 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     extensions = {ExtensionType.record_size_limit:
                   RecordSizeLimitExtension().create(63)}
+    if ems:
+        extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=extensions))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.illegal_parameter))
@@ -677,6 +707,8 @@ def main():
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.illegal_parameter))
@@ -690,6 +722,8 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     extensions = {ExtensionType.record_size_limit:
                   RecordSizeLimitExtension().create(None)}
+    if ems:
+        extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=extensions))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decode_error))
@@ -716,6 +750,8 @@ def main():
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decode_error))
@@ -730,6 +766,8 @@ def main():
     extensions = {ExtensionType.record_size_limit:
                   TLSExtension(extType=ExtensionType.record_size_limit).
                   create(bytearray(b'\x00\x40\x00'))}
+    if ems:
+        extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=extensions))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decode_error))
@@ -757,6 +795,8 @@ def main():
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decode_error))
@@ -770,6 +810,8 @@ def main():
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     extensions = {ExtensionType.record_size_limit:
                   RecordSizeLimitExtension().create(2**14+2)}
+    if ems:
+        extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(
         ciphers, version=(3, 3), extensions=extensions))
     ext = {ExtensionType.record_size_limit:
@@ -814,6 +856,8 @@ def main():
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -865,6 +909,8 @@ def main():
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -905,6 +951,8 @@ def main():
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.record_size_limit:
            RecordSizeLimitExtension().create(2**14+1)}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.record_size_limit:
@@ -922,6 +970,8 @@ def main():
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.record_size_limit:
            RecordSizeLimitExtension().create(minimal_size)}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                session_id=bytearray(0),
                                                extensions=ext))
@@ -955,6 +1005,8 @@ def main():
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.record_size_limit:
            RecordSizeLimitExtension().create(minimal_size)}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.record_size_limit:
@@ -970,6 +1022,8 @@ def main():
     # 2nd handshake
     node = node.add_child(ResetHandshakeHashes())
     ext = {ExtensionType.renegotiation_info: None}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                session_id=bytearray(0),
                                                extensions=ext))
@@ -998,6 +1052,8 @@ def main():
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.record_size_limit:
            RecordSizeLimitExtension().create(2**14)}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         extensions=ext))
@@ -1026,11 +1082,14 @@ def main():
 
     node = node.add_child(ResetHandshakeHashes())
     node = node.add_child(ResetRenegotiationInfo())
+    extensions={ExtensionType.renegotiation_info: None,
+                ExtensionType.record_size_limit:
+                RecordSizeLimitExtension().create(minimal_size)}
+    if ems:
+        extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(
         ciphers,
-        extensions={ExtensionType.renegotiation_info: None,
-                    ExtensionType.record_size_limit:
-                    RecordSizeLimitExtension().create(minimal_size)}))
+        extensions=extensions))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info: None,
                     ExtensionType.record_size_limit:
@@ -1059,6 +1118,8 @@ def main():
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.record_size_limit:
            RecordSizeLimitExtension().create(minimal_size)}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         extensions=ext))
@@ -1087,9 +1148,12 @@ def main():
 
     node = node.add_child(ResetHandshakeHashes())
     node = node.add_child(ResetRenegotiationInfo())
+    extensions={ExtensionType.renegotiation_info: None}
+    if ems:
+        extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(
         ciphers,
-        extensions={ExtensionType.renegotiation_info: None}))
+        extensions=extensions))
     node = node.add_child(ExpectServerHello(
         extensions={ExtensionType.renegotiation_info: None},
         resume=True))
@@ -1129,6 +1193,8 @@ def main():
         .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
     ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
         .create(2**14)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -1173,6 +1239,8 @@ def main():
     ext[ExtensionType.pre_shared_key] = psk_session_ext_gen()
     ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
         .create(minimal_size)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     mods = []
     mods.append(psk_ext_updater())
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext,
@@ -1238,6 +1306,8 @@ def main():
         .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
     ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
         .create(minimal_size)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -1276,6 +1346,8 @@ def main():
     node = node.add_child(ResetRenegotiationInfo())
     ext = OrderedDict(ext)
     ext[ExtensionType.pre_shared_key] = psk_session_ext_gen()
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     del ext[ExtensionType.record_size_limit]
     mods = []
     mods.append(psk_ext_updater())
@@ -1336,6 +1408,8 @@ def main():
         .create(RSA_SIG_ALL)
     ext[ExtensionType.record_size_limit] = \
         RecordSizeLimitExtension().create(2**14+1)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
 
     ext = OrderedDict()
@@ -1366,6 +1440,8 @@ def main():
         .create(RSA_SIG_ALL)
     ext[ExtensionType.record_size_limit] = \
         RecordSizeLimitExtension().create(2**14+1)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     ee_ext = {}
@@ -1413,6 +1489,8 @@ def main():
         .create(RSA_SIG_ALL)
     ext[ExtensionType.record_size_limit] = \
         RecordSizeLimitExtension().create(2**14+1)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
 
     ext = OrderedDict()
@@ -1443,6 +1521,8 @@ def main():
         .create(RSA_SIG_ALL)
     ext[ExtensionType.record_size_limit] = \
         RecordSizeLimitExtension().create(2**14)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.illegal_parameter))
@@ -1470,6 +1550,8 @@ def main():
         .create(RSA_SIG_ALL)
     ext[ExtensionType.record_size_limit] = \
         RecordSizeLimitExtension().create(2**14+1)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
 
     ext = OrderedDict()
@@ -1498,6 +1580,8 @@ def main():
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.illegal_parameter))
@@ -1523,6 +1607,8 @@ def main():
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
 
     ext = OrderedDict()
@@ -1553,6 +1639,8 @@ def main():
         .create(RSA_SIG_ALL)
     ext[ExtensionType.record_size_limit] = \
         RecordSizeLimitExtension().create(2**14+1)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.illegal_parameter))
