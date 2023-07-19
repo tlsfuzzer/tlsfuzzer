@@ -21,11 +21,11 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType, HashAlgorithm, SignatureAlgorithm, NameType
 from tlslite.extensions import TLSExtension, SignatureAlgorithmsExtension, \
         SNIExtension, SignatureAlgorithmsCertExtension
-from tlsfuzzer.helpers import RSA_SIG_ALL
+from tlsfuzzer.helpers import RSA_SIG_ALL, AutoEmptyExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -48,6 +48,7 @@ def help_msg():
     print(" --sni hostname name the server expects to receive with SNI")
     print("                \"localhost\" by default")
     print(" --sni-fatal    expect unrecognised names to be fatal alerts")
+    print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -61,9 +62,11 @@ def main():
     expected_failures = {}
     last_exp_tmp = None
     sni_fatal = False
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:n:e:x:X:", ["help", "sni=", "sni-fatal"])
+    opts, args = getopt.getopt(argv, "h:p:n:e:x:X:M", ["help", "sni=",
+                                                       "sni-fatal", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -87,6 +90,8 @@ def main():
             hostname = arg
         elif opt == '--sni-fatal':
             sni_fatal = True
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -109,6 +114,8 @@ def main():
                                                 'sha224', 'sha1']]),
            ExtensionType.signature_algorithms_cert :
            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())
@@ -139,6 +146,8 @@ def main():
                                                 'sha224', 'sha1']]),
            ExtensionType.signature_algorithms_cert :
            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     sni = SNIExtension().create(bytearray(hostname, 'utf-8'))
     ext[ExtensionType.server_name] = sni
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -173,6 +182,8 @@ def main():
            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     sni = TLSExtension(extType=ExtensionType.server_name).create(bytearray(0))
     ext[ExtensionType.server_name] = sni
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decode_error))
@@ -193,6 +204,8 @@ def main():
            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     sni = SNIExtension().create(serverNames=[])
     ext[ExtensionType.server_name] = sni
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decode_error))
@@ -213,6 +226,8 @@ def main():
            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     sni = SNIExtension().create(hostNames=[bytearray(0)])
     ext[ExtensionType.server_name] = sni
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decode_error))
@@ -239,6 +254,8 @@ def main():
                         )
     sni = TLSExtension(extType=ExtensionType.server_name).create(payload)
     ext[ExtensionType.server_name] = sni
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decode_error))
@@ -260,6 +277,8 @@ def main():
     sni = SNIExtension().create(bytearray(b'www.') +
                                 bytearray(hostname, 'utf-8'))
     ext[ExtensionType.server_name] = sni
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     if sni_fatal:
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
@@ -302,6 +321,8 @@ def main():
                                 bytearray(b'\x00') +
                                 bytearray(hostname[-1:], 'utf-8'))
     ext[ExtensionType.server_name] = sni
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.illegal_parameter))
@@ -326,6 +347,8 @@ def main():
                                 bytearray(b'\x07') +
                                 bytearray(hostname[-1:], 'utf-8'))
     ext[ExtensionType.server_name] = sni
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.illegal_parameter))
@@ -350,6 +373,8 @@ def main():
                                 bytearray(b'\xc4\x85') +
                                 bytearray(hostname[-1:], 'utf-8'))
     ext[ExtensionType.server_name] = sni
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.illegal_parameter))
@@ -372,6 +397,8 @@ def main():
     sni = SNIExtension().create(bytearray(hostname, 'utf-8') +
                                 bytearray(b'\x1b[31mBAD\x1b[0;37m'))
     ext[ExtensionType.server_name] = sni
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.illegal_parameter))
@@ -385,6 +412,8 @@ def main():
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     ext = {ExtensionType.server_name: lambda _:TLSExtension().create(0, bytearray(b'\xff'*4))}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
@@ -409,6 +438,8 @@ def main():
                                            bytearray(b'www.') +
                                            bytearray(hostname, 'utf-8')])
     ext[ExtensionType.server_name] = sni
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.illegal_parameter))
@@ -434,6 +465,8 @@ def main():
                                      bytearray(range(0, 24)))]
     sni = SNIExtension().create(serverNames=names)
     ext[ExtensionType.server_name] = sni
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())
@@ -472,6 +505,8 @@ def main():
                                      bytearray(hostname, 'utf-8'))]
     sni = SNIExtension().create(serverNames=names)
     ext[ExtensionType.server_name] = sni
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())
