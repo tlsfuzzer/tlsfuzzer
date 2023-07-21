@@ -21,10 +21,11 @@ from tlslite.extensions import SupportedGroupsExtension, \
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, GroupName, \
         ExtensionType
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import protocol_name_to_tuple, RSA_SIG_ALL
+from tlsfuzzer.helpers import protocol_name_to_tuple, RSA_SIG_ALL, \
+    AutoEmptyExtension
 
 
-version = 7
+version = 8
 
 
 def help_msg():
@@ -47,6 +48,7 @@ def help_msg():
     print("                (excluding \"sanity\" tests)")
     print(" --min-ver val  The lowest version support, \"SSLv3\" by default")
     print("                may be \"TLSv1.0\", \"TLSv1.1\" or \"TLSv1.2\"")
+    print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -59,9 +61,11 @@ def main():
     last_exp_tmp = None
     min_ver = (3, 0)
     dhe = False
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:d", ["help", "min-ver="])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dM", ["help", "min-ver=",
+                                                        "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -78,6 +82,8 @@ def main():
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-d':
             dhe = True
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '-n':
             num_limit = int(arg)
         elif opt == '--help':
@@ -105,6 +111,8 @@ def main():
         SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -168,6 +176,8 @@ def main():
                 SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
             ext[ExtensionType.signature_algorithms_cert] = \
                 SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+            if ems:
+                ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
             ciphers = [c_id,
                        expected_cipher,
                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -210,7 +220,10 @@ def main():
             node = conversation
             ciphers = [c_id,
                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-            node = node.add_child(ClientHelloGenerator(ciphers))
+            ext = {}
+            if ems:
+                ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+            node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
             node = node.add_child(
                 ExpectAlert(AlertLevel.fatal,
                             (AlertDescription.handshake_failure,
