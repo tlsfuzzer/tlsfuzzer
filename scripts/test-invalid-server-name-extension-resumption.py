@@ -23,7 +23,7 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
 from tlslite.extensions import TLSExtension, SignatureAlgorithmsExtension, \
         SNIExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import RSA_SIG_ALL
+from tlsfuzzer.helpers import RSA_SIG_ALL, AutoEmptyExtension
 
 
 version = 4
@@ -48,6 +48,7 @@ def help_msg():
     print("                (excluding \"sanity\" tests)")
     print(" --sni hostname name of host used in SNI extension, \"localhost4\"")
     print("                by default")
+    print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
 
 def main():
@@ -59,9 +60,10 @@ def main():
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:", ["help", "sni="])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:M", ["help", "sni=", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -78,6 +80,8 @@ def main():
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -105,6 +109,8 @@ def main():
                                                 'sha224', 'sha1']]),
            ExtensionType.signature_algorithms_cert :
            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())
@@ -135,6 +141,8 @@ def main():
                                                 'sha224', 'sha1']]),
            ExtensionType.signature_algorithms_cert :
            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     sni = SNIExtension().create(bytearray(hostname, 'utf-8'))
     ext[ExtensionType.server_name] = sni
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -167,6 +175,8 @@ def main():
                                                 'sha224', 'sha1']]),
            ExtensionType.signature_algorithms_cert :
            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     sni = SNIExtension().create(bytearray(hostname, 'utf-8') +
                                 bytearray(b'\x00'))
     ext[ExtensionType.server_name] = sni
@@ -184,6 +194,8 @@ def main():
            ExtensionType.server_name : SNIExtension().create(
                                        bytearray(hostname, 'utf-8'))
           }
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         session_id=bytearray(32),
@@ -230,6 +242,8 @@ def main():
            ExtensionType.server_name : SNIExtension().create(
                                        bytearray(hostname, 'utf-8'))
           }
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         session_id=bytearray(32),
@@ -258,11 +272,16 @@ def main():
     ext = {ExtensionType.renegotiation_info:None,
            ExtensionType.server_name:SNIExtension().create(bytearray(b'www.') +
                                                            bytearray(hostname, 'utf-8'))}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         extensions=ext))
+    srv_ext = {ExtensionType.renegotiation_info: None}
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(
-        extensions={ExtensionType.renegotiation_info:None},
+        extensions=srv_ext,
         resume=False))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerHelloDone())
