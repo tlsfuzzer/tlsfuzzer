@@ -30,7 +30,7 @@ from tlslite.extensions import SupportedGroupsExtension, SignatureAlgorithmsExte
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -51,6 +51,7 @@ def help_msg():
     print(" -X message     expect the `message` substring in exception raised during")
     print("                execution of preceding expected failure probe")
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
+    print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -64,9 +65,10 @@ def main():
     dhe = False
     # max number of extensions
     max_ext = 16382
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:n:e:x:X:d", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:n:e:x:X:dM", ["help", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -86,6 +88,8 @@ def main():
             if not last_exp_tmp:
                 raise ValueError("-x has to be specified before -X")
             expected_failures[last_exp_tmp] = str(arg)
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -105,8 +109,8 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
     if dhe:
-        ext = {}
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
@@ -119,12 +123,18 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     else:
-        ext = None
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if ems:
+        ext = {ExtensionType.extended_master_secret: AutoEmptyExtension()}
+    if not ext:
+        ext = None
 
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
+    ext = {ExtensionType.renegotiation_info: None}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
+    node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
         node = node.add_child(ExpectServerKeyExchange())
@@ -161,8 +171,12 @@ def main():
     else:
         ext = {ExtensionType.renegotiation_info: None}
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext = {ExtensionType.renegotiation_info: None}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -186,7 +200,7 @@ def main():
               4094, 4095, 4096, 8190, 8191, 8192, max_ext]:
         conversation = Connect(host, port)
         node = conversation
-        ext = OrderedDict((j+64, AutoEmptyExtension()) for j in range(i))
+        ext = OrderedDict((j+64, AutoEmptyExtension()) for j in range(i - ems))
         if ExtensionType.supports_npn in ext:
             del ext[ExtensionType.supports_npn]
             ext[i+64+1] = AutoEmptyExtension()
@@ -204,8 +218,12 @@ def main():
         else:
             ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
         ext[ExtensionType.renegotiation_info] = None
+        if ems:
+            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         ext = {ExtensionType.renegotiation_info: None}
+        if ems:
+            ext[ExtensionType.extended_master_secret] = None
         node = node.add_child(ExpectServerHello(extensions=ext))
         node = node.add_child(ExpectCertificate())
         if dhe:
