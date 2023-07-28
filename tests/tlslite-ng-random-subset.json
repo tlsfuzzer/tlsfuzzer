@@ -45,6 +45,7 @@
          {"name" : "test-bleichenbacher-workaround.py",
           "arguments" : ["-t", "0.01"],
           "comment" : "test over loopback, so 10ms RTT is entirely reasonable"},
+         {"name" : "test-ccs.py"},
          {"name" : "test-chacha20.py"},
          {"name" : "test-chacha20.py",
           "arguments" : ["--extra-exts",

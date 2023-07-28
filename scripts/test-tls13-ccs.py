@@ -11,7 +11,8 @@ from random import sample
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator
+        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+        RawMessageGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
@@ -19,7 +20,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectNewSessionTicket
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme
+        TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme, ContentType
 from tlslite.keyexchange import ECDHKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
@@ -28,7 +29,7 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
 from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -134,6 +135,53 @@ def main():
     node.next_sibling = ExpectClose()
     conversations["sanity"] = conversation
 
+    # CCS from client
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectApplicationData()
+    node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                       AlertDescription.close_notify))
+
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    conversations["both client and server send CCS"] = conversation
+
+    # CCS in wrong place
     conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
@@ -174,6 +222,48 @@ def main():
     node.next_sibling.add_child(ExpectClose())
 
     conversations["CCS message after Finished message"] = conversation
+
+    # two byte long CCS
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(RawMessageGenerator(
+        ContentType.change_cipher_spec,
+        b'\x01\x01'))
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    # XXX it's not exactly clear what kind of alert should be sent in such
+    # situation, so allow any
+    node.next_sibling = ExpectAlert(AlertLevel.fatal)
+    node.next_sibling.add_child(ExpectClose())
+    conversations["two byte long CCS"] = conversation
 
     # run the conversation
     good = 0
