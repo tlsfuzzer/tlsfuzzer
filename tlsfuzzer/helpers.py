@@ -3,6 +3,7 @@
 """Helper functions for test scripts."""
 
 import time
+import random
 from functools import partial
 from tlslite.constants import HashAlgorithm, SignatureAlgorithm, \
         SignatureScheme, ClientCertificateType, ExtensionType
@@ -11,6 +12,7 @@ from tlslite.extensions import KeyShareEntry, PreSharedKeyExtension, \
         PskIdentity, ClientKeyShareExtension, SessionTicketExtension
 from tlslite.handshakehelpers import HandshakeHelpers
 from .handshake_helpers import kex_for_group
+from tlslite.utils.cryptomath import getRandomBytes
 
 
 __all__ = ['sig_algs_to_ids', 'key_share_gen', 'psk_ext_gen',
@@ -300,10 +302,14 @@ def _psk_session_ext_gen(state, psk_settings):
         raise ValueError("No New Session Ticket messages in session")
     nst = state.session_tickets[-1]
 
+    # if we're reusing TLS 1.2 ticket in TLS 1.3, it won't have the
+    # `ticket_age_add` field, so fake it
+    ticket_age_add = getattr(nst, 'ticket_age_add', random.randint(0, 2**32-1))
+
     # nst.time is fractional but ticket time should be in ms, not s as the
     # NewSessionTicket.time is
     ticket_time = int(time.time() * 1000 - nst.time * 1000 +
-                      nst.ticket_age_add) % 2**32
+                      ticket_age_add) % 2**32
     ticket_iden = PskIdentity().create(nst.ticket, ticket_time)
     binder_len = state.prf_size
 
@@ -353,12 +359,20 @@ def _psk_ext_updater(state, client_hello, psk_settings):
     nst = None
     if state.session_tickets:
         nst = state.session_tickets[-1]
+    master_key = None
+    if nst:
+        try:
+            master_key = state.key['resumption master secret']
+        except KeyError:
+            # we have a TLS 1.2 ticket, so we need to fake some things:
+            master_key = state.key['master_secret']
+            nst.ticket_nonce = getRandomBytes(32)
     HandshakeHelpers.update_binders(
         client_hello,
         h_hash,
         psk_settings,
         [nst] if nst else None,
-        state.key['resumption master secret'] if nst else None)
+        master_key)
 
 
 def psk_ext_updater(psk_settings=tuple()):
