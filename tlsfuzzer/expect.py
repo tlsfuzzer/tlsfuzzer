@@ -1946,7 +1946,7 @@ class ExpectApplicationData(Expect):
                                  "expected: {1}".format(len(data), self.size))
         if self.output:
             self.output.write("ExpectApplicationData received payload:\n")
-            self.output.write(data)
+            self.output.write(repr(data))
             self.output.write("ExpectApplicationData end of payload.\n")
 
 
