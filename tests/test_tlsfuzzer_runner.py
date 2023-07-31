@@ -149,6 +149,7 @@ class TestRunner(unittest.TestCase):
         node.is_command = mock.Mock(return_value=False)
         node.is_expect = mock.Mock(return_value=False)
         node.is_generator = mock.Mock(return_value=True)
+        node.queue = False
         node.child = None
         msg = mock.MagicMock()
         msg.write = mock.Mock(return_value=bytearray(b'\x01\x00'))
@@ -322,6 +323,7 @@ class TestRunner(unittest.TestCase):
         node.is_command = mock.Mock(return_value=False)
         node.is_expect = mock.Mock(return_value=False)
         node.is_generator = mock.Mock(return_value=True)
+        node.queue = False
         node.child = None
 
         runner = Runner(node)

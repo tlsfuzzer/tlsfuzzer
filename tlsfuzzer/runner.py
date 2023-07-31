@@ -247,10 +247,14 @@ class Runner(object):
                     # send message to peer
                     msg = node.generate(self.state)
                     try:
+                        # sendMessageBlocking is buffered and fragmenting
+                        # that means that 0-length messages would get lost
+                        # so send them directly through record layer
                         if msg.write():
-                            # sendMessageBlocking is buffered and fragmenting
-                            # that means that 0-length messages would get lost
-                            self.state.msg_sock.sendMessageBlocking(msg)
+                            if node.queue:
+                                self.state.msg_sock.queueMessageBlocking(msg)
+                            else:
+                                self.state.msg_sock.sendMessageBlocking(msg)
                         else:
                             for _ in self.state.msg_sock.sendRecord(msg):
                                 # make the method into a blocking one
