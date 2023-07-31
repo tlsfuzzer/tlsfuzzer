@@ -14,7 +14,7 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
         KeyUpdateGenerator, split_message, \
         FlushMessageList, truncate_handshake, \
-        pad_handshake
+        pad_handshake, queue_message, RawMessageGenerator, skip_post_send
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
@@ -23,7 +23,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme, \
-        KeyUpdateMessageType, ContentType
+        KeyUpdateMessageType, ContentType, HandshakeType
 from tlslite.keyexchange import ECDHKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
@@ -32,7 +32,7 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
 from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL, key_share_ext_gen
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -323,6 +323,155 @@ def main():
                                     AlertDescription.decode_error)
     node.next_sibling.add_child(ExpectClose())
     conversations["large KeyUpdate message"] = conversation
+
+    # send two KeyUpdate messages in single record
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    # because the post_send will fire without the message being sent
+    # both messages will be placed in a single record, but with the use
+    # of keys from the time _after_ the first KeyUpdate will be sent
+    node = node.add_child(queue_message(KeyUpdateGenerator(
+        message_type=KeyUpdateMessageType.update_not_requested)))
+    node = node.add_child(KeyUpdateGenerator(
+        message_type=KeyUpdateMessageType.update_requested))
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                    AlertDescription.bad_record_mac)
+    node.next_sibling.add_child(ExpectClose())
+    conversations["two KeyUpdates in one record with future keys"] = conversation
+
+    # send two KeyUpdate messages, one byte in one record, rest in second record
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    fragment_list = []
+    keyupdate_gen = KeyUpdateGenerator(
+        message_type=KeyUpdateMessageType.update_not_requested)
+    node = node.add_child(split_message(keyupdate_gen, fragment_list, 1))
+    # by splitting the message 1/n, the first byte (the type - key update)
+    # will be send with old keys, but the rest of the message will be
+    # under new keys
+    node = node.add_child(queue_message(FlushMessageList(fragment_list)))
+    # because the post_send will fire without the message being sent
+    # both messages will be placed in a single record, but with the use
+    # of keys from the time _after_ the first KeyUpdate will be sent
+    node = node.add_child(KeyUpdateGenerator(
+        message_type=KeyUpdateMessageType.update_requested))
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                    AlertDescription.bad_record_mac)
+    node.next_sibling.add_child(ExpectClose())
+    conversations["two KeyUpdates, first fragmented, second fragment under new keys together with second KeyUpdate"] = conversation
+
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(queue_message(skip_post_send(
+        KeyUpdateGenerator(KeyUpdateMessageType.update_not_requested))))
+    node = node.add_child(KeyUpdateGenerator(
+        message_type=KeyUpdateMessageType.update_requested))
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+    # This message is optional and may show up 0 to many times
+    cycle = ExpectNewSessionTicket()
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+    node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                    AlertDescription.unexpected_message)
+    node.next_sibling.add_child(ExpectClose())
+    conversations["two KeyUpdates in one record"] = conversation
 
     for msg_type in range(2, 256):
         conversation = Connect(host, port)
