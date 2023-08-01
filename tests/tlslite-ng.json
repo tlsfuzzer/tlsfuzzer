@@ -45,7 +45,7 @@
          {"name" : "test-bleichenbacher-timing-pregenerate.py"},
          {"name" : "test-bleichenbacher-workaround.py",
           "arguments" : ["-t", "0.01"],
-          "comment" : "test over loopback so 10ms RTT is entirely reasonable"},
+          "comment" : "test over loopback, so 10ms RTT is entirely reasonable"},
          {"name" : "test-ccs.py"},
          {"name" : "test-chacha20.py"},
          {"name" : "test-chacha20.py",
@@ -116,7 +116,7 @@
           "comment": "tlslite-ng doesn't support SSLv3 by default",
           "arguments": ["--min-ver", "TLSv1.0"]},
          {"name" : "test-export-ciphers-rejected.py",
-          "arguments": ["-d", "--min-ver", "TLSv1.0"]},
+          "arguments" : ["-d", "--min-ver", "TLSv1.0"]},
          {"name" : "test-extensions.py"},
          {"name" : "test-extended-master-secret-extension.py",
           "arguments" : ["-x", "extended master secret with renegotiation",
@@ -258,12 +258,14 @@
           "arguments" : ["--alerts", "0",
                          "--alert-level", "warning",
                          "--alert-description", "close_notify"],
-          "comment" : "tlslite-ng does not allow client to send warning alerts, thus the number of allowed alerts (-n) is 0"},
+          "comment" : "tlslite-ng does not allow client to send warning alerts, thus the number of allowed alerts (--alerts) is 0"
+         },
          {"name" : "test-ssl-death-alert.py",
           "arguments" : ["-d", "--alerts", "0",
                          "--alert-level", "warning",
                          "--alert-description", "close_notify"],
-          "comment" : "tlslite-ng does not allow client to send warning alerts, thus the number of allowed alerts (-n) is 0"},
+          "comment" : "tlslite-ng does not allow client to send warning alerts, thus the number of allowed alerts (--alerts) is 0"
+         },
          {"name" : "test-sslv2-connection.py"},
          {"name" : "test-sslv2-force-cipher-3des.py"},
          {"name" : "test-sslv2-force-cipher-non3des.py"},
@@ -296,8 +298,7 @@
           "arguments" : ["-e", "1/4 fragmented keyupdate msg, appdata between",
                          "-e", "2/3 fragmented keyupdate msg, appdata between",
                          "-e", "3/2 fragmented keyupdate msg, appdata between",
-                         "-e", "4/1 fragmented keyupdate msg, appdata between"]
-         },
+                         "-e", "4/1 fragmented keyupdate msg, appdata between"]},
          {"name" : "test-tls13-keyupdate-from-server.py"},
          {"name" : "test-tls13-large-number-of-extensions.py",
           "arguments" : ["--exc", "9",
@@ -328,7 +329,8 @@
          {"name" : "test-tls13-post-handshake-auth.py",
           "arguments" : ["-k", "tests/clientX509Key.pem",
                          "-c", "tests/clientX509Cert.pem",
-                         "--pha-as-reply"]
+                         "--pha-as-reply",
+                         "--query", "GET /secret HTTP/1.0\r\n\r\n"]
           },
          {"name" : "test-tls13-record-layer-limits.py"},
          {"name" : "test-tls13-record-padding.py"},
@@ -343,7 +345,7 @@
           "arguments": ["--cookie"]},
          {"name" : "test-tls13-version-negotiation.py"},
          {"name" : "test-tls13-version-negotiation.py",
-          "arguemnts": ["-d"]},
+           "arguments": ["-d"]},
          {"name" : "test-tls13-zero-content-type.py"},
          {"name" : "test-tls13-zero-length-data.py"},
          {"name" : "test-TLSv1_2-rejected-without-TLSv1_2.py"},
@@ -404,9 +406,9 @@
           "arguments" : ["-d"]},
          {"name" : "test-tls13-certificate-request.py"},
          {"name" : "test-tls13-certificate-request.py",
-          "arguments" : ["-E", "status_request:CH:CT key_share:SH supported_versions:SH"],
-          "comment": "Test with additional extensions"
-         },
+          "comment": "Test with additional extensions",
+          "arguments" : ["-E", "status_request:CH:CT key_share:SH supported_versions:SH"]
+          },
          {"name" : "test-tls13-certificate-verify.py",
           "arguments" : ["-k", "tests/clientRSAPSSKey.pem",
                          "-c", "tests/clientRSAPSSCert.pem"]
@@ -484,7 +486,7 @@
          "arguments" : ["-x", "rsa_pss_rsae_sha256 only",
                         "-x", "rsa_pss_rsae_sha384 only",
                         "-x", "rsa_pss_rsae_sha512 only"]
-	}
+        }
      ]
     },
     {"server_command": ["{python}", "-u", "{command}", "server",
@@ -540,8 +542,12 @@
      ]
     },
     {"server_command": ["{python}", "-u", "{command}", "server",
-                "-k", "tests/serverECKey.pem",
                 "-c", "tests/serverECCert.pem",
+                "-k", "tests/serverECKey.pem",
+                "-c", "tests/serverP384ECCert.pem",
+                "-k", "tests/serverP384ECKey.pem",
+                "-c", "tests/serverP521ECCert.pem",
+                "-k", "tests/serverP521ECKey.pem",
                 "--cipherlist", "chacha20-poly1305",
                 "--cipherlist", "aes256gcm",
                 "--cipherlist", "aes128gcm",
@@ -587,15 +593,15 @@
                 "--echo",
                 "-k", "tests/serverX509Key.pem",
                 "-c", "tests/serverX509Cert.pem",
-                "localhost:4433"],
+                "localhost:4434"],
      "server_hostname": "localhost",
-     "server_port": 4433,
+     "server_port": 4434,
      "environment": {"PYTHONPATH": "."},
      "tests" : [
          {"name": "test-lengths.py",
-          "arguments": ["-n", "0"]},
+          "arguments": ["-p", "4434", "-n", "0"]},
          {"name": "test-tls13-lengths.py",
-          "arguments": ["-n", "0"]}
+          "arguments": ["-p", "4434", "-n", "0"]}
      ]
     }
 ]
