@@ -21,7 +21,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -183,7 +183,23 @@ def main():
 
     conversations["Client Hello with garbage session ID"] = conversation
 
-    # run the conversation
+    # too long session ID
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    # session_id (and legacy_session_id in TLS 1.3) are specified as
+    # opaque SessionID<0..32>;
+    # which means that 33 byte long, and longer, are malformed
+    node = node.add_child(ClientHelloGenerator(
+        ciphers,
+        session_id=bytearray(33),
+        extensions={ExtensionType.renegotiation_info:None}))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.decode_error))
+    node.add_child(ExpectClose())
+
+    conversations["Client Hello too long session ID"] = conversation
+
     # run the conversation
     good = 0
     bad = 0
