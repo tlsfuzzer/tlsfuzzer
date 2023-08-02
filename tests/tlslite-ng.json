@@ -243,6 +243,8 @@
                          "-X", "protocol_version"],
           "comment" : "tlslite-ng does not support SSLv3 by default"},
          {"name" : "test-sessionID-resumption.py"},
+         {"name" : "test-sessionID-resumption.py",
+          "arguments" : ["-d"]},
          {"name" : "test-sig-algs.py",
           "comment" : "server has just one certificate configured",
           "arguments" : ["-x", "rsa_pss_pss_sha256 only",
