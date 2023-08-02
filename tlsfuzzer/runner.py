@@ -5,7 +5,8 @@
 from __future__ import print_function
 
 import socket
-from tlslite.messages import Message, Certificate, RecordHeader2
+from tlslite.messages import Message, Certificate, RecordHeader2, \
+        CompressedCertificate
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.errors import TLSAbruptCloseError
 from tlslite.constants import ContentType, HandshakeType, AlertLevel, \
@@ -128,7 +129,7 @@ class ConnectionState(object):
     def get_server_public_key(self):
         """Extract server public key from server Certificate message"""
         certificates = (msg for msg in self.handshake_messages if\
-                        isinstance(msg, Certificate))
+                        isinstance(msg, (Certificate, CompressedCertificate)))
         cert_message = next(certificates)
         return cert_message.cert_chain.getEndEntityPublicKey()
 
