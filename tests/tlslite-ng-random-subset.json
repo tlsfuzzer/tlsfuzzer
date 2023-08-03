@@ -346,6 +346,7 @@
           "arguments" : ["--cookie"]},
          {"name" : "test-tls13-signature-algorithms.py"},
          {"name" : "test-tls13-symetric-ciphers.py"},
+         {"name" : "test-tls13-unencrypted-alert.py"},
          {"name" : "test-tls13-unrecognised-groups.py",
           "arguments": ["--cookie"]},
          {"name" : "test-tls13-version-negotiation.py"},
