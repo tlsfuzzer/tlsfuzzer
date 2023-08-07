@@ -114,9 +114,9 @@ def sigalg_select(alg_type, hash_pref, supported=None, cert_type=None):
                                                     cert_type))
 
 
-def initiate_connect(host, port):
+def initiate_connect(host, port, sig_algs):
     """Code reuse"""
-    conversation = Connect(hostname, port)
+    conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
@@ -235,7 +235,7 @@ def main():
     conversations_long = {}
 
     # sanity check for Client Certificates
-    (conversation, node) = initiate_connect(hostname, port)
+    (conversation, node) = initiate_connect(hostname, port, sig_algs)
 
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(CertificateVerifyGenerator(private_key))
@@ -422,7 +422,7 @@ def main():
     sigalg = sigalg_select("rsa_pkcs1", hashalgs)
     msgalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, certType)
     
-    (conversation, node) = initiate_connect(hostname, port)
+    (conversation, node) = initiate_connect(hostname, port, sig_algs)
 
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(CertificateVerifyGenerator(
@@ -445,7 +445,7 @@ def main():
     _hashalgs = [x for x in hashalgs if x != hash_name]
     sigalg = sigalg_select("rsa_pss", _hashalgs, cert_type=certType)
 
-    (conversation, node) = initiate_connect(hostname, port)
+    (conversation, node) = initiate_connect(hostname, port, sig_algs)
 
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(CertificateVerifyGenerator(
@@ -465,7 +465,7 @@ def main():
     hash_name = SignatureScheme.getHash(SignatureScheme.toRepr(msgalg))
     mgf1_hash = [x for x in hashalgs if x != hash_name][0]
 
-    (conversation, node) = initiate_connect(hostname, port)
+    (conversation, node) = initiate_connect(hostname, port, sig_algs)
     
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(CertificateVerifyGenerator(
