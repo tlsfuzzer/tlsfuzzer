@@ -55,6 +55,23 @@ def help_msg():
     print(" --repeat num   How many times to send each probe, 10 by default")
     print(" --help         this message")
 
+def initiate_connect(host, port):
+    """Code resuse"""
+    conversation = Connect(host, port, timeout=timeout)
+    node = conversation
+    node = node.add_child(ClientHelloGenerator(
+        ciphers,
+        extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+
+    return (conversation, node)
+
 
 def main():
     host = "localhost"
@@ -162,18 +179,8 @@ def main():
     node.next_sibling = ExpectClose()
     conversations["sanity"] = conversation
 
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
+    (conversation, node) = initiate_connect(host, port)
+
     node = node.add_child(ApplicationDataGenerator(
         bytearray(b"GET / HTTP/1.0\r\n\r\n")))
 
@@ -190,18 +197,8 @@ def main():
 
     conversations["After Alert"] = conversation
 
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
+    (conversation, node) = initiate_connect(host, port)
+
     node = node.add_child(ApplicationDataGenerator(
         bytearray(b"GET / HTTP/1.0\r\n\r\n")))
 
@@ -215,18 +212,8 @@ def main():
 
     conversations["After server ApplicationData"] = conversation
 
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
+    (conversation, node) = initiate_connect(host, port)
+
     node = node.add_child(ApplicationDataGenerator(
         bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     node = node.add_child(ExpectNewSessionTicket())
@@ -234,36 +221,16 @@ def main():
 
     conversations["After NewSessionTicket"] = conversation
 
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
+    (conversation, node) = initiate_connect(host, port)
+    
     node = node.add_child(ApplicationDataGenerator(
         bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     node = node.add_child(Close())
 
     conversations["After client ApplicationData"] = conversation
 
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
+    (conversation, node) = initiate_connect(host, port)
+    
     node = node.add_child(Close())
 
     conversations["After client Finished"] = conversation
