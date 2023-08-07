@@ -95,7 +95,7 @@ def initiate_connection(host, port):
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
     
-    return (conversation, node)
+    return (conversation, node, ext, ciphers)
 
 def main():
     host = "localhost"
@@ -165,7 +165,7 @@ def main():
 
     conversations = {}
 
-    (conversation, node) = initiate_connection(host, port)
+    (conversation, node, ext, ciphers) = initiate_connection(host, port)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -194,8 +194,8 @@ def main():
     conversations["sanity"] = conversation
 
     # test post-handshake authentication
-    (conversation, node) = initiate_connection(host, port)
-    
+    (conversation, node, ext, ciphers) = initiate_connection(host, port)
+
     ext[ExtensionType.post_handshake_auth] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
@@ -244,7 +244,7 @@ def main():
         conversations["sanity"] = conversation
 
     # test post-handshake authentication with KeyUpdate
-    (conversation, node) = initiate_connection(host, port)
+    (conversation, node, ext, ciphers) = initiate_connection(host, port)
     
     ext[ExtensionType.post_handshake_auth] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -304,7 +304,7 @@ def main():
     conversations["post-handshake authentication with KeyUpdate"] = conversation
 
     # test post-handshake with client not providing a certificate
-    (conversation, node) = initiate_connection(host, port)
+    (conversation, node, ext, ciphers) = initiate_connection(host, port)
 
     ext[ExtensionType.post_handshake_auth] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -356,7 +356,7 @@ def main():
     conversations["post-handshake authentication with no client cert"] = conversation
 
     # malformed signatures in post-handshake authentication
-    (conversation, node) = initiate_connection(host, port)
+    (conversation, node, ext, ciphers) = initiate_connection(host, port)
     
     ext[ExtensionType.post_handshake_auth] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
