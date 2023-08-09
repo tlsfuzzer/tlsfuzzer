@@ -57,6 +57,32 @@ def help_msg():
     print(" -M | --ems           Enable support for Extended Master Secret")
     print(" --help               this message")
 
+def initiate_connection(host, port, dhe, ems):
+    """Code reuse"""
+    conversation = Connect(host, port, version=(3, 3))
+    node = conversation
+    ext = {}
+    if dhe:
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    if not ext:
+        ext = None
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+
+    return (conversation, node)
+
 
 def main():
     hostname = "localhost"
@@ -114,27 +140,8 @@ def main():
 
     conversations = {}
 
-    conversation = Connect(hostname, port, version=(3, 3))
-    node = conversation
-    ext = {}
-    if dhe:
-        groups = [GroupName.secp256r1,
-                  GroupName.ffdhe2048]
-        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-            .create(groups)
-        ext[ExtensionType.signature_algorithms] = \
-            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
-        ext[ExtensionType.signature_algorithms_cert] = \
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
-    else:
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    if ems:
-        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
-    if not ext:
-        ext = None
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    (conversation, node) = initiate_connection(hostname, port, dhe, ems)
+
     for _ in range(number_of_alerts):  # sending alerts during handshake
         node = node.add_child(AlertGenerator(  # alert description: 46, 41, 43
             AlertLevel.warning, AlertDescription.unsupported_certificate))
@@ -155,27 +162,8 @@ def main():
     node.next_sibling = ExpectClose()
     conversations["SSL Death Alert without getting alert"] = conversation
 
-    conversation = Connect(hostname, port, version=(3, 3))
-    node = conversation
-    ext = {}
-    if dhe:
-        groups = [GroupName.secp256r1,
-                  GroupName.ffdhe2048]
-        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-            .create(groups)
-        ext[ExtensionType.signature_algorithms] = \
-            SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
-        ext[ExtensionType.signature_algorithms_cert] = \
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
-    else:
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    if ems:
-        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
-    if not ext:
-        ext = None
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    (conversation, node) = initiate_connection(hostname, port, dhe, ems)
+    
     for _ in range(number_of_alerts+1):
         node = node.add_child(AlertGenerator(
             AlertLevel.warning, AlertDescription.unsupported_certificate))
