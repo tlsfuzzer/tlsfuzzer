@@ -8,7 +8,7 @@ from __future__ import print_function
 import sys
 import getopt
 import csv
-from os.path import join
+from os.path import join, splitext
 
 
 def help_msg():
@@ -16,6 +16,8 @@ def help_msg():
     print("""Usage: ./combine.py -o out-dir in0 [in1 [in2 [...]]]
 -o out-dir          Output directory (required)
                     Any timing.csv file there will be overwritten
+--measurements      Specifies that the files are measurements
+                    Any measurements.csv file there will be overwritten
 --help              This help message
 in0, in1, ...       Input files to combine
 
@@ -73,7 +75,7 @@ def read_column_based_csv(file_name):
 
 
 def combine(output, inputs):
-    """Combine timing.csv files into a single one."""
+    """Combine timing.csv or measurements.csv files into a single one."""
     columns = None
 
     with open(join(output, "timing.csv"), "w") as out:
@@ -100,15 +102,52 @@ def combine(output, inputs):
             out_csv.writerows(values)
 
 
+def combine_measurements(output, inputs):
+    filename = "measurements"
+
+    with open(join(output, filename + '.csv'), "w") as out_fp:
+        lines_so_far = 0
+        total_samples = 0
+        for file_name in inputs:
+            with open(file_name, 'r') as in_fp:
+                in_csv = csv.reader(in_fp)
+                for row in in_csv:
+                    try:
+                        line_num = int(row[0]) + lines_so_far
+
+                        out_fp.write(
+                            "{0},{1},{2}\n".format(line_num, row[1], row[2])
+                        )
+                        total_samples += 1
+                    except IndexError:
+                        raise ValueError("File does not have correct format")
+
+                lines_so_far = line_num + 1
+
+    count_file = filename + ".count"
+
+    with open(join(output, count_file), "w") as out_fp:
+        out_fp.write(
+            'Compined {0:,} samples in {1:,} lines in file {2}.\n'
+            .format(
+                total_samples, lines_so_far - 1,
+                join(output, filename + ".csv")
+            )
+        )
+
+
 def main():
     output = None
+    measurements = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "o:", ["help"])
+    opts, args = getopt.getopt(argv, "o:", ["help", "measurements"])
 
     for opt, arg in opts:
         if opt == "-o":
             output = arg
+        elif opt == "--measurements":
+            measurements = True
         else:
             assert opt == "--help"
             help_msg()
@@ -120,7 +159,10 @@ def main():
     if not output:
         raise ValueError("No output directory provided")
 
-    combine(output, inputs)
+    if measurements:
+        combine_measurements(output, inputs)
+    else:
+        combine(output, inputs)
 
 
 if __name__ == "__main__":
