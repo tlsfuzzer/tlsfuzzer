@@ -176,6 +176,7 @@ def main():
     conversations["AES-CCM in TLS1.1"] = conversation
 
     # empty application data message acceptance
+    conversation = Connect(host, port)
     node = conversation
     ext = {}
     if dhe:
@@ -217,6 +218,7 @@ def main():
     conversations["empty app data"] = conversation
 
     # empty application data message acceptance with _8 ciphers
+    conversation = Connect(host, port)
     node = conversation
     ext = {}
     if dhe:
