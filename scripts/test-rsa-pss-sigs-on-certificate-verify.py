@@ -366,6 +366,7 @@ def main():
         node = node.add_child(ExpectServerKeyExchange())
         node = node.add_child(ExpectCertificateRequest())
         node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
         node = node.add_child(CertificateGenerator(X509CertChain([cert])))
         node = node.add_child(ClientKeyExchangeGenerator())
         node = node.add_child(CertificateVerifyGenerator(private_key,
