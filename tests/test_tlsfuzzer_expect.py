@@ -45,7 +45,7 @@ from tlslite.messages import Message, ServerHello, CertificateRequest, \
         ClientHello, Certificate, ServerHello2, ServerFinished, \
         ServerKeyExchange, CertificateStatus, CertificateVerify, \
         Finished, EncryptedExtensions, NewSessionTicket, Heartbeat, \
-        KeyUpdate, HelloRequest, ServerHelloDone
+        KeyUpdate, HelloRequest, ServerHelloDone, NewSessionTicket1_0
 from tlslite.extensions import SNIExtension, TLSExtension, \
         SupportedGroupsExtension, ALPNExtension, ECPointFormatsExtension, \
         NPNExtension, ServerKeyShareExtension, ClientKeyShareExtension, \
@@ -2955,6 +2955,7 @@ class TestExpectNewSessionTicket(unittest.TestCase):
         nst = NewSessionTicket().create(12, 44, b'abba', b'I am a ticket', [])
 
         state = ConnectionState()
+        state.version = (3, 4)
 
         exp.process(state, nst)
 
@@ -2971,6 +2972,19 @@ class TestExpectNewSessionTicket(unittest.TestCase):
 
         self.assertEqual("ExpectNewSessionTicket(description='some string')",
                          repr(exp))
+
+    def test_process_in_TLS1_2(self):
+        exp = ExpectNewSessionTicket()
+
+        nst = NewSessionTicket1_0().create(3600, b'I am an old ticket')
+
+        state = ConnectionState()
+        state.version = (3, 3)
+
+        exp.process(state, nst)
+
+        self.assertIn(nst, state.session_tickets)
+        self.assertIsNotNone(state.session_tickets[0].time)
 
 
 class TestExpectVerify(unittest.TestCase):
