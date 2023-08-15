@@ -20,7 +20,7 @@ from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
         ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus, \
         CertificateVerify, EncryptedExtensions, NewSessionTicket, Heartbeat,\
-        KeyUpdate, HelloRequest
+        KeyUpdate, HelloRequest, NewSessionTicket1_0
 from tlslite.extensions import TLSExtension, ALPNExtension
 from tlslite.utils.codec import Parser, Writer
 from tlslite.utils.compat import b2a_hex
@@ -276,6 +276,13 @@ def srv_ext_handler_npn(state, extension):
         raise AssertionError("Malformed NPN extension")
 
 
+def srv_ext_handler_session_ticket(state, extension):
+    """Process the session_ticket extension from server."""
+    del state
+    if extension.ticket != b"":
+        raise AssertionError("Malformed session_ticket extension")
+
+
 def srv_ext_handler_key_share(state, extension):
     """Process the key_share extension from server."""
     cln_hello = state.get_last_message_of_type(ClientHello)
@@ -485,6 +492,7 @@ _srv_ext_handler = \
          ExtensionType.server_name: srv_ext_handler_sni,
          ExtensionType.renegotiation_info: srv_ext_handler_renego,
          ExtensionType.alpn: srv_ext_handler_alpn,
+         ExtensionType.session_ticket: srv_ext_handler_session_ticket,
          ExtensionType.ec_point_formats: srv_ext_handler_ec_point,
          ExtensionType.supports_npn: srv_ext_handler_npn,
          ExtensionType.key_share: srv_ext_handler_key_share,
@@ -575,7 +583,7 @@ class ExpectServerHello(_ExpectExtensionsMessage):
     """
 
     def __init__(self, extensions=None, version=None, resume=False,
-                 cipher=None, server_max_protocol=None,
+                 cipher=None, server_max_protocol=None, force_resume=False,
                  description=None):
         """
         Initialize the object
@@ -609,6 +617,10 @@ class ExpectServerHello(_ExpectExtensionsMessage):
         current state - IOW, if the server hello should belong to a resumed
         session. TLS 1.2 and earlier only. In TLS 1.3 resumption is handled
         by providing handler for ``pre_shared_key`` extension.
+
+        :param boolean force_resume: assume that the session is getting resumed,
+            even if the sessionID is empty. Applicable to TLS 1.2 and earlier
+            only when using session tickets and not sending a sessionID.
         """
         super(ExpectServerHello, self).__init__(ContentType.handshake,
                                                 HandshakeType.server_hello,
@@ -617,6 +629,7 @@ class ExpectServerHello(_ExpectExtensionsMessage):
         self.version = version
         self.resume = resume
         self.srv_max_prot = server_max_protocol
+        self.force_resume = force_resume
         self.description = description
 
     def __str__(self):
@@ -732,10 +745,13 @@ class ExpectServerHello(_ExpectExtensionsMessage):
         # extract important info
         state.server_random = srv_hello.random
 
+        cln_hello = state.get_last_message_of_type(ClientHello)
+
         # check for session_id based session resumption
         if self.resume:
             assert state.session_id == srv_hello.session_id
-        if (state.session_id == srv_hello.session_id and
+        if self.force_resume or ((state.session_id == srv_hello.session_id
+                or cln_hello.session_id == srv_hello.session_id) and
                 srv_hello.session_id != bytearray(0) and
                 self._extract_version(srv_hello) < (3, 4)):
             # TLS 1.2 resumption, TLS 1.3 is based on PSKs
@@ -754,7 +770,6 @@ class ExpectServerHello(_ExpectExtensionsMessage):
                   "Expected: {0}, received: {1}.")
 
         # check if server sent cipher matches what we advertised in CH
-        cln_hello = state.get_last_message_of_type(ClientHello)
         if srv_hello.cipher_suite not in cln_hello.cipher_suites:
             cipher = srv_hello.cipher_suite
             if cipher in CipherSuite.ietfNames:
@@ -1525,7 +1540,22 @@ class ExpectFinished(ExpectHandshake):
       to be encrypted with ``server_application_traffic_secret`` keys.
     """
 
-    def __init__(self, version=None):
+    def __init__(self, version=None, description=None):
+        """
+        Initialize object.
+
+        .. note::
+            The ``description`` parameter MUST be specified
+            as a keyword argument, i.e. read the definition as
+            ``(self, *, description=None)`` (see PEP 3102).
+            Otherwise the behaviour of this node is not guaranteed if new
+            arguments are added to it (as they will be added *before*
+            the ``description`` argument).
+
+        :param str description: name or comment attached to the node,
+            it will be printed when :py:func:`str` or :py:func:`repr` is
+            called on the node.
+        """
         if version in ((0, 2), (2, 0)):
             super(ExpectFinished, self).__init__(ContentType.handshake,
                                                  SSL2HandshakeType.
@@ -1534,6 +1564,7 @@ class ExpectFinished(ExpectHandshake):
             super(ExpectFinished, self).__init__(ContentType.handshake,
                                                  HandshakeType.finished)
         self.version = version
+        self.description = description
 
     def process(self, state, msg):
         """
@@ -1623,6 +1654,10 @@ class ExpectFinished(ExpectHandshake):
             state.msg_sock.calcTLS1_3PendingState(
                 state.cipher, c_traff_sec, s_traff_sec, None)
             state.msg_sock.changeReadState()
+
+    def __repr__(self):
+        """Return human readable representation of the object."""
+        return self._repr(['description'])
 
 
 class ExpectEncryptedExtensions(_ExpectExtensionsMessage):
@@ -1728,7 +1763,7 @@ class ExpectEncryptedExtensions(_ExpectExtensionsMessage):
 class ExpectNewSessionTicket(ExpectHandshake):
     """Processing TLS handshake protocol new session ticket message."""
 
-    def __init__(self, description=None):
+    def __init__(self, version=None, description=None):
         """
         Initialise object.
 
@@ -1740,6 +1775,8 @@ class ExpectNewSessionTicket(ExpectHandshake):
             arguments are added to it (as they will be added *before*
             the ``description`` argument).
 
+        :param tuple version: parse the message as in the specified TLS
+            version, use negotiated version by default
         :param str description: name or comment attached to the node,
             it will be printed when :py:func:`str` or :py:func:`repr` is
             called on the node.
@@ -1748,18 +1785,31 @@ class ExpectNewSessionTicket(ExpectHandshake):
             ContentType.handshake,
             HandshakeType.new_session_ticket)
         self.description = description
+        self.version = version
 
     def process(self, state, msg):
         """Parse, verify and process the message."""
         assert msg.contentType == ContentType.handshake
-        parser = Parser(msg.write())
+        msg_bytes = msg.write()
+        parser = Parser(msg_bytes)
         hs_type = parser.get(1)
         assert hs_type == HandshakeType.new_session_ticket
+        if self.version is None:
+            self.version = state.version
 
-        ticket = NewSessionTicket().parse(parser)
+        if self.version < (3, 4):
+            ticket = NewSessionTicket1_0().parse(parser)
+        else:
+            ticket = NewSessionTicket().parse(parser)
         ticket.time = time.time()
 
         state.session_tickets.append(ticket)
+
+        if self.version < (3, 4):
+            # in TLS 1.2 and earlier tickets are part of the Handshake, so
+            # they need to be hashed
+            state.handshake_messages.append(ticket)
+            state.handshake_hashes.update(msg_bytes)
 
     def __repr__(self):
         """Return human readable representation of object."""
@@ -1896,7 +1946,7 @@ class ExpectApplicationData(Expect):
                                  "expected: {1}".format(len(data), self.size))
         if self.output:
             self.output.write("ExpectApplicationData received payload:\n")
-            self.output.write(data)
+            self.output.write(repr(data))
             self.output.write("ExpectApplicationData end of payload.\n")
 
 
