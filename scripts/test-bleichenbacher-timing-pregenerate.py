@@ -116,7 +116,7 @@ def initiate_connection(host, port, timeout, cipher, cln_extensions, srv_extensi
     node = node.add_child(ExpectAlert(level,
                                       alert))
     node.add_child(ExpectClose())
-    
+
     return (conversation, node, cke_node)
 
 
