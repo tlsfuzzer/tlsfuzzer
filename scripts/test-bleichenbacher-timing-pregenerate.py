@@ -96,7 +96,7 @@ def help_msg():
 
 
 def initiate_connection(host, port, timeout, cipher, cln_extensions, srv_extensions, client_key_exchange_generator, level, alert):
-    """Code Reuse """
+    """ Reuse the same block as a function, to simplify code """
     conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
