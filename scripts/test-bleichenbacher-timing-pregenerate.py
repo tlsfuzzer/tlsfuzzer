@@ -371,16 +371,7 @@ def main():
     for i in range(1, 4):
         # create a CKE with PMS the runner doesn't know/use
         # (benchmark to measure other tests to)
-        conversation = Connect(host, port, timeout=timeout)
-        node = conversation
-        ciphers = [cipher]
-        node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions=cln_extensions))
-        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
 
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(TCPBufferingEnable())
         # use too short PMS but then change padding so that the PMS is
         # correct length with correct TLS version but the encryption keys
         # that tlsfuzzer calculates will be incorrect
@@ -389,19 +380,16 @@ def main():
             # for the third control probe make sure that the signal from
             # fuzzing is very visible to the server
             padding_xors=dict((i, 0) for i in range(120))
-        node = node.add_child(ClientKeyExchangeGenerator(
+
+        client_key_exchange_generator = ClientKeyExchangeGenerator(
             padding_subs={-3: 0, -2: 3, -1: 3},
             padding_xors=padding_xors,
             premaster_secret=bytearray([0] * 46),
-            reuse_encrypted_premaster=reuse_rsa_ciphertext))
-        cke_node = node
-        node = node.add_child(ChangeCipherSpecGenerator())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(TCPBufferingDisable())
-        node = node.add_child(TCPBufferingFlush())
-        node = node.add_child(ExpectAlert(level,
-                                          alert))
-        node.add_child(ExpectClose())
+            reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+        (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+                                                         cipher, cln_extensions, srv_extensions,
+                                                         client_key_exchange_generator, level, alert)            
 
         conversations["control - fuzzed pre master secret {0}".format(i)] =\
             conversation
