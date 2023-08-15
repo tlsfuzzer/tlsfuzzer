@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.abspath('../../'))
 # -- Project information -----------------------------------------------------
 
 project = u'tlsfuzzer'
-copyright = u'2020, Red Hat'
+copyright = u'2023, Red Hat'
 author = u'Hubert Kario'
 
 # The short X.Y version
