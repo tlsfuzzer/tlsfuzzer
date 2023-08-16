@@ -73,7 +73,7 @@ def help_msg():
     print(" --help         this message")
 
 def initiate_connection(host, port):
-    """Reduce code complexity by removing code reuse"""
+    """ Reuse the same block as a function, to simplify code """
     conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
