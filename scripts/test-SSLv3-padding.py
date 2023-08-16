@@ -45,8 +45,9 @@ def help_msg():
     print("                (excluding \"sanity\" tests)")
     print(" --help         this message")
 
+
 def initiate_connection(host, port):
-    """Code Reuse"""
+    """ Reuse the same block as a function, to simplify code """
     conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
@@ -62,6 +63,7 @@ def initiate_connection(host, port):
     node = node.add_child(ExpectFinished())
 
     return (conversation, node)
+
 
 def main():
     """check if zero-filled padding is accepted by server in SSLv3"""
