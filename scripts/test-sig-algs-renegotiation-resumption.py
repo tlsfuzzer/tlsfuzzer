@@ -77,8 +77,9 @@ def help_msg():
     # -i enables timing the test using the specified interface
     # -o output directory for files related to collection of timing information
 
+
 def initiate_connection(host, port, ems, dhe):
-    """Code Reuse"""
+    """ Reuse the same block as a function, to simplify code """
     conversation = Connect(host, port)
     node = conversation
     ext = {}
@@ -112,7 +113,7 @@ def initiate_connection(host, port, ems, dhe):
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
 
-    return (conversation, node, ext)
+    return (conversation, node, ext, ciphers)
 
 
 def main():
@@ -168,7 +169,7 @@ def main():
 
     conversations = {}
 
-    (conversation, node) = initiate_connection(host, port, ems, dhe)
+    (conversation, node, ext, ciphers) = initiate_connection(host, port, ems, dhe)
 
     node = node.add_child(ApplicationDataGenerator(
         bytearray(b"GET / HTTP/1.0\r\n\r\n")))
@@ -181,7 +182,7 @@ def main():
     conversations["sanity"] = conversation
 
     # check if renegotiation is supported
-    (conversation, node, ext) = initiate_connection(host, port, ems, dhe)
+    (conversation, node, ext, ciphers) = initiate_connection(host, port, ems, dhe)
 
     node = node.add_child(ResetHandshakeHashes())
     renego_exts = dict(ext)
@@ -232,7 +233,7 @@ def main():
     conversations["sanity - renegotiation"] = conversation
 
     # check if renegotiation with resumption is supported
-    (conversation, node, ext) = initiate_connection(host, port, ems, dhe)
+    (conversation, node, ext, ciphers) = initiate_connection(host, port, ems, dhe)
 
     node = node.add_child(ResetHandshakeHashes())
     renego_exts = dict(ext)
@@ -363,7 +364,7 @@ def main():
     conversations["without signature_algorithms ext"] = conversation
 
     # drop the sig_algs on renegotiated handshake
-    (conversation, node, ext) = initiate_connection(host, port, ems, dhe)
+    (conversation, node, ext, ciphers) = initiate_connection(host, port, ems, dhe)
 
     node = node.add_child(ResetHandshakeHashes())
     renego_exts = dict(ext)
@@ -501,7 +502,7 @@ def main():
     conversations["renegotiation without signature_algorithms_cert ext"] = conversation
 
     # drop the sig_algs and sig_algs_cert on renegotiated handshake
-    (conversation, node, ext) = initiate_connection(host, port, ems, dhe)
+    (conversation, node, ext, ciphers) = initiate_connection(host, port, ems, dhe)
 
     node = node.add_child(ResetHandshakeHashes())
     renego_exts = dict(ext)
@@ -554,7 +555,7 @@ def main():
     conversations["renegotiation without signature_algorithms and sig_algs_cert ext"] = conversation
 
     # check if renegotiation with resumption with missing sig_algs works
-    (conversation, node, ext) = initiate_connection(host, port, ems, dhe)
+    (conversation, node, ext, ciphers) = initiate_connection(host, port, ems, dhe)
 
     node = node.add_child(ResetHandshakeHashes())
     renego_exts = dict(ext)
@@ -679,7 +680,7 @@ def main():
     conversations["renegotiation with session_id resumption without signature_algorithms and signature_algorithms_cert ext"] = conversation
 
     # check if renegotiation with resumption with missing sig_algs_cert works
-    (conversation, node, ext) = initiate_connection(host, port, ems, dhe)
+    (conversation, node, ext, ciphers) = initiate_connection(host, port, ems, dhe)
     
     node = node.add_child(ResetHandshakeHashes())
     renego_exts = dict(ext)
