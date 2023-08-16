@@ -52,7 +52,7 @@ def help_msg():
     print(" --help         this message")
 
 def initiate_connection(host, port):
-    """Code reuse"""
+    """ Reuse the same block as a function, to simplify code """
     conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
@@ -81,7 +81,7 @@ def initiate_connection(host, port):
     node = node.add_child(ExpectCertificateVerify())
     node = node.add_child(ExpectFinished())
 
-    return (conversation, node, ciphers, ext)
+    return (conversation, node)
 
 
 def main():
