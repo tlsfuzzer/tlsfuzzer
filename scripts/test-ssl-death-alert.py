@@ -58,7 +58,7 @@ def help_msg():
     print(" --help               this message")
 
 def initiate_connection(host, port, dhe, ems):
-    """Code reuse"""
+    """ Reuse the same block as a function, to simplify code """
     conversation = Connect(host, port, version=(3, 3))
     node = conversation
     ext = {}
