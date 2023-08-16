@@ -188,7 +188,7 @@ def main():
     conversations["sanity"] = conversation
 
     # sanity check with PSK binders
-    (conversation, node) = initiate_connect(host, port)
+    (conversation, node) = initiate_connection(host, port)
 
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
         .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
@@ -393,7 +393,7 @@ def main():
     conversations["handshake with invalid 0-RTT and HRR"] = conversation
 
     # fake 0-RTT resumption with fragmented early data
-    (conversation, node) = initiate_connect(host, port)
+    (conversation, node) = initiate_connection(host, port)
 
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
@@ -438,7 +438,7 @@ def main():
         = conversation
 
     # fake 0-RTT and early data spliced into the Finished message
-    (conversation, node) = initiate_connect(host, port)
+    (conversation, node) = initiate_connection(host, port)
 
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
@@ -483,7 +483,7 @@ def main():
         = conversation
 
     # fake 0-RTT resumption and CCS between fake early data
-    (conversation, node) = initiate_connect(host, port)
+    (conversation, node) = initiate_connection(host, port)
 
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
@@ -529,7 +529,7 @@ def main():
         = conversation
 
     # fake 0-RTT resumption and CCS
-    (conversation, node) = initiate_connect(host, port)
+    (conversation, node) = initiate_connection(host, port)
     
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
@@ -631,7 +631,7 @@ def main():
     conversations["handshake with invalid 0-RTT and unknown version (downgrade to TLS 1.2)"] = conversation
 
     # fake 0-RTT resumption
-    (conversation, node) = initiate_connect(host, port)
+    (conversation, node) = initiate_connection(host, port)
     
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
