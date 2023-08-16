@@ -67,7 +67,7 @@ def help_msg():
     print(" --help         this message")
 
 def initiate_connection(host, port):
-    """Code Reuse"""
+    """ Reuse the same block as a function, to simplify code """
     conversation = Connect(host, port)
     node = conversation
     sigs = [SignatureScheme.rsa_pss_rsae_sha256,
