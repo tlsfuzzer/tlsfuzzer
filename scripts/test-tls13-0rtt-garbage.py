@@ -66,7 +66,7 @@ def help_msg():
 
 
 def initiate_connection(host, port):
-    """Code Reuse"""
+    """ Reuse the same block as a function, to simplify code """
     conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
