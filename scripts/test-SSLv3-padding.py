@@ -59,6 +59,7 @@ def initiate_connection(host, port):
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
 
     return (conversation, node)
 
@@ -105,7 +106,6 @@ def main():
     # normal connection
     (conversation, node) = initiate_connection(host, port)
     
-    node = node.add_child(ExpectFinished())
     text = b"GET / HTTP/1.0\nX-bad: aaaa\n\n"
     node = node.add_child(ApplicationDataGenerator(text))
     node = node.add_child(ExpectApplicationData())
@@ -124,7 +124,6 @@ def main():
     # zero-fill SSLv3 padding
     (conversation, node) = initiate_connection(host, port)
 
-    node = node.add_child(ExpectFinished())
     text = b"GET / HTTP/1.0\nX-bad: aaaa\n\n"
     hmac_tag_length = 20  # because we're using HMAC-SHA-1
     block_size = 16  # because we're suing AES
@@ -151,7 +150,6 @@ def main():
     # max size SSLv3 padding
     (conversation, node) = initiate_connection(host, port)
 
-    node = node.add_child(ExpectFinished())
     text = b"GET / HTTP/1.0\nX-bad: aaaa\n\n"
     hmac_tag_length = 20
     block_size = 16
@@ -175,7 +173,6 @@ def main():
     # too much padding in SSLv3
     (conversation, node) = initiate_connection(host, port)
 
-    node = node.add_child(ExpectFinished())
     text = b"GET / HTTP/1.0\nX-bad: aaaa\n\n"
     hmac_tag_length = 20
     block_size = 16
@@ -195,7 +192,6 @@ def main():
     # max size SSLv3 padding
     (conversation, node) = initiate_connection(host, port)
     
-    node = node.add_child(ExpectFinished())
     text = b"GET / HTTP/1.0\r\nX-bad: a\r\n"
     # some servers put limits on size of headers, e.g. Apache 2.3 has 8190 Bytes
     for i in range(3):
