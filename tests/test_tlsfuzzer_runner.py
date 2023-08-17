@@ -393,6 +393,17 @@ class TestGuessResponse(unittest.TestCase):
 
         self.assertEqual("Handshake(client_hello)",
                          guess_response(content_type, data))
+
+    def test_guess_response_with_hello_retry_request(self):
+        content_type = constants.ContentType.handshake
+        data = bytearray([constants.HandshakeType.server_hello,
+                          0, 0, 34,  # length
+                          3, 3]  # version number
+                          ) + constants.TLS_1_3_HRR
+
+        self.assertEqual("Handshake(server_hello, hello_retry_request)",
+                         guess_response(content_type, data))
+
     def test_guess_response_with_invalid_handshake(self):
         content_type = constants.ContentType.handshake
         data = bytearray()
