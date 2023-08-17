@@ -9,7 +9,7 @@ from tlslite.messages import Message, Certificate, RecordHeader2
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.errors import TLSAbruptCloseError
 from tlslite.constants import ContentType, HandshakeType, AlertLevel, \
-        AlertDescription, SSL2HandshakeType, CipherSuite
+        AlertDescription, SSL2HandshakeType, CipherSuite, TLS_1_3_HRR
 from .expect import ExpectClose, ExpectNoMessage, ExpectAlert
 
 class ConnectionState(object):
@@ -158,6 +158,9 @@ def guess_response(content_type, data, ssl2=False):
         if ssl2:
             return "Handshake({0})".format(SSL2HandshakeType.toStr(data[0]))
         else:
+            if data[0] == HandshakeType.server_hello and \
+                    data[6:6+32] == TLS_1_3_HRR:
+                return "Handshake(server_hello, hello_retry_request)"
             return "Handshake({0})".format(HandshakeType.toStr(data[0]))
     elif content_type == ContentType.application_data:
         return "ApplicationData(len={0})".format(len(data))
