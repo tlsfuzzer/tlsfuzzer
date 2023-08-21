@@ -355,6 +355,36 @@ Message fragmentation
 Tlsfuzzer provides methods to control fragmentation and sending of the
 messages.
 
+TCP fragmentation
+-----------------
+
+Normally, the TLS messages are sent as soon as they are created during
+the execution of the decision graph. That means that every TLS message
+will be sent in an individual TCP fragment (if it fits in one).
+That means, if the script sends multiple messages, like Certificate,
+ClientKeyExchange, CertificateVerify, ChangeCipherSpec, and Finished, with
+an inconsistent value in either Certificate or ClientKeyExchange messages,
+the server may detect that inconsistency as soon as it processes those
+messages, or only when it decides that it needs to process them to be
+able to handle the ChangeCipherSpect/Finished messages.
+That means, if the script sends the messages in individual fragments,
+the sending may fail because the server has sent an Alert message and closed
+the TCP connection.
+
+To work-around this to a certain degree, we can queue the TLS messages and
+send them in a single write, hopefully ending up in a single TCP fragment.
+To do that, we have three command nodes:
+:py:class:`~tlsfuzzer.messages.TCPBufferingEnable`,
+:py:class:`~tlsfuzzer.messages.TCPBufferingDisable`, and
+:py:class:`~tlsfuzzer.messages.TCPBufferingFlush`.
+The first one starts bufferring all writes to the socket,
+the second one disables buffering, and the third one flushes
+the current contents of the buffer (buffering doesn't have to be disabled
+to flush the buffer).
+
+You can find a usage example in:
+`test-rsa-pss-sigs-on-certificate-verify.py <https://github.com/tlsfuzzer/tlsfuzzer/blob/master/scripts/test-rsa-pss-sigs-on-certificate-verify.py>`_.
+
 Splitting messages
 ------------------
 
