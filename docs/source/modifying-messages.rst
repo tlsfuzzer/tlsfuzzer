@@ -418,3 +418,43 @@ use the following code:
 You can find a usage example in:
 `test-large-hello.py
 <https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-large-hello.py>`_.
+
+Combining messages
+------------------
+
+While TLS allows for sending multiple messages with the same content type
+in a single record, for ease of debugging tlsfuzzer doesn't do that by default.
+
+But to verify that the other side of the connection can process such
+records (or that it rejects messages that must not be coalesced), it's
+possible to combine (coalesce) multiple messages with
+the same record_type.
+
+First, to queue a message instead of sending it, use the
+:py:func:`~tlsfuzzer.messages.queue_message` decorator:
+
+.. code:: python
+
+    node = node.add_child(queue_message(CertificateGenerator(cert_chain)))
+
+Then, to actually send the message, you can either send another message,
+of any type (the queue is flushed if the content_type of it doesn't match
+new message; and regular writes first queue a message and then flush
+the queue) or flush the queue manually using
+:py:class:`~tlsfuzzer.messages.FlushMessageQueue`:
+
+.. code:: python
+
+    node = node.add_child(FlushMessageQueue())
+
+.. note::
+
+    The ``post_send`` method is still executed right after the message is
+    queued, so if it has side effects, like updating the write state, the
+    actually sent record may be encrypted with wrong (i.e. future) keys.
+    Use ``RawMessageGenerator`` to create the message without side-effects.
+    Or use the :py:func:`~tlsfuzzer.messages.skip_post_send` to disable it.
+
+You can find a usage example in:
+`test-tls13-keyupdate.py
+<https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-tls13-keyupdate.py>`_.
