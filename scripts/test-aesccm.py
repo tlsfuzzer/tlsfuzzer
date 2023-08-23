@@ -26,7 +26,7 @@ from tlsfuzzer.helpers import SIG_ALL
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 4
+version = 5
 
 
 def help_msg():
