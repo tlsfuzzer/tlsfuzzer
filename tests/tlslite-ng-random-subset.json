@@ -376,10 +376,17 @@
                            "-c", "tests/clientX509Cert.pem"],
      "tests" : [
          {"name": "test-certificate-malformed.py"},
-         {"name" : "test-certificate-request.py"},
+         {"name" : "test-certificate-request.py",
+          "arguments" : ["-T", "rsa_sign ecdsa_sign dss_sign",
+                         "-s",
+                         "ed25519 ed448 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 ecdsa_sha224 ecdsa_sha1 dsa_sha512 dsa_sha384 dsa_sha256 dsa_sha224 dsa_sha1 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256 rsa_pkcs1_sha512 rsa_pkcs1_sha384 rsa_pkcs1_sha256 rsa_pkcs1_sha224 rsa_pkcs1_sha1"]
+          },
          {"name" : "test-certificate-request.py",
           "arguments" : ["-k", "tests/clientRSAPSSKey.pem",
-                         "-c", "tests/clientRSAPSSCert.pem"]
+                         "-c", "tests/clientRSAPSSCert.pem",
+                         "-T", "rsa_sign ecdsa_sign dss_sign",
+                         "-s",
+                         "ed25519 ed448 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 ecdsa_sha224 ecdsa_sha1 dsa_sha512 dsa_sha384 dsa_sha256 dsa_sha224 dsa_sha1 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256 rsa_pkcs1_sha512 rsa_pkcs1_sha384 rsa_pkcs1_sha256 rsa_pkcs1_sha224 rsa_pkcs1_sha1"]
           },
          {"name" : "test-certificate-verify-malformed-sig.py"},
          {"name" : "test-certificate-verify-malformed-sig.py",
@@ -402,12 +409,16 @@
                          "-c", "tests/serverEd448Cert.pem"]
           },
          {"name" : "test-rsa-pss-sigs-on-certificate-verify.py",
-          "arguments" : ["--illegpar"]
+          "arguments" : ["--illegpar",
+                         "-s",
+                         "ed25519 ed448 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 ecdsa_sha224 ecdsa_sha1 dsa_sha512 dsa_sha384 dsa_sha256 dsa_sha224 dsa_sha1 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256 rsa_pkcs1_sha512 rsa_pkcs1_sha384 rsa_pkcs1_sha256 rsa_pkcs1_sha224 rsa_pkcs1_sha1"]
           },
          {"name" : "test-rsa-pss-sigs-on-certificate-verify.py",
           "arguments" : ["-k", "tests/clientRSAPSSKey.pem",
                          "-c", "tests/clientRSAPSSCert.pem",
-                         "--illegpar"]
+                         "--illegpar",
+                         "-s",
+                         "ed25519 ed448 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 ecdsa_sha224 ecdsa_sha1 dsa_sha512 dsa_sha384 dsa_sha256 dsa_sha224 dsa_sha1 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256 rsa_pkcs1_sha512 rsa_pkcs1_sha384 rsa_pkcs1_sha256 rsa_pkcs1_sha224 rsa_pkcs1_sha1"]
           },
          {"name" : "test-extended-master-secret-extension-with-client-cert.py"},
          {"name" : "test-rsa-sigs-on-certificate-verify.py"},
