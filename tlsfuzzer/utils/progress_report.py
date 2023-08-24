@@ -5,7 +5,7 @@ import time
 import math
 from threading import Event
 
-"""Rporting progress of a task and reporting estimated completion time."""
+"""Reporting progress of a task and estimated completion time."""
 
 
 def _format_seconds(sec):
@@ -54,6 +54,7 @@ def _binary_prefix(count):
 
 
 def _wait(status, delay, event_type=type(Event())):
+    """Delay execution by ``delay``."""
     if isinstance(status[2], event_type):
         status[2].wait(delay)
     else:
@@ -78,6 +79,7 @@ def _sanitize_args(status, prefix, delay, end):
 
 
 def _done(status, event_type=type(Event())):
+    """Check if ``status[2]`` doesn't expect thread finish."""
     if isinstance(status[2], event_type):
         if status[2].is_set():
             return True
@@ -91,26 +93,27 @@ def progress_report(status, unit='', prefix='decimal', delay=None, end=None):
     Periodically report progress of a task in ``status``, a thread runner.
 
     :param list status: must be a list with three elements, first two
-    specify a fraction of completed work (i.e.
-    ``0 <= status[0]/status[1] <= 1``),
-    third specifies if the reporting process should continue running.
-    It can either be a ``bool`` or a :py:class:`threading.Event` instance.
-    A ``False`` bool value there will cause the thread to finish.
-    An ``Event`` object with flag set will cause the thread to finish
-    (using Event is recommended when the ``delay`` is long as that allows a
-    quick and clean shutdown of the process).
+        specify a fraction of completed work (i.e.
+        ``0 <= status[0]/status[1] <= 1``),
+        third specifies if the reporting process should continue running.
+        It can either be a ``bool`` or a :py:class:`threading.Event` instance.
+        A ``False`` bool value there will cause the thread to finish next
+        time it prints the status line.
+        An ``Event`` object with flag set will cause the thread to finish
+        (using Event is recommended when the ``delay`` is long as that allows a
+        quick and clean shutdown of the process).
 
-    :param str unit: is the first name of the unit of the two elements in
-    ``status`` (like ``B`` for bytes or `` conn`` for connections).
+    :param str unit: is the name of the unit of the two elements in
+        ``status`` (like ``B`` for bytes or `` conn`` for connections).
 
     :param str prefix: controls the exponent for the SI prefix, use ``decimal``
-    for 1000 and ``binary`` for 1024
+        for 1000 and ``binary`` for 1024
 
     :param float delay: sets how often to print the status line, in seconds
 
     :param str end: line terminator to use when printing the status line,
-    use ``\r`` to overwrite the line when printing (default), or ``\n`` to
-    print a whole new line every time.
+        use ``\\r`` to overwrite the line when printing (default), or ``\\n``
+        to print a whole new line every time.
     """
     delay, end, prefix_format = _sanitize_args(status, prefix, delay, end)
     # technically that should be time.monotonic(), but it's not supported
