@@ -392,11 +392,38 @@ paths to one or more ``timing.csv`` files:
    PYTHONPATH=. python tlsfuzzer/combine.py -o out-dir \
    in_1596892760/timing.csv in_1596892742/timing.csv
 
+
+The ``combine.py`` script also include the ``--long-format`` option for csv
+files that have a long format. The script is expecting a csv file, in which
+each row will have 3 values in the format "row id,column id,value".
+
+For example if we have the data:
+
+================ ======== ======== ========
+rows / cols      Col1     Col2     Col3
+================ ======== ======== ========
+Row1             1        2        3
+Row2             4        5        6
+================ ======== ======== ========
+
+The csv file should be formated as:
+
+.. code::
+
+   Row1,Col1,1
+   Row1,Col2,2
+   Row1,Col3,3
+   Row2,Col1,4
+   Row2,Col2,5
+   Row2,Col3,6
+
 .. warning::
 
-   The script overwrites the ``timing.csv`` in the output directory!
+   The script overwrites the ``timing.csv`` and the ``measurements.csv`` in
+   the output directory!
 
-After combining the ``timing.csv`` files, execute analysis as usual.
+After combining the ``timing.csv`` or ``measurements.csv`` files, execute
+analysis as usual.
 
 .. tip::
 
