@@ -80,9 +80,15 @@ EDDSA_SIG_ALL = [SignatureScheme.ed448,
 List of all EdDSA signature algorithms that can be used in TLS 1.2 and later.
 """
 
+DSA_ALL = [(getattr(HashAlgorithm, x), SignatureAlgorithm.dsa) for x in
+           ("sha512", "sha384", "sha256", "sha224", "sha1", "md5")]
+"""
+List of all DSA signatures
+"""
+
 
 SIG_ALL = RSA_PSS_PSS_ALL + RSA_PSS_RSAE_ALL + RSA_PKCS1_ALL + ECDSA_SIG_ALL +\
-    EDDSA_SIG_ALL
+    EDDSA_SIG_ALL + DSA_ALL
 """List of all signature algorithms supported by tlsfuzzer,
 as used in ``signature_algorithms`` or ``signature_algorithms_cert`` extension.
 

@@ -623,5 +623,20 @@
          {"name": "test-tls13-lengths.py",
           "arguments": ["-p", "4434", "-n", "0"]}
      ]
+    },
+    {"server_command": ["{python}", "-u", "{command}", "server",
+                "--reqcert",
+                "-k", "tests/serverDSAKey.pem",
+                "-c", "tests/serverDSACert.pem",
+                "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "tests" : [
+         {"name": "test-dsa-in-certificate-verify.py",
+          "arguments": ["-d",
+                        "-k", "tests/clientDSAKey.pem",
+                        "-c", "tests/clientDSACert.pem"]}
+     ]
     }
 ]
