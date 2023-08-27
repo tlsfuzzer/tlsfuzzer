@@ -117,7 +117,7 @@ def build_conn_graph(host, port, timeout, cipher, cln_extensions,
     node = node.add_child(TCPBufferingFlush())
     node = node.add_child(ExpectAlert(level, alert))
     node.add_child(ExpectClose())
-    
+
     return (conversation, cke_node)
 
 
@@ -417,7 +417,7 @@ def main():
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
                                                 cipher, cln_extensions, srv_extensions,
                                                 client_key_exchange_generator, level, alert)
-    
+
     conversations["set PKCS#1 padding type to 3"] = conversation
     generators["set PKCS#1 padding type to 3"] = cke_node
 
@@ -472,22 +472,21 @@ def main():
     generators["zero byte in last byte of random padding"] = cke_node
 
     # check if separator without any random padding is detected
-    client_key_exchange_generator = ClientKeyExchangeGenerator(
-        padding_subs={2: 0},
-        reuse_encrypted_premaster=reuse_rsa_ciphertext)
-    
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(padding_subs={2: 0},
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
                                                 cipher, cln_extensions, srv_extensions,
                                                 client_key_exchange_generator, level, alert)
-
 
     conversations["zero byte in first byte of random padding"] = conversation
     generators["zero byte in first byte of random padding"] = cke_node
 
     # check if invalid first byte of encoded value is correctly detecte
-    client_key_exchange_generator = ClientKeyExchangeGenerator(
-        padding_subs={0: 1},
-        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(padding_subs={0: 1},
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
                                                 cipher, cln_extensions, srv_extensions,
@@ -497,9 +496,9 @@ def main():
     generators["invalid version number in padding"] = cke_node
 
     # check if no null separator in padding is detected
-    client_key_exchange_generator = ClientKeyExchangeGenerator(
-        padding_subs={-1: 1},
-        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(padding_subs={-1: 1},
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
                                                 cipher, cln_extensions, srv_extensions,
@@ -510,10 +509,10 @@ def main():
 
     # check if no null separator in padding is detected
     # but with PMS bytes set to non-zero
-    client_key_exchange_generator = ClientKeyExchangeGenerator(
-        padding_subs={-1: 1},
-        premaster_secret=bytearray([3, 3]),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(padding_subs={-1: 1},
+                                   premaster_secret=bytearray([3, 3]),
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
                                                 cipher, cln_extensions, srv_extensions,
@@ -523,23 +522,22 @@ def main():
     generators["no null separator in encrypted value"] = cke_node
 
     # completely random plaintext
-    client_key_exchange_generator = ClientKeyExchangeGenerator(
-        padding_subs={-1: 0xaf,
-                      0: 0x27,
-                      1: 0x09},
-        premaster_secret=bytearray([3, 3]),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(padding_subs={-1: 0xaf, 0: 0x27, 1: 0x09},
+                                   premaster_secret=bytearray([3, 3]),
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
                                                 cipher, cln_extensions, srv_extensions,
                                                 client_key_exchange_generator, level, alert)
+
     conversations["random plaintext"] = conversation
     generators["random plaintext"] = cke_node
 
     # check if too short PMS is detected
-    client_key_exchange_generator = ClientKeyExchangeGenerator(
-        premaster_secret=bytearray([1, 1]),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(premaster_secret=bytearray([1, 1]),
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
                                                 cipher, cln_extensions, srv_extensions,
@@ -551,10 +549,10 @@ def main():
     # check if no encrypted payload is detected
     # the TLS version is always set, so we mask the real padding separator
     # and set the last byte of PMS to 0
-    client_key_exchange_generator = ClientKeyExchangeGenerator(
-        padding_subs={-1: 1},
-        premaster_secret=bytearray([1, 1, 0]),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(padding_subs={-1: 1},
+                                   premaster_secret=bytearray([1, 1, 0]),
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
                                                 cipher, cln_extensions, srv_extensions,
@@ -567,10 +565,10 @@ def main():
 
     # the TLS version is always set, so we mask the real padding separator
     # and set the last byte of PMS to 0
-    client_key_exchange_generator = ClientKeyExchangeGenerator(
-        padding_subs={-1: 1},
-        premaster_secret=bytearray([1, 1, 0, 3]),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(padding_subs={-1: 1},
+                                   premaster_secret=bytearray([1, 1, 0, 3]),
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
                                                 cipher, cln_extensions, srv_extensions,
@@ -666,7 +664,7 @@ def main():
     for rep in range(4 if reuse_rsa_ciphertext else 1):
         for i in [1, 4, 8]:
             # check if too short PKCS padding is detected
-            
+
             # move the start of the padding forward, essentially encrypting two 0 bytes
             # at the beginning of the padding, but since those are transformed into a number
             # their existence is lost and it just like the padding was too small
@@ -674,7 +672,7 @@ def main():
             for j in range(1, 1+i):
                 padding_subs[j] = 0
             padding_subs[i+1] = 2
-            
+
             client_key_exchange_generator = ClientKeyExchangeGenerator(
                 padding_subs=padding_subs,
                 reuse_encrypted_premaster=reuse_rsa_ciphertext)
@@ -731,7 +729,7 @@ def main():
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
                                                 cipher, cln_extensions, srv_extensions,
                                                 client_key_exchange_generator, level, alert)
-        
+
     conversations["too long PKCS padding"] = conversation
     generators["too long PKCS padding"] = cke_node
 
@@ -779,7 +777,7 @@ def main():
 
     # test for Hamming weight sensitivity:
     # very high Hamming weight:
-    
+
     client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={-1: 0xff},
         padding_byte=0xff,
