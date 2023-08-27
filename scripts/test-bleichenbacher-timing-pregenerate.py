@@ -95,7 +95,9 @@ def help_msg():
     print(" --help         this message")
 
 
-def initiate_connection(host, port, timeout, cipher, cln_extensions, srv_extensions, client_key_exchange_generator, level, alert):
+def build_conn_graph(host, port, timeout, cipher, cln_extensions,
+                     srv_extensions, client_key_exchange_generator, level,
+                     alert):
     """ Reuse the same block as a function, to simplify code """
     conversation = Connect(host, port, timeout=timeout)
     node = conversation
@@ -413,7 +415,7 @@ def main():
         padding_subs={1: 3},
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
     
@@ -425,7 +427,7 @@ def main():
         padding_subs={1: 1},
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -439,7 +441,7 @@ def main():
         random_premaster=True,
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -451,7 +453,7 @@ def main():
         padding_subs={4: 0},
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -463,7 +465,7 @@ def main():
         padding_subs={-2: 0},
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -475,7 +477,7 @@ def main():
         padding_subs={2: 0},
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
     
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -488,7 +490,7 @@ def main():
         padding_subs={0: 1},
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -500,7 +502,7 @@ def main():
         padding_subs={-1: 1},
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -514,7 +516,7 @@ def main():
         premaster_secret=bytearray([3, 3]),
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -529,7 +531,7 @@ def main():
         premaster_secret=bytearray([3, 3]),
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
     conversations["random plaintext"] = conversation
@@ -540,7 +542,7 @@ def main():
         premaster_secret=bytearray([1, 1]),
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -555,7 +557,7 @@ def main():
         premaster_secret=bytearray([1, 1, 0]),
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -571,7 +573,7 @@ def main():
         premaster_secret=bytearray([1, 1, 0, 3]),
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -583,7 +585,7 @@ def main():
         premaster_secret=bytearray([0] * 47),
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -595,7 +597,7 @@ def main():
         premaster_secret=bytearray([0] * 4),
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -607,7 +609,7 @@ def main():
         premaster_secret=bytearray([0] * 49),
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -619,7 +621,7 @@ def main():
         premaster_secret=bytearray([0] * 124),
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -631,7 +633,7 @@ def main():
         premaster_secret=bytearray([0] * 96),
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -643,7 +645,7 @@ def main():
         client_version=(2, 2),
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -655,7 +657,7 @@ def main():
         client_version=(0, 0),
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -678,7 +680,7 @@ def main():
                 padding_subs=padding_subs,
                 reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-            (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+            (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -704,7 +706,7 @@ def main():
             padding_subs=subs,
             reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-        (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+        (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -727,7 +729,7 @@ def main():
         padding_subs={0: 2},
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
         
@@ -742,7 +744,7 @@ def main():
         random_premaster=True,
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -767,7 +769,7 @@ def main():
                 premaster_secret=bytearray(),
                 reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-            (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+            (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
@@ -786,7 +788,7 @@ def main():
         random_premaster=True,
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, node, cke_node) = initiate_connection(host, port, timeout,
+    (conversation, node, cke_node) = build_conn_graph(host, port, timeout,
                                                          cipher, cln_extensions, srv_extensions,
                                                          client_key_exchange_generator, level, alert)
 
