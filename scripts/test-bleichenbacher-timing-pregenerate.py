@@ -415,8 +415,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
     
     conversations["set PKCS#1 padding type to 3"] = conversation
     generators["set PKCS#1 padding type to 3"] = cke_node
@@ -427,8 +427,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
     conversations["set PKCS#1 padding type to 1"] = conversation
     generators["set PKCS#1 padding type to 1"] = cke_node
@@ -441,8 +441,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
     conversations["use PKCS#1 padding type 1"] = conversation
     generators["use PKCS#1 padding type 1"] = cke_node
@@ -453,8 +453,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
     conversations["zero byte in random padding"] = conversation
     generators["zero byte in random padding"] = cke_node
@@ -465,8 +465,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
     conversations["zero byte in last byte of random padding"] = conversation
     generators["zero byte in last byte of random padding"] = cke_node
@@ -477,8 +477,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
     
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
 
     conversations["zero byte in first byte of random padding"] = conversation
@@ -490,8 +490,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
     conversations["invalid version number in padding"] = conversation
     generators["invalid version number in padding"] = cke_node
@@ -502,8 +502,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
     conversations["no null separator in padding"] = conversation
     generators["no null separator in padding"] = cke_node
@@ -516,8 +516,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
     conversations["no null separator in encrypted value"] = conversation
     generators["no null separator in encrypted value"] = cke_node
@@ -531,8 +531,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
     conversations["random plaintext"] = conversation
     generators["random plaintext"] = cke_node
 
@@ -542,8 +542,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
     conversations["two byte long PMS (TLS version only)"] = conversation
     generators["two byte long PMS (TLS version only)"] = cke_node
@@ -557,8 +557,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
     conversations["no encrypted value"] = conversation
     generators["no encrypted value"] = cke_node
@@ -573,8 +573,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
     conversations["one byte encrypted value"] = conversation
     generators["one byte encrypted value"] = cke_node
@@ -585,8 +585,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
     conversations["too short (47-byte) pre master secret"] = conversation
     generators["too short (47-byte) pre master secret"] = cke_node
@@ -597,8 +597,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
     conversations["very short (4-byte) pre master secret"] = conversation
     generators["very short (4-byte) pre master secret"] = cke_node
@@ -609,8 +609,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
     conversations["too long (49-byte) pre master secret"] = conversation
     generators["too long (49-byte) pre master secret"] = cke_node
@@ -621,8 +621,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
     conversations["very long (124-byte) pre master secret"] = conversation
     generators["very long (124-byte) pre master secret"] = cke_node
@@ -633,8 +633,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
     conversations["very long (96-byte) pre master secret"] = conversation
     generators["very long (96-byte) pre master secret"] = cke_node
@@ -645,8 +645,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
     conversations["wrong TLS version (2, 2) in pre master secret"] = conversation
     generators["wrong TLS version (2, 2) in pre master secret"] = cke_node
@@ -657,8 +657,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
     conversations["wrong TLS version (0, 0) in pre master secret"] = conversation
     generators["wrong TLS version (0, 0) in pre master secret"] = cke_node
@@ -680,8 +680,8 @@ def main():
                 reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
             (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
             suffix = ""
             if reuse_rsa_ciphertext:
@@ -706,8 +706,8 @@ def main():
             reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
         (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
         suffix = ""
         if reuse_rsa_ciphertext:
@@ -729,8 +729,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
         
     conversations["too long PKCS padding"] = conversation
     generators["too long PKCS padding"] = cke_node
@@ -744,8 +744,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
     conversations["very low Hamming weight RSA plaintext"] = conversation
     generators["very low Hamming weight RSA plaintext"] = cke_node
@@ -769,8 +769,8 @@ def main():
                 reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
             (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
             conversations["low Hamming weight RSA plaintext - {0} - {1}"
                           .format(hex(bit_set), place)] = conversation
@@ -788,8 +788,8 @@ def main():
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
     (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                         cipher, cln_extensions, srv_extensions,
-                                                         client_key_exchange_generator, level, alert)
+                                                cipher, cln_extensions, srv_extensions,
+                                                client_key_exchange_generator, level, alert)
 
     conversations["very high Hamming weight RSA plaintext"] = conversation
     generators["very high Hamming weight RSA plaintext"] = cke_node
