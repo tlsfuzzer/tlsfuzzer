@@ -9,7 +9,7 @@ from tlslite.messages import Message, Certificate, RecordHeader2
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.errors import TLSAbruptCloseError
 from tlslite.constants import ContentType, HandshakeType, AlertLevel, \
-        AlertDescription, SSL2HandshakeType, CipherSuite
+        AlertDescription, SSL2HandshakeType, CipherSuite, TLS_1_3_HRR
 from .expect import ExpectClose, ExpectNoMessage, ExpectAlert
 
 class ConnectionState(object):
@@ -158,6 +158,9 @@ def guess_response(content_type, data, ssl2=False):
         if ssl2:
             return "Handshake({0})".format(SSL2HandshakeType.toStr(data[0]))
         else:
+            if data[0] == HandshakeType.server_hello and \
+                    data[6:6+32] == TLS_1_3_HRR:
+                return "Handshake(server_hello, hello_retry_request)"
             return "Handshake({0})".format(HandshakeType.toStr(data[0]))
     elif content_type == ContentType.application_data:
         return "ApplicationData(len={0})".format(len(data))
@@ -244,10 +247,14 @@ class Runner(object):
                     # send message to peer
                     msg = node.generate(self.state)
                     try:
+                        # sendMessageBlocking is buffered and fragmenting
+                        # that means that 0-length messages would get lost
+                        # so send them directly through record layer
                         if msg.write():
-                            # sendMessageBlocking is buffered and fragmenting
-                            # that means that 0-length messages would get lost
-                            self.state.msg_sock.sendMessageBlocking(msg)
+                            if node.queue:
+                                self.state.msg_sock.queueMessageBlocking(msg)
+                            else:
+                                self.state.msg_sock.sendMessageBlocking(msg)
                         else:
                             for _ in self.state.msg_sock.sendRecord(msg):
                                 # make the method into a blocking one
