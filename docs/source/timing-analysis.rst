@@ -10,18 +10,24 @@ When an implementation takes different amounts of time to process the messages
 we consider it a timing side-channel. When such side-channels reflect the
 contents of the processed messages we call them timing oracles.
 
-One of the oldest timing oracles is the attack described by Daniel
+One of the oldest attacks that can use timing oracles is the attack described
+by Daniel
 Bleichenbacher against RSA key exchange. You can test for it using the
-`test-bleichenbacher-timing.py
-<https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-bleichenbacher-timing.py>`_
+`test-bleichenbacher-timing-pregenerate.py
+<https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-bleichenbacher-timing-pregenerate.py>`_
 script.
 
-The other is related to de-padding and verifying MAC values in CBC ciphertexts,
-the newest iteration of which is called Lucky Thirteen. You can test for it
-using the
-`test-lucky13.py
-<https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-lucky13.py>`_
-script.
+While we also include another script to do Bleichenbacher side-channel
+testing
+(`test-bleichenbacher-timing.py
+<https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-bleichenbacher-timing.py>`_)
+and one to test de-padding and verifying MAC values in CBC ciphertexts
+(`test-lucky13.py
+<https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-lucky13.py>`_,
+the Lucky Thirteen attack), they do not use similarly robust approach
+as the ``test-bleichenbacher-timing-pregenerate.py`` script, which
+may cause them to report false positives.
+
 
 Environment setup
 =================
@@ -30,6 +36,10 @@ As the scripts measure the time it takes a server to reply to a message,
 a server running alone on a machine, with no interruptions from other
 services or processes will provide statistically significant results with
 fewest observations.
+
+It should be noted though, that using special setup for the system on which
+you run the test will affect *how long* the test needs to run, it will *not*
+affect the false positive rate.
 
 Hardware selection
 ------------------
@@ -42,13 +52,20 @@ under test (to ensure consistent response times). If that's not available,
 running the OS, tlsfuzzer and tcpdump on one core and the SUT on isolated
 core is also an option (though it will provide lower quality measurements).
 
-While you can run the tests against a network server, this manual
-doesn't describe how to ensure low latency and low jitter
-to such system under test.
+You can also run the tests against a real network server.
+To ensure
+high quality of the data, you should perform the same kind of tuning
+(core isolation, CPU pinning of the network server) on that host and connect
+to it as directly as possible (a single network switch between it and the host
+running tlsfuzzer is fine). Finally, making sure that both the network
+and the host in question are as quiet as possible will also increase quality
+of the results (one stray connection every few minutes is not a problem,
+but running the test against a production server under load will require
+significantly more data for proper inference).
 
 It's better to use a desktop or server system with sufficient cooling as
-thermal throttling is common for laptops running heavy workloads resulting
-in jitter and overall inconsistent results.
+thermal throttling is common in laptops running heavy workloads resulting
+in jitter and overall low quality of collected data.
 
 OS configuration
 ----------------
@@ -146,8 +163,9 @@ And the general requirements to collect and analyse timing results:
 
    Because the tests use packet capture to collect timing information and
    they buffer the messages until all of them have been created, the use
-   of ``m2crypto`` and ``gmpy2`` does not have an effect on collected
-   data points, using them will only make tlsfuzzer run the tests faster.
+   of ``m2crypto`` and ``gmpy2`` does not have an effect on quality of
+   collected data points, using them will only make tlsfuzzer run the tests
+   faster.
 
 .. note::
    RHEL-8 doesn't respect the QUICKACK setting on the C API. The users need
@@ -155,58 +173,81 @@ And the general requirements to collect and analyse timing results:
    packets will be counted as zero. Use a command like
    ``ip route change local 127.0.0.1 dev lo proto kernel scope host src 127.0.0.1 quickack 1``
    to enable it.
+   If you cannot enable QUICKACK feature, run the test script with the
+   ``--no-quickack`` option.
 
 Testing theory
 ==============
 
-Because the measurements the test performs are statistical by nature,
+Because the measurements the test performs are statistical by nature and
+come from complex systems with a lot of dependencies,
 the scripts can't just take a mean of observations and compare them with
 means of observations of other tests—that will not provide quantifiable
 results. This is caused by the fact that the measurements don't follow
 a simple and well-defined distribution, in many cases they are
 `multimodal
 <https://en.wikipedia.org/wiki/Multimodal_distribution>`_
-and not `normal <https://en.wikipedia.org/wiki/Normal_distribution>`_.
-That means that the scripts need to use statistical tests to check if the
+and almost never `normal <https://en.wikipedia.org/wiki/Normal_distribution>`_.
+Moreover, the measurements are almost always self-similar (because when
+a CPU starts to run on a different frequency *all* measurements will be
+affected by it),
+thus statistical tests used must not require
+`independent and identically distributed
+<https://en.wikipedia.org/wiki/Independent_and_identically_distributed_random_variables>`_
+measurements.
+That means that the scripts need to use statistical tests that are suited
+for testing
+this kind of data to check if the
 observations differ significantly or not.
 
-Most statistical tests work in terms of hypothesis testing.
-Scripts use
+In frequentist statitics tests work in terms of hypothesis testing.
+Scripts in ``tlsfuzzer`` use
 `Wilcoxon signed-rank test
 <https://en.wikipedia.org/wiki/Wilcoxon_signed-rank_test>`_
 and the
 `Sign test
-<https://en.wikipedia.org/wiki/Sign_test>`_ to compare samples.
+<https://en.wikipedia.org/wiki/Sign_test>`_ to compare pairs of samples.
 After executing it against two sets of observations (samples), it outputs
 a "p-value"—a probability of getting such samples, if they were taken from
 the same population.
-A high p-value (close to 1) means that the samples likely came from the
-same source while a small value (close to 0, smaller than 0.05) means
-that it's unlikely that they came from the same source distribution.
+A high p-value (close to 1, larger than 0.05) means that the samples likely
+came from the
+same source while the smaller the value (closer to 0, smaller than 0.05) the
+more likely it is that they don't come from the same source distribution.
 
-Generally, script assumes that the p-values below 0.05 mean that the values
+Generally, script assumes that the p-values below 0.00001 mean that the values
 came from different distributions, i.e. the server behaves differently
 for the two provided inputs.
+You can adjust it by adding the ``--alpha`` parameter to the test script.
 
 But such small values are expected even if the samples were taken from the same
-distribution if the number of performed tests is large, so you need to check
-if those values are no more common than expected.
+distribution but the number of performed tests is large, so for the
+Wilcoxon test and the sign test the script applies also the
+`Bonferroni correction
+<https://en.wikipedia.org/wiki/Bonferroni_correction>`_ before making
+a decision if the result is statistically significant or not.
 
 If the samples did indeed come from the same population, then the distribution
 of p-values will follow a
 `uniform distribution
 <https://en.wikipedia.org/wiki/Uniform_distribution_(continuous)>`_ with
-values between 0 and 1.
-
-You can use this property to check if not only the failures (small p-values)
-occur not more often than expected, but to check for more general inconsistency
-in p-values (as higher probability of small p-values means that large
-p-values occur less often).
-
-The scripts perform the
+values between 0 and 1. It's therefore possible, by using external statistical
+software, to verify if multiple executions with the same sample size (like in
+CI) follow it, or if a particular failure is an outlier.
+One way to do that is by using the
 `Kolmogorov–Smirnov test
-<https://en.wikipedia.org/wiki/Kolmogorov%E2%80%93Smirnov_test>`_ to test
-the uniformity of p-values of the Wilcoxon tests and the sign test.
+<https://en.wikipedia.org/wiki/Kolmogorov%E2%80%93Smirnov_test>`_.
+
+The script also executes a test that compares all of the samples (classes)
+ot once, the
+`Friedman test
+<https://en.wikipedia.org/wiki/Friedman_test>`_.
+If the script executed at least half a dozen classes, it should be much more
+sensitive than the individual sign tests or Wilcoxon signed rank tests.
+Thus for default configuration of the
+``test-bleichenbacher-timing-pregenerate.py`` it should be sufficient to
+check its p-value to decide if the test script found a positive or negative
+result.
 
 The test scripts allow setting the sample size as it has impact on the smallest
 effect size that the test can detect.
@@ -219,32 +260,30 @@ samples in question), but it's a good starting point.
 Also, it means that if you wish to decrease the reported confidence interval
 by a factor of 10, you must execute the script with 100 times as many
 repetitions (as 10²=100).
+Or execute the same script with the same settings 100 times, combine
+the resulting data in ``timing.csv`` files and analyse such combined data
+set.
+That's the primary reason for the careful system setup: it's much
+easier to adjust a system configuration than to execute hundred tests
+that take 24h to complete...
 
 Note that this effect size is proportional to magnitude of any single
 observation, at the same time things like size of pre master secret
-or size of MAC are constant, thus configuring the server to use fast ciphers
+or size of MAC are constant, thus configuring the test to use fastest cipher
 and small key sizes for RSA will make the test detect smaller (absolute)
 effect sizes, if they exist.
 
 Finally, the scripts take the pair of samples most dissimilar to each other
-and estimate the difference and the 99% confidence interval for the difference
-to show the estimated effect size.
-
-You can also use the following
-`R
-<https://www.r-project.org/>`_ script to calculate the confidence intervals
-for the difference between a given pair of samples using the Wilcoxon test:
-
-.. code::
-
-   df <- read.csv('timing.csv', header=F)
-   data <- df[,2:length(df[1,])]
-   # print headers (names of tests)
-   df[,1]
-   # run Wilcoxon signed-rank test between second and third sample,
-   # report 99% confidence interval for the difference:
-   wilcox.test(as.numeric(data[2,]), as.numeric(data[3,]), paired=T, conf.int=T, conf.level=0.99)
-
+and using
+`bootstrapping
+<https://en.wikipedia.org/wiki/Bootstrapping_(statistics)>`_
+estimate the difference and the 95% confidence interval for the difference
+to calculate the estimated smallest effect size that a given data set size
+should be able to detect.
+If you're running a test to exclude possibility of a side channel, you
+should aim for a 95% confidence interval of around 1ns, as side channel
+of just 4 or 5 clock cycles is unlikely given that the test cases include
+extreme examples of malformed messages.
 
 To put into practical terms, a run with 10000 observations, checking a server
 with a 100µs response time will not detect a timing side channel
@@ -258,8 +297,8 @@ To run the tests:
 1. Select a machine with sufficient cooling and a multi-core CPU
 2. Use methods mentioned before to create isolated cores, watch out for
    hyperthreading
-3. For RSA tests use small key (1024 bit), for CBC tests use a fast cipher and
-   hash.
+3. For RSA tests use small key (1024 bit), fast cipher, and
+   HMAC hash.
 4. Start the server on one of the isolated cores, e.g.:
 
    .. code::
@@ -269,7 +308,7 @@ To run the tests:
 
    .. code::
 
-       PYTHONPATH=. python3 scripts/test-lucky13.py -i lo --repeat 100 --cpu-list 4,5
+       PYTHONPATH=. python3 taskset --cpu-list 4 scripts/test-lucky13.py -i lo --repeat 100 --cpu-list 5
 6. Wait (a long) time
 7. Inspect summary of the analysis, or move the test results to a host with
    newer python and analyse it there.
@@ -313,7 +352,7 @@ Bleichenbacher test is extended to use the timing functionality:
 
 .. code:: bash
 
-   sudo PYTHONPATH=. python scripts/test-bleichenbacher-timing.py -i lo
+   PYTHONPATH=. python scripts/test-bleichenbacher-timing.py -i lo
 
 By default, if ``dpkt`` dependency is available, the extraction will run right
 after the timing packet capture.
@@ -342,6 +381,9 @@ the analysis, you can skip the generation of some graphs using the
 ``--no-ecdf-plot``, ``--no-scatter-plot`` and ``--no-conf-interval-plot``.
 That last option disables generation of the ``bootstrapped_means.csv`` file
 too.
+It's generally recommended to disable scatter plot generation for any
+sample sizes above 100 thousand: the resulting graph will be unreadable
+anyway.
 
 External timing data
 --------------------
@@ -436,19 +478,27 @@ analysis as usual.
 Interpreting the results
 ========================
 
-You should start the inspection of test results with the ``scatter_plot.png``
-graph. It plots all of the collected connection times. There is also a
+When working with completely new server you should start the inspection of
+test results with the ``scatter_plot.png`` graph.
+It plots all of the collected connection times. There is also a
 zoomed-in version that will be much more readable in case of much larger
 outliers. You can find it in the ``scatter_plot_zoom_in.png`` file.
-If you can see that there is a periodicity to the collected measurements, or
-the values can be collected in similarly looking groups, that means that
+In case of very large samples (100 thousand or so), the plot may be unreadable
+(will be a solid colour), in such cases, inspecting ``sample_X_heatmap.png``,
+``sample_X_heatmap_zoom_in.png``, and ``sample_X_partial_heatmap_zoom_in.png``
+will show similar data for one of the two samples most dissimilar from the set.
+If you can see that there is periodicity to the collected measurements, or
+the values can be collected in similarly looking groups (there are steps
+in the graphs), that means that
 the data is
 `autocorrelated
 <https://en.wikipedia.org/wiki/Autocorrelation>`_ (or, in other words,
 not-independent) and simple summary statistics like
 mean, median, or quartiles are not representative of the samples.
+It also means that they can't be compared with the box test, or Mann-Whitney
+U test.
 
-The next set of graphs show the overall shape of the samples.
+The next set of graphs compare the overall shape of the samples.
 The ``box_plot.png`` shows the 5th
 `percentile
 <https://en.wikipedia.org/wiki/Percentile>`_, 1st `quartile
@@ -474,8 +524,8 @@ The ``diff_ecdf_plot.png`` is the ECDF counterpart to the scatter plot.
 Here, if the graph is
 `symmetrical
 <https://en.wikipedia.org/wiki/Symmetric_probability_distribution>`_ then the
-results from the Wilcoxon signed-rank test are meaningful. If the graph
-is asymmetric focus on sign test results.
+results from the Wilcoxon signed-rank will be robust. If the graph
+is asymmetric, sign test results should be more robust.
 The ``diff_ecdf_plot_zoom_in_98.png``, ``diff_ecdf_plot_zoom_in_33.png``,
 and ``diff_ecdf_plot_zoom_in_10.png`` show just the central 98, 33, and 10
 percentiles respectively of the graph (to make estimating small differences
@@ -483,27 +533,32 @@ between samples easier).
 
 Finally, the ``conf_interval_plot_mean.png``,
 ``conf_interval_plot_median.png``, ``conf_interval_plot_trim_mean_05.png``,
-``conf_interval_plot_trim_mean_25.png``, and ``conf_interval_plot_trimean.png``
-show the mean, median, trimmed mean (5%), trimmed mean (25%), and trimean
+``conf_interval_plot_trim_mean_25.png``,
+``conf_interval_plot_trim_mean_45.png``, and ``conf_interval_plot_trimean.png``
+show the mean, median, trimmed mean (5%), trimmed mean (25%), trimmed mean
+(45%), and trimean
 respecively, of the differences between samples together with
 `bootstrapped
 <https://en.wikipedia.org/wiki/Bootstrapping_(statistics)>`_ confidence
 interval for them.
 For an implementation without a timing side channel present, all the graphs
 should intersect with the horizonal 0 line.
-If a graph does not intersect with the 0 line, then the number of heights
-of it from the 0 line suggests how strong is the confidence in the
-presence of side channel on an exponential scale.
+If a graphed confidence interval does not intersect with the 0 line, then the
+distance of it from the 0 line suggests how likely is the presence
+of a side channel.
+With the likelihood increasing exponentially with the distance.
+Exact numerical values can be found in ``report.csv``.
 
 As mentioned previously, the script executes tests in three stages, first
 is the Wilcoxon signed-rank test and sign test between all the samples,
-second is the uniformity test of those results, third is the Friedman test.
+second is the Friedman test, and finally is the bootstrapping of the
+confidence interval for mean and median of the differences.
 
 .. warning::
 
    The implementation of Friedman test uses an approximation using Chi-squared
    distribution. That means the results of it are reliable only with many
-   samples (at least 5, optimally 10). You should ignore it for such small
+   samples (at least 5, optimally 10). You should ignore it for very small
    runs. It's also invalid in case of just two samples (used conversations).
 
 The sign test is performed in three different ways: the default, used for
@@ -527,14 +582,17 @@ but as the timings generally don't follow the normal distribution, it severly
 underestimates the difference between samples (it is strongly influenced by
 outliers). The results from it are not taken into account to decide failure of
 the overall timing test.
+It is useful for testing servers that are far away from the system on which
+the test script is executed.
 
-If either the KS-tests of uniformity of p-values, or the Friedman test fails,
+If the Friedman test fails,
 you should inspect the individual test p-values.
 
 If one particular set of tests consistently scores low when compared to
 other tests (e.g. "very long (96-byte) pre master secret" and
 "very long (124-byte) pre master secret"
-from ``test-bleichenbacher-timing.py``) but high when compared with each-other,
+from ``test-bleichenbacher-timing-pregenerate.py``) but high when compared
+with each-other,
 that strongly points to a timing side-channel in the system under test.
 
 If the timing signal has a high relative magnitude (one set of tests
@@ -566,43 +624,6 @@ The ``sample_stats.csv`` file include the calculated mean, median, and MAD
 for the samples themselves (i.e. not the differences between samples).
 You can use this data to estimate the smallest detectable difference between
 samples for a given sample size.
-
-Using R you can also manually generate ``conf_interval_plot_mean.png`` graph,
-but note that this will take about an hour for 21 tests and
-samples with 1 million observations each on a 4 core/8 thread 2GHz CPU:
-
-.. code::
-
-   library(tidyr)
-   library(ggplot2)
-   library(dplyr)
-   library(data.table)
-   library(boot)
-   df <- fread('timing.csv', header=F)
-   data <- data.frame(t(df[,2:length(df[1,])]))
-   colnames(data) <- as.matrix(df[,1:10])[,1]
-   df <- 0
-   R = 5000
-   rsq <- function(data, indices) {
-     d <- data[indices]
-     return(mean(d, trim=0.25))
-   }
-   data2 = replicate(R, 0)
-   data2 = cbind(data2)
-   date()
-   for (i in c(2:length(data[1,]))) {
-     a = boot(data[,1]-data[,i], rsq, R=R, parallel="multicore",
-              simple=TRUE, ncpus=8)
-     data2 = cbind(data2, a$t)
-   }
-   date()
-   data2 = data.frame(data2)
-   data2 %>% gather(key="MeasureType", value="Delay") %>%
-   ggplot( aes(x=factor(MeasureType, level=colnames(data2)), y=Delay,
-               fill=factor(MeasureType, level=colnames(data2)))) +
-   geom_violin() + xlab("Test ID") +
-   ylab("Trimmed mean of differences [s]") + labs(fill="Test ID")
-   colnames(data)
 
 
 Writing new test scripts
