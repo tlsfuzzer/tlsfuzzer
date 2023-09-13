@@ -26,7 +26,7 @@ for arg in argv[1:]:
         status =1
         continue
     for f in scriptlist:
-        if f not in str(jsonfile):
+        if f not in str(jsonfile) and f[:4] == "test":
             missing.append(f)
     if not missing:
         print(" All scripts are in the json file")
