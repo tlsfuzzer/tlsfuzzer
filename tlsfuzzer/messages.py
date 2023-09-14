@@ -453,6 +453,7 @@ class MessageGenerator(TreeNode):
         """Initialize the object."""
         super(MessageGenerator, self).__init__()
         self.msg = None
+        self.queue = False
 
     def is_command(self):
         """Define object as a generator node."""
@@ -632,7 +633,7 @@ class ClientHelloGenerator(HandshakeProtocolMessageGenerator):
             elif ext_id in (ExtensionType.client_hello_padding,
                             ExtensionType.encrypt_then_mac,
                             ExtensionType.extended_master_secret,
-                            35,  # session_ticket
+                            ExtensionType.session_ticket,
                             49,  # post_handshake_auth
                             52):  # transparency_info
                 ext = TLSExtension().create(ext_id, bytearray())
@@ -2094,6 +2095,48 @@ def split_message(generator, fragment_list, size):
 
     generator.generate = new_generate
     return generator
+
+
+def queue_message(generator):
+    """Queue message with other ones of the same content type.
+
+    Allow coalescing of the message with other messages with the same
+    content type, this allows for sending Certificate and CertificateVerify
+    in a single record.
+    """
+    assert generator.is_generator()
+    generator.queue = True
+    return generator
+
+
+def skip_post_send(generator):
+    """Make the post_send method of generator do nothing.
+
+    This is useful when combining messages that update connection state,
+    like KeyUpdate or Finished in TLS 1.3.
+    """
+    assert generator.is_generator()
+
+    generator.post_send = lambda _: None
+    return generator
+
+
+class FlushMessageQueue(Command):
+    """Flush the record layer queue of messages."""
+
+    def __init__(self, description=None):
+        super(FlushMessageQueue, self).__init__()
+        self.description = description
+
+    def __repr__(self):
+        vals = []
+        if self.description:
+            vals.append(('description', repr(self.description)))
+        return 'FlushMessageQueue({0})'.format(
+                ', '.join("{0}={1}".format(i[0], i[1]) for i in vals))
+
+    def process(self, state):
+        state.msg_sock.flushBlocking()
 
 
 class PopMessageFromList(MessageGenerator):
