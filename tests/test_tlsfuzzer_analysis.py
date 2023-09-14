@@ -1035,7 +1035,7 @@ class TestDataLoad(unittest.TestCase):
 
         a._convert_to_binary()
 
-unittest.skipIf(failed_import,
+@unittest.skipIf(failed_import,
                  "Could not import analysis. Skipping related tests.")
 class TestMeasurementAnalysis(unittest.TestCase):
     def setUp(self):
