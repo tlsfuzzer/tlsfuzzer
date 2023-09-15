@@ -51,7 +51,7 @@ def help_msg():
     """Print help message"""
     print("""Usage: analysis [-o output]
  -o output      Directory where to place results (required)
-                and where timing.csv is located
+                and where timing.csv or measurements.csv is located
  --no-ecdf-plot Don't create the ecdf_plot.png file
  --no-scatter-plot Don't create the scatter_plot.png file
  --no-conf-interval-plot Don't create the conf_interval_plot.png file
@@ -73,6 +73,8 @@ def help_msg():
                 in seconds.
  --status-newline Use newline for printing status line, not carriage return,
                 works better with output redirection to file.
+ --measurements Specifies that the program will analyze measurement data.
+ --skip-sanity  Skip sanity measurements from analysis.
  --help         Display this message""")
 
 
@@ -89,6 +91,8 @@ def main():
     workers = None
     delay = None
     carriage_return = None
+    measurements = False
+    skip_sanity = False
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "o:",
                                ["help", "no-ecdf-plot", "no-scatter-plot",
@@ -99,6 +103,8 @@ def main():
                                 "workers=",
                                 "status-delay=",
                                 "status-newline",
+                                "measurements",
+                                "skip-sanity",
                                 "verbose"])
 
     for opt, arg in opts:
@@ -127,12 +133,21 @@ def main():
             delay = float(arg)
         elif opt == "--status-newline":
             carriage_return = '\n'
+        elif opt == "--measurements":
+            measurements = True
+        elif opt == "--skip-sanity":
+            skip_sanity = True
 
     if output:
         analysis = Analysis(output, ecdf_plot, scatter_plot, conf_int_plot,
                             multithreaded_graph, verbose, clock_freq, alpha,
-                            workers, delay, carriage_return)
-        ret = analysis.generate_report()
+                            workers, delay, carriage_return, measurements,
+                            skip_sanity)
+        if measurements:
+            ret = analysis.analyze_measurements()
+        else:
+            ret = analysis.generate_report()
+
         return ret
     else:
         raise ValueError("Missing -o option!")
@@ -144,12 +159,12 @@ class Analysis(object):
     def __init__(self, output, draw_ecdf_plot=True, draw_scatter_plot=True,
                  draw_conf_interval_plot=True, multithreaded_graph=False,
                  verbose=False, clock_frequency=None, alpha=None,
-                 workers=None, delay=None, carriage_return=None):
+                 workers=None, delay=None, carriage_return=None,
+                 measurements=False, skip_sanity=False):
         self.verbose = verbose
         self.output = output
         self.clock_frequency = clock_frequency
-        data = self.load_data()
-        self.class_names = list(data)
+        self.class_names = []
         self.draw_ecdf_plot = draw_ecdf_plot
         self.draw_scatter_plot = draw_scatter_plot
         self.draw_conf_interval_plot = draw_conf_interval_plot
@@ -161,6 +176,12 @@ class Analysis(object):
             self.alpha = alpha
         self.delay = delay
         self.carriage_return = carriage_return
+        self.measurements = measurements
+        self.skip_sanity = skip_sanity
+
+        if not measurements:
+            data = self.load_data()
+            self.class_names = list(data)
 
     def _convert_to_binary(self):
         timing_bin_path = join(self.output, "timing.bin")
@@ -1386,6 +1407,348 @@ class Analysis(object):
         self._stop_all_threads(processes)
 
         return difference
+
+    def _div_by_freq(self, data_iter):
+        for row in data_iter:
+            row[2] = float(row[2]) / self.clock_frequency
+            yield row
+
+    def _read_file(self):
+        current_max_k_value = None
+        max_k_size = None
+        previous_row = None
+
+        with open(join(self.output, "measurements.csv"), 'r') as in_fp:
+            data_iter = csv.reader(in_fp)
+
+            if self.clock_frequency:
+                data_iter = self._div_by_freq(data_iter)
+
+            row = next(data_iter)
+            previous_row = row[0]
+            max_k_size = row[1]
+            current_max_k_value = row[2]
+
+            yield (current_max_k_value, current_max_k_value, max_k_size)
+
+            for row in data_iter:
+                current_row = row[0]
+                k_size = row[1]
+                value = row[2]
+
+                if k_size == max_k_size and previous_row != current_row:
+                    current_max_k_value = value
+                    previous_row = current_row
+                    continue
+                elif k_size == max_k_size and self.skip_sanity:
+                    continue
+
+                yield (current_max_k_value, value, k_size)
+
+    def create_k_specific_dirs(self):
+        k_sizes = []
+        k_size_files = {}
+
+        if self.verbose:
+            print("Creating a dir for each K size...")
+
+        data_iter = self._read_file()
+
+        data = next(data_iter)
+        max_k_size = data[2]
+
+        for data in data_iter:
+            k_size = data[2]
+
+            if k_size not in k_size_files:
+                k_sizes.append(k_size)
+
+                k_folder_path = join(
+                    self.output,
+                    "analysis_results/k-by-size/{0}".format(k_size)
+                )
+                os.makedirs(k_folder_path)
+                k_size_files[k_size] = open(
+                    join(k_folder_path, "timing.csv"), 'w',
+                    encoding="utf-8"
+                )
+                if k_size != max_k_size:
+                    k_size_files[k_size].write(
+                        "{0},{1}\n".format(max_k_size, k_size)
+                    )
+                else:
+                    k_size_files[k_size].write(
+                        "{0},{1}-sanity\n".format(max_k_size, max_k_size)
+                    )
+
+            k_size_files[k_size].write("{0},{1}\n".format(data[0], data[1]))
+
+        k_sizes = sorted(k_sizes, reverse=True)
+
+        if self.skip_sanity and max_k_size in k_sizes:
+            k_sizes.remove(max_k_size)
+
+        if self.verbose:
+            print("Max K size detected: {0}".format(max_k_size))
+            print("Min K size detected: {0}".format(k_sizes[-1]))
+
+        for k_size in k_size_files:
+            k_size_files[k_size].close()
+
+        if not self.skip_sanity:
+            max_k_folder_path = join(
+                self.output,
+                "analysis_results/k-by-size/{0}".format(max_k_size)
+            )
+            with open(join(max_k_folder_path, "timing.csv"), 'r') as fp:
+                for count, line in enumerate(fp):
+                    pass
+            if count < 2:
+                shutil.rmtree(max_k_folder_path)
+                k_sizes.remove(max_k_size)
+
+        return k_sizes
+
+    def conf_plot_for_all_k(self, k_sizes):
+        boots = {
+            "mean": {},
+            "median": {},
+            "trim_mean_05": {},
+            "trim_mean_25": {},
+            "trim_mean_45": {},
+            "trimean": {}
+        }
+
+        for k_size in k_sizes:
+            k_size_path = join(
+                self.output, "analysis_results/k-by-size/{0}".format(k_size)
+            )
+            for method in list(boots.keys()):
+                with open(
+                    join(
+                        k_size_path, "bootstrapped_{0}.csv".format(method)
+                    ), 'r', encoding='utf-8'
+                ) as fp:
+                    boots[method][k_size] = [
+                        float(x) for x in fp.read().splitlines()[1:]
+                    ]
+
+        for name in boots:
+            number_of_k_sizes = len(boots[name].keys())
+
+            name_readable = name
+            if name == "trim_mean_05":
+                name_readable = "trim mean (5%)"
+            elif name == "trim_mean_25":
+                name_readable = "trim mean (25%)"
+            elif name == "trim_mean_45":
+                name_readable = "trim mean (45%)"
+
+            for start in range(0, number_of_k_sizes, 10):
+                end = min(start + 10, number_of_k_sizes)
+                fig = Figure(figsize=((end - start) * 2, 10))
+                canvas = FigureCanvas(fig)
+
+                ax = fig.add_subplot(1, 1, 1)
+                ax.violinplot(
+                    list(boots[name].values())[start:end], range(end - start),
+                    widths=0.7, showmeans=True, showextrema=True
+                )
+
+                ax.set_xticks(range(end - start))
+                ax.set_xticklabels(list(boots[name].keys())[start:end])
+
+                formatter = mpl.ticker.EngFormatter('s')
+                ax.get_yaxis().set_major_formatter(formatter)
+
+                ax.set_title(
+                    "Confidence intervals for {0} of differences".format(name)
+                )
+                ax.set_xlabel("K bit size")
+                ax.set_ylabel("{0} of differences".format(name_readable))
+
+                canvas.print_figure(
+                    join(
+                        self.output, "analysis_results",
+                        "conf_interval_plot_all_k_sizes_{0}_{1}-{2}.png"
+                            .format(name, start, end)
+                    ), bbox_inches="tight"
+                )
+
+    def analyze_measurements(self):
+        out_dir = join(self.output, "analysis_results")
+        testPair = (0, 1)
+        original_output = self.output
+        tests_to_perfom = [
+            "sign_test", "paired_t_test", "wilcoxon_test", "bootstrap_test"
+        ]
+
+        output_files = {}
+
+        if os.path.exists(join(self.output, "analysis_results")):
+            shutil.rmtree(join(self.output, "analysis_results"))
+
+        k_sizes = self.create_k_specific_dirs()
+        max_k_size = k_sizes[0]
+
+        for test in tests_to_perfom:
+            output_files[test] = open(
+                join(out_dir, "{0}.results".format(test)),
+                'w', encoding="utf-8"
+            )
+
+        for k_size in k_sizes:
+            if self.verbose:
+                print('Running test for k size {0}...'.format(k_size))
+
+            self.output = join(out_dir, "k-by-size/{0}".format(k_size))
+            data = self.load_data()
+            self.class_names = list(data)
+            samples = sum(
+                1 for _ in open(join(
+                    out_dir, "k-by-size/{0}/timing.csv".format(k_size)
+                ), 'r')
+            ) - 1
+
+            # Sign test
+            total = 0
+            passed = 0
+
+            with open(join(self.output, "timing.csv")) as in_fp:
+                in_csv = csv.reader(in_fp)
+                next(in_csv)
+                for row in in_csv:
+                    if row[0] != row[1]:
+                        if float(row[1]) > float(row[0]):
+                            passed += 1
+                        total += 1
+
+            try:
+                results = stats.binomtest(
+                    passed, total, p=0.5, alternative="two-sided"
+                )
+            except AttributeError:
+                results = stats.binom_test(
+                    passed, total, p=0.5, alternative="two-sided"
+                )
+
+            output_files['sign_test'].write(
+                "K size of {0}: successes={1}, n={2}, stats={3}, pvalue={4}\n"\
+                    .format(
+                        k_size, passed, total,
+                        results.statistic, results.pvalue
+                    )
+            )
+
+            # Paired t-test
+            results = self.rel_t_test()
+            output_files['paired_t_test'].write(
+                "K size of {0}: {1}\n".format(k_size, results[(0, 1)])
+            )
+
+            # Wilcoxon test
+            results = self.wilcoxon_test()
+            output_files['wilcoxon_test'].write(
+                "K size of {0}: {1}\n".format(k_size, results[(0, 1)])
+            )
+
+            # Bootstrap test
+            if k_size == max_k_size:
+                output_files['bootstrap_test'].write(
+                    "For K size {0} (sanity) ({1} samples):\n".format(
+                        max_k_size,
+                        samples
+                    )
+                )
+            else:
+                output_files['bootstrap_test'].write(
+                    "For K size {0} ({1} samples):\n".format(
+                        k_size,
+                        samples
+                    )
+                )
+
+            if samples > 50:
+                results = self.calc_diff_conf_int(testPair, ci=0.95)
+                print_results = lambda result: \
+                    "{0}s, 95% CI: {1}s, {2}s (±{3}s)"\
+                        .format(
+                            result[1], result[0], result[2],
+                            (result[2] - result[0])
+                        )
+                output_files['bootstrap_test'].write(
+                    "Mean of differences: {0}\n".format(
+                        print_results(results['mean'])
+                    )
+                )
+                output_files['bootstrap_test'].write(
+                    "Median of differences: {0}\n".format(
+                        print_results(results['median'])
+                    )
+                )
+                output_files['bootstrap_test'].write(
+                    "Trimmed mean (5%) of differences: {0}\n".format(
+                        print_results(results['trim_mean_05'])
+                    )
+                )
+                output_files['bootstrap_test'].write(
+                    "Trimmed mean (25%) of differences: {0}\n".format(
+                        print_results(results['trim_mean_25'])
+                    )
+                )
+                output_files['bootstrap_test'].write(
+                    "Trimmed mean (45%) of differences: {0}\n".format(
+                        print_results(results['trim_mean_45'])
+                    )
+                )
+                output_files['bootstrap_test'].write(
+                    "Trimean of differences: {0}\n\n".format(
+                        print_results(results['trimean'])
+                    )
+                )
+            else:
+                diffs = []
+
+                with open(
+                    join(self.output, "timing.csv")
+                ) as in_fp:
+                    in_csv = csv.reader(in_fp)
+                    next(in_csv)
+                    for row in in_csv:
+                        diffs.append(float(row[1]) - float(row[0]))
+
+                output_files['bootstrap_test'].write(
+                    "Median of differences: {0}s\n\n"\
+                        .format(np.mean(diffs) * 1e-9)
+                )
+
+            # Creating graphs
+            if self.verbose:
+                print('Creating graphs for k size {0}...'.format(k_size))
+            self.conf_interval_plot()
+            self.diff_ecdf_plot()
+            self.diff_scatter_plot()
+            try:
+                self.graph_worst_pair(testPair)
+            except AssertionError:
+                if self.verbose:
+                    print(
+                        "K size {0}: Couldn't create worst pair graph.".format(
+                            k_size
+                        )
+                    )
+
+        for key in output_files:
+            output_files[key].close()
+
+        self.output = original_output
+        self.class_names = []
+
+        if self.verbose:
+            print("Create conf value plot for all K sizes...")
+        self.conf_plot_for_all_k(k_sizes)
+
+        return 0
 
 
 # exclude from coverage as it's a). trivial, and b). not easy to test
