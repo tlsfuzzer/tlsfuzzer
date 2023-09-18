@@ -95,6 +95,18 @@ class MarvinCiphertextGenerator(object):
         self.forbidden = set(
             [b"\x03\x00", b"\x03\x01", b"\x03\x02", b"\x03\x03"])
 
+    def _get_random_pms(self):
+        if self.tls_version is None:
+            while True:
+                rand_pms = getRandomBytes(self.pms_len)
+                if bytes(rand_pms[:2]) not in self.forbidden:
+                    break
+        else:
+            rand_pms = getRandomBytes(self.pms_len)
+            rand_pms[0] = self.tls_version[0]
+            rand_pms[1] = self.tls_version[1]
+        return rand_pms
+
     def _generate_ciphertext_with_fuzz(
             self, subs, padding_byte=None, pms=None):
         while True:
@@ -140,15 +152,7 @@ class MarvinCiphertextGenerator(object):
         # first a random well-formed ciphertext canaries
         for i in range(1, 4):
             while True:
-                if self.tls_version is None:
-                    while True:
-                        rand_pms = getRandomBytes(self.pms_len)
-                        if bytes(rand_pms[:2]) not in self.forbidden:
-                            break
-                else:
-                    rand_pms = getRandomBytes(self.pms_len)
-                    rand_pms[0] = self.tls_version[0]
-                    rand_pms[1] = self.tls_version[1]
+                rand_pms = self._get_random_pms()
 
                 ciphertext = self.pub_key.encrypt(rand_pms)
                 # make sure MSB is non zero to avoid public value clamping
@@ -243,15 +247,7 @@ class MarvinCiphertextGenerator(object):
 
         # low Hamming weight RSA plaintext
         while True:
-            if self.tls_version is None:
-                while True:
-                    rand_pms = getRandomBytes(self.pms_len)
-                    if bytes(rand_pms[:2]) not in self.forbidden:
-                        break
-            else:
-                rand_pms = getRandomBytes(self.pms_len)
-                rand_pms[0] = self.tls_version[0]
-                rand_pms[1] = self.tls_version[1]
+            rand_pms = self._get_random_pms()
             ciphertext = _encrypt_with_fuzzing(self.pub_key, rand_pms, None, 1)
             # make sure MSB is non-zero to avoid side-channel based on public
             # value clamping
@@ -262,15 +258,7 @@ class MarvinCiphertextGenerator(object):
 
         # valid with very long synthethic (unused) plaintext
         while True:
-            if self.tls_version is None:
-                while True:
-                    rand_pms = getRandomBytes(self.pms_len)
-                    if bytes(rand_pms[:2]) not in self.forbidden:
-                        break
-            else:
-                rand_pms = getRandomBytes(self.pms_len)
-                rand_pms[0] = self.tls_version[0]
-                rand_pms[1] = self.tls_version[1]
+            rand_pms = self._get_random_pms()
 
             ciphertext = self.pub_key.encrypt(rand_pms)
             # make sure MSB is non-zero to avoid side-channel based on public
@@ -288,15 +276,7 @@ class MarvinCiphertextGenerator(object):
 
         # valid with short synthethic (unused) plaintext
         while True:
-            if self.tls_version is None:
-                while True:
-                    rand_pms = getRandomBytes(self.pms_len)
-                    if bytes(rand_pms[:2]) not in self.forbidden:
-                        break
-            else:
-                rand_pms = getRandomBytes(self.pms_len)
-                rand_pms[0] = self.tls_version[0]
-                rand_pms[1] = self.tls_version[1]
+            rand_pms = self._get_random_pms()
 
             ciphertext = self.pub_key.encrypt(rand_pms)
             # make sure MSB is non-zero to avoid side-channel based on public
