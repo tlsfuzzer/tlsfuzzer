@@ -79,8 +79,9 @@ class MarvinCiphertextGenerator(object):
     from server.
 
     This will create either valid ciphertext that decrypt to specified length,
-    or invalid ciphertexts that have synthethic ciphertexts of specified length.
-    All ciphertexts will also require the same number of bytes to represent.
+    or invalid ciphertexts that have synthethic ciphertexts of specified
+    length. All ciphertexts will also require the same number of bytes to
+    represent.
 
     If tls_version is None it will simply select PMS values for which the
     first two bytes of it can't be mistaken for a TLS version (it won't
@@ -218,7 +219,7 @@ class MarvinCiphertextGenerator(object):
         ret["zero byte in eight byte of padding"] = ciphertext
 
         # no zero byte separator
-        subs = {-1:1}
+        subs = {-1: 1}
         ciphertext = self._generate_ciphertext_with_fuzz(subs, pms=b"")
         ret["no null separator"] = ciphertext
 
@@ -254,7 +255,8 @@ class MarvinCiphertextGenerator(object):
             if ciphertext[0]:
                 break
         assert rand_pms == self.priv_key.decrypt(ciphertext)
-        ret["use 1 as the padding byte (low Hamming weight plaintext)"] = ciphertext
+        ret["use 1 as the padding byte (low Hamming weight plaintext)"] = \
+            ciphertext
 
         # valid with very long synthethic (unused) plaintext
         while True:
