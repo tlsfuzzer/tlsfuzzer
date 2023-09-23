@@ -114,7 +114,7 @@ def main():
     marvin_gen = MarvinCiphertextGenerator(
         srv_key, srv_cert.publicKey, pms_len, pms_tls_version)
     ciphertexts = marvin_gen.generate()
-    print("Ciphertexts generated.")
+    print("Test passed.")
 
     print("Generating ciphertexts...")
 
@@ -160,6 +160,8 @@ def main():
             status[2].set()
             progress.join()
             print()
+
+    print("Done")
 
 
 if __name__ == "__main__":
