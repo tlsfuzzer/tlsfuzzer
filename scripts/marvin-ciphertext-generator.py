@@ -60,7 +60,7 @@ def main():
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv,
-                               "x:X:n:a:l:l:o:i:C:",
+                               "o:",
                                ["help",
                                 "repeat=",
                                 "pms-len=",
