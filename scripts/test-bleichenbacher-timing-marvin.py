@@ -100,6 +100,8 @@ def help_msg():
     print("                Default 100")
     print(" --status-delay num How long to wait between status line updates.")
     print("                In seconds. Default: 2.0")
+    print(" --no-quickack  Don't assume that QUICKACK is in use.")
+    print(" --verbose-analysis Enable verbose progress of analysis.")
     print(" --help         this message")
 
 
@@ -127,6 +129,8 @@ def main():
     pms_tls_version = None
     probe_reuse = 100
     delay = 2.0
+    no_quickack = False
+    verbose_analysis = False
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv,
@@ -141,6 +145,8 @@ def main():
                                 "srv-cert=",
                                 "pms-tls-version=",
                                 "probe-reuse=",
+                                "no-quickack",
+                                "verbose-analysis",
                                 "status-delay="])
     for opt, arg in opts:
         if opt == '-h':
@@ -203,6 +209,10 @@ def main():
             pms_tls_version = divmod(int_ver, 256)
         elif opt == "--probe-reuse":
             probe_reuse = int(arg)
+        elif opt == "--no-quickack":
+            no_quickack = True
+        elif opt == "--verbose-analysis":
+            verbose_analysis = True
         elif opt == "--status-delay":
             delay = float(arg)
         elif opt == '--help':
@@ -450,6 +460,8 @@ significant byte:
                                      interface,
                                      affinity,
                                      skip_extract=True,
+                                     no_quickack=no_quickack,
+                                     verbose_analysis=verbose_analysis,
                                      delay=delay)
         print("Pre-generating pre-master secret values...")
 
