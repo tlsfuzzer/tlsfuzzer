@@ -6,8 +6,6 @@ import traceback
 import sys
 import getopt
 import os
-import math
-import time
 from itertools import chain, repeat
 from random import sample
 from threading import Thread, Event
@@ -17,11 +15,10 @@ from tlsfuzzer.timing_runner import TimingRunner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
     ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
     FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-    TCPBufferingEnable, TCPBufferingDisable, TCPBufferingFlush, fuzz_mac, \
-    fuzz_padding, fuzz_pkcs1_padding
+    TCPBufferingEnable, TCPBufferingDisable, TCPBufferingFlush
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
     ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-    ExpectAlert, ExpectClose, ExpectApplicationData, ExpectNoMessage
+    ExpectAlert, ExpectClose, ExpectApplicationData
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
     ExtensionType
@@ -34,8 +31,6 @@ from tlsfuzzer.utils.progress_report import progress_report
 from tlsfuzzer.helpers import SIG_ALL, RSA_PKCS1_ALL
 from tlslite.x509 import X509
 from tlslite.utils.keyfactory import parsePEMKey
-from tlslite.utils.cryptomath import getRandomBytes, numBytes, secureHMAC, \
-    numberToByteArray, numBits, secureHash
 from tlsfuzzer.utils.statics import WARM_UP
 from tlsfuzzer.utils.log import Log
 from tlsfuzzer.utils.rsa import MarvinCiphertextGenerator
@@ -135,7 +130,7 @@ def main():
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv,
-                               "h:p:e:x:X:n:a:l:l:o:i:C:",
+                               "h:p:e:x:X:n:a:l:o:i:C:",
                                ["help",
                                 "no-safe-renego",
                                 "no-sni",
@@ -438,135 +433,135 @@ significant byte:
         sys.exit(1)
     elif timing:
         # if regular tests passed, run timing collection and analysis
-        if TimingRunner.check_tcpdump():
-            tests = [('generic', None)]
-
-            timing_runner = TimingRunner("{0}_v{1}_{2}".format(
-                                            sys.argv[0],
-                                            version,
-                                            CipherSuite.ietfNames[cipher]),
-                                         tests,
-                                         outdir,
-                                         host,
-                                         port,
-                                         interface,
-                                         affinity,
-                                         skip_extract=True,
-                                         delay=delay)
-            print("Pre-generating pre-master secret values...")
-
-            with open(
-                os.path.join(timing_runner.out_dir, 'pms_values.bin'),
-                "wb"
-            ) as pms_file:
-                # create a real order of tests to run
-                log = Log(os.path.join(timing_runner.out_dir, "real_log.csv"))
-                actual_tests = []
-                for c_name, c_test in sampled_tests:
-                    if run_only and c_name not in run_only or \
-                            c_name in run_exclude:
-                        continue
-                    if not c_name.startswith("sanity"):
-                        actual_tests.append(c_name)
-
-                log.start_log(actual_tests)
-                for _ in range(repetitions):
-                    log.shuffle_new_run()
-                log.write()
-                log.read_log()
-                test_classes = log.get_classes()
-                queries = chain(repeat(0, WARM_UP), log.iterate_log())
-
-                status = [0,
-                          len(test_classes) * repetitions + WARM_UP,
-                          Event()]
-                kwargs = dict()
-                kwargs['delay'] = delay
-                progress = Thread(target=progress_report, args=(status,),
-                                  kwargs=kwargs)
-                progress.start()
-
-                exp_key_size = (len(srv_cert.publicKey) + 7) // 8
-
-                # generate the PMS values
-                try:
-                    for executed, index in enumerate(queries):
-                        if probe_reuse and executed > WARM_UP and \
-                                executed % (len(test_classes) * probe_reuse) == 0:
-                            ciphertexts = marvin_gen.generate()
-
-                        status[0] = executed
-
-                        g_name = test_classes[index]
-
-                        res = ciphertexts[g_name]
-                        assert len(res) == exp_key_size, len(res)
-
-                        pms_file.write(res)
-                finally:
-                    status[2].set()
-                    progress.join()
-                    print()
-
-            # fake the set of tests to run so it's just one
-            pms_file = open(
-                os.path.join(timing_runner.out_dir, 'pms_values.bin'),
-                "rb"
-            )
-
-            conversation = Connect(host, port)
-            node = conversation
-            ciphers = [cipher]
-            node = node.add_child(ClientHelloGenerator(ciphers,
-                                                       extensions=cln_extensions))
-            node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-            node = node.add_child(ExpectCertificate())
-            node = node.add_child(ExpectServerHelloDone())
-            node = node.add_child(TCPBufferingEnable())
-            node = node.add_child(ClientKeyExchangeGenerator(
-                encrypted_premaster_file=pms_file,
-                encrypted_premaster_length=exp_key_size
-                ))
-            node = node.add_child(ChangeCipherSpecGenerator())
-            node = node.add_child(FinishedGenerator())
-            node = node.add_child(TCPBufferingDisable())
-            node = node.add_child(TCPBufferingFlush())
-            node = node.add_child(ExpectAlert(level,
-                                              alert))
-            node.add_child(ExpectClose())
-
-            tests[:] = [('generic', conversation)]
-
-            print("Running timing tests...")
-            timing_runner.generate_log(
-                ['generic'], [],
-                repetitions * len(actual_tests))
-            ret_val = timing_runner.run()
-            if ret_val != 0:
-                print("run failed")
-                sys.exit(ret_val)
-            os.remove(os.path.join(timing_runner.out_dir, 'log.csv'))
-            os.rename(
-                os.path.join(timing_runner.out_dir, 'real_log.csv'),
-                os.path.join(timing_runner.out_dir, 'log.csv')
-            )
-            if not timing_runner.extract():
-                ret_val = 2
-            else:
-                timing_runner.analyse()
-
-            if ret_val == 0:
-                print("No statistically significant difference detected")
-            elif ret_val == 1:
-                print("Statisticaly significant difference detected at alpha="
-                      "0.05")
-            else:
-                print("Statistical analysis exited with {0}".format(ret_val))
-        else:
+        if not TimingRunner.check_tcpdump():
             print("Could not run timing tests because tcpdump is not present!")
             sys.exit(1)
-        print(20 * '=')
+
+        tests = [('generic', None)]
+
+        timing_runner = TimingRunner("{0}_v{1}_{2}".format(
+                                        sys.argv[0],
+                                        version,
+                                        CipherSuite.ietfNames[cipher]),
+                                     tests,
+                                     outdir,
+                                     host,
+                                     port,
+                                     interface,
+                                     affinity,
+                                     skip_extract=True,
+                                     delay=delay)
+        print("Pre-generating pre-master secret values...")
+
+        with open(
+            os.path.join(timing_runner.out_dir, 'pms_values.bin'),
+            "wb"
+        ) as pms_file:
+            # create a real order of tests to run
+            log = Log(os.path.join(timing_runner.out_dir, "real_log.csv"))
+            actual_tests = []
+            for c_name, c_test in sampled_tests:
+                if run_only and c_name not in run_only or \
+                        c_name in run_exclude:
+                    continue
+                if not c_name.startswith("sanity"):
+                    actual_tests.append(c_name)
+
+            log.start_log(actual_tests)
+            for _ in range(repetitions):
+                log.shuffle_new_run()
+            log.write()
+            log.read_log()
+            test_classes = log.get_classes()
+            queries = chain(repeat(0, WARM_UP), log.iterate_log())
+
+            status = [0,
+                      len(test_classes) * repetitions + WARM_UP,
+                      Event()]
+            kwargs = dict()
+            kwargs['delay'] = delay
+            progress = Thread(target=progress_report, args=(status,),
+                              kwargs=kwargs)
+            progress.start()
+
+            exp_key_size = (len(srv_cert.publicKey) + 7) // 8
+
+            # generate the PMS values
+            try:
+                for executed, index in enumerate(queries):
+                    if probe_reuse and executed > WARM_UP and \
+                            executed % (len(test_classes) * probe_reuse) == 0:
+                        ciphertexts = marvin_gen.generate()
+
+                    status[0] = executed
+
+                    g_name = test_classes[index]
+
+                    res = ciphertexts[g_name]
+                    assert len(res) == exp_key_size, len(res)
+
+                    pms_file.write(res)
+            finally:
+                status[2].set()
+                progress.join()
+                print()
+
+        # fake the set of tests to run so it's just one
+        pms_file = open(
+            os.path.join(timing_runner.out_dir, 'pms_values.bin'),
+            "rb"
+        )
+
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [cipher]
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions=cln_extensions))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
+        node = node.add_child(ClientKeyExchangeGenerator(
+            encrypted_premaster_file=pms_file,
+            encrypted_premaster_length=exp_key_size
+            ))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
+        node = node.add_child(ExpectAlert(level,
+                                          alert))
+        node.add_child(ExpectClose())
+
+        tests[:] = [('generic', conversation)]
+
+        print("Running timing tests...")
+        timing_runner.generate_log(
+            ['generic'], [],
+            repetitions * len(actual_tests))
+        ret_val = timing_runner.run()
+        if ret_val != 0:
+            print("run failed")
+            sys.exit(ret_val)
+        os.remove(os.path.join(timing_runner.out_dir, 'log.csv'))
+        os.rename(
+            os.path.join(timing_runner.out_dir, 'real_log.csv'),
+            os.path.join(timing_runner.out_dir, 'log.csv')
+        )
+        if not timing_runner.extract():
+            ret_val = 2
+        else:
+            timing_runner.analyse()
+
+        if ret_val == 0:
+            print("No statistically significant difference detected")
+        elif ret_val == 1:
+            print("Statisticaly significant difference detected at alpha="
+                  "0.05")
+        else:
+            print("Statistical analysis exited with {0}".format(ret_val))
+    print(20 * '=')
 
 
 if __name__ == "__main__":
