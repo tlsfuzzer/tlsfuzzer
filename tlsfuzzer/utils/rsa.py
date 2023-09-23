@@ -81,7 +81,7 @@ class MarvinCiphertextGenerator(object):
     This will create either valid ciphertext that decrypt to specified length,
     or invalid ciphertexts that have synthethic ciphertexts of specified
     length. All ciphertexts will also require the same number of bytes to
-    represent.
+    store.
 
     If tls_version is None it will simply select PMS values for which the
     first two bytes of it can't be mistaken for a TLS version (it won't
@@ -165,62 +165,51 @@ class MarvinCiphertextGenerator(object):
             ret["well formed - {0}".format(i)] = ciphertext
 
         # then invalid one, with version byte set to 1
-        subs = {0: 1}
-        ciphertext = self._generate_ciphertext_with_fuzz(subs)
+        ciphertext = self._generate_ciphertext_with_fuzz({0: 1})
         ret["invalid version number (1) in padding"] = ciphertext
 
         # then let's try ones that use padding value set to 0
-        subs = {1: 0}
-        ciphertext = self._generate_ciphertext_with_fuzz(subs)
+        ciphertext = self._generate_ciphertext_with_fuzz({1: 0})
         ret["invalid PKCS#1 type (0) in padding"] = ciphertext
 
         # then let's try ones that use padding value set to 1
-        subs = {1: 1}
-        ciphertext = self._generate_ciphertext_with_fuzz(subs)
+        ciphertext = self._generate_ciphertext_with_fuzz({1: 1})
         ret["invalid PKCS#1 type (1) in padding"] = ciphertext
 
-        # then let's try ones that use padding value set to 2
-        subs = {1: 3}
-        ciphertext = self._generate_ciphertext_with_fuzz(subs)
+        # then let's try ones that use padding value set to 3
+        ciphertext = self._generate_ciphertext_with_fuzz({1: 3})
         ret["invalid PKCS#1 type (3) in padding"] = ciphertext
 
         # actually use padding type 1
-        subs = {1: 1}
-        ciphertext = self._generate_ciphertext_with_fuzz(subs, 0xff)
+        ciphertext = self._generate_ciphertext_with_fuzz({1: 1}, 0xff)
         ret["use PKCS#1 type 1 padding"] = ciphertext
 
         # actually use padding type 0
-        subs = {1: 0}
-        ciphertext = self._generate_ciphertext_with_fuzz(subs, 0)
+        ciphertext = self._generate_ciphertext_with_fuzz({1: 0}, 0)
         ret["use PKCS#1 type 0 padding"] = ciphertext
 
         # set padding to all zero bytes
         ciphertext = self._generate_ciphertext_with_fuzz(None, 0)
         ret["use 0 as padding byte"] = ciphertext
 
-        # create too long plaintext by 8 bytes
-        subs = {2: 0}
-        ciphertext = self._generate_ciphertext_with_fuzz(subs)
+        # place zero byte in the first bytes of padding
+        ciphertext = self._generate_ciphertext_with_fuzz({2: 0})
         ret["zero byte in first byte of padding"] = ciphertext
 
-        # create too long plaintext by 7 bytes
-        subs = {3: 0}
-        ciphertext = self._generate_ciphertext_with_fuzz(subs)
+        # place zero byte in the first bytes of padding
+        ciphertext = self._generate_ciphertext_with_fuzz({3: 0})
         ret["zero byte in second byte of padding"] = ciphertext
 
-        # create too long plaintext by 6 bytes
-        subs = {4: 0}
-        ciphertext = self._generate_ciphertext_with_fuzz(subs)
+        # place zero byte in the first bytes of padding
+        ciphertext = self._generate_ciphertext_with_fuzz({4: 0})
         ret["zero byte in third byte of padding"] = ciphertext
 
         # create too long plaintext by 1 bytes
-        subs = {9: 0}
-        ciphertext = self._generate_ciphertext_with_fuzz(subs)
+        ciphertext = self._generate_ciphertext_with_fuzz({9: 0})
         ret["zero byte in eight byte of padding"] = ciphertext
 
         # no zero byte separator
-        subs = {-1: 1}
-        ciphertext = self._generate_ciphertext_with_fuzz(subs, pms=b"")
+        ciphertext = self._generate_ciphertext_with_fuzz({-1: 1}, pms=b"")
         ret["no null separator"] = ciphertext
 
         # completely random plaintext
@@ -229,15 +218,11 @@ class MarvinCiphertextGenerator(object):
         ret["random plaintext"] = ciphertext
 
         # too short PKCS padding
-        subs = {1: 0, 2: 2}
-        ciphertext = self._generate_ciphertext_with_fuzz(subs)
+        ciphertext = self._generate_ciphertext_with_fuzz({1: 0, 2: 2})
         ret["too short PKCS#1 padding"] = ciphertext
 
         # very short PKCS padding
-        subs = {}
-        for i in range(41):
-            subs[i] = 0
-        subs[41] = 2
+        subs = dict(enumerate([0] * 41 + [2]))
         ciphertext = self._generate_ciphertext_with_fuzz(subs)
         ret["very short PKCS#1 padding (40 bytes short)"] = ciphertext
 
