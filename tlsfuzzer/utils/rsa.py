@@ -36,19 +36,19 @@ def synthetic_plaintext_generator(priv_key, ciphertext):
     We use it to know what kind of PMS will the TLS layer see when we send a
     malformed ciphertext.
     """
-    n = priv_key.n
+    n_len = numBytes(priv_key.n)
 
-    max_sep_offset = numBytes(n) - 10
+    max_sep_offset = n_len - 10
 
     if not hasattr(priv_key, '_key_hash') or not priv_key._key_hash:
         priv_key._key_hash = secureHash(
-            numberToByteArray(priv_key.d, numBytes(n)), "sha256")
+            numberToByteArray(priv_key.d, n_len), "sha256")
 
     kdk = secureHMAC(priv_key._key_hash, ciphertext, "sha256")
 
     length_randoms = _dec_prf(kdk, b"length", 128 * 2 * 8)
 
-    message_random = _dec_prf(kdk, b"message", numBytes(n) * 8)
+    message_random = _dec_prf(kdk, b"message", n_len * 8)
 
     synth_length = 0
     length_rand_iter = iter(length_randoms)
@@ -60,7 +60,7 @@ def synthetic_plaintext_generator(priv_key, ciphertext):
         if len_candidate < max_sep_offset:
             synth_length = len_candidate
 
-    synth_msg_start = numBytes(n) - synth_length
+    synth_msg_start = n_len - synth_length
 
     return message_random[synth_msg_start:]
 
