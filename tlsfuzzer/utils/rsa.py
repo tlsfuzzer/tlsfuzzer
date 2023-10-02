@@ -150,7 +150,7 @@ class MarvinCiphertextGenerator(object):
         values are the ciphertexts."""
         ret = {}
 
-        # first a random well-formed ciphertext canaries
+        # first random well-formed ciphertext canaries
         for i in range(1, 4):
             while True:
                 rand_pms = self._get_random_pms()
