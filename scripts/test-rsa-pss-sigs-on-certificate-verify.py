@@ -66,6 +66,32 @@ def help_msg():
     print("                passing both of them to verification.")
     print(" --help         this message")
 
+def initiate_connection(host, port):
+    """Code Reuse"""
+    conversation = Connect(host, port)
+    node = conversation
+    sigs = [SignatureScheme.rsa_pss_rsae_sha256,
+            SignatureScheme.rsa_pss_rsae_sha384,
+            SignatureScheme.rsa_pss_rsae_sha512,
+            SignatureScheme.rsa_pss_pss_sha256,
+            SignatureScheme.rsa_pss_pss_sha384,
+            SignatureScheme.rsa_pss_pss_sha512
+            ]
+    ext = {ExtensionType.signature_algorithms:
+            SignatureAlgorithmsExtension().create(sigs),
+           ExtensionType.signature_algorithms_cert:
+            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=ext))
+    node = node.add_child(ExpectServerHello(version=(3, 3)))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+
+    return (conversation, node)
+
 
 def main():
     host = "localhost"
@@ -202,27 +228,8 @@ def main():
     conversations["sanity"] = conversation
 
     # check if RSA-PSS can be the only one
-    conversation = Connect(host, port)
-    node = conversation
-    sigs = [SignatureScheme.rsa_pss_rsae_sha256,
-            SignatureScheme.rsa_pss_rsae_sha384,
-            SignatureScheme.rsa_pss_rsae_sha512,
-            SignatureScheme.rsa_pss_pss_sha256,
-            SignatureScheme.rsa_pss_pss_sha384,
-            SignatureScheme.rsa_pss_pss_sha512
-            ]
-    ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
-           ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=ext))
-    node = node.add_child(ExpectServerHello(version=(3, 3)))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerKeyExchange())
+    (conversation, node) = initiate_connection(host, port)
+
     node = node.add_child(ExpectCertificateRequest())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
@@ -243,27 +250,8 @@ def main():
     conversations["RSA-PSS only"] = conversation
 
     # check if algs in CertificateRequest are expected
-    conversation = Connect(host, port)
-    node = conversation
-    sigs = [SignatureScheme.rsa_pss_rsae_sha256,
-            SignatureScheme.rsa_pss_rsae_sha384,
-            SignatureScheme.rsa_pss_rsae_sha512,
-            SignatureScheme.rsa_pss_pss_sha256,
-            SignatureScheme.rsa_pss_pss_sha384,
-            SignatureScheme.rsa_pss_pss_sha512
-            ]
-    ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
-           ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=ext))
-    node = node.add_child(ExpectServerHello(version=(3, 3)))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerKeyExchange())
+    (conversation, node) = initiate_connection(host, port)
+
     node = node.add_child(ExpectCertificateRequest(sig_algs=sigalgs))
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
@@ -299,27 +287,8 @@ def main():
                            SignatureScheme.rsa_pss_rsae_sha512]
 
     for scheme in invalid_schemes:
-        conversation = Connect(host, port)
-        node = conversation
-        sigs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_rsae_sha384,
-                SignatureScheme.rsa_pss_rsae_sha512,
-                SignatureScheme.rsa_pss_pss_sha256,
-                SignatureScheme.rsa_pss_pss_sha384,
-                SignatureScheme.rsa_pss_pss_sha512
-                ]
-        ext = {ExtensionType.signature_algorithms:
-                SignatureAlgorithmsExtension().create(sigs),
-               ExtensionType.signature_algorithms_cert:
-                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
-        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions=ext))
-        node = node.add_child(ExpectServerHello(version=(3, 3)))
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectServerKeyExchange())
+        (conversation, node) = initiate_connection(host, port)
+        
         node = node.add_child(ExpectCertificateRequest())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(TCPBufferingEnable())
@@ -343,27 +312,8 @@ def main():
 
     # check if CertificateVerify can be signed with any algorithm
     for scheme in schemes:
-        conversation = Connect(host, port)
-        node = conversation
-        sigs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_rsae_sha384,
-                SignatureScheme.rsa_pss_rsae_sha512,
-                SignatureScheme.rsa_pss_pss_sha256,
-                SignatureScheme.rsa_pss_pss_sha384,
-                SignatureScheme.rsa_pss_pss_sha512
-                ]
-        ext = {ExtensionType.signature_algorithms:
-                SignatureAlgorithmsExtension().create(sigs),
-               ExtensionType.signature_algorithms_cert:
-                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
-        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions=ext))
-        node = node.add_child(ExpectServerHello(version=(3, 3)))
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectServerKeyExchange())
+        (conversation, node) = initiate_connection(host, port)
+        
         node = node.add_child(ExpectCertificateRequest())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(CertificateGenerator(X509CertChain([cert])))
@@ -387,27 +337,8 @@ def main():
 
     # check if CertificateVerify with wrong salt size is rejected
     for scheme in schemes:
-        conversation = Connect(host, port)
-        node = conversation
-        sigs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_rsae_sha384,
-                SignatureScheme.rsa_pss_rsae_sha512,
-                SignatureScheme.rsa_pss_pss_sha256,
-                SignatureScheme.rsa_pss_pss_sha384,
-                SignatureScheme.rsa_pss_pss_sha512
-                ]
-        ext = {ExtensionType.signature_algorithms:
-                SignatureAlgorithmsExtension().create(sigs),
-               ExtensionType.signature_algorithms_cert:
-                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
-        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions=ext))
-        node = node.add_child(ExpectServerHello(version=(3, 3)))
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectServerKeyExchange())
+        (conversation, node) = initiate_connection(host, port)
+
         node = node.add_child(ExpectCertificateRequest())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(TCPBufferingEnable())
@@ -429,27 +360,8 @@ def main():
     # check if CertificateVerify with wrong salt size is rejected
     for pos in range(numBytes(private_key.n)):
         for xor in [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80]:
-            conversation = Connect(host, port)
-            node = conversation
-            sigs = [SignatureScheme.rsa_pss_rsae_sha256,
-                    SignatureScheme.rsa_pss_rsae_sha384,
-                    SignatureScheme.rsa_pss_rsae_sha512,
-                    SignatureScheme.rsa_pss_pss_sha256,
-                    SignatureScheme.rsa_pss_pss_sha384,
-                    SignatureScheme.rsa_pss_pss_sha512
-                    ]
-            ext = {ExtensionType.signature_algorithms:
-                    SignatureAlgorithmsExtension().create(sigs),
-                   ExtensionType.signature_algorithms_cert:
-                    SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
-            ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                       CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-            node = node.add_child(ClientHelloGenerator(ciphers,
-                                                       extensions=ext))
-            node = node.add_child(ExpectServerHello(version=(3, 3)))
-            node = node.add_child(ExpectCertificate())
-            node = node.add_child(ExpectServerKeyExchange())
+            (conversation, node) = initiate_connection(host, port)
+
             node = node.add_child(ExpectCertificateRequest())
             node = node.add_child(ExpectServerHelloDone())
             node = node.add_child(TCPBufferingEnable())
@@ -473,27 +385,8 @@ def main():
                                .format(cert.certAlg, hex(xor), pos)] = conversation
 
     if cert.certAlg == "rsa-pss":
-        conversation = Connect(host, port)
-        node = conversation
-        sigs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_rsae_sha384,
-                SignatureScheme.rsa_pss_rsae_sha512,
-                SignatureScheme.rsa_pss_pss_sha256,
-                SignatureScheme.rsa_pss_pss_sha384,
-                SignatureScheme.rsa_pss_pss_sha512
-                ]
-        ext = {ExtensionType.signature_algorithms:
-                SignatureAlgorithmsExtension().create(sigs),
-               ExtensionType.signature_algorithms_cert:
-                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
-        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions=ext))
-        node = node.add_child(ExpectServerHello(version=(3, 3)))
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectServerKeyExchange())
+        (conversation, node) = initiate_connection(host, port)
+        
         node = node.add_child(ExpectCertificateRequest())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(TCPBufferingEnable())
@@ -516,27 +409,8 @@ def main():
         conversations["rsa_pkcs1_sha256 signature in CertificateVerify "
                       "with rsa-pss key"] = conversation
 
-    conversation = Connect(host, port)
-    node = conversation
-    sigs = [SignatureScheme.rsa_pss_rsae_sha256,
-            SignatureScheme.rsa_pss_rsae_sha384,
-            SignatureScheme.rsa_pss_rsae_sha512,
-            SignatureScheme.rsa_pss_pss_sha256,
-            SignatureScheme.rsa_pss_pss_sha384,
-            SignatureScheme.rsa_pss_pss_sha512
-            ]
-    ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
-           ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=ext))
-    node = node.add_child(ExpectServerHello(version=(3, 3)))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerKeyExchange())
+    (conversation, node) = initiate_connection(host, port)
+
     node = node.add_child(ExpectCertificateRequest())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
@@ -567,27 +441,8 @@ def main():
     conversations["{0} signature in CertificateVerify with rsa_pkcs1_sha256 id"
                   .format(SignatureScheme.toRepr(sig_alg))] = conversation
 
-    conversation = Connect(host, port)
-    node = conversation
-    sigs = [SignatureScheme.rsa_pss_rsae_sha256,
-            SignatureScheme.rsa_pss_rsae_sha384,
-            SignatureScheme.rsa_pss_rsae_sha512,
-            SignatureScheme.rsa_pss_pss_sha256,
-            SignatureScheme.rsa_pss_pss_sha384,
-            SignatureScheme.rsa_pss_pss_sha512
-            ]
-    ext = {ExtensionType.signature_algorithms:
-            SignatureAlgorithmsExtension().create(sigs),
-           ExtensionType.signature_algorithms_cert:
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=ext))
-    node = node.add_child(ExpectServerHello(version=(3, 3)))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerKeyExchange())
+    (conversation, node) = initiate_connection(host, port)
+    
     node = node.add_child(ExpectCertificateRequest())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())

@@ -45,6 +45,22 @@ def help_msg():
     print("                (excluding \"sanity\" tests)")
     print(" --help         this message")
 
+def initiate_connection(host, port):
+    """Code Reuse"""
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 0)))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+
+    return (conversation, node)
 
 def main():
     """check if zero-filled padding is accepted by server in SSLv3"""
@@ -87,18 +103,8 @@ def main():
     conversations = {}
 
     # normal connection
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 0)))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
+    (conversation, node) = initiate_connection(host, port)
+    
     node = node.add_child(ExpectFinished())
     text = b"GET / HTTP/1.0\nX-bad: aaaa\n\n"
     node = node.add_child(ApplicationDataGenerator(text))
@@ -116,18 +122,8 @@ def main():
             conversation
 
     # zero-fill SSLv3 padding
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 0)))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
+    (conversation, node) = initiate_connection(host, port)
+
     node = node.add_child(ExpectFinished())
     text = b"GET / HTTP/1.0\nX-bad: aaaa\n\n"
     hmac_tag_length = 20  # because we're using HMAC-SHA-1
@@ -153,18 +149,8 @@ def main():
             conversation
 
     # max size SSLv3 padding
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 0)))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
+    (conversation, node) = initiate_connection(host, port)
+
     node = node.add_child(ExpectFinished())
     text = b"GET / HTTP/1.0\nX-bad: aaaa\n\n"
     hmac_tag_length = 20
@@ -187,18 +173,8 @@ def main():
             conversation
 
     # too much padding in SSLv3
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 0)))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
+    (conversation, node) = initiate_connection(host, port)
+
     node = node.add_child(ExpectFinished())
     text = b"GET / HTTP/1.0\nX-bad: aaaa\n\n"
     hmac_tag_length = 20
@@ -217,18 +193,8 @@ def main():
             conversation
 
     # max size SSLv3 padding
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 0)))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
+    (conversation, node) = initiate_connection(host, port)
+    
     node = node.add_child(ExpectFinished())
     text = b"GET / HTTP/1.0\r\nX-bad: a\r\n"
     # some servers put limits on size of headers, e.g. Apache 2.3 has 8190 Bytes

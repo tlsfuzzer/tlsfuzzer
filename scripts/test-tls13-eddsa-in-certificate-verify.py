@@ -90,6 +90,31 @@ def hashes_to_list(arg):
             " found {0}".format(len(hlist)))
     return hlist
 
+def initiate_connect(host, port, sig_algs):
+    """Code reuse"""
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    ext[ExtensionType.supported_versions] = \
+        SupportedVersionsExtension().create([(3, 4), (3, 3)])
+    ext[ExtensionType.supported_groups] = \
+        SupportedGroupsExtension().create(groups)
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(
+            ECDSA_SIG_ALL + RSA_SIG_ALL + EDDSA_SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+
+    return (conversation, node, ext, ciphers)
+
 
 def main():
     """Check that server properly rejects malformed signatures in TLS 1.3"""
@@ -188,26 +213,8 @@ def main():
     conversations_long = {}
 
     # sanity check for Client Certificates
-    conversation = Connect(hostname, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = \
-        SupportedVersionsExtension().create([(3, 4), (3, 3)])
-    ext[ExtensionType.supported_groups] = \
-        SupportedGroupsExtension().create(groups)
-    ext[ExtensionType.signature_algorithms] = \
-        SignatureAlgorithmsExtension().create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = \
-        SignatureAlgorithmsCertExtension().create(
-            ECDSA_SIG_ALL + RSA_SIG_ALL + EDDSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
+    (conversation, node) = initiate_connect(hostname, port, sig_algs)
+    
     node = node.add_child(ExpectCertificateRequest())
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectCertificateVerify())
@@ -231,26 +238,8 @@ def main():
     conversations["sanity"] = conversation
 
     # verify the advertised hashes
-    conversation = Connect(hostname, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = \
-        SupportedVersionsExtension().create([(3, 4), (3, 3)])
-    ext[ExtensionType.supported_groups] = \
-        SupportedGroupsExtension().create(groups)
-    ext[ExtensionType.signature_algorithms] = \
-        SignatureAlgorithmsExtension().create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = \
-        SignatureAlgorithmsCertExtension().create(
-            ECDSA_SIG_ALL + RSA_SIG_ALL + EDDSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
+    (conversation, node) = initiate_connect(hostname, port, sig_algs)
+
     node = node.add_child(ExpectCertificateRequest(cr_sigalgs))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectCertificateVerify())
@@ -274,27 +263,8 @@ def main():
 
     for sigalg in ECDSA_SIG_ALL:
         real_sig = getattr(SignatureScheme, private_key.key_type.lower())
-        conversation = Connect(hostname, port)
-        node = conversation
-        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        ext = {}
-        # NOTE: groups do NOT influence the signature negotiation
-        groups = [GroupName.secp256r1]
-        ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-        ext[ExtensionType.supported_versions] = \
-            SupportedVersionsExtension().create([(3, 4), (3, 3)])
-        ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
-        ext[ExtensionType.signature_algorithms] = \
-            SignatureAlgorithmsExtension().create(sig_algs)
-        ext[ExtensionType.signature_algorithms_cert] = \
-            SignatureAlgorithmsCertExtension().create(
-                ECDSA_SIG_ALL + RSA_SIG_ALL + EDDSA_SIG_ALL)
-        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-        node = node.add_child(ExpectServerHello())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectEncryptedExtensions())
+        (conversation, node) = initiate_connect(hostname, port, sig_algs)
+
         node = node.add_child(ExpectCertificateRequest())
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectCertificateVerify())
@@ -327,26 +297,8 @@ def main():
         sig_alg = SignatureScheme.ed448
         msg_alg = SignatureScheme.ed25519
 
-    conversation = Connect(hostname, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = \
-        SupportedVersionsExtension().create([(3, 4), (3, 3)])
-    ext[ExtensionType.supported_groups] = \
-        SupportedGroupsExtension().create(groups)
-    ext[ExtensionType.signature_algorithms] = \
-        SignatureAlgorithmsExtension().create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = \
-        SignatureAlgorithmsCertExtension().create(
-            ECDSA_SIG_ALL + RSA_SIG_ALL + EDDSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
+    (conversation, node) = initiate_connect(hostname, port, sig_algs)
+
     node = node.add_child(ExpectCertificateRequest())
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectCertificateVerify())
@@ -370,27 +322,8 @@ def main():
         siglen = 114
     for pos in range(siglen):
         for xor in [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80]:
-            conversation = Connect(hostname, port)
-            node = conversation
-            ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-            ext = {}
-            groups = [GroupName.secp256r1]
-            ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-            ext[ExtensionType.supported_versions] = \
-                SupportedVersionsExtension().create([(3, 4), (3, 3)])
-            ext[ExtensionType.supported_groups] = \
-                SupportedGroupsExtension().create(groups)
-            ext[ExtensionType.signature_algorithms] = \
-                SignatureAlgorithmsExtension().create(sig_algs)
-            ext[ExtensionType.signature_algorithms_cert] = \
-                SignatureAlgorithmsCertExtension().create(
-                    ECDSA_SIG_ALL + RSA_SIG_ALL + EDDSA_SIG_ALL)
-            node = node.add_child(ClientHelloGenerator(
-                ciphers, extensions=ext))
-            node = node.add_child(ExpectServerHello())
-            node = node.add_child(ExpectChangeCipherSpec())
-            node = node.add_child(ExpectEncryptedExtensions())
+            (conversation, node) = initiate_connect(hostname, port, sig_algs)
+
             node = node.add_child(ExpectCertificateRequest())
             node = node.add_child(ExpectCertificate())
             node = node.add_child(ExpectCertificateVerify())
@@ -417,27 +350,8 @@ def main():
         ("All-zero bytes signature is rejected",
          dict((i, 0) for i in range(siglen))),
     ]:
-        conversation = Connect(hostname, port)
-        node = conversation
-        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        ext = {}
-        groups = [GroupName.secp256r1]
-        ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-        ext[ExtensionType.supported_versions] = \
-            SupportedVersionsExtension().create([(3, 4), (3, 3)])
-        ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
-        ext[ExtensionType.signature_algorithms] = \
-            SignatureAlgorithmsExtension().create(sig_algs)
-        ext[ExtensionType.signature_algorithms_cert] = \
-            SignatureAlgorithmsCertExtension().create(
-                ECDSA_SIG_ALL + RSA_SIG_ALL + EDDSA_SIG_ALL)
-        node = node.add_child(ClientHelloGenerator(
-            ciphers, extensions=ext))
-        node = node.add_child(ExpectServerHello())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectEncryptedExtensions())
+        (conversation, node) = initiate_connect(hostname, port, sig_algs)
+        
         node = node.add_child(ExpectCertificateRequest())
         node = node.add_child(ExpectCertificate())
         node = node.add_child(ExpectCertificateVerify())
@@ -454,27 +368,8 @@ def main():
         conversations_long[name] = conversation
 
     # empty signature field
-    conversation = Connect(hostname, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = \
-        SupportedVersionsExtension().create([(3, 4), (3, 3)])
-    ext[ExtensionType.supported_groups] = \
-        SupportedGroupsExtension().create(groups)
-    ext[ExtensionType.signature_algorithms] = \
-        SignatureAlgorithmsExtension().create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = \
-        SignatureAlgorithmsCertExtension().create(
-            ECDSA_SIG_ALL + RSA_SIG_ALL + EDDSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(
-        ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
+    (conversation, node) = initiate_connect(hostname, port, sig_algs)
+
     node = node.add_child(ExpectCertificateRequest())
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectCertificateVerify())

@@ -83,6 +83,32 @@ def help_msg():
     print(" --help         this message")
 
 
+def initiate_connection(host, port, cipher, cln_extensions, srv_extensions, client_key_exchange_generator, level, alert):
+    """Code Reuse"""
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [cipher]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=cln_extensions))
+    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    # the TLS version is always set, so we mask the real padding separator
+    # and set the last byte of PMS to 0
+    node = node.add_child(client_key_exchange_generator)
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(level,
+                                      alert))
+    node.add_child(ExpectClose())
+
+    return (conversation, node)
+
+
 def main():
     """Check if server is not vulnerable to Bleichenbacher attack"""
     host = "localhost"
@@ -288,16 +314,7 @@ def main():
     for i in range(1, 4):
         # create a CKE with PMS the runner doesn't know/use
         # (benchmark to measure other tests to)
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [cipher]
-        node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions=cln_extensions))
-        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(TCPBufferingEnable())
+        
         # use too short PMS but then change padding so that the PMS is
         # correct length with correct TLS version but the encryption keys
         # that tlsfuzzer calculates will be incorrect
@@ -306,526 +323,279 @@ def main():
             # for the third control probe make sure that the signal from
             # fuzzing is very visible to the server
             padding_xors=dict((i, 0) for i in range(120))
-        node = node.add_child(ClientKeyExchangeGenerator(
+
+        client_key_exchange_generator = ClientKeyExchangeGenerator(
             padding_subs={-3: 0, -2: 3, -1: 3},
             padding_xors=padding_xors,
             premaster_secret=bytearray([0] * 46),
-            reuse_encrypted_premaster=reuse_rsa_ciphertext))
-        node = node.add_child(ChangeCipherSpecGenerator())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(TCPBufferingDisable())
-        node = node.add_child(TCPBufferingFlush())
-        node = node.add_child(ExpectAlert(level,
-                                          alert))
-        node.add_child(ExpectClose())
+            reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+        (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
         conversations["control - fuzzed pre master secret {0}".format(i)] =\
             conversation
 
     # set 2nd byte of padding to 3 (invalid value)
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={1: 3},
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
     conversations["set PKCS#1 padding type to 3"] = conversation
 
     # set 2nd byte of padding to 1 (signing)
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={1: 1},
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
     conversations["set PKCS#1 padding type to 1"] = conversation
 
     # use the padding for signing (type 1)
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={1: 1},
         padding_byte=0xff,
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
     conversations["use PKCS#1 padding type 1"] = conversation
 
     # test early zero in random data
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={4: 0},
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
-
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
+    
     conversations["zero byte in random padding"] = conversation
 
     # check if early padding separator is detected
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={-2: 0},
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
     conversations["zero byte in last byte of random padding"] = conversation
 
     # check if separator without any random padding is detected
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={2: 0},
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
     conversations["zero byte in first byte of random padding"] = conversation
 
     # check if invalid first byte of encoded value is correctly detecte
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={0: 1},
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
     conversations["invalid version number in padding"] = conversation
 
     # check if no null separator in padding is detected
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={-1: 1},
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
     conversations["no null separator in padding"] = conversation
 
     # check if no null separator in padding is detected
     # but with PMS bytes set to non-zero
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={-1: 1},
         premaster_secret=bytearray([3, 3]),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
     conversations["no null separator in encrypted value"] = conversation
 
     # completely random plaintext
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={-1: 0xaf,
                       0: 0x27,
                       1: 0x09},
         premaster_secret=bytearray([3, 3]),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
     conversations["random plaintext"] = conversation
 
     # check if too short PMS is detected
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         premaster_secret=bytearray([1, 1]),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
     conversations["two byte long PMS (TLS version only)"] = conversation
 
     # check if no encrypted payload is detected
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
 
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
     # the TLS version is always set, so we mask the real padding separator
     # and set the last byte of PMS to 0
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={-1: 1},
         premaster_secret=bytearray([1, 1, 0]),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
     conversations["no encrypted value"] = conversation
 
     # check if too short encrypted payload is detected
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
 
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
     # the TLS version is always set, so we mask the real padding separator
     # and set the last byte of PMS to 0
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={-1: 1},
         premaster_secret=bytearray([1, 1, 0, 3]),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
-
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
+    
     conversations["one byte encrypted value"] = conversation
 
     # check if too short PMS is detected
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         premaster_secret=bytearray([0] * 47),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
     conversations["too short (47-byte) pre master secret"] = conversation
 
     # check if too short PMS is detected
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         premaster_secret=bytearray([0] * 4),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
     conversations["very short (4-byte) pre master secret"] = conversation
 
     # check if too long PMS is detected
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         premaster_secret=bytearray([0] * 49),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
     conversations["too long (49-byte) pre master secret"] = conversation
 
     # check if very long PMS is detected
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         premaster_secret=bytearray([0] * 124),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
     conversations["very long (124-byte) pre master secret"] = conversation
 
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    # 
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         premaster_secret=bytearray([0] * 96),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
     conversations["very long (96-byte) pre master secret"] = conversation
 
     # check if wrong TLS version number is rejected
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         client_version=(2, 2),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
     conversations["wrong TLS version (2, 2) in pre master secret"] = conversation
 
     # check if wrong TLS version number is rejected
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         client_version=(0, 0),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
     conversations["wrong TLS version (0, 0) in pre master secret"] = conversation
 
     for rep in range(4 if reuse_rsa_ciphertext else 1):
         for i in [1, 4, 8]:
             # check if too short PKCS padding is detected
-            conversation = Connect(host, port)
-            node = conversation
-            ciphers = [cipher]
-            node = node.add_child(ClientHelloGenerator(ciphers,
-                                                       extensions=cln_extensions))
-            node = node.add_child(ExpectServerHello(extensions=srv_extensions))
 
-            node = node.add_child(ExpectCertificate())
-            node = node.add_child(ExpectServerHelloDone())
-            node = node.add_child(TCPBufferingEnable())
             # move the start of the padding forward, essentially encrypting two 0 bytes
             # at the beginning of the padding, but since those are transformed into a number
             # their existence is lost and it just like the padding was too small
@@ -833,16 +603,14 @@ def main():
             for j in range(1, 1+i):
                 padding_subs[j] = 0
             padding_subs[i+1] = 2
-            node = node.add_child(ClientKeyExchangeGenerator(
+            client_key_exchange_generator = ClientKeyExchangeGenerator(
                 padding_subs=padding_subs,
-                reuse_encrypted_premaster=reuse_rsa_ciphertext))
-            node = node.add_child(ChangeCipherSpecGenerator())
-            node = node.add_child(FinishedGenerator())
-            node = node.add_child(TCPBufferingDisable())
-            node = node.add_child(TCPBufferingFlush())
-            node = node.add_child(ExpectAlert(level,
-                                              alert))
-            node.add_child(ExpectClose())
+                reuse_encrypted_premaster=reuse_rsa_ciphertext)
+            
+            (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
             suffix = ""
             if reuse_rsa_ciphertext:
@@ -853,31 +621,20 @@ def main():
 
     for j in range(4 if reuse_rsa_ciphertext else 1):
         # check if very short PKCS padding doesn't have a different behaviour
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [cipher]
-        node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions=cln_extensions))
-        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
 
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(TCPBufferingEnable())
         # move the start of the padding 40 bytes towards LSB
         subs = {}
         for i in range(41):
             subs[i] = 0
         subs[41] = 2
-        node = node.add_child(ClientKeyExchangeGenerator(
+        client_key_exchange_generator = ClientKeyExchangeGenerator(
             padding_subs=subs,
-            reuse_encrypted_premaster=reuse_rsa_ciphertext))
-        node = node.add_child(ChangeCipherSpecGenerator())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(TCPBufferingDisable())
-        node = node.add_child(TCPBufferingFlush())
-        node = node.add_child(ExpectAlert(level,
-                                          alert))
-        node.add_child(ExpectClose())
+            reuse_encrypted_premaster=reuse_rsa_ciphertext)
+        
+        (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
         suffix = ""
         if reuse_rsa_ciphertext:
@@ -887,110 +644,63 @@ def main():
             .format(suffix)] = conversation
 
     # check if too long PKCS padding is detected
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
+    
     # move the start of the padding backward, essentially encrypting no 0 bytes
     # at the beginning of the padding, but since those are transformed into a number
     # its lack is lost and it just like the padding was too big
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={0: 2},
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
     conversations["too long PKCS padding"] = conversation
 
     # test for Hamming weight sensitivity:
     # very low Hamming weight:
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_byte=0,
         client_version=(0, 0),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
     conversations["very low Hamming weight RSA plaintext"] = conversation
 
     # low Hamming weight:
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={-1: 1},
         padding_byte=1,
         client_version=(1, 1),
         premaster_secret=bytearray([1]*48),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
-
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
+    
     conversations["low Hamming weight RSA plaintext"] = conversation
 
     # test for Hamming weight sensitivity:
     # very high Hamming weight:
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={-1: 0xff},
         padding_byte=0xff,
         client_version=(0xff, 0xff),
         premaster_secret=bytearray([0xff]*48),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+    
+    (conversation, node) = initiate_connection(host, port, cipher, 
+                                                   cln_extensions, srv_extensions, 
+                                                   client_key_exchange_generator, level, 
+                                                   alert)
 
     conversations["very high Hamming weight RSA plaintext"] = conversation
 
