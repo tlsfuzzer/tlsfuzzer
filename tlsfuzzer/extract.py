@@ -255,7 +255,7 @@ class Extract:
                  binary=None, endian='little', no_quickack=False, delay=None,
                  carriage_return=None, data=None, data_size=None, sigs=None,
                  priv_key=None, key_type=None, frequency=None,
-                 hash_func=hashlib.sha256, verbose=False):
+                 hash_func=hashlib.sha256, verbose=False, fin_as_resp=False):
         """
         Initialises instance and sets up class name generator from log.
 
@@ -274,6 +274,8 @@ class Extract:
         :param bool no_quickack: If True, don't expect QUICKACK to be in use
         :param float delay: How often to print the status line.
         :param str carriage_return: What chacarter to use as status line end.
+        :param bool fin_as_resp: consider the server FIN packet to be the
+            response to previous client query
         """
         self.capture = capture
         self.output = output
@@ -321,6 +323,7 @@ class Extract:
         self._selections = None
         self._row = 0
         self._max_value = None
+        self._fin_as_resp = fin_as_resp
 
         if data and data_size:
             try:
@@ -559,10 +562,14 @@ class Extract:
                 lst_clnt_ack = 0
                 for lst_clnt_ack in self.client_msgs_acks.values():
                     pass
-                if self.no_quickack:
-                    time_diff = self.server_msgs[-1] - self.client_msgs[-1]
+                if self._fin_as_resp:
+                    srv_time = self.srv_fin
                 else:
-                    time_diff = self.server_msgs[-1] - lst_clnt_ack
+                    srv_time = self.server_msgs[-1]
+                if self.no_quickack:
+                    time_diff = srv_time - self.client_msgs[-1]
+                else:
+                    time_diff = srv_time - lst_clnt_ack
                 self.timings[class_name].append(time_diff)
                 self.pckt_times.append((
                     self.initial_syn,
@@ -647,7 +654,7 @@ class Extract:
                 # no coverage; assert
                 raise ValueError("inconsistent count of client messages")
 
-            if len(srv_msgs) != self._exp_srv:  # pragma: no cover
+            if len(srv_msgs) + int(self._fin_as_resp) != self._exp_srv:  # pragma: no cover
                 # no coverage: assert
                 raise ValueError("inconsistent count of server messages")
 
@@ -707,7 +714,7 @@ class Extract:
             return
 
         for _, _, _, clnt_msgs, clnt_msgs_acks, srv_msgs, srv_msgs_acks, \
-                _, _, _ in self.pckt_times:
+                srv_fin, _, _ in self.pckt_times:
             if len(clnt_msgs) != len(clnt_msgs_acks):  # pragma: no cover
                 # no overage; assert
                 print(clnt_msgs)
@@ -723,11 +730,14 @@ class Extract:
                 raise ValueError("server message ACKs mismatch")
 
             self._exp_clnt = len(clnt_msgs)
-            self._exp_srv = len(srv_msgs)
+            self._exp_srv = len(srv_msgs) + int(self._fin_as_resp)
 
         if self._exp_srv != self._exp_clnt:  # pragma: no cover
             # no coverage; assert
-            raise ValueError("For every client query we need a response")
+            print(clnt_msgs)
+            print(srv_msgs)
+            raise ValueError("For every client query we need a response "
+                             "(try FIN as server response)")
 
         filename = join(self.output, self.write_pkt_csv)
         with open(filename, 'w') as csvfile:

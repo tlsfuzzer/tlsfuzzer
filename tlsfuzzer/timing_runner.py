@@ -171,7 +171,7 @@ class TimingRunner:
                 return self.analyse()
         return 2
 
-    def extract(self):
+    def extract(self, fin_as_resp=False):
         """Starts the extraction if available."""
         if self.check_extraction_availability():
             from tlsfuzzer.extract import Extract
@@ -183,7 +183,8 @@ class TimingRunner:
                                  self.port,
                                  no_quickack=self.no_quickack,
                                  delay=self.delay,
-                                 carriage_return=self.carriage_return)
+                                 carriage_return=self.carriage_return,
+                                 fin_as_resp=fin_as_resp)
             extraction.parse()
             return True
 

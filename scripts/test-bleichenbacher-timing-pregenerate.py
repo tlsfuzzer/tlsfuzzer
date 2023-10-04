@@ -33,7 +33,7 @@ from tlsfuzzer.utils.statics import WARM_UP
 from tlsfuzzer.utils.log import Log
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -92,12 +92,13 @@ def help_msg():
     print(" --verbose-analysis Enable verbose progress of analysis.")
     print(" --status-delay num How often to print the status line. Default: 2.0 seconds")
     print(" --status-newline Use a newline for line end instead of carriage return.")
+    print(" --no-alert     Don't expect the server to send an alert before closing connection.")
     print(" --help         this message")
 
 
 def build_conn_graph(host, port, timeout, cipher, cln_extensions,
                      srv_extensions, client_key_exchange_generator, level,
-                     alert):
+                     alert, no_alert):
     """ Reuse the same block as a function, to simplify code """
     conversation = Connect(host, port, timeout=timeout)
     node = conversation
@@ -114,7 +115,8 @@ def build_conn_graph(host, port, timeout, cipher, cln_extensions,
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
     node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level, alert))
+    if not no_alert:
+        node = node.add_child(ExpectAlert(level, alert))
     node.add_child(ExpectClose())
 
     return (conversation)
@@ -149,6 +151,7 @@ def main():
     verbose_analysis = False
     delay = None
     carriage_return = None
+    no_alert = False
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv,
@@ -165,7 +168,8 @@ def main():
                                 "no-quickack",
                                 "verbose-analysis",
                                 "status-delay=",
-                                "status-newline"])
+                                "status-newline",
+                                "no-alert"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -231,6 +235,8 @@ def main():
             delay = float(arg)
         elif opt == "--status-newline":
             carriage_return = '\n'
+        elif opt == "--no-alert":
+            no_alert = True
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -399,8 +405,9 @@ def main():
         node = node.add_child(FinishedGenerator())
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
-        node = node.add_child(ExpectAlert(level,
-                                          alert))
+        if not no_alert:
+            node = node.add_child(ExpectAlert(level,
+                                              alert))
         node.add_child(ExpectClose())
 
         conversations["control - fuzzed pre master secret {0}".format(i)] =\
@@ -415,7 +422,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["set PKCS#1 padding type to 3"] = conversation
     generators["set PKCS#1 padding type to 3"] = client_key_exchange_generator
@@ -427,7 +435,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["set PKCS#1 padding type to 1"] = conversation
     generators["set PKCS#1 padding type to 1"] = client_key_exchange_generator
@@ -441,7 +450,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["use PKCS#1 padding type 1"] = conversation
     generators["use PKCS#1 padding type 1"] = client_key_exchange_generator
@@ -453,7 +463,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["zero byte in random padding"] = conversation
     generators["zero byte in random padding"] = client_key_exchange_generator
@@ -465,7 +476,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["zero byte in last byte of random padding"] = conversation
     generators["zero byte in last byte of random padding"] = client_key_exchange_generator
@@ -477,7 +489,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["zero byte in first byte of random padding"] = conversation
     generators["zero byte in first byte of random padding"] = client_key_exchange_generator
@@ -489,7 +502,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["invalid version number in padding"] = conversation
     generators["invalid version number in padding"] = client_key_exchange_generator
@@ -501,7 +515,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["no null separator in padding"] = conversation
     generators["no null separator in padding"] = client_key_exchange_generator
@@ -515,7 +530,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["no null separator in encrypted value"] = conversation
     generators["no null separator in encrypted value"] = client_key_exchange_generator
@@ -528,7 +544,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["random plaintext"] = conversation
     generators["random plaintext"] = client_key_exchange_generator
@@ -540,7 +557,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["two byte long PMS (TLS version only)"] = conversation
     generators["two byte long PMS (TLS version only)"] = client_key_exchange_generator
@@ -555,7 +573,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["no encrypted value"] = conversation
     generators["no encrypted value"] = client_key_exchange_generator
@@ -571,7 +590,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["one byte encrypted value"] = conversation
     generators["one byte encrypted value"] = client_key_exchange_generator
@@ -583,7 +603,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["too short (47-byte) pre master secret"] = conversation
     generators["too short (47-byte) pre master secret"] = client_key_exchange_generator
@@ -595,7 +616,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["very short (4-byte) pre master secret"] = conversation
     generators["very short (4-byte) pre master secret"] = client_key_exchange_generator
@@ -607,7 +629,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["too long (49-byte) pre master secret"] = conversation
     generators["too long (49-byte) pre master secret"] = client_key_exchange_generator
@@ -619,7 +642,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["very long (124-byte) pre master secret"] = conversation
     generators["very long (124-byte) pre master secret"] = client_key_exchange_generator
@@ -631,7 +655,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["very long (96-byte) pre master secret"] = conversation
     generators["very long (96-byte) pre master secret"] = client_key_exchange_generator
@@ -643,7 +668,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["wrong TLS version (2, 2) in pre master secret"] = conversation
     generators["wrong TLS version (2, 2) in pre master secret"] = client_key_exchange_generator
@@ -655,7 +681,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["wrong TLS version (0, 0) in pre master secret"] = conversation
     generators["wrong TLS version (0, 0) in pre master secret"] = client_key_exchange_generator
@@ -677,8 +704,10 @@ def main():
                 reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
             (conversation) = build_conn_graph(host, port, timeout,
-                                      cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                              cipher, cln_extensions,
+                                              srv_extensions,
+                                              client_key_exchange_generator,
+                                              level, alert, no_alert)
 
             suffix = ""
             if reuse_rsa_ciphertext:
@@ -703,8 +732,10 @@ def main():
             reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
         (conversation) = build_conn_graph(host, port, timeout,
-                                      cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                          cipher, cln_extensions,
+                                          srv_extensions,
+                                          client_key_exchange_generator,
+                                          level, alert, no_alert)
 
         suffix = ""
         if reuse_rsa_ciphertext:
@@ -727,7 +758,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["too long PKCS padding"] = conversation
     generators["too long PKCS padding"] = client_key_exchange_generator
@@ -742,7 +774,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["very low Hamming weight RSA plaintext"] = conversation
     generators["very low Hamming weight RSA plaintext"] = client_key_exchange_generator
@@ -766,8 +799,10 @@ def main():
                 reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
             (conversation) = build_conn_graph(host, port, timeout,
-                                      cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                              cipher, cln_extensions,
+                                              srv_extensions,
+                                              client_key_exchange_generator,
+                                              level, alert, no_alert)
 
             conversations["low Hamming weight RSA plaintext - {0} - {1}"
                           .format(hex(bit_set), place)] = conversation
@@ -786,7 +821,8 @@ def main():
 
     (conversation) = build_conn_graph(host, port, timeout,
                                       cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level, alert)
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["very high Hamming weight RSA plaintext"] = conversation
     generators["very high Hamming weight RSA plaintext"] = client_key_exchange_generator
@@ -1066,8 +1102,9 @@ place where the timing leak happens:
             node = node.add_child(FinishedGenerator())
             node = node.add_child(TCPBufferingDisable())
             node = node.add_child(TCPBufferingFlush())
-            node = node.add_child(ExpectAlert(level,
-                                              alert))
+            if not no_alert:
+                node = node.add_child(ExpectAlert(level,
+                                                  alert))
             node.add_child(ExpectClose())
 
             tests[:] = [('generic', conversation)]
@@ -1085,7 +1122,7 @@ place where the timing leak happens:
                 os.path.join(timing_runner.out_dir, 'real_log.csv'),
                 os.path.join(timing_runner.out_dir, 'log.csv')
             )
-            if not timing_runner.extract():
+            if not timing_runner.extract(fin_as_resp=no_alert):
                 ret_val = 2
             else:
                 ret_val = timing_runner.analyse()
