@@ -95,6 +95,31 @@ def help_msg():
     print(" --help         this message")
 
 
+def build_conn_graph(host, port, timeout, cipher, cln_extensions,
+                     srv_extensions, client_key_exchange_generator, level,
+                     alert):
+    """ Reuse the same block as a function, to simplify code """
+    conversation = Connect(host, port, timeout=timeout)
+    node = conversation
+    ciphers = [cipher]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=cln_extensions))
+    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(client_key_exchange_generator)
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(level, alert))
+    node.add_child(ExpectClose())
+
+    return (conversation)
+
+
 def main():
     """Check if server is not vulnerable to Bleichenbacher attack"""
     host = "localhost"
@@ -384,550 +409,261 @@ def main():
             cke_node
 
     # set 2nd byte of padding to 3 (invalid value)
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={1: 3},
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["set PKCS#1 padding type to 3"] = conversation
-    generators["set PKCS#1 padding type to 3"] = cke_node
+    generators["set PKCS#1 padding type to 3"] = client_key_exchange_generator
 
     # set 2nd byte of padding to 1 (signing)
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={1: 1},
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["set PKCS#1 padding type to 1"] = conversation
-    generators["set PKCS#1 padding type to 1"] = cke_node
+    generators["set PKCS#1 padding type to 1"] = client_key_exchange_generator
 
     # use the padding for signing (type 1)
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={1: 1},
         padding_byte=0xff,
         random_premaster=True,
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["use PKCS#1 padding type 1"] = conversation
-    generators["use PKCS#1 padding type 1"] = cke_node
+    generators["use PKCS#1 padding type 1"] = client_key_exchange_generator
 
     # test early zero in random data
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={4: 0},
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["zero byte in random padding"] = conversation
-    generators["zero byte in random padding"] = cke_node
+    generators["zero byte in random padding"] = client_key_exchange_generator
 
     # check if early padding separator is detected
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={-2: 0},
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["zero byte in last byte of random padding"] = conversation
-    generators["zero byte in last byte of random padding"] = cke_node
+    generators["zero byte in last byte of random padding"] = client_key_exchange_generator
 
     # check if separator without any random padding is detected
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(padding_subs={2: 0},
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
-        padding_subs={2: 0},
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["zero byte in first byte of random padding"] = conversation
-    generators["zero byte in first byte of random padding"] = cke_node
+    generators["zero byte in first byte of random padding"] = client_key_exchange_generator
 
     # check if invalid first byte of encoded value is correctly detecte
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(padding_subs={0: 1},
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
-        padding_subs={0: 1},
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["invalid version number in padding"] = conversation
-    generators["invalid version number in padding"] = cke_node
+    generators["invalid version number in padding"] = client_key_exchange_generator
 
     # check if no null separator in padding is detected
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(padding_subs={-1: 1},
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
-        padding_subs={-1: 1},
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["no null separator in padding"] = conversation
-    generators["no null separator in padding"] = cke_node
+    generators["no null separator in padding"] = client_key_exchange_generator
 
     # check if no null separator in padding is detected
     # but with PMS bytes set to non-zero
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(padding_subs={-1: 1},
+                                   premaster_secret=bytearray([3, 3]),
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
-        padding_subs={-1: 1},
-        premaster_secret=bytearray([3, 3]),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["no null separator in encrypted value"] = conversation
-    generators["no null separator in encrypted value"] = cke_node
+    generators["no null separator in encrypted value"] = client_key_exchange_generator
 
     # completely random plaintext
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(padding_subs={-1: 0xaf, 0: 0x27, 1: 0x09},
+                                   premaster_secret=bytearray([3, 3]),
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
-        padding_subs={-1: 0xaf,
-                      0: 0x27,
-                      1: 0x09},
-        premaster_secret=bytearray([3, 3]),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["random plaintext"] = conversation
-    generators["random plaintext"] = cke_node
+    generators["random plaintext"] = client_key_exchange_generator
 
     # check if too short PMS is detected
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(premaster_secret=bytearray([1, 1]),
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
-        premaster_secret=bytearray([1, 1]),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["two byte long PMS (TLS version only)"] = conversation
-    generators["two byte long PMS (TLS version only)"] = cke_node
+    generators["two byte long PMS (TLS version only)"] = client_key_exchange_generator
 
     # check if no encrypted payload is detected
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
     # the TLS version is always set, so we mask the real padding separator
     # and set the last byte of PMS to 0
-    node = node.add_child(ClientKeyExchangeGenerator(
-        padding_subs={-1: 1},
-        premaster_secret=bytearray([1, 1, 0]),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(padding_subs={-1: 1},
+                                   premaster_secret=bytearray([1, 1, 0]),
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["no encrypted value"] = conversation
-    generators["no encrypted value"] = cke_node
+    generators["no encrypted value"] = client_key_exchange_generator
 
     # check if too short encrypted payload is detected
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
 
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
     # the TLS version is always set, so we mask the real padding separator
     # and set the last byte of PMS to 0
-    node = node.add_child(ClientKeyExchangeGenerator(
-        padding_subs={-1: 1},
-        premaster_secret=bytearray([1, 1, 0, 3]),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(padding_subs={-1: 1},
+                                   premaster_secret=bytearray([1, 1, 0, 3]),
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["one byte encrypted value"] = conversation
-    generators["one byte encrypted value"] = cke_node
+    generators["one byte encrypted value"] = client_key_exchange_generator
 
     # check if too short PMS is detected
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         premaster_secret=bytearray([0] * 47),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["too short (47-byte) pre master secret"] = conversation
-    generators["too short (47-byte) pre master secret"] = cke_node
+    generators["too short (47-byte) pre master secret"] = client_key_exchange_generator
 
     # check if too short PMS is detected
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         premaster_secret=bytearray([0] * 4),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["very short (4-byte) pre master secret"] = conversation
-    generators["very short (4-byte) pre master secret"] = cke_node
+    generators["very short (4-byte) pre master secret"] = client_key_exchange_generator
 
     # check if too long PMS is detected
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         premaster_secret=bytearray([0] * 49),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["too long (49-byte) pre master secret"] = conversation
-    generators["too long (49-byte) pre master secret"] = cke_node
+    generators["too long (49-byte) pre master secret"] = client_key_exchange_generator
 
     # check if very long PMS is detected
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         premaster_secret=bytearray([0] * 124),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["very long (124-byte) pre master secret"] = conversation
-    generators["very long (124-byte) pre master secret"] = cke_node
+    generators["very long (124-byte) pre master secret"] = client_key_exchange_generator
 
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    #
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         premaster_secret=bytearray([0] * 96),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["very long (96-byte) pre master secret"] = conversation
-    generators["very long (96-byte) pre master secret"] = cke_node
+    generators["very long (96-byte) pre master secret"] = client_key_exchange_generator
 
     # check if wrong TLS version number is rejected
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         client_version=(2, 2),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["wrong TLS version (2, 2) in pre master secret"] = conversation
-    generators["wrong TLS version (2, 2) in pre master secret"] = cke_node
+    generators["wrong TLS version (2, 2) in pre master secret"] = client_key_exchange_generator
 
     # check if wrong TLS version number is rejected
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         client_version=(0, 0),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["wrong TLS version (0, 0) in pre master secret"] = conversation
-    generators["wrong TLS version (0, 0) in pre master secret"] = cke_node
+    generators["wrong TLS version (0, 0) in pre master secret"] = client_key_exchange_generator
 
     for rep in range(4 if reuse_rsa_ciphertext else 1):
         for i in [1, 4, 8]:
             # check if too short PKCS padding is detected
-            conversation = Connect(host, port, timeout=timeout)
-            node = conversation
-            ciphers = [cipher]
-            node = node.add_child(ClientHelloGenerator(ciphers,
-                                                       extensions=cln_extensions))
-            node = node.add_child(ExpectServerHello(extensions=srv_extensions))
 
-            node = node.add_child(ExpectCertificate())
-            node = node.add_child(ExpectServerHelloDone())
-            node = node.add_child(TCPBufferingEnable())
             # move the start of the padding forward, essentially encrypting two 0 bytes
             # at the beginning of the padding, but since those are transformed into a number
             # their existence is lost and it just like the padding was too small
@@ -935,17 +671,14 @@ def main():
             for j in range(1, 1+i):
                 padding_subs[j] = 0
             padding_subs[i+1] = 2
-            node = node.add_child(ClientKeyExchangeGenerator(
+
+            client_key_exchange_generator = ClientKeyExchangeGenerator(
                 padding_subs=padding_subs,
-                reuse_encrypted_premaster=reuse_rsa_ciphertext))
-            cke_node = node
-            node = node.add_child(ChangeCipherSpecGenerator())
-            node = node.add_child(FinishedGenerator())
-            node = node.add_child(TCPBufferingDisable())
-            node = node.add_child(TCPBufferingFlush())
-            node = node.add_child(ExpectAlert(level,
-                                              alert))
-            node.add_child(ExpectClose())
+                reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+            (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
             suffix = ""
             if reuse_rsa_ciphertext:
@@ -954,36 +687,24 @@ def main():
             conversations["too short PKCS padding - {0} bytes{1}"
                 .format(i, suffix)] = conversation
             generators["too short PKCS padding - {0} bytes{1}"
-                .format(i, suffix)] = cke_node
+                .format(i, suffix)] = client_key_exchange_generator
 
     for j in range(4 if reuse_rsa_ciphertext else 1):
         # check if very short PKCS padding doesn't have a different behaviour
-        conversation = Connect(host, port, timeout=timeout)
-        node = conversation
-        ciphers = [cipher]
-        node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions=cln_extensions))
-        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
 
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(TCPBufferingEnable())
         # move the start of the padding 40 bytes towards LSB
         subs = {}
         for i in range(41):
             subs[i] = 0
         subs[41] = 2
-        node = node.add_child(ClientKeyExchangeGenerator(
+
+        client_key_exchange_generator = ClientKeyExchangeGenerator(
             padding_subs=subs,
-            reuse_encrypted_premaster=reuse_rsa_ciphertext))
-        cke_node = node
-        node = node.add_child(ChangeCipherSpecGenerator())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(TCPBufferingDisable())
-        node = node.add_child(TCPBufferingFlush())
-        node = node.add_child(ExpectAlert(level,
-                                          alert))
-        node.add_child(ExpectClose())
+            reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+        (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
         suffix = ""
         if reuse_rsa_ciphertext:
@@ -992,79 +713,43 @@ def main():
         conversations["very short PKCS padding (40 bytes short){0}"
             .format(suffix)] = conversation
         generators["very short PKCS padding (40 bytes short){0}"
-            .format(suffix)] = cke_node
+            .format(suffix)] = client_key_exchange_generator
 
     # check if too long PKCS padding is detected
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
 
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
     # move the start of the padding backward, essentially encrypting no 0 bytes
     # at the beginning of the padding, but since those are transformed into a number
     # its lack is lost and it just like the padding was too big
-    node = node.add_child(ClientKeyExchangeGenerator(
+
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={0: 2},
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["too long PKCS padding"] = conversation
-    generators["too long PKCS padding"] = cke_node
+    generators["too long PKCS padding"] = client_key_exchange_generator
 
     # test for Hamming weight sensitivity:
     # very low Hamming weight:
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_byte=0,
         client_version=(0, 0),
         random_premaster=True,
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["very low Hamming weight RSA plaintext"] = conversation
-    generators["very low Hamming weight RSA plaintext"] = cke_node
+    generators["very low Hamming weight RSA plaintext"] = client_key_exchange_generator
 
     # low Hamming weight:
     for place in ('high', 'low'):
         for bit_set in bit_sets:
-            conversation = Connect(host, port, timeout=timeout)
-            node = conversation
-            ciphers = [cipher]
-            node = node.add_child(ClientHelloGenerator(ciphers,
-                                                       extensions=cln_extensions))
-            node = node.add_child(ExpectServerHello(extensions=srv_extensions))
-
-            node = node.add_child(ExpectCertificate())
-            node = node.add_child(ExpectServerHelloDone())
-            node = node.add_child(TCPBufferingEnable())
             if place == "high":
                 subs = dict(chain(
                     [(-1, bit_set)],
@@ -1072,55 +757,39 @@ def main():
             else:
                 subs = dict(
                      (i, -1) for i in range(-1, -1 - random_bytes, -1))
-            node = node.add_child(ClientKeyExchangeGenerator(
+
+            client_key_exchange_generator = ClientKeyExchangeGenerator(
                 padding_subs=subs,
                 padding_byte=bit_set,
                 client_version=(bit_set, bit_set),
                 premaster_secret=bytearray(),
-                reuse_encrypted_premaster=reuse_rsa_ciphertext))
-            cke_node = node
-            node = node.add_child(ChangeCipherSpecGenerator())
-            node = node.add_child(FinishedGenerator())
-            node = node.add_child(TCPBufferingDisable())
-            node = node.add_child(TCPBufferingFlush())
-            node = node.add_child(ExpectAlert(level,
-                                              alert))
-            node.add_child(ExpectClose())
+                reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+            (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
             conversations["low Hamming weight RSA plaintext - {0} - {1}"
                           .format(hex(bit_set), place)] = conversation
             generators["low Hamming weight RSA plaintext - {0} - {1}"
-                       .format(hex(bit_set), place)] = cke_node
+                       .format(hex(bit_set), place)] = client_key_exchange_generator
 
     # test for Hamming weight sensitivity:
     # very high Hamming weight:
-    conversation = Connect(host, port, timeout=timeout)
-    node = conversation
-    ciphers = [cipher]
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions=cln_extensions))
-    node = node.add_child(ExpectServerHello(extensions=srv_extensions))
 
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientKeyExchangeGenerator(
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={-1: 0xff},
         padding_byte=0xff,
         client_version=(0xff, 0xff),
         random_premaster=True,
-        reuse_encrypted_premaster=reuse_rsa_ciphertext))
-    cke_node = node
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(TCPBufferingDisable())
-    node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
-    node.add_child(ExpectClose())
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["very high Hamming weight RSA plaintext"] = conversation
-    generators["very high Hamming weight RSA plaintext"] = cke_node
+    generators["very high Hamming weight RSA plaintext"] = client_key_exchange_generator
 
     # run the conversation
     good = 0
