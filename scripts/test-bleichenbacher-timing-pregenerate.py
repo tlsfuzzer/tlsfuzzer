@@ -110,7 +110,6 @@ def build_conn_graph(host, port, timeout, cipher, cln_extensions,
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
     node = node.add_child(client_key_exchange_generator)
-    cke_node = node
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
@@ -118,7 +117,7 @@ def build_conn_graph(host, port, timeout, cipher, cln_extensions,
     node = node.add_child(ExpectAlert(level, alert))
     node.add_child(ExpectClose())
 
-    return (conversation, cke_node)
+    return (conversation)
 
 
 def main():
@@ -414,24 +413,24 @@ def main():
         padding_subs={1: 3},
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["set PKCS#1 padding type to 3"] = conversation
-    generators["set PKCS#1 padding type to 3"] = cke_node
+    generators["set PKCS#1 padding type to 3"] = client_key_exchange_generator
 
     # set 2nd byte of padding to 1 (signing)
     client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={1: 1},
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["set PKCS#1 padding type to 1"] = conversation
-    generators["set PKCS#1 padding type to 1"] = cke_node
+    generators["set PKCS#1 padding type to 1"] = client_key_exchange_generator
 
     # use the padding for signing (type 1)
     client_key_exchange_generator = ClientKeyExchangeGenerator(
@@ -440,72 +439,72 @@ def main():
         random_premaster=True,
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["use PKCS#1 padding type 1"] = conversation
-    generators["use PKCS#1 padding type 1"] = cke_node
+    generators["use PKCS#1 padding type 1"] = client_key_exchange_generator
 
     # test early zero in random data
     client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={4: 0},
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["zero byte in random padding"] = conversation
-    generators["zero byte in random padding"] = cke_node
+    generators["zero byte in random padding"] = client_key_exchange_generator
 
     # check if early padding separator is detected
     client_key_exchange_generator = ClientKeyExchangeGenerator(
         padding_subs={-2: 0},
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["zero byte in last byte of random padding"] = conversation
-    generators["zero byte in last byte of random padding"] = cke_node
+    generators["zero byte in last byte of random padding"] = client_key_exchange_generator
 
     # check if separator without any random padding is detected
     client_key_exchange_generator = \
         ClientKeyExchangeGenerator(padding_subs={2: 0},
                                    reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["zero byte in first byte of random padding"] = conversation
-    generators["zero byte in first byte of random padding"] = cke_node
+    generators["zero byte in first byte of random padding"] = client_key_exchange_generator
 
     # check if invalid first byte of encoded value is correctly detecte
     client_key_exchange_generator = \
         ClientKeyExchangeGenerator(padding_subs={0: 1},
                                    reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["invalid version number in padding"] = conversation
-    generators["invalid version number in padding"] = cke_node
+    generators["invalid version number in padding"] = client_key_exchange_generator
 
     # check if no null separator in padding is detected
     client_key_exchange_generator = \
         ClientKeyExchangeGenerator(padding_subs={-1: 1},
                                    reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["no null separator in padding"] = conversation
-    generators["no null separator in padding"] = cke_node
+    generators["no null separator in padding"] = client_key_exchange_generator
 
     # check if no null separator in padding is detected
     # but with PMS bytes set to non-zero
@@ -514,12 +513,12 @@ def main():
                                    premaster_secret=bytearray([3, 3]),
                                    reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["no null separator in encrypted value"] = conversation
-    generators["no null separator in encrypted value"] = cke_node
+    generators["no null separator in encrypted value"] = client_key_exchange_generator
 
     # completely random plaintext
     client_key_exchange_generator = \
@@ -527,24 +526,24 @@ def main():
                                    premaster_secret=bytearray([3, 3]),
                                    reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["random plaintext"] = conversation
-    generators["random plaintext"] = cke_node
+    generators["random plaintext"] = client_key_exchange_generator
 
     # check if too short PMS is detected
     client_key_exchange_generator = \
         ClientKeyExchangeGenerator(premaster_secret=bytearray([1, 1]),
                                    reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["two byte long PMS (TLS version only)"] = conversation
-    generators["two byte long PMS (TLS version only)"] = cke_node
+    generators["two byte long PMS (TLS version only)"] = client_key_exchange_generator
 
     # check if no encrypted payload is detected
     # the TLS version is always set, so we mask the real padding separator
@@ -554,12 +553,12 @@ def main():
                                    premaster_secret=bytearray([1, 1, 0]),
                                    reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["no encrypted value"] = conversation
-    generators["no encrypted value"] = cke_node
+    generators["no encrypted value"] = client_key_exchange_generator
 
     # check if too short encrypted payload is detected
 
@@ -570,96 +569,96 @@ def main():
                                    premaster_secret=bytearray([1, 1, 0, 3]),
                                    reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["one byte encrypted value"] = conversation
-    generators["one byte encrypted value"] = cke_node
+    generators["one byte encrypted value"] = client_key_exchange_generator
 
     # check if too short PMS is detected
     client_key_exchange_generator = ClientKeyExchangeGenerator(
         premaster_secret=bytearray([0] * 47),
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["too short (47-byte) pre master secret"] = conversation
-    generators["too short (47-byte) pre master secret"] = cke_node
+    generators["too short (47-byte) pre master secret"] = client_key_exchange_generator
 
     # check if too short PMS is detected
     client_key_exchange_generator = ClientKeyExchangeGenerator(
         premaster_secret=bytearray([0] * 4),
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["very short (4-byte) pre master secret"] = conversation
-    generators["very short (4-byte) pre master secret"] = cke_node
+    generators["very short (4-byte) pre master secret"] = client_key_exchange_generator
 
     # check if too long PMS is detected
     client_key_exchange_generator = ClientKeyExchangeGenerator(
         premaster_secret=bytearray([0] * 49),
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["too long (49-byte) pre master secret"] = conversation
-    generators["too long (49-byte) pre master secret"] = cke_node
+    generators["too long (49-byte) pre master secret"] = client_key_exchange_generator
 
     # check if very long PMS is detected
     client_key_exchange_generator = ClientKeyExchangeGenerator(
         premaster_secret=bytearray([0] * 124),
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["very long (124-byte) pre master secret"] = conversation
-    generators["very long (124-byte) pre master secret"] = cke_node
+    generators["very long (124-byte) pre master secret"] = client_key_exchange_generator
 
     #
     client_key_exchange_generator = ClientKeyExchangeGenerator(
         premaster_secret=bytearray([0] * 96),
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["very long (96-byte) pre master secret"] = conversation
-    generators["very long (96-byte) pre master secret"] = cke_node
+    generators["very long (96-byte) pre master secret"] = client_key_exchange_generator
 
     # check if wrong TLS version number is rejected
     client_key_exchange_generator = ClientKeyExchangeGenerator(
         client_version=(2, 2),
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["wrong TLS version (2, 2) in pre master secret"] = conversation
-    generators["wrong TLS version (2, 2) in pre master secret"] = cke_node
+    generators["wrong TLS version (2, 2) in pre master secret"] = client_key_exchange_generator
 
     # check if wrong TLS version number is rejected
     client_key_exchange_generator = ClientKeyExchangeGenerator(
         client_version=(0, 0),
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["wrong TLS version (0, 0) in pre master secret"] = conversation
-    generators["wrong TLS version (0, 0) in pre master secret"] = cke_node
+    generators["wrong TLS version (0, 0) in pre master secret"] = client_key_exchange_generator
 
     for rep in range(4 if reuse_rsa_ciphertext else 1):
         for i in [1, 4, 8]:
@@ -677,9 +676,9 @@ def main():
                 padding_subs=padding_subs,
                 reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-            (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+            (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
             suffix = ""
             if reuse_rsa_ciphertext:
@@ -688,7 +687,7 @@ def main():
             conversations["too short PKCS padding - {0} bytes{1}"
                 .format(i, suffix)] = conversation
             generators["too short PKCS padding - {0} bytes{1}"
-                .format(i, suffix)] = cke_node
+                .format(i, suffix)] = client_key_exchange_generator
 
     for j in range(4 if reuse_rsa_ciphertext else 1):
         # check if very short PKCS padding doesn't have a different behaviour
@@ -703,9 +702,9 @@ def main():
             padding_subs=subs,
             reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-        (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+        (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
         suffix = ""
         if reuse_rsa_ciphertext:
@@ -714,7 +713,7 @@ def main():
         conversations["very short PKCS padding (40 bytes short){0}"
             .format(suffix)] = conversation
         generators["very short PKCS padding (40 bytes short){0}"
-            .format(suffix)] = cke_node
+            .format(suffix)] = client_key_exchange_generator
 
     # check if too long PKCS padding is detected
 
@@ -726,12 +725,12 @@ def main():
         padding_subs={0: 2},
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["too long PKCS padding"] = conversation
-    generators["too long PKCS padding"] = cke_node
+    generators["too long PKCS padding"] = client_key_exchange_generator
 
     # test for Hamming weight sensitivity:
     # very low Hamming weight:
@@ -741,12 +740,12 @@ def main():
         random_premaster=True,
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["very low Hamming weight RSA plaintext"] = conversation
-    generators["very low Hamming weight RSA plaintext"] = cke_node
+    generators["very low Hamming weight RSA plaintext"] = client_key_exchange_generator
 
     # low Hamming weight:
     for place in ('high', 'low'):
@@ -766,14 +765,14 @@ def main():
                 premaster_secret=bytearray(),
                 reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-            (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+            (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
             conversations["low Hamming weight RSA plaintext - {0} - {1}"
                           .format(hex(bit_set), place)] = conversation
             generators["low Hamming weight RSA plaintext - {0} - {1}"
-                       .format(hex(bit_set), place)] = cke_node
+                       .format(hex(bit_set), place)] = client_key_exchange_generator
 
     # test for Hamming weight sensitivity:
     # very high Hamming weight:
@@ -785,12 +784,12 @@ def main():
         random_premaster=True,
         reuse_encrypted_premaster=reuse_rsa_ciphertext)
 
-    (conversation, cke_node) = build_conn_graph(host, port, timeout,
-                                                cipher, cln_extensions, srv_extensions,
-                                                client_key_exchange_generator, level, alert)
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level, alert)
 
     conversations["very high Hamming weight RSA plaintext"] = conversation
-    generators["very high Hamming weight RSA plaintext"] = cke_node
+    generators["very high Hamming weight RSA plaintext"] = client_key_exchange_generator
 
     # run the conversation
     good = 0
