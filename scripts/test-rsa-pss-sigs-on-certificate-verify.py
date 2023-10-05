@@ -210,7 +210,7 @@ def main():
             ]
     node = node.add_child(ExpectServerKeyExchange(valid_sig_algs=algs))
     node = node.add_child(ExpectCertificateRequest())
-    
+
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(CertificateVerifyGenerator(private_key))
@@ -333,7 +333,6 @@ def main():
     for scheme in schemes:
         (conversation, node) = build_conn_graph(host, port)
 
-        
         node = node.add_child(TCPBufferingEnable())
         node = node.add_child(CertificateGenerator(X509CertChain([cert])))
         node = node.add_child(ClientKeyExchangeGenerator())
@@ -355,7 +354,6 @@ def main():
         for xor in [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80]:
             (conversation, node) = build_conn_graph(host, port)
 
-            
             node = node.add_child(TCPBufferingEnable())
             node = node.add_child(CertificateGenerator(X509CertChain([cert])))
             node = node.add_child(ClientKeyExchangeGenerator())
@@ -379,7 +377,6 @@ def main():
     if cert.certAlg == "rsa-pss":
         (conversation, node) = build_conn_graph(host, port)
 
-        
         node = node.add_child(TCPBufferingEnable())
         node = node.add_child(CertificateGenerator(X509CertChain([cert])))
         node = node.add_child(ClientKeyExchangeGenerator())
@@ -403,7 +400,6 @@ def main():
     (conversation, node) = build_conn_graph(host, port)
 
     node = node.add_child(ExpectCertificateRequest())
-    
     node = node.add_child(TCPBufferingEnable())
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(ClientKeyExchangeGenerator())
@@ -433,9 +429,8 @@ def main():
                   .format(SignatureScheme.toRepr(sig_alg))] = conversation
 
     (conversation, node) = build_conn_graph(host, port)
-    
+
     node = node.add_child(ExpectCertificateRequest())
-    
     node = node.add_child(TCPBufferingEnable())
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(ClientKeyExchangeGenerator())
