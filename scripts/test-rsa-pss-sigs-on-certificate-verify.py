@@ -5,7 +5,6 @@ from __future__ import print_function
 import traceback
 import sys
 import getopt
-import re
 from itertools import chain
 from random import sample
 
@@ -24,7 +23,7 @@ from tlsfuzzer.helpers import sig_algs_to_ids, RSA_SIG_ALL
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType, HashAlgorithm, SignatureAlgorithm, SignatureScheme
-from tlslite.extensions import SignatureAlgorithmsExtension, TLSExtension, \
+from tlslite.extensions import SignatureAlgorithmsExtension, \
         SignatureAlgorithmsCertExtension
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509 import X509
