@@ -66,7 +66,7 @@ def help_msg():
     print(" --help         this message")
 
 
-def build_connection_graph(host, port, ciphers, ext, cert, certificate_verify_generator,
+def build_conn_graph(host, port, ciphers, ext, cert, certificate_verify_generator,
                            valid_sig_algs = None, tcp_buffering_enable = True):
     """ Build a connection graph """
     conversation = Connect(host, port)
