@@ -191,10 +191,12 @@ def main():
             (HashAlgorithm.sha256, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha224, SignatureAlgorithm.rsa),
             (HashAlgorithm.sha1, SignatureAlgorithm.rsa)]
+
     ext = {ExtensionType.signature_algorithms:
             SignatureAlgorithmsExtension().create(sigs),
            ExtensionType.signature_algorithms_cert:
             SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
