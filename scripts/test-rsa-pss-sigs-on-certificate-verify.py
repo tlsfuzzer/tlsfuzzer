@@ -65,7 +65,7 @@ def help_msg():
     print("                passing both of them to verification.")
     print(" --help         this message")
 
-def initiate_connection(host, port):
+def build_conn_graph(host, port, sigalgs=None):
     """ Reuse the same block as a function, to simplify code """
     conversation = Connect(host, port)
     node = conversation
@@ -88,6 +88,8 @@ def initiate_connection(host, port):
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectCertificateRequest(sig_algs=sigalgs))
+    node = node.add_child(ExpectServerHelloDone())
 
     return (conversation, node)
 
@@ -208,7 +210,7 @@ def main():
             ]
     node = node.add_child(ExpectServerKeyExchange(valid_sig_algs=algs))
     node = node.add_child(ExpectCertificateRequest())
-    node = node.add_child(ExpectServerHelloDone())
+    
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(CertificateVerifyGenerator(private_key))
@@ -227,10 +229,9 @@ def main():
     conversations["sanity"] = conversation
 
     # check if RSA-PSS can be the only one
-    (conversation, node) = initiate_connection(host, port)
+    (conversation, node) = build_conn_graph(host, port)
 
     node = node.add_child(ExpectCertificateRequest())
-    node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(CertificateVerifyGenerator(private_key))
@@ -249,10 +250,8 @@ def main():
     conversations["RSA-PSS only"] = conversation
 
     # check if algs in CertificateRequest are expected
-    (conversation, node) = initiate_connection(host, port)
+    (conversation, node) = build_conn_graph(host, port, sigalgs)
 
-    node = node.add_child(ExpectCertificateRequest(sig_algs=sigalgs))
-    node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(CertificateVerifyGenerator(private_key))
@@ -286,10 +285,8 @@ def main():
                            SignatureScheme.rsa_pss_rsae_sha512]
 
     for scheme in invalid_schemes:
-        (conversation, node) = initiate_connection(host, port)
-        
-        node = node.add_child(ExpectCertificateRequest())
-        node = node.add_child(ExpectServerHelloDone())
+        (conversation, node) = build_conn_graph(host, port)
+
         node = node.add_child(TCPBufferingEnable())
         node = node.add_child(CertificateGenerator(X509CertChain([cert])))
         node = node.add_child(ClientKeyExchangeGenerator())
@@ -311,10 +308,8 @@ def main():
 
     # check if CertificateVerify can be signed with any algorithm
     for scheme in schemes:
-        (conversation, node) = initiate_connection(host, port)
-        
-        node = node.add_child(ExpectCertificateRequest())
-        node = node.add_child(ExpectServerHelloDone())
+        (conversation, node) = build_conn_graph(host, port)
+
         node = node.add_child(CertificateGenerator(X509CertChain([cert])))
         node = node.add_child(ClientKeyExchangeGenerator())
         node = node.add_child(CertificateVerifyGenerator(private_key,
@@ -336,10 +331,9 @@ def main():
 
     # check if CertificateVerify with wrong salt size is rejected
     for scheme in schemes:
-        (conversation, node) = initiate_connection(host, port)
+        (conversation, node) = build_conn_graph(host, port)
 
-        node = node.add_child(ExpectCertificateRequest())
-        node = node.add_child(ExpectServerHelloDone())
+        
         node = node.add_child(TCPBufferingEnable())
         node = node.add_child(CertificateGenerator(X509CertChain([cert])))
         node = node.add_child(ClientKeyExchangeGenerator())
@@ -359,10 +353,9 @@ def main():
     # check if CertificateVerify with wrong salt size is rejected
     for pos in range(numBytes(private_key.n)):
         for xor in [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80]:
-            (conversation, node) = initiate_connection(host, port)
+            (conversation, node) = build_conn_graph(host, port)
 
-            node = node.add_child(ExpectCertificateRequest())
-            node = node.add_child(ExpectServerHelloDone())
+            
             node = node.add_child(TCPBufferingEnable())
             node = node.add_child(CertificateGenerator(X509CertChain([cert])))
             node = node.add_child(ClientKeyExchangeGenerator())
@@ -384,10 +377,9 @@ def main():
                                .format(cert.certAlg, hex(xor), pos)] = conversation
 
     if cert.certAlg == "rsa-pss":
-        (conversation, node) = initiate_connection(host, port)
+        (conversation, node) = build_conn_graph(host, port)
+
         
-        node = node.add_child(ExpectCertificateRequest())
-        node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(TCPBufferingEnable())
         node = node.add_child(CertificateGenerator(X509CertChain([cert])))
         node = node.add_child(ClientKeyExchangeGenerator())
@@ -408,10 +400,10 @@ def main():
         conversations["rsa_pkcs1_sha256 signature in CertificateVerify "
                       "with rsa-pss key"] = conversation
 
-    (conversation, node) = initiate_connection(host, port)
+    (conversation, node) = build_conn_graph(host, port)
 
     node = node.add_child(ExpectCertificateRequest())
-    node = node.add_child(ExpectServerHelloDone())
+    
     node = node.add_child(TCPBufferingEnable())
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(ClientKeyExchangeGenerator())
@@ -440,10 +432,10 @@ def main():
     conversations["{0} signature in CertificateVerify with rsa_pkcs1_sha256 id"
                   .format(SignatureScheme.toRepr(sig_alg))] = conversation
 
-    (conversation, node) = initiate_connection(host, port)
+    (conversation, node) = build_conn_graph(host, port)
     
     node = node.add_child(ExpectCertificateRequest())
-    node = node.add_child(ExpectServerHelloDone())
+    
     node = node.add_child(TCPBufferingEnable())
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(ClientKeyExchangeGenerator())
