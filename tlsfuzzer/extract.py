@@ -228,7 +228,7 @@ data size, signatures file and one private key are necessary.")
         log = Log(logfile)
         log.read_log()
 
-    analysis = Extract(
+    extract = Extract(
         log, capture, output, ip_address, port, raw_times, col_name,
         binary=binary, endian=endian, no_quickack=no_quickack,
         delay=delay, carriage_return=carriage_return,
@@ -236,12 +236,13 @@ data size, signatures file and one private key are necessary.")
         key_type=key_type, frequency=freq, hash_func=hash_func,
         verbose=verbose
     )
-    analysis.parse()
+    extract.parse()
 
     if all([raw_times, data, data_size, sigs, priv_key]):
-        analysis.process_measurements_and_create_csv_file(
-            analysis.ecdsa_iter(), analysis.ecdsa_max_value()
-        )
+        extract.process_and_create_multiple_csv_files({
+            "measurements.csv": "k-size",
+            "measurements-invert.csv": "invert-k-size",
+        })
 
 
 class Extract:
@@ -889,21 +890,30 @@ class Extract:
         for value in value_iter:
             yield bit_count(value)
 
+    def _calculate_invert_k(self, value_iter):
+        """Iterator. It will calculate the invert K."""
+        n_value = self.priv_key.curve.order
+        for value in value_iter:
+            yield ecdsa.ecdsa.numbertheory.inverse_mod(value, n_value)
+
     def ecdsa_iter(self, return_type="k-size"):
         """
         Iterator. Iterator to use for signatures signed by ECDSA private key.
         """
-        if return_type not in ["k-size", "hamming-weight"]:
-            raise ValueError(
-                "Iterator return must be k-size or hamming-weight."
-            )
-
         k_iter = self._ecdsa_calculate_k()
 
         if return_type == "k-size":
             k_wrap_iter = self._convert_to_bit_size(k_iter)
+        elif return_type == "invert-k-size":
+            k_wrap_iter = self._convert_to_bit_size(
+                self._calculate_invert_k(k_iter)
+            )
         elif return_type == "hamming-weight":
             k_wrap_iter = self._convert_to_hamming_weight(k_iter)
+        else:
+            raise ValueError(
+                "Iterator return must be k-size, invert-k-size or hamming-weight."
+            )
 
         return k_wrap_iter
 
@@ -1186,6 +1196,24 @@ class Extract:
             print('{0} rows was written.'.format(self._row))
 
         self._measurements_fp.close()
+
+    def process_and_create_multiple_csv_files(self, files = {
+        "measurements.csv": "k-size"
+    }):
+        original_measuremments_csv = self.measurements_csv
+
+        for file in files:
+            if self.verbose:
+                print("Creating {0} file...".format(file))
+
+
+            self.measurements_csv = file
+
+            self.process_measurements_and_create_csv_file(
+                self.ecdsa_iter(return_type=files[file]), self.ecdsa_max_value()
+            )
+
+        self.measurements_csv = original_measuremments_csv
 
     @staticmethod
     def hostname_to_ip(hostname):
