@@ -233,7 +233,7 @@ class TestExtraction(unittest.TestCase):
 class TestCommandLine(unittest.TestCase):
 
     @mock.patch(
-        'tlsfuzzer.extract.Extract.process_measurements_and_create_csv_file'
+        'tlsfuzzer.extract.Extract.process_and_create_multiple_csv_files'
     )
     @mock.patch('tlsfuzzer.extract.Log')
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
@@ -268,7 +268,7 @@ class TestCommandLine(unittest.TestCase):
                 mock_measurements.assert_not_called()
 
     @mock.patch(
-        'tlsfuzzer.extract.Extract.process_measurements_and_create_csv_file'
+        'tlsfuzzer.extract.Extract.process_and_create_multiple_csv_files'
     )
     @mock.patch('tlsfuzzer.extract.Log')
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
@@ -305,7 +305,7 @@ class TestCommandLine(unittest.TestCase):
                 mock_measurements.assert_not_called()
 
     @mock.patch(
-        'tlsfuzzer.extract.Extract.process_measurements_and_create_csv_file'
+        'tlsfuzzer.extract.Extract.process_and_create_multiple_csv_files'
     )
     @mock.patch('tlsfuzzer.extract.Log')
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
@@ -341,7 +341,7 @@ class TestCommandLine(unittest.TestCase):
                 mock_measurements.assert_not_called()
 
     @mock.patch(
-        'tlsfuzzer.extract.Extract.process_measurements_and_create_csv_file'
+        'tlsfuzzer.extract.Extract.process_and_create_multiple_csv_files'
     )
     @mock.patch('tlsfuzzer.extract.Log')
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
@@ -374,7 +374,7 @@ class TestCommandLine(unittest.TestCase):
                 mock_measurements.assert_not_called()
 
     @mock.patch(
-        'tlsfuzzer.extract.Extract.process_measurements_and_create_csv_file'
+        'tlsfuzzer.extract.Extract.process_and_create_multiple_csv_files'
     )
     @mock.patch('tlsfuzzer.extract.Log')
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
@@ -481,7 +481,7 @@ class TestCommandLine(unittest.TestCase):
                               str(e.exception))
 
     @mock.patch(
-        'tlsfuzzer.extract.Extract.process_measurements_and_create_csv_file'
+        'tlsfuzzer.extract.Extract.process_and_create_multiple_csv_files'
     )
     @mock.patch('tlsfuzzer.extract.Log')
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
@@ -554,13 +554,11 @@ class TestCommandLine(unittest.TestCase):
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
     @mock.patch('tlsfuzzer.extract.Extract._write_csv')
     @mock.patch(
-        'tlsfuzzer.extract.Extract.process_measurements_and_create_csv_file'
+        'tlsfuzzer.extract.Extract.process_and_create_multiple_csv_files'
     )
-    @mock.patch('tlsfuzzer.extract.Extract.ecdsa_iter')
-    @mock.patch('tlsfuzzer.extract.Extract.ecdsa_max_value')
     @mock.patch('tlsfuzzer.extract.Extract.parse')
-    def test_ecdsa_signs_options(self, mock_parse, mock_max_value, mock_iter,
-                          mock_process, mock_write, mock_write_pkt, mock_log):
+    def test_ecdsa_signs_options(self, mock_parse, mock_process, mock_write,
+                                 mock_write_pkt, mock_log):
         output = "/tmp"
         raw_data = "/tmp/data"
         data_size = 32
@@ -589,21 +587,17 @@ class TestCommandLine(unittest.TestCase):
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
-                mock_iter.assert_called_once()
-                mock_max_value.assert_called_once()
                 mock_process.assert_called_once()
 
     @mock.patch('tlsfuzzer.extract.Log')
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
     @mock.patch('tlsfuzzer.extract.Extract._write_csv')
     @mock.patch(
-        'tlsfuzzer.extract.Extract.process_measurements_and_create_csv_file'
+        'tlsfuzzer.extract.Extract.process_and_create_multiple_csv_files'
     )
-    @mock.patch('tlsfuzzer.extract.Extract.ecdsa_iter')
-    @mock.patch('tlsfuzzer.extract.Extract.ecdsa_max_value')
     @mock.patch('tlsfuzzer.extract.Extract.parse')
-    def test_verbose_option(self, mock_parse, mock_max_value, mock_iter,
-                          mock_process, mock_write, mock_write_pkt, mock_log):
+    def test_verbose_option(self, mock_parse, mock_process, mock_write,
+                            mock_write_pkt, mock_log):
         output = "/tmp"
         raw_data = "/tmp/data"
         data_size = 32
@@ -633,21 +627,17 @@ class TestCommandLine(unittest.TestCase):
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
-                mock_iter.assert_called_once()
-                mock_max_value.assert_called_once()
                 mock_process.assert_called_once()
 
     @mock.patch('tlsfuzzer.extract.Log')
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
     @mock.patch('tlsfuzzer.extract.Extract._write_csv')
     @mock.patch(
-        'tlsfuzzer.extract.Extract.process_measurements_and_create_csv_file'
+        'tlsfuzzer.extract.Extract.process_and_create_multiple_csv_files'
     )
-    @mock.patch('tlsfuzzer.extract.Extract.ecdsa_iter')
-    @mock.patch('tlsfuzzer.extract.Extract.ecdsa_max_value')
     @mock.patch('tlsfuzzer.extract.Extract.parse')
-    def test_frequency_option(self, mock_parse, mock_max_value, mock_iter,
-                          mock_process, mock_write, mock_write_pkt, mock_log):
+    def test_frequency_option(self, mock_parse, mock_process, mock_write,
+                              mock_write_pkt, mock_log):
         output = "/tmp"
         raw_data = "/tmp/data"
         data_size = 32
@@ -679,21 +669,17 @@ class TestCommandLine(unittest.TestCase):
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
-                mock_iter.assert_called_once()
-                mock_max_value.assert_called_once()
                 mock_process.assert_called_once()
 
     @mock.patch('tlsfuzzer.extract.Log')
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
     @mock.patch('tlsfuzzer.extract.Extract._write_csv')
     @mock.patch(
-        'tlsfuzzer.extract.Extract.process_measurements_and_create_csv_file'
+        'tlsfuzzer.extract.Extract.process_and_create_multiple_csv_files'
     )
-    @mock.patch('tlsfuzzer.extract.Extract.ecdsa_iter')
-    @mock.patch('tlsfuzzer.extract.Extract.ecdsa_max_value')
     @mock.patch('tlsfuzzer.extract.Extract.parse')
-    def test_hash_func_option(self, mock_parse, mock_max_value, mock_iter,
-                          mock_process, mock_write, mock_write_pkt, mock_log):
+    def test_hash_func_option(self, mock_parse, mock_process, mock_write,
+                              mock_write_pkt, mock_log):
         output = "/tmp"
         raw_data = "/tmp/data"
         data_size = 32
@@ -725,8 +711,6 @@ class TestCommandLine(unittest.TestCase):
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
-                mock_iter.assert_called_once()
-                mock_max_value.assert_called_once()
                 mock_process.assert_called_once()
 
     def test_specify_to_private_keys(self):
@@ -1285,6 +1269,38 @@ class TestMeasurementCreation(unittest.TestCase):
         )
 
     @mock.patch('__main__.__builtins__.open')
+    def test_measurement_creation_with_invert_k_size(
+            self, mock_file
+        ):
+        raw_times = join(dirname(abspath(__file__)),
+                         "measurements_test_files", "times.bin")
+        raw_sigs = join(dirname(abspath(__file__)),
+                         "measurements_test_files", "sigs.bin")
+        raw_data = join(dirname(abspath(__file__)),
+                         "measurements_test_files", "data.bin")
+        priv_key = join(dirname(abspath(__file__)),
+                         "measurements_test_files", "priv_key.pem")
+
+        mock_file.side_effect = self.file_emulator
+        self.times_used_write = 0
+
+        extract = Extract(
+            output="/tmp/minerva", raw_times=raw_times, binary=8,
+            sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
+            key_type="ecdsa"
+        )
+
+        extract.process_measurements_and_create_csv_file(
+            extract.ecdsa_iter(return_type="invert-k-size"),
+            extract.ecdsa_max_value()
+        )
+
+        self.assertGreater(
+            self.times_used_write, 0,
+            "At least one measurement should have been written."
+        )
+
+    @mock.patch('__main__.__builtins__.open')
     def test_measurement_creation_with_hamming_weigt(
             self, mock_file
         ):
@@ -1342,8 +1358,10 @@ class TestMeasurementCreation(unittest.TestCase):
                 extract.ecdsa_max_value()
             )
 
-        self.assertIn("Iterator return must be k-size or hamming-weight.",
-                        str(e.exception))
+        self.assertIn(
+            "Iterator return must be k-size, invert-k-size or hamming-weight.",
+            str(e.exception)
+        )
 
     @mock.patch('__main__.__builtins__.open')
     def test_measurement_creation_with_wrong_hash_func(
@@ -1434,3 +1452,34 @@ class TestMeasurementCreation(unittest.TestCase):
 
         self.assertIn("There are some extra values that are not used.",
                       str(e.exception))
+
+    @mock.patch('__main__.__builtins__.open')
+    def test_multiple_measurement_creation(
+            self, mock_file
+        ):
+        raw_times = join(dirname(abspath(__file__)),
+                         "measurements_test_files", "times.bin")
+        raw_sigs = join(dirname(abspath(__file__)),
+                         "measurements_test_files", "sigs.bin")
+        raw_data = join(dirname(abspath(__file__)),
+                         "measurements_test_files", "data.bin")
+        priv_key = join(dirname(abspath(__file__)),
+                         "measurements_test_files", "priv_key.pem")
+
+        mock_file.side_effect = self.file_emulator
+        self.times_used_write = 0
+
+        extract = Extract(
+            output="/tmp/minerva", raw_times=raw_times, binary=8,
+            sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
+            key_type="ecdsa"
+        )
+
+        extract.process_and_create_multiple_csv_files({
+            "measurements.csv": "k-size",
+        })
+
+        self.assertGreater(
+            self.times_used_write, 0,
+            "At least one measurement should have been written."
+        )
