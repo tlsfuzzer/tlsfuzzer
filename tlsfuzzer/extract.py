@@ -353,6 +353,7 @@ class Extract:
         times_iter = self._get_time_from_file()
 
         with open(raw_times_name, 'w') as raw_times:
+            raw_times.write("raw times\n")
             for val in times_iter:
                 raw_times.write(str(val) + '\n')
 
