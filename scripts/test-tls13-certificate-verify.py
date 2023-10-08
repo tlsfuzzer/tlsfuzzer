@@ -386,7 +386,6 @@ def main():
         AlertLevel.fatal, AlertDescription.decrypt_error))
     node.add_child(ExpectClose())
 
-    scheme = SignatureScheme.toRepr(sigalg)
     conversations["check pkcs1 signature with rsa-pss envelope fails"] = \
         conversation
 
