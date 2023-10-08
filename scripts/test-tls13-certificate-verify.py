@@ -443,7 +443,6 @@ def main():
                 AlertLevel.fatal, AlertDescription.decrypt_error))
             node.add_child(ExpectClose())
 
-            scheme = SignatureScheme.toRepr(sigalg)
             conversations_long["check that fuzzed signatures are rejected." +
                                " Malformed {0} - xor {1} at {2}".format(
                                certType, hex(xor), pos)] = conversation
