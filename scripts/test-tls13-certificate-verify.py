@@ -114,7 +114,7 @@ def sigalg_select(alg_type, hash_pref, supported=None, cert_type=None):
                                                     cert_type))
 
 
-def initiate_connection(host, port, sig_algs, cert):
+def build_conn_graph(host, port, sig_algs, cert):
     """ Reuse the same block as a function, to simplify code """
     conversation = Connect(host, port)
     node = conversation
@@ -235,7 +235,7 @@ def main():
     conversations_long = {}
 
     # sanity check for Client Certificates
-    (conversation, node) = initiate_connection(host, port, sig_algs, cert)
+    (conversation, node) = build_conn_graph(host, port, sig_algs, cert)
 
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(CertificateVerifyGenerator(private_key))
@@ -321,7 +321,7 @@ def main():
         if sigalg not in cr_sigalgs:
             expectPass = False
 
-        (conversation, node) = initiate_connection(host, port, sig_algs, cert)
+        (conversation, node) = build_conn_graph(host, port, sig_algs, cert)
         # force sigalg
         node = node.add_child(CertificateVerifyGenerator(private_key, msg_alg=
             sigalg))
@@ -360,7 +360,7 @@ def main():
     hash_name = SignatureScheme.getHash(SignatureScheme.toRepr(msgalg))
     digest_len = getattr(tlshashlib, hash_name)().digest_size
     for saltlen in (0, digest_len - 1, digest_len + 1):
-        (conversation, node) = initiate_connection(host, port, sig_algs, cert)
+        (conversation, node) = build_conn_graph(host, port, sig_algs, cert)
         # force salt length
         node = node.add_child(CertificateVerifyGenerator(
             private_key, rsa_pss_salt_len=saltlen))
@@ -376,7 +376,7 @@ def main():
     sigalg = sigalg_select("rsa_pkcs1", hashalgs)
     msgalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, certType)
     
-    (conversation, node) = initiate_connection(host, port, sig_algs, cert)
+    (conversation, node) = build_conn_graph(host, port, sig_algs, cert)
 
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(CertificateVerifyGenerator(
@@ -399,7 +399,7 @@ def main():
     _hashalgs = [x for x in hashalgs if x != hash_name]
     sigalg = sigalg_select("rsa_pss", _hashalgs, cert_type=certType)
 
-    (conversation, node) = initiate_connection(host, port, sig_algs, cert)
+    (conversation, node) = build_conn_graph(host, port, sig_algs, cert)
 
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(CertificateVerifyGenerator(
@@ -419,7 +419,7 @@ def main():
     hash_name = SignatureScheme.getHash(SignatureScheme.toRepr(msgalg))
     mgf1_hash = [x for x in hashalgs if x != hash_name][0]
 
-    (conversation, node) = initiate_connection(host, port, sig_algs, cert)
+    (conversation, node) = build_conn_graph(host, port, sig_algs, cert)
     
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(CertificateVerifyGenerator(
@@ -435,7 +435,7 @@ def main():
     # check that fuzzed signatures are rejected
     for pos in range(numBytes(private_key.n)):
         for xor in [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80]:
-            (conversation, node) = initiate_connection(host, port, sig_algs, cert)
+            (conversation, node) = build_conn_graph(host, port, sig_algs, cert)
 
             node = node.add_child(CertificateVerifyGenerator(
                 private_key, padding_xors={pos:xor}))
