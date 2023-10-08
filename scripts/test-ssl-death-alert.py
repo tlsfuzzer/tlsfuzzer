@@ -57,7 +57,8 @@ def help_msg():
     print(" -M | --ems           Enable support for Extended Master Secret")
     print(" --help               this message")
 
-def initiate_connection(host, port, dhe, ems):
+
+def build_conn_graph(host, port, dhe, ems):
     """ Reuse the same block as a function, to simplify code """
     conversation = Connect(host, port, version=(3, 3))
     node = conversation
@@ -140,7 +141,7 @@ def main():
 
     conversations = {}
 
-    (conversation, node) = initiate_connection(hostname, port, dhe, ems)
+    (conversation, node) = build_conn_graph(hostname, port, dhe, ems)
 
     for _ in range(number_of_alerts):  # sending alerts during handshake
         node = node.add_child(AlertGenerator(  # alert description: 46, 41, 43
@@ -162,8 +163,8 @@ def main():
     node.next_sibling = ExpectClose()
     conversations["SSL Death Alert without getting alert"] = conversation
 
-    (conversation, node) = initiate_connection(hostname, port, dhe, ems)
-    
+    (conversation, node) = build_conn_graph(hostname, port, dhe, ems)
+
     for _ in range(number_of_alerts+1):
         node = node.add_child(AlertGenerator(
             AlertLevel.warning, AlertDescription.unsupported_certificate))
