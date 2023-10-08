@@ -112,7 +112,7 @@ def sigalg_select(alg_type, hash_pref, supported=None, cert_type=None):
                                                     cert_type))
 
 
-def build_conn_graph(host, port, sig_algs, cert):
+def build_conn_graph(host, port, sig_algs, cert, certificate_verify_generator):
     """ Reuse the same block as a function, to simplify code """
     conversation = Connect(host, port)
     node = conversation
@@ -129,6 +129,7 @@ def build_conn_graph(host, port, sig_algs, cert):
         SignatureAlgorithmsExtension().create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -138,6 +139,8 @@ def build_conn_graph(host, port, sig_algs, cert):
     node = node.add_child(ExpectCertificateVerify())
     node = node.add_child(ExpectFinished())
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
+    node = node.add_child(certificate_verify_generator)
+    node = node.add_child(FinishedGenerator())
 
     return (conversation, node)
 
@@ -233,11 +236,9 @@ def main():
     conversations_long = {}
 
     # sanity check for Client Certificates
-    (conversation, node) = build_conn_graph(host, port, sig_algs, cert)
+    (conversation, node) = build_conn_graph(host, port, sig_algs, cert,
+                                            CertificateVerifyGenerator(private_key))
 
-    node = node.add_child(CertificateGenerator(X509CertChain([cert])))
-    node = node.add_child(CertificateVerifyGenerator(private_key))
-    node = node.add_child(FinishedGenerator())
     node = node.add_child(ApplicationDataGenerator(
     bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     # This message is optional and may show up 0 to many times
@@ -319,11 +320,9 @@ def main():
         if sigalg not in cr_sigalgs:
             expectPass = False
 
-        (conversation, node) = build_conn_graph(host, port, sig_algs, cert)
         # force sigalg
-        node = node.add_child(CertificateVerifyGenerator(private_key, msg_alg=
-            sigalg))
-        node = node.add_child(FinishedGenerator())
+        (conversation, node) = build_conn_graph(host, port, sig_algs, cert,
+                                                CertificateVerifyGenerator(private_key, msg_alg=sigalg))
 
         result = "works"
         # only signatures of matching certificate type should work
@@ -358,11 +357,11 @@ def main():
     hash_name = SignatureScheme.getHash(SignatureScheme.toRepr(msgalg))
     digest_len = getattr(tlshashlib, hash_name)().digest_size
     for saltlen in (0, digest_len - 1, digest_len + 1):
-        (conversation, node) = build_conn_graph(host, port, sig_algs, cert)
         # force salt length
-        node = node.add_child(CertificateVerifyGenerator(
-            private_key, rsa_pss_salt_len=saltlen))
-        node = node.add_child(FinishedGenerator())
+        (conversation, node) = build_conn_graph(host, port, sig_algs, cert,
+                                                CertificateVerifyGenerator(
+                                                    private_key, rsa_pss_salt_len=saltlen))
+
         node = node.add_child(ExpectAlert(
             AlertLevel.fatal, AlertDescription.decrypt_error))
         node.add_child(ExpectClose())
@@ -374,12 +373,10 @@ def main():
     sigalg = sigalg_select("rsa_pkcs1", hashalgs)
     msgalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, certType)
 
-    (conversation, node) = build_conn_graph(host, port, sig_algs, cert)
+    (conversation, node) = build_conn_graph(host, port, sig_algs, cert,
+                                            CertificateVerifyGenerator(
+                                                private_key, sig_alg=sigalg, msg_alg=msgalg))
 
-    node = node.add_child(CertificateGenerator(X509CertChain([cert])))
-    node = node.add_child(CertificateVerifyGenerator(
-        private_key, sig_alg=sigalg, msg_alg=msgalg))
-    node = node.add_child(FinishedGenerator())
     node = node.add_child(ExpectAlert(
         AlertLevel.fatal, AlertDescription.decrypt_error))
     node.add_child(ExpectClose())
@@ -396,12 +393,10 @@ def main():
     _hashalgs = [x for x in hashalgs if x != hash_name]
     sigalg = sigalg_select("rsa_pss", _hashalgs, cert_type=certType)
 
-    (conversation, node) = build_conn_graph(host, port, sig_algs, cert)
+    (conversation, node) = build_conn_graph(host, port, sig_algs, cert,
+                                            CertificateVerifyGenerator(
+                                                private_key, sig_alg=sigalg, msg_alg=msgalg))
 
-    node = node.add_child(CertificateGenerator(X509CertChain([cert])))
-    node = node.add_child(CertificateVerifyGenerator(
-        private_key, sig_alg=sigalg, msg_alg=msgalg))
-    node = node.add_child(FinishedGenerator())
     node = node.add_child(ExpectAlert(
         AlertLevel.fatal, AlertDescription.decrypt_error))
     node.add_child(ExpectClose())
@@ -416,12 +411,10 @@ def main():
     hash_name = SignatureScheme.getHash(SignatureScheme.toRepr(msgalg))
     mgf1_hash = [x for x in hashalgs if x != hash_name][0]
 
-    (conversation, node) = build_conn_graph(host, port, sig_algs, cert)
+    (conversation, node) = build_conn_graph(host, port, sig_algs, cert,
+                                            CertificateVerifyGenerator(
+                                                private_key, mgf1_hash=mgf1_hash, msg_alg=sigalg))
 
-    node = node.add_child(CertificateGenerator(X509CertChain([cert])))
-    node = node.add_child(CertificateVerifyGenerator(
-        private_key, mgf1_hash=mgf1_hash, msg_alg=sigalg))
-    node = node.add_child(FinishedGenerator())
     node = node.add_child(ExpectAlert(
         AlertLevel.fatal, AlertDescription.decrypt_error))
     node.add_child(ExpectClose())
@@ -432,11 +425,10 @@ def main():
     # check that fuzzed signatures are rejected
     for pos in range(numBytes(private_key.n)):
         for xor in [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80]:
-            (conversation, node) = build_conn_graph(host, port, sig_algs, cert)
+            (conversation, node) = build_conn_graph(host, port, sig_algs, cert, 
+                                                    CertificateVerifyGenerator(
+                                                        private_key, padding_xors={pos:xor}))
 
-            node = node.add_child(CertificateVerifyGenerator(
-                private_key, padding_xors={pos:xor}))
-            node = node.add_child(FinishedGenerator())
             node = node.add_child(ExpectAlert(
                 AlertLevel.fatal, AlertDescription.decrypt_error))
             node.add_child(ExpectClose())
