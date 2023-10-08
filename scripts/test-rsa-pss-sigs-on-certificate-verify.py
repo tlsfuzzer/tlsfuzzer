@@ -209,7 +209,7 @@ def main():
             SignatureScheme.rsa_pss_pss_sha512
             ]
 
-    (conversation, node) = build_connection_graph(host, port, ciphers, ext, cert,
+    (conversation, node) = build_conn_graph(host, port, ciphers, ext, cert,
                                                   CertificateVerifyGenerator(private_key),
                                                   valid_sig_algs=algs, 
                                                   tcp_buffering_enable=False)
@@ -244,7 +244,7 @@ def main():
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
 
-    (conversation, node) = build_connection_graph(host, port, ciphers, ext, cert,
+    (conversation, node) = build_conn_graph(host, port, ciphers, ext, cert,
                                                   CertificateVerifyGenerator(private_key),
                                                   None, tcp_buffering_enable=False)
 
@@ -278,7 +278,7 @@ def main():
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
 
-    (conversation, node) = build_connection_graph(host, port, ciphers, ext, cert,
+    (conversation, node) = build_conn_graph(host, port, ciphers, ext, cert,
                                                   CertificateVerifyGenerator(private_key),
                                                   valid_sig_algs = sigalgs, tcp_buffering_enable=False)
 
@@ -327,7 +327,7 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
 
-        (conversation, node) = build_connection_graph(host, port, ciphers, ext, cert,
+        (conversation, node) = build_conn_graph(host, port, ciphers, ext, cert,
                                                       CertificateVerifyGenerator(private_key,
                                                          msg_alg=scheme),
                                                       None, tcp_buffering_enable=True)
@@ -361,7 +361,7 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
 
-        (conversation, node) = build_connection_graph(host, port, ciphers, ext, cert,
+        (conversation, node) = build_conn_graph(host, port, ciphers, ext, cert,
                                                       CertificateVerifyGenerator(private_key,
                                                          msg_alg=scheme),
                                                       None, tcp_buffering_enable=False)
@@ -398,7 +398,7 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
 
-        (conversation, node) = build_connection_graph(host, port, ciphers, ext, cert,
+        (conversation, node) = build_conn_graph(host, port, ciphers, ext, cert,
                                                       CertificateVerifyGenerator(private_key,
                                                          msg_alg=scheme,
                                                          rsa_pss_salt_len=20),
@@ -435,7 +435,7 @@ def main():
             else:
                 scheme = SignatureScheme.rsa_pss_pss_sha256
 
-            (conversation, node) = build_connection_graph(host, port, ciphers, ext, cert,
+            (conversation, node) = build_conn_graph(host, port, ciphers, ext, cert,
                                                           CertificateVerifyGenerator(private_key,
                                                              msg_alg=scheme,
                                                              padding_xors={pos:xor}),
@@ -465,7 +465,7 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
 
-        (conversation, node) = build_connection_graph(host, port, ciphers, ext, cert,
+        (conversation, node) = build_conn_graph(host, port, ciphers, ext, cert,
                                                       CertificateVerifyGenerator(private_key,
                                                          msg_alg=SignatureScheme.rsa_pkcs1_sha256,
                                                          sig_alg=SignatureScheme.rsa_pkcs1_sha256),
@@ -503,7 +503,7 @@ def main():
     else:
         sig_alg = SignatureScheme.rsa_pss_pss_sha256
 
-    (conversation, node) = build_connection_graph(host, port, ciphers, ext, cert,
+    (conversation, node) = build_conn_graph(host, port, ciphers, ext, cert,
                                                   CertificateVerifyGenerator(private_key,
                                                      msg_alg=SignatureScheme.rsa_pkcs1_sha256,
                                                      sig_alg=sig_alg),
@@ -546,7 +546,7 @@ def main():
         scheme = SignatureScheme.rsa_pss_pss_sha256
     sig = bytearray(b'\xfa\xbc\x0f\x4c')
 
-    (conversation, node) = build_connection_graph(host, port, ciphers, ext, cert, 
+    (conversation, node) = build_conn_graph(host, port, ciphers, ext, cert, 
                                                   CertificateVerifyGenerator(private_key,
                                                      msg_alg=scheme,
                                                      signature=sig),
