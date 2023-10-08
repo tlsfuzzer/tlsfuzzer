@@ -10,20 +10,20 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+        ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
         RawMessageGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+        ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
         ExpectEncryptedExtensions, ExpectCertificateVerify, \
         ExpectNewSessionTicket
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme, ContentType
-from tlslite.keyexchange import ECDHKeyExchange
+
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
+from tlslite.extensions import ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL
@@ -52,7 +52,7 @@ def help_msg():
     print(" --help         this message")
 
 
-def initiate_connection(host, port):
+def build_conn_graph(host, port):
     """ Reuse the same block as a function, to simplify code """
     conversation = Connect(host, port)
     node = conversation
@@ -123,7 +123,7 @@ def main():
 
     conversations = {}
 
-    (conversation, node) = initiate_connection(host, port)
+    (conversation, node) = build_conn_graph(host, port)
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ApplicationDataGenerator(
         bytearray(b"GET / HTTP/1.0\r\n\r\n")))
@@ -142,7 +142,7 @@ def main():
     conversations["sanity"] = conversation
 
     # CCS from client
-    (conversation, node) = initiate_connection(host, port)
+    (conversation, node) = build_conn_graph(host, port)
 
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
@@ -163,7 +163,7 @@ def main():
     conversations["both client and server send CCS"] = conversation
 
     # CCS in wrong place
-    (conversation, node) = initiate_connection(host, port)
+    (conversation, node) = build_conn_graph(host, port)
 
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -180,8 +180,8 @@ def main():
     conversations["CCS message after Finished message"] = conversation
 
     # two byte long CCS
-    (conversation, node) = initiate_connection(host, port)
-    
+    (conversation, node) = build_conn_graph(host, port)
+
     node = node.add_child(RawMessageGenerator(
         ContentType.change_cipher_spec,
         b'\x01\x01'))
