@@ -10,7 +10,7 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+        ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
         SetRecordVersion, TCPBufferingEnable, TCPBufferingDisable, \
         TCPBufferingFlush, ch_cookie_handler, split_message, \
@@ -26,7 +26,7 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme, \
         PskKeyExchangeMode, ContentType
 from tlslite.utils.cryptomath import getRandomNumber, getRandomBytes
-from tlslite.keyexchange import ECDHKeyExchange
+
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
@@ -65,12 +65,11 @@ def help_msg():
     print(" --help         this message")
 
 
-def initiate_connection(host, port):
+def build_conn_graph(host, port):
     """ Reuse the same block as a function, to simplify code """
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+
     ext = OrderedDict()
     groups = [GroupName.secp256r1]
     key_shares = []
@@ -87,7 +86,7 @@ def initiate_connection(host, port):
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
-    
+
     return (conversation, node)
 
 def main():
@@ -188,7 +187,7 @@ def main():
     conversations["sanity"] = conversation
 
     # sanity check with PSK binders
-    (conversation, node) = initiate_connection(host, port)
+    (conversation, node) = build_conn_graph(host, port)
 
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
         .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
@@ -393,7 +392,7 @@ def main():
     conversations["handshake with invalid 0-RTT and HRR"] = conversation
 
     # fake 0-RTT resumption with fragmented early data
-    (conversation, node) = initiate_connection(host, port)
+    (conversation, node) = build_conn_graph(host, port)
 
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
@@ -438,7 +437,7 @@ def main():
         = conversation
 
     # fake 0-RTT and early data spliced into the Finished message
-    (conversation, node) = initiate_connection(host, port)
+    (conversation, node) = build_conn_graph(host, port)
 
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
@@ -483,7 +482,7 @@ def main():
         = conversation
 
     # fake 0-RTT resumption and CCS between fake early data
-    (conversation, node) = initiate_connection(host, port)
+    (conversation, node) = build_conn_graph(host, port)
 
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
@@ -529,8 +528,8 @@ def main():
         = conversation
 
     # fake 0-RTT resumption and CCS
-    (conversation, node) = initiate_connection(host, port)
-    
+    (conversation, node) = build_conn_graph(host, port)
+
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
@@ -631,8 +630,8 @@ def main():
     conversations["handshake with invalid 0-RTT and unknown version (downgrade to TLS 1.2)"] = conversation
 
     # fake 0-RTT resumption
-    (conversation, node) = initiate_connection(host, port)
-    
+    (conversation, node) = build_conn_graph(host, port)
+
     ext[ExtensionType.early_data] = \
         TLSExtension(extType=ExtensionType.early_data)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
