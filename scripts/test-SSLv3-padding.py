@@ -46,7 +46,7 @@ def help_msg():
     print(" --help         this message")
 
 
-def initiate_connection(host, port):
+def build_conn_graph(host, port):
     """ Reuse the same block as a function, to simplify code """
     conversation = Connect(host, port)
     node = conversation
@@ -106,8 +106,8 @@ def main():
     conversations = {}
 
     # normal connection
-    (conversation, node) = initiate_connection(host, port)
-    
+    (conversation, node) = build_conn_graph(host, port)
+
     text = b"GET / HTTP/1.0\nX-bad: aaaa\n\n"
     node = node.add_child(ApplicationDataGenerator(text))
     node = node.add_child(ExpectApplicationData())
@@ -124,7 +124,7 @@ def main():
             conversation
 
     # zero-fill SSLv3 padding
-    (conversation, node) = initiate_connection(host, port)
+    (conversation, node) = build_conn_graph(host, port)
 
     text = b"GET / HTTP/1.0\nX-bad: aaaa\n\n"
     hmac_tag_length = 20  # because we're using HMAC-SHA-1
@@ -150,7 +150,7 @@ def main():
             conversation
 
     # max size SSLv3 padding
-    (conversation, node) = initiate_connection(host, port)
+    (conversation, node) = build_conn_graph(host, port)
 
     text = b"GET / HTTP/1.0\nX-bad: aaaa\n\n"
     hmac_tag_length = 20
@@ -173,7 +173,7 @@ def main():
             conversation
 
     # too much padding in SSLv3
-    (conversation, node) = initiate_connection(host, port)
+    (conversation, node) = build_conn_graph(host, port)
 
     text = b"GET / HTTP/1.0\nX-bad: aaaa\n\n"
     hmac_tag_length = 20
@@ -192,8 +192,8 @@ def main():
             conversation
 
     # max size SSLv3 padding
-    (conversation, node) = initiate_connection(host, port)
-    
+    (conversation, node) = build_conn_graph(host, port)
+
     text = b"GET / HTTP/1.0\r\nX-bad: a\r\n"
     # some servers put limits on size of headers, e.g. Apache 2.3 has 8190 Bytes
     for i in range(3):
