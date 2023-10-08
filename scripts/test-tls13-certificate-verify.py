@@ -22,7 +22,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import key_share_ext_gen, sig_algs_to_ids, RSA_SIG_ALL
 from tlslite.extensions import SignatureAlgorithmsExtension, \
-        SignatureAlgorithmsCertExtension, ClientKeyShareExtension, \
+        SignatureAlgorithmsCertExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         HashAlgorithm, SignatureAlgorithm, ExtensionType, SignatureScheme, \
