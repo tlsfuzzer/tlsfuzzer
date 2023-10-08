@@ -375,7 +375,7 @@ def main():
     # verify that a rsa-pkcs1 signature in a rsa-pss ID envelope fails
     sigalg = sigalg_select("rsa_pkcs1", hashalgs)
     msgalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, certType)
-    
+
     (conversation, node) = build_conn_graph(host, port, sig_algs, cert)
 
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
@@ -419,7 +419,7 @@ def main():
     mgf1_hash = [x for x in hashalgs if x != hash_name][0]
 
     (conversation, node) = build_conn_graph(host, port, sig_algs, cert)
-    
+
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(CertificateVerifyGenerator(
         private_key, mgf1_hash=mgf1_hash, msg_alg=sigalg))
