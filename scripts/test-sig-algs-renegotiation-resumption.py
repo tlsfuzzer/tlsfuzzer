@@ -82,7 +82,7 @@ def build_conn_graph(host, port, ciphers, ext, dhe, sig_algs_drop_ok = True):
     """ Reuse the same block as a function, to simplify code """
     conversation = Connect(host, port)
     node = conversation
-    
+
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     if sig_algs_drop_ok:
         node = node.add_child(ExpectServerHello())
@@ -171,7 +171,7 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        
+
     (conversation, node) = build_conn_graph(host, port, ciphers, ext, dhe)
 
     node = node.add_child(ApplicationDataGenerator(
@@ -204,7 +204,7 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        
+
     (conversation, node) = build_conn_graph(host, port, ciphers, ext, dhe, sig_algs_drop_ok=True)
 
     node = node.add_child(ResetHandshakeHashes())
@@ -368,7 +368,7 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    
+
     (conversation, node) = build_conn_graph(host, port, ciphers, ext, dhe, sig_algs_drop_ok=sig_algs_drop_ok)
 
     if sig_algs_drop_ok:
@@ -406,7 +406,7 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    
+
     (conversation, node) = build_conn_graph(host, port, ciphers, ext, dhe, sig_algs_drop_ok=True)
 
     node = node.add_child(ResetHandshakeHashes())
@@ -484,7 +484,7 @@ def main():
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
 
     (conversation, node) = build_conn_graph(host, port, ciphers, ext, dhe, sig_algs_drop_ok=True)
-    
+
     node = node.add_child(ResetHandshakeHashes())
     renego_exts = dict(ext)
     # use None for autogeneration of the renegotiation_info with correct
@@ -554,7 +554,7 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    
+
     (conversation, node) = build_conn_graph(host, port, ciphers, ext, dhe, sig_algs_drop_ok=True)
 
     node = node.add_child(ResetHandshakeHashes())
@@ -627,7 +627,7 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    
+
     (conversation, node) = build_conn_graph(host, port, ciphers, ext, dhe, sig_algs_drop_ok=True)
 
     node = node.add_child(ResetHandshakeHashes())
@@ -694,7 +694,7 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        
+
     (conversation, node) = build_conn_graph(host, port, ciphers, ext, dhe, sig_algs_drop_ok=True)
 
     node = node.add_child(ResetHandshakeHashes())
@@ -762,9 +762,9 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    
+
     (conversation, node) = build_conn_graph(host, port, ciphers, ext, dhe, sig_algs_drop_ok=True)
-    
+
     node = node.add_child(ResetHandshakeHashes())
     renego_exts = dict(ext)
     # use None for autogeneration of the renegotiation_info with correct
