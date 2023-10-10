@@ -353,6 +353,7 @@ class Extract:
         times_iter = self._get_time_from_file()
 
         with open(raw_times_name, 'w') as raw_times:
+            raw_times.write("raw times\n")
             for val in times_iter:
                 raw_times.write(str(val) + '\n')
 
@@ -621,7 +622,7 @@ class Extract:
             writer = csv.writer(csvfile, quoting=csv.QUOTE_MINIMAL)
             for values in zip(*[self.timings[i] for i in
                     self._write_class_names]):
-                writer.writerow("{0:.9f}".format(i) for i in values)
+                writer.writerow("{0:.9e}".format(float(i)) for i in values)
 
             for i in self.timings.values():
                 i.clear()
