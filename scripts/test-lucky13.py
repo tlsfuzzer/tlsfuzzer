@@ -29,7 +29,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import SIG_ALL
 
 
-version = 7
+version = 8
 
 
 def help_msg():
@@ -466,6 +466,10 @@ def main():
                     failed.append(c_name)
 
         print("Lucky 13 attack check for {0} {1}".format(group_name, CipherSuite.ietfNames[cipher]))
+        print("WARNING: this test doesn't use a side-channel free test harness")
+        print("as such, it's very likely to cause false positives when measuring")
+        print("small side-channels, on the order of few microseconds.")
+        print("See https://people.redhat.com/~hkario/marvin/ for more details")
 
         print("Test end")
         print(20 * '=')
