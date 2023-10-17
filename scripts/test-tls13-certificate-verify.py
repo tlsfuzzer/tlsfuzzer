@@ -231,15 +231,17 @@ def main():
     if not cert or not private_key:
         raise Exception("A Client certificate and a private key are required")
 
-    certType = cert.certAlg
+    cert_type = cert.certAlg
 
     conversations = {}
     conversations_long = {}
 
     # sanity check for Client Certificates
-    (conversation, node) = build_conn_graph(host, port, sig_algs, cert,
-                                            cr_sigalgs=None,
-                                            certificate_verify_generator=CertificateVerifyGenerator(private_key))
+    (conversation, node) = \
+        build_conn_graph(host, port, sig_algs, cert,
+                         cr_sigalgs=None,
+                         certificate_verify_generator=\
+                            CertificateVerifyGenerator(private_key))
 
     node = node.add_child(ApplicationDataGenerator(
     bytearray(b"GET / HTTP/1.0\r\n\r\n")))
@@ -257,7 +259,9 @@ def main():
     conversations["sanity"] = conversation
 
     # verify the advertised hashes
-    (conversation, node) = build_conn_graph(host, port, sig_algs, cert, cr_sigalgs=cr_sigalgs, certificate_verify_generator=None)
+    (conversation, node) = \
+        build_conn_graph(host, port, sig_algs, cert,
+                         cr_sigalgs=cr_sigalgs, certificate_verify_generator=None)
 
     node = node.add_child(ApplicationDataGenerator(
     bytearray(b"GET / HTTP/1.0\r\n\r\n")))
@@ -277,12 +281,12 @@ def main():
         # set if test should succeed or fail based on cert type,
         # advertisement and forbidden algorithms
         expect_pass = True
-        if certType == "rsa" and sigalg in (
+        if cert_type == "rsa" and sigalg in (
             SignatureScheme.rsa_pss_pss_sha256,
             SignatureScheme.rsa_pss_pss_sha384,
             SignatureScheme.rsa_pss_pss_sha512):
             expect_pass = False
-        elif certType == "rsa-pss" and sigalg in (
+        elif cert_type == "rsa-pss" and sigalg in (
             SignatureScheme.rsa_pss_rsae_sha256,
             SignatureScheme.rsa_pss_rsae_sha384,
             SignatureScheme.rsa_pss_rsae_sha512):
@@ -300,9 +304,11 @@ def main():
             expect_pass = False
 
         # force sigalg
-        (conversation, node) = build_conn_graph(host, port, sig_algs, cert,
-                                                cr_sigalgs=None,
-                                                certificate_verify_generator=CertificateVerifyGenerator(private_key, msg_alg=sigalg))
+        (conversation, node) = \
+            build_conn_graph(host, port, sig_algs, cert,
+                             cr_sigalgs=None,
+                             certificate_verify_generator=\
+                                CertificateVerifyGenerator(private_key, msg_alg=sigalg))
 
         result = "works"
         # only signatures of matching certificate type should work
@@ -333,15 +339,16 @@ def main():
 
     # verify that rsa-pss signatures with empty, too short or too long
     # salt fail
-    msgalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, certType)
+    msgalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, cert_type)
     hash_name = SignatureScheme.getHash(SignatureScheme.toRepr(msgalg))
     digest_len = getattr(tlshashlib, hash_name)().digest_size
     for saltlen in (0, digest_len - 1, digest_len + 1):
         # force salt length
-        (conversation, node) = build_conn_graph(host, port, sig_algs, cert,
-                                                cr_sigalgs=None,
-                                                certificate_verify_generator=CertificateVerifyGenerator(
-                                                    private_key, rsa_pss_salt_len=saltlen))
+        (conversation, node) = \
+            build_conn_graph(host, port, sig_algs, cert,
+                             cr_sigalgs=None,
+                             certificate_verify_generator=CertificateVerifyGenerator(
+                                private_key, rsa_pss_salt_len=saltlen))
 
         node = node.add_child(ExpectAlert(
             AlertLevel.fatal, AlertDescription.decrypt_error))
@@ -352,7 +359,7 @@ def main():
 
     # verify that a rsa-pkcs1 signature in a rsa-pss ID envelope fails
     sigalg = sigalg_select("rsa_pkcs1", hashalgs)
-    msgalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, certType)
+    msgalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, cert_type)
 
     (conversation, node) = build_conn_graph(host, port, sig_algs, cert,
                                             cr_sigalgs=None,
@@ -367,13 +374,13 @@ def main():
         conversation
 
     # verify that a rsa-pss signature with mismatched message hash fails
-    msgalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, certType)
+    msgalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, cert_type)
 
     # choose a similar scheme with just a different hash, doesn't need to be
     # a server supported sigalg
     hash_name = SignatureScheme.getHash(SignatureScheme.toRepr(msgalg))
     _hashalgs = [x for x in hashalgs if x != hash_name]
-    sigalg = sigalg_select("rsa_pss", _hashalgs, cert_type=certType)
+    sigalg = sigalg_select("rsa_pss", _hashalgs, cert_type=cert_type)
 
     (conversation, node) = build_conn_graph(host, port, sig_algs, cert,
                                             cr_sigalgs=None,
@@ -388,7 +395,7 @@ def main():
         conversation
 
     # verify that a rsa-pss signature with mismatched MGF1 hash fails
-    sigalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, certType)
+    sigalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, cert_type)
 
     # choose a different hash to cause mismtach
     hash_name = SignatureScheme.getHash(SignatureScheme.toRepr(msgalg))
@@ -409,10 +416,11 @@ def main():
     # check that fuzzed signatures are rejected
     for pos in range(numBytes(private_key.n)):
         for xor in [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80]:
-            (conversation, node) = build_conn_graph(host, port, sig_algs, cert, 
-                                                    cr_sigalgs=None,
-                                                    certificate_verify_generator=CertificateVerifyGenerator(
-                                                        private_key, padding_xors={pos:xor}))
+            (conversation, node) = \
+                build_conn_graph(host, port, sig_algs, cert, 
+                                 cr_sigalgs=None,
+                                 certificate_verify_generator=CertificateVerifyGenerator(
+                                    private_key, padding_xors={pos:xor}))
 
             node = node.add_child(ExpectAlert(
                 AlertLevel.fatal, AlertDescription.decrypt_error))
@@ -420,7 +428,7 @@ def main():
 
             conversations_long["check that fuzzed signatures are rejected." +
                                " Malformed {0} - xor {1} at {2}".format(
-                               certType, hex(xor), pos)] = conversation
+                               cert_type, hex(xor), pos)] = conversation
 
 
     # run the conversation
