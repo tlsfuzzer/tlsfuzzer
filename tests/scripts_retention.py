@@ -147,13 +147,18 @@ def flush_queue(exp_pass = True):
             break
 
 
-def run_clients(tests, common_args, srv, expected_size):
+def run_clients(tests, common_args, srv, expected_size, test_include=None):
     good = 0
     bad = 0
     failed = []
     print_all_from_queue()
     for params in tests:
         script = params["name"]
+
+        if test_include is not None and script != test_include:
+            # logger.info("{0}:not in {1}".format(script, test_include))
+            continue
+
         logger.info("{0}:started".format(script))
         start_time = time.time()
         proc_args = [sys.executable, '-u',
@@ -204,7 +209,7 @@ def run_clients(tests, common_args, srv, expected_size):
     return good, bad, failed
 
 
-def run_with_json(config_file, srv_path, expected_size):
+def run_with_json(config_file, srv_path, expected_size, test_include=None):
     with open(config_file) as f:
         config = json.load(f)
 
@@ -233,7 +238,7 @@ def run_with_json(config_file, srv_path, expected_size):
         common_args = srv_conf.get("common_arguments", [])
         try:
             n_good, n_bad, f_cmds = run_clients(srv_conf["tests"], common_args, srv,
-                                                expected_size)
+                                                expected_size, test_include)
             good += n_good
             bad += n_bad
             failed.extend(f_cmds)
@@ -254,11 +259,16 @@ def run_with_json(config_file, srv_path, expected_size):
 
 
 def main():
-    if len(sys.argv) != 4:
-        print("provide path to `config file`, `server executable` and expected `reply size`")
+    if len(sys.argv) < 4:
+        print("Provide path to `config file`, `server executable` and expected `reply size`")
+        print("You can provide an optional 4th arg that will limit the test to just one of the scripts")
         sys.exit(2)
 
-    good, bad, failed = run_with_json(sys.argv[1], sys.argv[2], sys.argv[3])
+    test_include = None
+    if len(sys.argv) == 5:
+        test_include = sys.argv[4]
+
+    good, bad, failed = run_with_json(sys.argv[1], sys.argv[2], sys.argv[3], test_include)
 
     logging.shutdown()
     print(20 * '=')
