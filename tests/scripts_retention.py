@@ -255,7 +255,7 @@ def run_with_json(config_file, srv_path, expected_size):
 
 def main():
     if len(sys.argv) != 4:
-        print("provide path to config file, server executable and expected reply size")
+        print("provide path to `config file`, `server executable` and expected `reply size`")
         sys.exit(2)
 
     good, bad, failed = run_with_json(sys.argv[1], sys.argv[2], sys.argv[3])
