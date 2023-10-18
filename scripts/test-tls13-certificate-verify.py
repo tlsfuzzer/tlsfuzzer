@@ -138,7 +138,12 @@ def build_conn_graph(host, port, sig_algs, cert, cr_sigalgs, certificate_verify_
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectCertificateVerify())
     node = node.add_child(ExpectFinished())
-    node = node.add_child(CertificateGenerator(X509CertChain([cert])))
+
+    if cert is not None:
+        node = node.add_child(CertificateGenerator(X509CertChain([cert])))
+    else:
+        node = node.add_child(CertificateGenerator())
+
     if certificate_verify_generator is not None:
         node = node.add_child(certificate_verify_generator)
     node = node.add_child(FinishedGenerator())
