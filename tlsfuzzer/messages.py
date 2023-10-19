@@ -4,6 +4,7 @@
 """Objects for generating TLS messages to send."""
 
 import random
+import struct
 from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         Finished, Alert, ApplicationData, Message, Certificate, \
         CertificateVerify, CertificateRequest, ClientMasterKey, \
@@ -122,6 +123,20 @@ class Close(Command):
         """Close currently open connection."""
         state.msg_sock.sock.close()
 
+class CloseRST(Command):
+    """Object used to close a TCP connection with a RST packet."""
+
+    def __init__(self):
+        """CloseRST connection object."""
+        super(CloseRST, self).__init__()
+
+    def process(self, state):
+        """Close currently open connection by sending a RST packet."""
+        l_onoff = 1
+        l_linger = 0
+        state.msg_sock.sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,
+                 struct.pack('ii', l_onoff, l_linger))
+        state.msg_sock.sock.close()
 
 class ResetHandshakeHashes(Command):
     """
