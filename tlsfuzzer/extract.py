@@ -587,10 +587,13 @@ class Extract:
             else:
                 self.warm_up_messages_left -= 1
                 if self.warm_up_messages_left == 0:
-                    if self.srv_fin > self.clnt_fin:
-                        self.last_warmup_fin = self.srv_fin
+                    if self.srv_fin is None and self.clnt_fin is None:
+                       self.last_warmup_fin = 0
                     else:
-                        self.last_warmup_fin = self.clnt_fin
+                        if self.srv_fin > self.clnt_fin:
+                            self.last_warmup_fin = self.srv_fin
+                        else:
+                            self.last_warmup_fin = self.clnt_fin
 
     def _flush_to_files(self):
         # we can write only complete lines
@@ -692,20 +695,31 @@ class Extract:
                     row.append(s_msg_ack - s_msg)
 
                 # lst_srv_to_srv_fin
-                row.append(srv_fin - s_msgs[-1])
+                if srv_fin is None:
+                    row.append(0)
+                else:
+                    row.append(srv_fin - s_msgs[-1])
+
                 # lst_srv_to_clnt_fin
-                row.append(clnt_fin - s_msgs[-1])
-                if srv_fin > clnt_fin:
-                    last_fin = srv_fin
+                if clnt_fin is None:
+                    row.append(0)
                 else:
-                    last_fin = clnt_fin
-                # second_fin_to_ack
-                if ack_for_fin:
-                    row.append(ack_for_fin - last_fin)
-                    self._previous_lst_msg = ack_for_fin
+                    row.append(clnt_fin - s_msgs[-1])
+
+                if srv_fin is None or clnt_fin is None:
+                    row.append(0)
                 else:
-                    row.append(0.0)
-                    self._previous_lst_msg = last_fin
+                    if srv_fin > clnt_fin:
+                        last_fin = srv_fin
+                    else:
+                        last_fin = clnt_fin
+                    # second_fin_to_ack
+                    if ack_for_fin:
+                        row.append(ack_for_fin - last_fin)
+                        self._previous_lst_msg = ack_for_fin
+                    else:
+                        row.append(0.0)
+                        self._previous_lst_msg = last_fin
 
                 writer.writerow(row)
 

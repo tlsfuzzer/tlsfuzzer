@@ -33,6 +33,7 @@ from .helpers import key_share_gen, AutoEmptyExtension, ECDSA_SIG_ALL, \
 from .handshake_helpers import calc_pending_states, curve_name_to_hash_tls13
 from .tree import TreeNode
 import socket
+import struct
 from functools import partial
 
 
@@ -122,6 +123,20 @@ class Close(Command):
         """Close currently open connection."""
         state.msg_sock.sock.close()
 
+class CloseRST(Command):
+    """Object used to close a TCP connection with a RST package."""
+
+    def __init__(self):
+        """CloseRST connection object."""
+        super(CloseRST, self).__init__()
+
+    def process(self, state):
+        """Close currently open connection by sending a RST package."""
+        l_onoff = 1
+        l_linger = 0
+        state.msg_sock.sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,
+                 struct.pack('ii', l_onoff, l_linger))
+        state.msg_sock.sock.close()
 
 class ResetHandshakeHashes(Command):
     """
