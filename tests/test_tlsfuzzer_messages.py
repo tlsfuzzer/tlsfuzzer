@@ -16,11 +16,12 @@ except ImportError:
 import socket
 import os
 import io
+import struct
 
 from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,\
         ChangeCipherSpecGenerator, FinishedGenerator, \
         RenegotiationInfoExtension, ResetHandshakeHashes, SetMaxRecordSize, \
-        pad_handshake, truncate_handshake, Close, fuzz_message, \
+        pad_handshake, truncate_handshake, Close, CloseRST, fuzz_message, \
         RawMessageGenerator, split_message, PopMessageFromList, \
         FlushMessageList, fuzz_mac, fuzz_padding, ApplicationDataGenerator, \
         CertificateGenerator, CertificateVerifyGenerator, CertificateRequest, \
@@ -117,6 +118,25 @@ class TestClose(unittest.TestCase):
         close = Close()
         close.process(state)
 
+        state.msg_sock.sock.close.assert_called_once_with()
+
+class TestCloseRST(unittest.TestCase):
+    def test___init__(self):
+        close = CloseRST()
+
+        self.assertIsNotNone(close)
+
+    def test_process(self):
+        state = ConnectionState()
+        state.msg_sock = mock.MagicMock()
+
+        close = CloseRST()
+        close.process(state)
+
+        state.msg_sock.sock.setsockopt.assert_called_once_with(
+            socket.SOL_SOCKET, socket.SO_LINGER,
+                 struct.pack('ii', 1, 0)
+        )
         state.msg_sock.sock.close.assert_called_once_with()
 
 class TestTCPBufferingEnable(unittest.TestCase):
