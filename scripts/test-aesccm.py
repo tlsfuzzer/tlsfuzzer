@@ -26,7 +26,7 @@ from tlsfuzzer.helpers import SIG_ALL
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -176,6 +176,7 @@ def main():
     conversations["AES-CCM in TLS1.1"] = conversation
 
     # empty application data message acceptance
+    conversation = Connect(host, port)
     node = conversation
     ext = {}
     if dhe:
@@ -217,6 +218,7 @@ def main():
     conversations["empty app data"] = conversation
 
     # empty application data message acceptance with _8 ciphers
+    conversation = Connect(host, port)
     node = conversation
     ext = {}
     if dhe:

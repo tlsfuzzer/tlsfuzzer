@@ -1,4 +1,4 @@
-# Author: Robert Kolcun, (c) 2018
+# Author: Hubert Kario, (c) 2018-2023
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 from __future__ import print_function
@@ -10,26 +10,26 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ChangeCipherSpecGenerator, \
+        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        RawMessageGenerator
+        PlaintextMessageGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectChangeCipherSpec, ExpectFinished, \
+        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
         ExpectEncryptedExtensions, ExpectCertificateVerify, \
         ExpectNewSessionTicket
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme, ContentType
-
+from tlslite.keyexchange import ECDHKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlslite.extensions import ClientKeyShareExtension, \
+from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
-from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL
+from tlsfuzzer.helpers import key_share_gen, SIG_ALL
 
 
-version = 5
+version = 1
 
 
 def help_msg():
@@ -48,41 +48,11 @@ def help_msg():
     print("                execution of preceding expected failure probe")
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
-    print("                (excluding \"sanity\" tests)")
+    print("                (\"sanity\" tests are always executed)")
+    print(" -C ciph        Use specified ciphersuite. Either numerical value or")
+    print("                IETF name.")
     print(" --help         this message")
 
-
-def build_conn_graph(host, port):
-    """ Reuse the same block as a function, to simplify code """
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    for group in groups:
-        key_shares.append(key_share_gen(group))
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-
-    return (conversation, node)
 
 def main():
     host = "localhost"
@@ -91,9 +61,10 @@ def main():
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
+    ciphers = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:C:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -110,6 +81,14 @@ def main():
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '-C':
+            if arg[:2] == '0x':
+                ciphers = [int(arg, 16)]
+            else:
+                try:
+                    ciphers = [getattr(CipherSuite, arg)]
+                except AttributeError:
+                    ciphers = [int(arg)]
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -121,9 +100,41 @@ def main():
     else:
         run_only = None
 
+    if not ciphers:
+        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256]
+
     conversations = {}
 
-    (conversation, node) = build_conn_graph(host, port)
+    conversation = Connect(host, port)
+    node = conversation
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.ecdsa_secp256r1_sha256,
+                SignatureScheme.ed25519,
+                SignatureScheme.ed448]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(
+        ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
+        extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ApplicationDataGenerator(
         bytearray(b"GET / HTTP/1.0\r\n\r\n")))
@@ -141,60 +152,85 @@ def main():
     node.next_sibling = ExpectClose()
     conversations["sanity"] = conversation
 
-    # CCS from client
-    (conversation, node) = build_conn_graph(host, port)
+    # send unencrypted alert, expect close
+    conversation = Connect(host, port)
+    node = conversation
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.ecdsa_secp256r1_sha256,
+                SignatureScheme.ed25519,
+                SignatureScheme.ed448]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(
+        ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
+        extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    # since the messages from the server were correctly processed
+    # (and technically, we're sending alert with respect to an encrypted
+    # message), alerts would be encrypted, so override that and construct
+    # a plaintext message manually
+    node = node.add_child(PlaintextMessageGenerator(
+        ContentType.alert,
+        bytearray([AlertLevel.fatal,
+                   AlertDescription.unknown_ca])))
+    node = node.add_child(ExpectClose())
+    conversations["unencrypted Alert"] = conversation
 
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+    # send encrypted alert, expect close
+    conversation = Connect(host, port)
+    node = conversation
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.ecdsa_secp256r1_sha256,
+                SignatureScheme.ed25519,
+                SignatureScheme.ed448]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(
+        ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
+        extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(AlertGenerator(
+        AlertLevel.fatal,
+        AlertDescription.unknown_ca))
+    node = node.add_child(ExpectClose())
+    conversations["encrypted Alert"] = conversation
 
-    # This message is optional and may show up 0 to many times
-    cycle = ExpectNewSessionTicket()
-    node = node.add_child(cycle)
-    node.add_child(cycle)
-
-    node.next_sibling = ExpectApplicationData()
-    node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                       AlertDescription.close_notify))
-
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
-    conversations["both client and server send CCS"] = conversation
-
-    # CCS in wrong place
-    (conversation, node) = build_conn_graph(host, port)
-
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-
-    # This message is optional and may show up 0 to many times
-    cycle = ExpectNewSessionTicket()
-    node = node.add_child(cycle)
-    node.add_child(cycle)
-
-    node.next_sibling = ExpectAlert(AlertLevel.fatal,
-                                    AlertDescription.unexpected_message)
-    node.next_sibling.add_child(ExpectClose())
-
-    conversations["CCS message after Finished message"] = conversation
-
-    # two byte long CCS
-    (conversation, node) = build_conn_graph(host, port)
-
-    node = node.add_child(RawMessageGenerator(
-        ContentType.change_cipher_spec,
-        b'\x01\x01'))
-    # This message is optional and may show up 0 to many times
-    cycle = ExpectNewSessionTicket()
-    node = node.add_child(cycle)
-    node.add_child(cycle)
-
-    # XXX it's not exactly clear what kind of alert should be sent in such
-    # situation, so allow any
-    node.next_sibling = ExpectAlert(AlertLevel.fatal)
-    node.next_sibling.add_child(ExpectClose())
-    conversations["two byte long CCS"] = conversation
 
     # run the conversation
     good = 0
@@ -212,8 +248,7 @@ def main():
     if run_only:
         if num_limit > len(run_only):
             num_limit = len(run_only)
-        regular_tests = [(k, v) for k, v in conversations.items() if
-                          k in run_only]
+        regular_tests = [(k, v) for k, v in conversations.items() if k in run_only]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
                          (k != 'sanity') and k not in run_exclude]
@@ -221,8 +256,6 @@ def main():
     ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
 
     for c_name, c_test in ordered_tests:
-        if run_only and c_name not in run_only or c_name in run_exclude:
-            continue
         print("{0} ...".format(c_name))
 
         runner = Runner(c_test)
@@ -260,9 +293,9 @@ def main():
                 bad += 1
                 failed.append(c_name)
 
-    print("Test with unexpected message with TLS 1.3 server")
-    print("Check that server will reject the communication with")
-    print("unexpected_message alert, when CCS is send after Handshake.\n")
+    print("Test to check if server will correctly recognise an unencrypted")
+    print("Alert message and close the connection. In case server can't")
+    print("handle them, it will likely send an alert of its own.\n")
 
     print("Test end")
     print(20 * '=')

@@ -2,8 +2,6 @@
 [![Read the Docs](https://img.shields.io/readthedocs/tlsfuzzer)](https://tlsfuzzer.readthedocs.io/en/latest/)
 [![Coverage Status](https://coveralls.io/repos/tlsfuzzer/tlsfuzzer/badge.svg?branch=master)](https://coveralls.io/r/tlsfuzzer/tlsfuzzer?branch=master)
 [![Code Climate](https://codeclimate.com/github/tlsfuzzer/tlsfuzzer/badges/gpa.svg)](https://codeclimate.com/github/tlsfuzzer/tlsfuzzer)
-[![Code Quality: Python](https://img.shields.io/lgtm/grade/python/g/tlsfuzzer/tlsfuzzer.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/tlsfuzzer/tlsfuzzer/context:python)
-[![Total Alerts](https://img.shields.io/lgtm/alerts/g/tlsfuzzer/tlsfuzzer.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/tlsfuzzer/tlsfuzzer/alerts)
 
 # tlsfuzzer
 tlsfuzzer is a test suite for SSLv2, SSLv3, TLS 1.0, TLS 1.1, TLS 1.2, and
@@ -29,7 +27,7 @@ You'll need:
 
  * Python 2.6 or later or Python 3.5 or later
  * [tlslite-ng](https://github.com/tlsfuzzer/tlslite-ng)
-   0.8.0-alpha45 or later (note that `tlslite` will *not* work and
+   0.8.0-beta1 or later (note that `tlslite` will *not* work and
    they conflict with each other)
  * [ecdsa](https://github.com/warner/python-ecdsa)
    python module (dependency of tlslite-ng, should get installed

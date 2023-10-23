@@ -4,6 +4,7 @@
 """Objects for generating TLS messages to send."""
 
 import random
+import struct
 from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         Finished, Alert, ApplicationData, Message, Certificate, \
         CertificateVerify, CertificateRequest, ClientMasterKey, \
@@ -29,7 +30,7 @@ from tlslite.keyexchange import KeyExchange
 from tlslite.bufferedsocket import BufferedSocket
 from tlslite.recordlayer import ConnectionState
 from .helpers import key_share_gen, AutoEmptyExtension, ECDSA_SIG_ALL, \
-        RSA_PKCS1_ALL, RSA_PSS_PSS_ALL, RSA_PSS_RSAE_ALL, SIG_ALL
+        RSA_PKCS1_ALL, RSA_PSS_PSS_ALL, RSA_PSS_RSAE_ALL, SIG_ALL, DSA_ALL
 from .handshake_helpers import calc_pending_states, curve_name_to_hash_tls13
 from .tree import TreeNode
 import socket
@@ -120,6 +121,22 @@ class Close(Command):
 
     def process(self, state):
         """Close currently open connection."""
+        state.msg_sock.sock.close()
+
+
+class CloseRST(Command):
+    """Object used to close a TCP connection with a RST packet."""
+
+    def __init__(self):
+        """CloseRST connection object."""
+        super(CloseRST, self).__init__()
+
+    def process(self, state):
+        """Close currently open connection by sending a RST packet."""
+        l_onoff = 1
+        l_linger = 0
+        state.msg_sock.sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER,
+                                       struct.pack('ii', l_onoff, l_linger))
         state.msg_sock.sock.close()
 
 
@@ -453,6 +470,7 @@ class MessageGenerator(TreeNode):
         """Initialize the object."""
         super(MessageGenerator, self).__init__()
         self.msg = None
+        self.queue = False
 
     def is_command(self):
         """Define object as a generator node."""
@@ -823,7 +841,8 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
                     self.encrypted_premaster = enc_premaster
 
                 cke.createRSA(enc_premaster)
-        elif self.cipher in CipherSuite.dheCertSuites:
+        elif self.cipher in CipherSuite.dheCertSuites or \
+                self.cipher in CipherSuite.dheDsaSuites:
             if self.dh_Yc is not None:
                 cke = ClientKeyExchange(self.cipher,
                                         self.version).createDH(self.dh_Yc)
@@ -1027,6 +1046,8 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         self.msg_alg = msg_alg
         self.msg_version = msg_version
         self.sig_version = sig_version
+        if not isinstance(sig_version, tuple) and sig_version is not None:
+            raise ValueError("sig_version must be None or a tuple")
         self.sig_alg = sig_alg
         self.signature = signature
         self.rsa_pss_salt_len = rsa_pss_salt_len
@@ -1078,6 +1099,24 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         return (getattr(HashAlgorithm, hash_name), SignatureAlgorithm.ecdsa)
 
     @staticmethod
+    def _sig_alg_for_dsa_key(accept_sig_algs, version, key):
+        """Select an acceptable signature algorithm for a given DSA key."""
+        if version < (3, 3):
+            # in TLS 1.1 and earlier, there is no algorithm selection,
+            # pick one closest, as far as used algorithms are concerned, to
+            # the TLS 1.2 algorithm
+            return (HashAlgorithm.sha1, SignatureAlgorithm.dsa)
+        if version < (3, 4):
+            # in TLS 1.2 we can mix and match hashes and curves
+            return next((i for i in accept_sig_algs
+                         if i in DSA_ALL), DSA_ALL[0])
+        # but in TLS 1.3 we need to select a hash that matches our key
+        hash_name = curve_name_to_hash_tls13(key.curve_name)
+        # while it may select one that wasn't advertised by server,
+        # this is better last resort than sending a sha1+rsa sigalg
+        return (getattr(HashAlgorithm, hash_name), SignatureAlgorithm.dsa)
+
+    @staticmethod
     def _sig_alg_for_eddsa_key(key_alg, accept_sig_algs):
         sig_alg = getattr(SignatureScheme, key_alg.lower())
         assert sig_alg in accept_sig_algs
@@ -1095,6 +1134,9 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         if key_alg in ("Ed25519", "Ed448"):
             return CertificateVerifyGenerator._sig_alg_for_eddsa_key(
                 key_alg, accept_sig_algs)
+        if key_alg == "dsa":
+            return CertificateVerifyGenerator._sig_alg_for_dsa_key(
+                accept_sig_algs, version, key)
         assert key_alg == "ecdsa"
         return CertificateVerifyGenerator._sig_alg_for_ecdsa_key(
             accept_sig_algs, version, key)
@@ -1245,6 +1287,9 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                 SignatureScheme.ed25519, SignatureScheme.ed448) or \
                 self.private_key.key_type in ("Ed25519", "Ed448"):
             signature_type = "eddsa"
+        elif self.sig_alg and self.sig_alg[1] == SignatureAlgorithm.dsa or \
+                self.private_key.key_type == "dsa":
+            signature_type = "dsa"
         else:
             signature_type = "rsa"
         if self.context:
@@ -1282,6 +1327,10 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             verify_bytes = verify_bytes[:self.private_key.
                                         private_key.curve.baselen]
             sig_func = self.private_key.sign
+        elif signature_type == "dsa":
+            padding = None
+            old_private_key_op = None
+            sig_func = self.private_key.sign
         else:
             # we don't have to handle non pkcs1 padding because the
             # calcVerifyBytes does everything
@@ -1297,8 +1346,8 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             # make sure the changes are undone even if the signing fails
             self.private_key._raw_private_key_op_bytes = old_private_key_op
 
-        if signature_type == "ecdsa":
-            # because ECDSA signatures are ANS.1 DER objects, they
+        if signature_type in ("ecdsa", "dsa"):
+            # because DSA and ECDSA signatures are ANS.1 DER objects, they
             # can have different lengths depending on the bit size of
             # "r" and "s" variables
             # given that indexing would fail if it was asked to index
@@ -1306,7 +1355,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             signature = bytearray(signature)
             max_byte = len(signature) - 1
             self._normalise_subs_and_xors(max_byte)
-        if signature_type in ("ecdsa", "eddsa"):
+        if signature_type in ("ecdsa", "eddsa", "dsa"):
             # but EdDSA signatures are always the same length for given
             # key type, so don't normalise the values for them
             signature = substitute_and_xor(signature, self.padding_subs,
@@ -2094,6 +2143,48 @@ def split_message(generator, fragment_list, size):
 
     generator.generate = new_generate
     return generator
+
+
+def queue_message(generator):
+    """Queue message with other ones of the same content type.
+
+    Allow coalescing of the message with other messages with the same
+    content type, this allows for sending Certificate and CertificateVerify
+    in a single record.
+    """
+    assert generator.is_generator()
+    generator.queue = True
+    return generator
+
+
+def skip_post_send(generator):
+    """Make the post_send method of generator do nothing.
+
+    This is useful when combining messages that update connection state,
+    like KeyUpdate or Finished in TLS 1.3.
+    """
+    assert generator.is_generator()
+
+    generator.post_send = lambda _: None
+    return generator
+
+
+class FlushMessageQueue(Command):
+    """Flush the record layer queue of messages."""
+
+    def __init__(self, description=None):
+        super(FlushMessageQueue, self).__init__()
+        self.description = description
+
+    def __repr__(self):
+        vals = []
+        if self.description:
+            vals.append(('description', repr(self.description)))
+        return 'FlushMessageQueue({0})'.format(
+                ', '.join("{0}={1}".format(i[0], i[1]) for i in vals))
+
+    def process(self, state):
+        state.msg_sock.flushBlocking()
 
 
 class PopMessageFromList(MessageGenerator):

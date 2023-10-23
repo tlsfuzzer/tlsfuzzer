@@ -228,7 +228,7 @@ data size, signatures file and one private key are necessary.")
         log = Log(logfile)
         log.read_log()
 
-    analysis = Extract(
+    extract = Extract(
         log, capture, output, ip_address, port, raw_times, col_name,
         binary=binary, endian=endian, no_quickack=no_quickack,
         delay=delay, carriage_return=carriage_return,
@@ -236,12 +236,13 @@ data size, signatures file and one private key are necessary.")
         key_type=key_type, frequency=freq, hash_func=hash_func,
         verbose=verbose
     )
-    analysis.parse()
+    extract.parse()
 
     if all([raw_times, data, data_size, sigs, priv_key]):
-        analysis.process_measurements_and_create_csv_file(
-            analysis.ecdsa_iter(), analysis.ecdsa_max_value()
-        )
+        extract.process_and_create_multiple_csv_files({
+            "measurements.csv": "k-size",
+            "measurements-invert.csv": "invert-k-size",
+        })
 
 
 class Extract:
@@ -254,7 +255,7 @@ class Extract:
                  binary=None, endian='little', no_quickack=False, delay=None,
                  carriage_return=None, data=None, data_size=None, sigs=None,
                  priv_key=None, key_type=None, frequency=None,
-                 hash_func=hashlib.sha256, verbose=False):
+                 hash_func=hashlib.sha256, verbose=False, fin_as_resp=False):
         """
         Initialises instance and sets up class name generator from log.
 
@@ -273,6 +274,8 @@ class Extract:
         :param bool no_quickack: If True, don't expect QUICKACK to be in use
         :param float delay: How often to print the status line.
         :param str carriage_return: What chacarter to use as status line end.
+        :param bool fin_as_resp: consider the server FIN packet to be the
+            response to previous client query
         """
         self.capture = capture
         self.output = output
@@ -287,6 +290,7 @@ class Extract:
         self.initial_syn_ack = None
         self.initial_ack = None
         self.warm_up_messages_left = WARM_UP
+        self.last_warmup_fin = None
         self.raw_times = raw_times
         self.binary = binary
         self.endian = endian
@@ -320,6 +324,7 @@ class Extract:
         self._selections = None
         self._row = 0
         self._max_value = None
+        self._fin_as_resp = fin_as_resp
 
         if data and data_size:
             try:
@@ -352,6 +357,7 @@ class Extract:
         times_iter = self._get_time_from_file()
 
         with open(raw_times_name, 'w') as raw_times:
+            raw_times.write("raw times\n")
             for val in times_iter:
                 raw_times.write(str(val) + '\n')
 
@@ -557,10 +563,14 @@ class Extract:
                 lst_clnt_ack = 0
                 for lst_clnt_ack in self.client_msgs_acks.values():
                     pass
-                if self.no_quickack:
-                    time_diff = self.server_msgs[-1] - self.client_msgs[-1]
+                if self._fin_as_resp:
+                    srv_time = self.srv_fin
                 else:
-                    time_diff = self.server_msgs[-1] - lst_clnt_ack
+                    srv_time = self.server_msgs[-1]
+                if self.no_quickack:
+                    time_diff = srv_time - self.client_msgs[-1]
+                else:
+                    time_diff = srv_time - lst_clnt_ack
                 self.timings[class_name].append(time_diff)
                 self.pckt_times.append((
                     self.initial_syn,
@@ -578,10 +588,13 @@ class Extract:
             else:
                 self.warm_up_messages_left -= 1
                 if self.warm_up_messages_left == 0:
-                    if self.srv_fin > self.clnt_fin:
-                        self.last_warmup_fin = self.srv_fin
+                    if self.srv_fin is None and self.clnt_fin is None:
+                        self.last_warmup_fin = 0
                     else:
-                        self.last_warmup_fin = self.clnt_fin
+                        if self.srv_fin > self.clnt_fin:
+                            self.last_warmup_fin = self.srv_fin
+                        else:
+                            self.last_warmup_fin = self.clnt_fin
 
     def _flush_to_files(self):
         # we can write only complete lines
@@ -620,7 +633,7 @@ class Extract:
             writer = csv.writer(csvfile, quoting=csv.QUOTE_MINIMAL)
             for values in zip(*[self.timings[i] for i in
                     self._write_class_names]):
-                writer.writerow("{0:.9f}".format(i) for i in values)
+                writer.writerow("{0:.9e}".format(float(i)) for i in values)
 
             for i in self.timings.values():
                 i.clear()
@@ -645,7 +658,7 @@ class Extract:
                 # no coverage; assert
                 raise ValueError("inconsistent count of client messages")
 
-            if len(srv_msgs) != self._exp_srv:  # pragma: no cover
+            if len(srv_msgs) + int(self._fin_as_resp) != self._exp_srv:  # pragma: no cover
                 # no coverage: assert
                 raise ValueError("inconsistent count of server messages")
 
@@ -683,20 +696,31 @@ class Extract:
                     row.append(s_msg_ack - s_msg)
 
                 # lst_srv_to_srv_fin
-                row.append(srv_fin - s_msgs[-1])
+                if srv_fin is None:
+                    row.append(0)
+                else:
+                    row.append(srv_fin - s_msgs[-1])
+
                 # lst_srv_to_clnt_fin
-                row.append(clnt_fin - s_msgs[-1])
-                if srv_fin > clnt_fin:
-                    last_fin = srv_fin
+                if clnt_fin is None:
+                    row.append(0)
                 else:
-                    last_fin = clnt_fin
-                # second_fin_to_ack
-                if ack_for_fin:
-                    row.append(ack_for_fin - last_fin)
-                    self._previous_lst_msg = ack_for_fin
+                    row.append(clnt_fin - s_msgs[-1])
+
+                if srv_fin is None or clnt_fin is None:
+                    row.append(0)
                 else:
-                    row.append(0.0)
-                    self._previous_lst_msg = last_fin
+                    if srv_fin > clnt_fin:
+                        last_fin = srv_fin
+                    else:
+                        last_fin = clnt_fin
+                    # second_fin_to_ack
+                    if ack_for_fin:
+                        row.append(ack_for_fin - last_fin)
+                        self._previous_lst_msg = ack_for_fin
+                    else:
+                        row.append(0.0)
+                        self._previous_lst_msg = last_fin
 
                 writer.writerow(row)
 
@@ -705,7 +729,7 @@ class Extract:
             return
 
         for _, _, _, clnt_msgs, clnt_msgs_acks, srv_msgs, srv_msgs_acks, \
-                _, _, _ in self.pckt_times:
+                srv_fin, _, _ in self.pckt_times:
             if len(clnt_msgs) != len(clnt_msgs_acks):  # pragma: no cover
                 # no overage; assert
                 print(clnt_msgs)
@@ -721,11 +745,14 @@ class Extract:
                 raise ValueError("server message ACKs mismatch")
 
             self._exp_clnt = len(clnt_msgs)
-            self._exp_srv = len(srv_msgs)
+            self._exp_srv = len(srv_msgs) + int(self._fin_as_resp)
 
         if self._exp_srv != self._exp_clnt:  # pragma: no cover
             # no coverage; assert
-            raise ValueError("For every client query we need a response")
+            print(clnt_msgs)
+            print(srv_msgs)
+            raise ValueError("For every client query we need a response "
+                             "(try FIN as server response)")
 
         filename = join(self.output, self.write_pkt_csv)
         with open(filename, 'w') as csvfile:
@@ -889,21 +916,30 @@ class Extract:
         for value in value_iter:
             yield bit_count(value)
 
+    def _calculate_invert_k(self, value_iter):
+        """Iterator. It will calculate the invert K."""
+        n_value = self.priv_key.curve.order
+        for value in value_iter:
+            yield ecdsa.ecdsa.numbertheory.inverse_mod(value, n_value)
+
     def ecdsa_iter(self, return_type="k-size"):
         """
         Iterator. Iterator to use for signatures signed by ECDSA private key.
         """
-        if return_type not in ["k-size", "hamming-weight"]:
-            raise ValueError(
-                "Iterator return must be k-size or hamming-weight."
-            )
-
         k_iter = self._ecdsa_calculate_k()
 
         if return_type == "k-size":
             k_wrap_iter = self._convert_to_bit_size(k_iter)
+        elif return_type == "invert-k-size":
+            k_wrap_iter = self._convert_to_bit_size(
+                self._calculate_invert_k(k_iter)
+            )
         elif return_type == "hamming-weight":
             k_wrap_iter = self._convert_to_hamming_weight(k_iter)
+        else:
+            raise ValueError(
+                "Iterator return must be k-size, invert-k-size or hamming-weight."
+            )
 
         return k_wrap_iter
 
@@ -1186,6 +1222,24 @@ class Extract:
             print('{0} rows was written.'.format(self._row))
 
         self._measurements_fp.close()
+
+    def process_and_create_multiple_csv_files(self, files = {
+        "measurements.csv": "k-size"
+    }):
+        original_measuremments_csv = self.measurements_csv
+
+        for file in files:
+            if self.verbose:
+                print("Creating {0} file...".format(file))
+
+
+            self.measurements_csv = file
+
+            self.process_measurements_and_create_csv_file(
+                self.ecdsa_iter(return_type=files[file]), self.ecdsa_max_value()
+            )
+
+        self.measurements_csv = original_measuremments_csv
 
     @staticmethod
     def hostname_to_ip(hostname):

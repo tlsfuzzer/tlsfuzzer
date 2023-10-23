@@ -12,4 +12,4 @@ setup(name="tlsfuzzer",
       url="https://github.com/tlsfuzzer/tlsfuzzer",
       description="TLS test suite and fuzzer.",
       license="GPLv2",
-      packages=["tlsfuzzer"])
+      packages=["tlsfuzzer", "tlsfuzzer.utils"])
