@@ -236,8 +236,12 @@ jobs:
         if: ${{ !matrix.container && matrix.python-version != '3.3' }}
         run: sudo apt-get install -y libmpfr-dev libmpc-dev libgmp-dev
       - name: Install gmpy2
-        if: ${{ !matrix.container && matrix.python-version != '3.3' }}
+        if: ${{ !matrix.container && matrix.python-version != '3.3' && matrix.python-version != '3.12' }}
         run: pip install gmpy2
+      # mainline gmpy2 doesn't compile on py3.12, use pre-release version
+      - name: Install gmpy2 on py3.12
+        if: ${{ !matrix.container && matrix.python-version == '3.12' }}
+        run: pip install gmpy2==2.2.0a1
       # m2crypto makes server crash with SIGSEGV (see https://github.com/tlsfuzzer/tlsfuzzer/issues/788)
       # - name: Install M2Crypto dependencies
       #   if: ${{ !matrix.container && matrix.python-version != '3.3' }}
