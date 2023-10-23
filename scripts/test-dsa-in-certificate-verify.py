@@ -12,7 +12,8 @@ from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
-        CertificateGenerator, CertificateVerifyGenerator
+        CertificateGenerator, CertificateVerifyGenerator, TCPBufferingEnable, \
+        TCPBufferingFlush, TCPBufferingDisable
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
@@ -30,7 +31,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
 
 
-version = 1
+version = 2
 
 
 def help_msg():
@@ -235,6 +236,7 @@ def main():
         node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectCertificateRequest())
     node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
     node = node.add_child(CertificateGenerator(X509CertChain([cert])))
     node = node.add_child(ClientKeyExchangeGenerator())
     sig_type = (HashAlgorithm.md5, SignatureAlgorithm.dsa)
@@ -242,6 +244,8 @@ def main():
                                                      msg_alg=sig_type))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
     node = node.add_child(ExpectAlert())
     node.add_child(ExpectClose())
     conversations["md5+dsa forced"] = conversation
