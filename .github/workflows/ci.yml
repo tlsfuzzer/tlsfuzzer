@@ -133,11 +133,11 @@ jobs:
             opt-deps: ['extract', 'analysis']
           - name: py3.10 with extract and analysis
             os: ubuntu-latest
-            python-version: 3.10
+            python-version: '3.10'
             opt-deps: ['extract', 'analysis']
           - name: py3.11 with extract and analysis
             os: ubuntu-latest
-            python-version: 3.11
+            python-version: '3.11'
             opt-deps: ['extract', 'analysis']
           - name: py3.12 with extract and analysis
             os: ubuntu-latest
