@@ -40,6 +40,9 @@ jobs:
           - name: py3.11
             os: ubuntu-latest
             python-version: '3.11'
+          - name: py3.12
+            os: ubuntu-latest
+            python-version: '3.12'
           # also test with extraction tooling installed
           - name: py2.6 with extract
             os: ubuntu-latest
@@ -78,6 +81,10 @@ jobs:
             os: ubuntu-latest
             python-version: '3.11'
             opt-deps: ['extract']
+          - name: py3.12 with extract
+            os: ubuntu-latest
+            python-version: '3.12'
+            opt-deps: ['extract']
           # also test with just analysis tooling installed
           - name: py3.6 with analysis
             os: ubuntu-20.04
@@ -103,6 +110,10 @@ jobs:
             os: ubuntu-latest
             python-version: '3.11'
             opt-deps: ['analysis']
+          - name: py3.12 with analysis
+            os: ubuntu-latest
+            python-version: '3.12'
+            opt-deps: ['analysis']
           # and with both extract and analysis
           - name: py3.6 with extract and analysis
             os: ubuntu-20.04
@@ -126,7 +137,11 @@ jobs:
             opt-deps: ['extract', 'analysis']
           - name: py3.11 with extract and analysis
             os: ubuntu-latest
-            python-version: '3.11'
+            python-version: 3.11
+            opt-deps: ['extract', 'analysis']
+          - name: py3.12 with extract and analysis
+            os: ubuntu-latest
+            python-version: '3.12'
             # note: codeclimate can be specified in only one environment
             opt-deps: ['extract', 'analysis', 'codeclimate']
     steps:
