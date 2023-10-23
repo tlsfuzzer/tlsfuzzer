@@ -370,7 +370,7 @@ jobs:
           # as http.server uses `sys_version = "Python/" + sys.version.split()[0]`
           # https://github.com/python/cpython/blob/2c050e52f1ccf5db03819e4ed70690521d67e9fa/Lib/http/server.py#L253
           case $PYTHON_VERSION in
-            2.7 | 3.4 | 3.5 | 3.6 | 3.7 | 3.8 | 3.9)
+            2.7 | 3.4 | 3.5 | 3.6 | 3.7 | 3.8 | 3.9 | 3.11 | 3.12 )
               export REPLY_SIZE=1850
               ;;
             3.10)
