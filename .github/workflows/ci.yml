@@ -37,6 +37,12 @@ jobs:
           - name: py3.10
             os: ubuntu-latest
             python-version: '3.10'
+          - name: py3.11
+            os: ubuntu-latest
+            python-version: '3.11'
+          - name: py3.12
+            os: ubuntu-latest
+            python-version: '3.12'
           # also test with extraction tooling installed
           - name: py2.6 with extract
             os: ubuntu-latest
@@ -71,6 +77,14 @@ jobs:
             os: ubuntu-latest
             python-version: '3.10'
             opt-deps: ['extract']
+          - name: py3.11 with extract
+            os: ubuntu-latest
+            python-version: '3.11'
+            opt-deps: ['extract']
+          - name: py3.12 with extract
+            os: ubuntu-latest
+            python-version: '3.12'
+            opt-deps: ['extract']
           # also test with just analysis tooling installed
           - name: py3.6 with analysis
             os: ubuntu-20.04
@@ -92,6 +106,14 @@ jobs:
             os: ubuntu-latest
             python-version: '3.10'
             opt-deps: ['analysis']
+          - name: py3.11 with analysis
+            os: ubuntu-latest
+            python-version: '3.11'
+            opt-deps: ['analysis']
+          - name: py3.12 with analysis
+            os: ubuntu-latest
+            python-version: '3.12'
+            opt-deps: ['analysis']
           # and with both extract and analysis
           - name: py3.6 with extract and analysis
             os: ubuntu-20.04
@@ -112,6 +134,14 @@ jobs:
           - name: py3.10 with extract and analysis
             os: ubuntu-latest
             python-version: '3.10'
+            opt-deps: ['extract', 'analysis']
+          - name: py3.11 with extract and analysis
+            os: ubuntu-latest
+            python-version: '3.11'
+            opt-deps: ['extract', 'analysis']
+          - name: py3.12 with extract and analysis
+            os: ubuntu-latest
+            python-version: '3.12'
             # note: codeclimate can be specified in only one environment
             opt-deps: ['extract', 'analysis', 'codeclimate']
     steps:
@@ -206,8 +236,12 @@ jobs:
         if: ${{ !matrix.container && matrix.python-version != '3.3' }}
         run: sudo apt-get install -y libmpfr-dev libmpc-dev libgmp-dev
       - name: Install gmpy2
-        if: ${{ !matrix.container && matrix.python-version != '3.3' }}
+        if: ${{ !matrix.container && matrix.python-version != '3.3' && matrix.python-version != '3.12' }}
         run: pip install gmpy2
+      # mainline gmpy2 doesn't compile on py3.12, use pre-release version
+      - name: Install gmpy2 on py3.12
+        if: ${{ !matrix.container && matrix.python-version == '3.12' }}
+        run: pip install gmpy2==2.2.0a1
       # m2crypto makes server crash with SIGSEGV (see https://github.com/tlsfuzzer/tlsfuzzer/issues/788)
       # - name: Install M2Crypto dependencies
       #   if: ${{ !matrix.container && matrix.python-version != '3.3' }}
@@ -336,7 +370,7 @@ jobs:
           # as http.server uses `sys_version = "Python/" + sys.version.split()[0]`
           # https://github.com/python/cpython/blob/2c050e52f1ccf5db03819e4ed70690521d67e9fa/Lib/http/server.py#L253
           case $PYTHON_VERSION in
-            2.7 | 3.4 | 3.5 | 3.6 | 3.7 | 3.8 | 3.9)
+            2.7 | 3.4 | 3.5 | 3.6 | 3.7 | 3.8 | 3.9 | 3.11 | 3.12 )
               export REPLY_SIZE=1850
               ;;
             3.10)
