@@ -17,16 +17,13 @@ Bleichenbacher against RSA key exchange. You can test for it using the
 <https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-bleichenbacher-timing-pregenerate.py>`_
 script.
 
-While we also include another script to do Bleichenbacher side-channel
-testing
-(`test-bleichenbacher-timing.py
-<https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-bleichenbacher-timing.py>`_)
-and one to test de-padding and verifying MAC values in CBC ciphertexts
+While we also include script to do side-channel
+testing for de-padding and verifying MAC values in CBC ciphertexts
 (`test-lucky13.py
 <https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-lucky13.py>`_,
-the Lucky Thirteen attack), they do not use similarly robust approach
+the Lucky Thirteen attack), it does not use similarly robust approach
 as the ``test-bleichenbacher-timing-pregenerate.py`` script, which
-may cause them to report false positives.
+may cause it to report false positives.
 
 
 Environment setup
@@ -352,7 +349,7 @@ Bleichenbacher test is extended to use the timing functionality:
 
 .. code:: bash
 
-   PYTHONPATH=. python scripts/test-bleichenbacher-timing.py -i lo
+   PYTHONPATH=. python scripts/test-bleichenbacher-timing-pregenerate.py -i lo
 
 By default, if ``dpkt`` dependency is available, the extraction will run right
 after the timing packet capture.
