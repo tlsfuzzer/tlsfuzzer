@@ -49,7 +49,7 @@ def help_msg():
     print("                (excluding \"sanity\" tests)")
     print(" --help         this message")
 
-def initiate_connection(host, port):
+def build_conn_graph(host, port):
     """ Reuse the same block as a function, to simplify code """
     conversation = Connect(host, port)
     node = conversation
@@ -114,7 +114,7 @@ def main():
 
     conversations = {}
 
-    (conversation, node, ciphers, ext) = initiate_connection(host, port)
+    (conversation, node, ciphers, ext) = build_conn_graph(host, port)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -140,7 +140,7 @@ def main():
     conversations["sanity"] = conversation
 
     # Send zero-length application data between normal application data
-    (conversation, node, ciphers, ext) = initiate_connection(host, port)
+    (conversation, node, ciphers, ext) = build_conn_graph(host, port)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -173,7 +173,7 @@ def main():
     conversations["zero-length app data"] = conversation
 
     # Send zero-length application data with padding
-    (conversation, node, ciphers, ext) = initiate_connection(host, port)
+    (conversation, node, ciphers, ext) = build_conn_graph(host, port)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -208,7 +208,7 @@ def main():
     conversations["zero-length app data with padding"] = conversation
 
     # Send zero-length application data with large paddings
-    (conversation, node, ciphers, ext) = initiate_connection(host, port)
+    (conversation, node, ciphers, ext) = build_conn_graph(host, port)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -243,7 +243,7 @@ def main():
     conversations["zero-length app data with large padding"] = conversation
 
     # Send zero-length application data while handshaking
-    (conversation, node, ciphers, ext) = initiate_connection(host, port)
+    (conversation, node, ciphers, ext) = build_conn_graph(host, port)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -265,7 +265,7 @@ def main():
     conversations["zero-length app data during handshake"] = conversation
 
     # Send zero-length application data while handshaking with padding
-    (conversation, node, ciphers, ext) = initiate_connection(host, port)
+    (conversation, node, ciphers, ext) = build_conn_graph(host, port)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -290,7 +290,7 @@ def main():
         conversation
 
     # Send zero-length application data while handshaking with large padding
-    (conversation, node, ciphers, ext) = initiate_connection(host, port)
+    (conversation, node, ciphers, ext) = build_conn_graph(host, port)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -316,7 +316,7 @@ def main():
 
     # Send a zero-length application data interleaved in handshake
     fragment_list = []
-    (conversation, node, ciphers, ext) = initiate_connection(host, port)
+    (conversation, node, ciphers, ext) = build_conn_graph(host, port)
     hello_gen = ClientHelloGenerator(ciphers, extensions=ext)
     node = node.add_child(split_message(hello_gen, fragment_list, 2))
     node = node.add_child(PopMessageFromList(fragment_list))
@@ -329,7 +329,7 @@ def main():
 
     # Send zero-len app data with padding interleaved in handshaking
     fragment_list = []
-    (conversation, node, ciphers, ext) = initiate_connection(host, port)
+    (conversation, node, ciphers, ext) = build_conn_graph(host, port)
     hello_gen = ClientHelloGenerator(ciphers, extensions=ext)
     node = node.add_child(split_message(hello_gen, fragment_list, 2))
     node = node.add_child(PopMessageFromList(fragment_list))
@@ -344,7 +344,7 @@ def main():
 
     # Send zero-len app data with large padding interleaved in handshaking
     fragment_list = []
-    (conversation, node, ciphers, ext) = initiate_connection(host, port)
+    (conversation, node, ciphers, ext) = build_conn_graph(host, port)
     hello_gen = ClientHelloGenerator(ciphers, extensions=ext)
     node = node.add_child(split_message(hello_gen, fragment_list, 2))
     node = node.add_child(PopMessageFromList(fragment_list))
