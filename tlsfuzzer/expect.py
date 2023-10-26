@@ -28,7 +28,7 @@ from tlslite.utils.cryptomath import secureHMAC, derive_secret, \
         HKDF_expand_label
 from tlslite.mathtls import RFC7919_GROUPS, FFDHE_PARAMETERS, calc_key
 from tlslite.keyexchange import KeyExchange, DHE_RSAKeyExchange, \
-        ECDHE_RSAKeyExchange
+        ECDHE_RSAKeyExchange, PSKKeyExchange
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 from tlslite.errors import TLSDecryptionFailed
@@ -1229,20 +1229,6 @@ class ExpectServerKeyExchange(ExpectHandshake):
                     valid_sig_algs = [(HashAlgorithm.sha1,
                                        SignatureAlgorithm.ecdsa)]
 
-        try:
-            KeyExchange.verifyServerKeyExchange(server_key_exchange,
-                                                public_key,
-                                                client_random,
-                                                server_random,
-                                                valid_sig_algs)
-        except TLSDecryptionFailed:
-            # very rarely validation of signature fails, print it so that
-            # we have a chance in debugging it
-            print("Bad signature: {0}"
-                  .format(b2a_hex(server_key_exchange.signature)),
-                  file=sys.stderr)
-            raise
-
         if self.cipher_suite in CipherSuite.dhAllSuites:
             self._checkParams(server_key_exchange)
             state.key_exchange = DHE_RSAKeyExchange(self.cipher_suite,
@@ -1272,11 +1258,34 @@ class ExpectServerKeyExchange(ExpectHandshake):
                                      acceptedCurves=valid_groups)
             state.key['ServerKeyExchange.key_share'] = \
                 server_key_exchange.ecdh_Ys
+        elif self.cipher_suite in CipherSuite.pskAllSuites:
+            state.key_exchange = PSKKeyExchange(self.cipher_suite,
+                                                clientHello=None,
+                                                serverHello=server_hello,
+                                                psk_configs=None)
         else:
             raise AssertionError("Unsupported cipher selected")
-        state.key['premaster_secret'] = state.key_exchange.\
-            processServerKeyExchange(public_key,
-                                     server_key_exchange)
+
+        try:
+            state.key_exchange.verifyServerKeyExchange(server_key_exchange,
+                                                       public_key,
+                                                       client_random,
+                                                       server_random,
+                                                       valid_sig_algs)
+        except TLSDecryptionFailed:
+            # very rarely validation of signature fails, print it so that
+            # we have a chance in debugging it
+            print("Bad signature: {0}"
+                  .format(b2a_hex(server_key_exchange.signature)),
+                  file=sys.stderr)
+            raise
+
+        # in PSK the ServerKeyExchange is actually optional, so don't process
+        # data here
+        if self.cipher_suite not in CipherSuite.pskAllSuites:
+            state.key['premaster_secret'] = state.key_exchange.\
+                processServerKeyExchange(public_key,
+                                         server_key_exchange)
 
         state.handshake_messages.append(server_key_exchange)
         state.handshake_hashes.update(msg.write())

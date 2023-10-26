@@ -765,7 +765,8 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
                  padding_byte=None, reuse_encrypted_premaster=False,
                  encrypted_premaster_file=None,
                  encrypted_premaster_length=None,
-                 random_premaster=False):
+                 random_premaster=False,
+                 psk_identity=None, psk=None):
         """Set settings of the Client Key Exchange to be sent."""
         super(ClientKeyExchangeGenerator, self).__init__()
         self.cipher = cipher
@@ -788,6 +789,8 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
         self.encrypted_premaster_file = encrypted_premaster_file
         self.encrypted_premaster_length = encrypted_premaster_length
         self.random_premaster = random_premaster
+        self.psk_identity = psk_identity
+        self.psk = psk
 
         if encrypted_premaster_file and not encrypted_premaster_length:
             raise ValueError("Must specify the length of data to read from"
@@ -813,7 +816,11 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
             self.client_version = status.client_version
 
         cke = ClientKeyExchange(self.cipher, self.version)
-        if self.cipher in CipherSuite.certSuites:
+        if self.cipher in CipherSuite.pskAllSuites:
+            cke.createPSK(self.psk_identity)
+
+        if self.cipher in CipherSuite.certSuites or \
+                self.cipher in CipherSuite.pskCertSuites:
             if self.modulus_as_encrypted_premaster:
                 public_key = status.get_server_public_key()
                 self.encrypted_premaster = numberToByteArray(public_key.n)
@@ -841,6 +848,12 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
                     self.encrypted_premaster = enc_premaster
 
                 cke.createRSA(enc_premaster)
+
+            if self.cipher in CipherSuite.pskCertSuites:
+                writer = Writer()
+                writer.add_var_bytes(self.premaster_secret, 2)
+                writer.add_var_bytes(self.psk, 2)
+                status.key['premaster_secret'] = writer.bytes
         elif self.cipher in CipherSuite.dheCertSuites or \
                 self.cipher in CipherSuite.dheDsaSuites:
             if self.dh_Yc is not None:
