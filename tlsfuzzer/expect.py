@@ -1037,12 +1037,16 @@ class ExpectCertificate(ExpectHandshake):
 
 class ExpectCertificateVerify(ExpectHandshake):
     """Processing TLS Handshake protocol Certificate Verify messages."""
-    def __init__(self, version=None, sig_alg=None):
+    def __init__(
+        self, version=None, sig_alg=None, data_file=None, sig_file=None
+    ):
         super(ExpectCertificateVerify, self).__init__(
             ContentType.handshake,
             HandshakeType.certificate_verify)
         self.version = version
         self.sig_alg = sig_alg
+        self.data_file = data_file
+        self.sig_file = sig_file
 
     def process(self, state, msg):
         """
@@ -1132,6 +1136,13 @@ class ExpectCertificateVerify(ExpectHandshake):
                 hash_name,
                 salt_len):
             raise AssertionError("Signature verification failed")
+
+        if self.data_file:
+            data = getattr(hashlib, hash_name)(sig_context).digest()
+            self.data_file.write(data)
+
+        if self.sig_file:
+            self.sig_file.write(cert_v.signature)
 
         state.handshake_messages.append(cert_v)
         state.handshake_hashes.update(msg.write())
