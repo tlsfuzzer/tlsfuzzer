@@ -6,25 +6,23 @@ from __future__ import print_function
 import traceback
 import sys
 import getopt
-import re
 from itertools import chain
 from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, \
         CertificateGenerator, CertificateVerifyGenerator, \
         AlertGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+        ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectCertificateRequest, \
         ExpectApplicationData, ExpectEncryptedExtensions, \
         ExpectCertificateVerify, ExpectNewSessionTicket
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import key_share_ext_gen, sig_algs_to_ids, RSA_SIG_ALL
 from tlslite.extensions import SignatureAlgorithmsExtension, \
-        SignatureAlgorithmsCertExtension, ClientKeyShareExtension, \
+        SignatureAlgorithmsCertExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         HashAlgorithm, SignatureAlgorithm, ExtensionType, SignatureScheme, \
@@ -114,9 +112,52 @@ def sigalg_select(alg_type, hash_pref, supported=None, cert_type=None):
                                                     cert_type))
 
 
+def build_conn_graph(host, port, sig_algs, cert, cr_sigalgs, certificate_verify_generator):
+    """ Reuse the same block as a function, to simplify code """
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    ext[ExtensionType.supported_versions] = \
+        SupportedVersionsExtension().create([(3, 4), (3, 3)])
+    ext[ExtensionType.supported_groups] = \
+        SupportedGroupsExtension().create(groups)
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+
+    if cr_sigalgs is not None:
+        node = node.add_child(ExpectCertificateRequest(cr_sigalgs))
+    else:
+        node = node.add_child(ExpectCertificateRequest())
+
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+
+    if cert is not None:
+        node = node.add_child(CertificateGenerator(X509CertChain([cert])))
+    else:
+        node = node.add_child(CertificateGenerator())
+
+    if certificate_verify_generator is not None:
+        node = node.add_child(certificate_verify_generator)
+    node = node.add_child(FinishedGenerator())
+
+    return (conversation, node)
+
 def main():
     """Check that server propoerly rejects pkcs1 signatures in TLS 1.3"""
-    hostname = "localhost"
+    host = "localhost"
     port = 4433
     num_limit = 10
     run_exclude = set()
@@ -157,7 +198,7 @@ def main():
     opts, args = getopt.getopt(argv, "h:p:e:x:X:n:s:k:c:", ["help", "hash-order="])
     for opt, arg in opts:
         if opt == '-h':
-            hostname = arg
+            host = arg
         elif opt == '-p':
             port = int(arg)
         elif opt == '-e':
@@ -200,38 +241,18 @@ def main():
     if not cert or not private_key:
         raise Exception("A Client certificate and a private key are required")
 
-    certType = cert.certAlg
+    cert_type = cert.certAlg
 
     conversations = {}
     conversations_long = {}
 
     # sanity check for Client Certificates
-    conversation = Connect(hostname, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = \
-        SupportedVersionsExtension().create([(3, 4), (3, 3)])
-    ext[ExtensionType.supported_groups] = \
-        SupportedGroupsExtension().create(groups)
-    ext[ExtensionType.signature_algorithms] = \
-        SignatureAlgorithmsExtension().create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = \
-        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
-    node = node.add_child(ExpectCertificateRequest())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(CertificateGenerator(X509CertChain([cert])))
-    node = node.add_child(CertificateVerifyGenerator(private_key))
-    node = node.add_child(FinishedGenerator())
+    (conversation, node) = \
+        build_conn_graph(host, port, sig_algs, cert,
+                         cr_sigalgs=None,
+                         certificate_verify_generator=\
+                            CertificateVerifyGenerator(private_key))
+
     node = node.add_child(ApplicationDataGenerator(
     bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     # This message is optional and may show up 0 to many times
@@ -248,31 +269,10 @@ def main():
     conversations["sanity"] = conversation
 
     # verify the advertised hashes
-    conversation = Connect(hostname, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = \
-        SupportedVersionsExtension().create([(3, 4), (3, 3)])
-    ext[ExtensionType.supported_groups] = \
-        SupportedGroupsExtension().create(groups)
-    ext[ExtensionType.signature_algorithms] = \
-        SignatureAlgorithmsExtension().create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = \
-        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
-    node = node.add_child(ExpectCertificateRequest(cr_sigalgs))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(CertificateGenerator())
-    node = node.add_child(FinishedGenerator())
+    (conversation, node) = \
+        build_conn_graph(host, port, sig_algs, cert=None,
+                         cr_sigalgs=cr_sigalgs, certificate_verify_generator=None)
+
     node = node.add_child(ApplicationDataGenerator(
     bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     # This message is optional and may show up 0 to many times
@@ -290,17 +290,17 @@ def main():
     for sigalg in RSA_SIG_ALL:
         # set if test should succeed or fail based on cert type,
         # advertisement and forbidden algorithms
-        expectPass = True
-        if certType == "rsa" and sigalg in (
+        expect_pass = True
+        if cert_type == "rsa" and sigalg in (
             SignatureScheme.rsa_pss_pss_sha256,
             SignatureScheme.rsa_pss_pss_sha384,
             SignatureScheme.rsa_pss_pss_sha512):
-            expectPass = False
-        elif certType == "rsa-pss" and sigalg in (
+            expect_pass = False
+        elif cert_type == "rsa-pss" and sigalg in (
             SignatureScheme.rsa_pss_rsae_sha256,
             SignatureScheme.rsa_pss_rsae_sha384,
             SignatureScheme.rsa_pss_rsae_sha512):
-            expectPass = False
+            expect_pass = False
         # also verify that pkcs1 signatures are unconditionally refused
         if sigalg in ((HashAlgorithm.md5, SignatureAlgorithm.rsa),
                       SignatureScheme.rsa_pkcs1_sha1,
@@ -308,43 +308,21 @@ def main():
                       SignatureScheme.rsa_pkcs1_sha256,
                       SignatureScheme.rsa_pkcs1_sha384,
                       SignatureScheme.rsa_pkcs1_sha512):
-            expectPass = False
+            expect_pass = False
         # also expect failure if an algorithm is not advertized
         if sigalg not in cr_sigalgs:
-            expectPass = False
+            expect_pass = False
 
-        conversation = Connect(hostname, port)
-        node = conversation
-        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        ext = {}
-        groups = [GroupName.secp256r1]
-        ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-        ext[ExtensionType.supported_versions] = \
-            SupportedVersionsExtension().create([(3, 4), (3, 3)])
-        ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
-        ext[ExtensionType.signature_algorithms] = \
-            SignatureAlgorithmsExtension().create(sig_algs)
-        ext[ExtensionType.signature_algorithms_cert] = \
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-        node = node.add_child(ExpectServerHello())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectEncryptedExtensions())
-        node = node.add_child(ExpectCertificateRequest())
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectCertificateVerify())
-        node = node.add_child(ExpectFinished())
-        node = node.add_child(CertificateGenerator(X509CertChain([cert])))
         # force sigalg
-        node = node.add_child(CertificateVerifyGenerator(private_key, msg_alg=
-            sigalg))
-        node = node.add_child(FinishedGenerator())
+        (conversation, node) = \
+            build_conn_graph(host, port, sig_algs, cert,
+                             cr_sigalgs=None,
+                             certificate_verify_generator=\
+                                CertificateVerifyGenerator(private_key, msg_alg=sigalg))
 
         result = "works"
         # only signatures of matching certificate type should work
-        if expectPass:
+        if expect_pass:
             node = node.add_child(ApplicationDataGenerator(
             bytearray(b"GET / HTTP/1.0\r\n\r\n")))
             # This message is optional and may show up 0 to many times
@@ -371,38 +349,17 @@ def main():
 
     # verify that rsa-pss signatures with empty, too short or too long
     # salt fail
-    msgalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, certType)
+    msgalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, cert_type)
     hash_name = SignatureScheme.getHash(SignatureScheme.toRepr(msgalg))
     digest_len = getattr(tlshashlib, hash_name)().digest_size
     for saltlen in (0, digest_len - 1, digest_len + 1):
-        conversation = Connect(hostname, port)
-        node = conversation
-        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        ext = {}
-        groups = [GroupName.secp256r1]
-        ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-        ext[ExtensionType.supported_versions] = \
-            SupportedVersionsExtension().create([(3, 4), (3, 3)])
-        ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(groups)
-        ext[ExtensionType.signature_algorithms] = \
-            SignatureAlgorithmsExtension().create(sig_algs)
-        ext[ExtensionType.signature_algorithms_cert] = \
-            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-        node = node.add_child(ExpectServerHello())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectEncryptedExtensions())
-        node = node.add_child(ExpectCertificateRequest())
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectCertificateVerify())
-        node = node.add_child(ExpectFinished())
-        node = node.add_child(CertificateGenerator(X509CertChain([cert])))
         # force salt length
-        node = node.add_child(CertificateVerifyGenerator(
-            private_key, rsa_pss_salt_len=saltlen))
-        node = node.add_child(FinishedGenerator())
+        (conversation, node) = \
+            build_conn_graph(host, port, sig_algs, cert,
+                             cr_sigalgs=None,
+                             certificate_verify_generator=CertificateVerifyGenerator(
+                                private_key, rsa_pss_salt_len=saltlen))
+
         node = node.add_child(ExpectAlert(
             AlertLevel.fatal, AlertDescription.decrypt_error))
         node.add_child(ExpectClose())
@@ -412,78 +369,34 @@ def main():
 
     # verify that a rsa-pkcs1 signature in a rsa-pss ID envelope fails
     sigalg = sigalg_select("rsa_pkcs1", hashalgs)
-    msgalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, certType)
-    conversation = Connect(hostname, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = \
-        SupportedVersionsExtension().create([(3, 4), (3, 3)])
-    ext[ExtensionType.supported_groups] = \
-        SupportedGroupsExtension().create(groups)
-    ext[ExtensionType.signature_algorithms] = \
-        SignatureAlgorithmsExtension().create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = \
-        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
-    node = node.add_child(ExpectCertificateRequest())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(CertificateGenerator(X509CertChain([cert])))
-    node = node.add_child(CertificateVerifyGenerator(
-        private_key, sig_alg=sigalg, msg_alg=msgalg))
-    node = node.add_child(FinishedGenerator())
+    msgalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, cert_type)
+
+    (conversation, node) = build_conn_graph(host, port, sig_algs, cert,
+                                            cr_sigalgs=None,
+                                            certificate_verify_generator=CertificateVerifyGenerator(
+                                                private_key, sig_alg=sigalg, msg_alg=msgalg))
+
     node = node.add_child(ExpectAlert(
         AlertLevel.fatal, AlertDescription.decrypt_error))
     node.add_child(ExpectClose())
 
-    scheme = SignatureScheme.toRepr(sigalg)
     conversations["check pkcs1 signature with rsa-pss envelope fails"] = \
         conversation
 
     # verify that a rsa-pss signature with mismatched message hash fails
-    msgalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, certType)
+    msgalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, cert_type)
 
     # choose a similar scheme with just a different hash, doesn't need to be
     # a server supported sigalg
     hash_name = SignatureScheme.getHash(SignatureScheme.toRepr(msgalg))
     _hashalgs = [x for x in hashalgs if x != hash_name]
-    sigalg = sigalg_select("rsa_pss", _hashalgs, cert_type=certType)
+    sigalg = sigalg_select("rsa_pss", _hashalgs, cert_type=cert_type)
 
-    conversation = Connect(hostname, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = \
-        SupportedVersionsExtension().create([(3, 4), (3, 3)])
-    ext[ExtensionType.supported_groups] = \
-        SupportedGroupsExtension().create(groups)
-    ext[ExtensionType.signature_algorithms] = \
-        SignatureAlgorithmsExtension().create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = \
-        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
-    node = node.add_child(ExpectCertificateRequest())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(CertificateGenerator(X509CertChain([cert])))
-    node = node.add_child(CertificateVerifyGenerator(
-        private_key, sig_alg=sigalg, msg_alg=msgalg))
-    node = node.add_child(FinishedGenerator())
+    (conversation, node) = build_conn_graph(host, port, sig_algs, cert,
+                                            cr_sigalgs=None,
+                                            certificate_verify_generator=CertificateVerifyGenerator(
+                                                private_key, sig_alg=sigalg, msg_alg=msgalg))
+
     node = node.add_child(ExpectAlert(
         AlertLevel.fatal, AlertDescription.decrypt_error))
     node.add_child(ExpectClose())
@@ -492,39 +405,17 @@ def main():
         conversation
 
     # verify that a rsa-pss signature with mismatched MGF1 hash fails
-    sigalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, certType)
+    sigalg = sigalg_select("rsa_pss", hashalgs, cr_sigalgs, cert_type)
 
     # choose a different hash to cause mismtach
     hash_name = SignatureScheme.getHash(SignatureScheme.toRepr(msgalg))
     mgf1_hash = [x for x in hashalgs if x != hash_name][0]
 
-    conversation = Connect(hostname, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = \
-        SupportedVersionsExtension().create([(3, 4), (3, 3)])
-    ext[ExtensionType.supported_groups] = \
-        SupportedGroupsExtension().create(groups)
-    ext[ExtensionType.signature_algorithms] = \
-        SignatureAlgorithmsExtension().create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = \
-        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
-    node = node.add_child(ExpectCertificateRequest())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(CertificateGenerator(X509CertChain([cert])))
-    node = node.add_child(CertificateVerifyGenerator(
-        private_key, mgf1_hash=mgf1_hash, msg_alg=sigalg))
-    node = node.add_child(FinishedGenerator())
+    (conversation, node) = build_conn_graph(host, port, sig_algs, cert,
+                                            cr_sigalgs=None,
+                                            certificate_verify_generator=CertificateVerifyGenerator(
+                                                private_key, mgf1_hash=mgf1_hash, msg_alg=sigalg))
+
     node = node.add_child(ExpectAlert(
         AlertLevel.fatal, AlertDescription.decrypt_error))
     node.add_child(ExpectClose())
@@ -535,42 +426,19 @@ def main():
     # check that fuzzed signatures are rejected
     for pos in range(numBytes(private_key.n)):
         for xor in [0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80]:
-            conversation = Connect(hostname, port)
-            node = conversation
-            ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-            ext = {}
-            groups = [GroupName.secp256r1]
-            ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-            ext[ExtensionType.supported_versions] = \
-                SupportedVersionsExtension().create([(3, 4), (3, 3)])
-            ext[ExtensionType.supported_groups] = \
-                SupportedGroupsExtension().create(groups)
-            ext[ExtensionType.signature_algorithms] = \
-                SignatureAlgorithmsExtension().create(sig_algs)
-            ext[ExtensionType.signature_algorithms_cert] = \
-                SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-            node = node.add_child(ClientHelloGenerator(
-                ciphers, extensions=ext))
-            node = node.add_child(ExpectServerHello())
-            node = node.add_child(ExpectChangeCipherSpec())
-            node = node.add_child(ExpectEncryptedExtensions())
-            node = node.add_child(ExpectCertificateRequest())
-            node = node.add_child(ExpectCertificate())
-            node = node.add_child(ExpectCertificateVerify())
-            node = node.add_child(ExpectFinished())
-            node = node.add_child(CertificateGenerator(X509CertChain([cert])))
-            node = node.add_child(CertificateVerifyGenerator(
-                private_key, padding_xors={pos:xor}))
-            node = node.add_child(FinishedGenerator())
+            (conversation, node) = \
+                build_conn_graph(host, port, sig_algs, cert, 
+                                 cr_sigalgs=None,
+                                 certificate_verify_generator=CertificateVerifyGenerator(
+                                    private_key, padding_xors={pos:xor}))
+
             node = node.add_child(ExpectAlert(
                 AlertLevel.fatal, AlertDescription.decrypt_error))
             node.add_child(ExpectClose())
 
-            scheme = SignatureScheme.toRepr(sigalg)
             conversations_long["check that fuzzed signatures are rejected." +
                                " Malformed {0} - xor {1} at {2}".format(
-                               certType, hex(xor), pos)] = conversation
+                               cert_type, hex(xor), pos)] = conversation
 
 
     # run the conversation
