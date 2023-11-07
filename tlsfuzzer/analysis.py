@@ -1312,6 +1312,43 @@ class Analysis(object):
                     diff_conf_int[key][0], diff_conf_int[key][1],
                     diff_conf_int[key][2], txt_file)
 
+            if friedman_p < 1e-9:
+                explanation = (
+                    "Definite side-channel detected, "
+                    "implementation is VULNERABLE")
+            elif friedman_p < 1e-5:
+                explanation = (
+                    "Results suggesting side-channel found, "
+                    "collecting more data necessary for confirmation")
+            else:
+                small_ci = min((diff_conf_int[key][2]-diff_conf_int[key][0])/2
+                               for key in
+                               ["mean", "trim_mean_05", "trim_mean_25",
+                                "trim_mean_45"])
+                if small_ci < 1e-10:
+                    explanation = (
+                        "Implementation verified as not "
+                        "providing a timing side-channel signal")
+                elif small_ci < 1e-9:
+                    explanation = (
+                        "Implementation most likely not "
+                        "providing a timing side-channel signal")
+                elif small_ci < 1e-2:
+                    explanation = (
+                        "Large confidence intervals detected, "
+                        "collecting more data necessary. Side channel "
+                        "leakege smaller than {0:.3e}s is possible".format(
+                            small_ci))
+                else:
+                    explanation = (
+                        "Very large confidence intervals detected. "
+                        "Incorrect or missing --clock-frequency option?")
+
+            txt = "Layperson explanation: {0}".format(explanation)
+            print(txt)
+            txt_file.write(txt)
+            txt_file.write('\n')
+
             txt = "For detailed report see {}".format(report_filename)
             print(txt)
             txt_file.write(txt)
