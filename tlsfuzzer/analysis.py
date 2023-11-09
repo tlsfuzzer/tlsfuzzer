@@ -1638,6 +1638,7 @@ class Analysis(object):
         tests_to_perfom = [
             "sign_test", "paired_t_test", "wilcoxon_test", "bootstrap_test"
         ]
+        ret_val = 0
 
         output_files = {}
 
@@ -1679,24 +1680,29 @@ class Analysis(object):
                             passed += 1
                         total += 1
 
-            statistic = None
-            pvalue = None
-            try:
-                results = stats.binomtest(
-                    passed, total, p=0.5, alternative="two-sided"
-                )
-                statistic = results.statistic
-                pvalue = results.pvalue
-            except AttributeError:
-                results = stats.binom_test(
-                    passed, total, p=0.5, alternative="two-sided"
-                )
-                pvalue = results
+            if total > 10:
+                pvalue = None
+                try:
+                    results = stats.binomtest(
+                        passed, total, p=0.5, alternative="two-sided"
+                    )
+                    pvalue = results.pvalue
+                except AttributeError:
+                    pvalue = stats.binom_test(
+                        passed, total, p=0.5, alternative="two-sided"
+                    )
 
-            output_files['sign_test'].write(
-                "K size of {0}: successes={1}, n={2}, stats={3}, pvalue={4}\n"\
-                    .format(k_size, passed, total, statistic, pvalue)
-            )
+                output_files['sign_test'].write(
+                    "K size of {0}: {1} ({1} out of {2} passed)\n"\
+                        .format(k_size, pvalue, passed, total)
+                )
+
+                if pvalue < (self.alpha / len(k_sizes)):
+                    ret_val = 1
+            else:
+                output_files['sign_test'].write(
+                    "K size of {0}: Too few points\n".format(k_size)
+                )
 
             # Paired t-test
             results = self.rel_t_test()
@@ -1806,7 +1812,7 @@ class Analysis(object):
             print("Create conf value plot for all K sizes...")
         self.conf_plot_for_all_k(k_sizes)
 
-        return 0
+        return ret_val
 
 
 # exclude from coverage as it's a). trivial, and b). not easy to test
