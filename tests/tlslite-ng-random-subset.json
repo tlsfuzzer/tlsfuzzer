@@ -603,7 +603,9 @@
           "comments": "use ECDSA signatures instead of RSA",
           "arguments": ["--ecdsa"]},
          {"name": "test-tls13-conversation.py"},
-         {"name": "test-tls13-ecdsa-support.py"}
+         {"name": "test-tls13-ecdsa-support.py"},
+         {"name" : "test-tls13-minerva.py",
+          "arguments": ["--curve", "P-256"]}
      ]
     },
     {"server_command": ["{python}", "-u", "{command}", "server",

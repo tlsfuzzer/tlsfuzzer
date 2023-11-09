@@ -1074,10 +1074,10 @@ class TestMeasurementAnalysis(unittest.TestCase):
             if "timing.csv" in file_name:
                 k_size = file_name.split("/")[-2]
                 return mock.mock_open(
-                    read_data="256,{0}\n0.5,0.4\n0.5,0.5\n0.4,0.5".format(k_size)
+                    read_data="256,{0}".format(k_size) +
+                              ("\n0.5,0.4\n0.4,0.5" * 6)
                 )(file_name, mode)
 
-            print("here")
             return mock.mock_open(
                 read_data="0,256,3\n0,255,102\n0,254,103\n1,256,4\n1,254,104\n1,253,105"
             )(file_name, mode)
@@ -1092,17 +1092,18 @@ class TestMeasurementAnalysis(unittest.TestCase):
 
         binomtest_result = {"statistic": 0.5, "pvalue": 0.5}
         binomtest_mock = mock.Mock()
-        binomtest_mock.return_value = dotDict(binomtest_result)
 
         try:
             with mock.patch(
                 "tlsfuzzer.analysis.stats.binomtest", binomtest_mock
             ):
+                binomtest_mock.return_value = dotDict(binomtest_result)
                 self.analysis.analyze_bit_sizes()
         except AttributeError:
             with mock.patch(
                 "tlsfuzzer.analysis.stats.binom_test", binomtest_mock
             ):
+                binomtest_mock.return_value = binomtest_result["pvalue"]
                 self.analysis.analyze_bit_sizes()
 
         binomtest_mock.assert_called()
@@ -1145,7 +1146,6 @@ class TestMeasurementAnalysis(unittest.TestCase):
                         ("\n0.5,0.4\n0.5,0.5\n0.4,0.5" * 20)
                 )(file_name, mode)
 
-            print("here")
             return mock.mock_open(
                 read_data="0,256,3\n0,255,102\n0,254,103\n1,256,4\n1,254,104\n1,253,105"
             )(file_name, mode)
@@ -1168,17 +1168,18 @@ class TestMeasurementAnalysis(unittest.TestCase):
 
         binomtest_result = {"statistic": 0.5, "pvalue": 0.5}
         binomtest_mock = mock.Mock()
-        binomtest_mock.return_value = dotDict(binomtest_result)
 
         try:
             with mock.patch(
                 "tlsfuzzer.analysis.stats.binomtest", binomtest_mock
             ):
+                binomtest_mock.return_value = dotDict(binomtest_result)
                 self.analysis.analyze_bit_sizes()
         except AttributeError:
             with mock.patch(
                 "tlsfuzzer.analysis.stats.binom_test", binomtest_mock
             ):
+                binomtest_mock.return_value = binomtest_result["pvalue"]
                 self.analysis.analyze_bit_sizes()
 
         binomtest_mock.assert_called()

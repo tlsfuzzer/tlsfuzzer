@@ -20,11 +20,16 @@ script.
 While we also include script to do side-channel
 testing for de-padding and verifying MAC values in CBC ciphertexts
 (`test-lucky13.py
-<https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-lucky13.py>`_,
+<https://github.com/tlsfuzzer/tlsfuzzer/blob/master/scripts/test-lucky13.py>`_,
 the Lucky Thirteen attack), it does not use similarly robust approach
 as the ``test-bleichenbacher-timing-pregenerate.py`` script, which
 may cause it to report false positives.
 
+Another attack will be the Minerva attack. This attack exploits side channels
+in ECDSA signing process based on the size of the nonce to get the private key.
+You can test for it using the `test-tls13-minerva.py
+<https://github.com/tlsfuzzer/tlsfuzzer/blob/master/scripts/test-tls13-minerva.py>`_
+script.
 
 Environment setup
 =================
@@ -197,7 +202,7 @@ for testing
 this kind of data to check if the
 observations differ significantly or not.
 
-In frequentist statitics tests work in terms of hypothesis testing.
+In frequentist statistics tests work in terms of hypothesis testing.
 Scripts in ``tlsfuzzer`` use
 `Wilcoxon signed-rank test
 <https://en.wikipedia.org/wiki/Wilcoxon_signed-rank_test>`_
@@ -258,8 +263,9 @@ Also, it means that if you wish to decrease the reported confidence interval
 by a factor of 10, you must execute the script with 100 times as many
 repetitions (as 10²=100).
 Or execute the same script with the same settings 100 times, combine
-the resulting data in ``timing.csv`` files and analyse such combined data
-set.
+the resulting data in ``timing.csv`` files (or ``measurements.csv`` and
+``measurements-inverse.csv`` files for Minerva/bit-size) and analyse such
+combined data set.
 That's the primary reason for the careful system setup: it's much
 easier to adjust a system configuration than to execute hundred tests
 that take 24h to complete...
@@ -372,6 +378,43 @@ file.
 
    PYTHONPATH=. python tlsfuzzer/analysis.py -o "/tmp/results"
 
+
+For Minerva attack and similar bit-size attacks things are a bit different on
+extraction and analysis. To run the test you use similar method as the
+Bleichenbacher test:
+
+.. code:: bash
+
+   PYTHONPATH=. python scripts/test-tls13-minerva.py -i lo
+
+By default the test will only gather the data. If the private key is provided
+by ``--priv-key`` the test will also start extraction and analysis of the data.
+If analysis fail then the test will return non-zero code.
+In case you want to run the extraction on another machine you can do this by
+providing the raw times, the data, the signatures, the private key and specify
+the ``--prehashed`` flag:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/extract.py --raw-times timing.csv \
+   --raw-data data.bin --data-size 32 --raw-sigs sigs.bin \
+   --priv-key-ecdsa priv_key.pem -o /tmp/results/ --prehashed
+
+.. note::
+
+   Different key sizes would require different ``--data-size`` value. The flag
+   represents the number of bytes to read in each iteration from the data.bin
+   file. Since we are using sha-256 hashing algorithm, we pass 32 bytes to the
+   flag as this is the length of the output of the algorithm.
+
+This will create a ``measurements.csv`` file with the measurements in the long
+format. This files can be combined as described later.
+Finally for analysis we just need to specify the dir that has the
+``measurements.csv`` file on it and the ``--bit-size`` flag:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/analysis.py --bit-size -o "/tmp/results"
 
 With large sample sizes, to avoid exhausting available memory and to speed up
 the analysis, you can skip the generation of some graphs using the
@@ -546,6 +589,14 @@ of a side channel.
 With the likelihood increasing exponentially with the distance.
 Exact numerical values can be found in ``report.csv``.
 
+For Minerva attack and similar bit-size attacks we also create plots with all
+the nonce sizes to have a more complete view of the potential side channels.
+All the results are in the dir called ``analysis_results`` created during the
+analysis. The plots can be found under the names
+``conf_interval_plot_all_k_sizes_*.png`` and they are split to have at most 10
+nonce sizes at a time. Plots for individual nonces can be found under the
+``k-by-size`` dir. For this type of analysis no ``report.csv`` file is created.
+
 As mentioned previously, the script executes tests in three stages, first
 is the Wilcoxon signed-rank test and sign test between all the samples,
 second is the Friedman test, and finally is the bootstrapping of the
@@ -562,9 +613,11 @@ The sign test is performed in three different ways: the default, used for
 determining presence of the timing side-channel, is the two-sided variant,
 saved in the ``report.csv`` file as the ``Sign test``. The two other ways,
 the ``Sign test less`` and ``Sign test greater`` test the hypothesis that
-the one sample stochastically dominates the other. High p-values here aren't
-meangingful (i.e. you can get a p-value == 1 even if the alternative is not
-statistically significant even at alpha=0.05).
+the one sample stochastically dominates the other. For Minerva attack and
+similar bit-size attacks a ``sign_test.results`` and ``wilcoxon_test.results``
+file is created with the sign test and wilcoxon test results for each nonce
+size. High p-values here aren't meangingful (i.e. you can get a p-value == 1
+even if the alternative is not statistically significant even at alpha=0.05).
 Very low values of a ``Sign test less`` mean that the *second* sample
 is unlikely to be smaller than the *first* sample.
 Those tests are more sensitive than the confidence intervals for median, so
@@ -578,12 +631,15 @@ The code also calculates the
 but as the timings generally don't follow the normal distribution, it severly
 underestimates the difference between samples (it is strongly influenced by
 outliers). The results from it are not taken into account to decide failure of
-the overall timing test.
+the overall timing test. Again for Minerva attack and similar bit-size attacks
+a ``paired_t_test.results`` file is created with the results for each nonce
+size.
 It is useful for testing servers that are far away from the system on which
 the test script is executed.
 
 If the Friedman test fails,
 you should inspect the individual test p-values.
+The Friedman test is not running on bit-size attack analysis
 
 If one particular set of tests consistently scores low when compared to
 other tests (e.g. "very long (96-byte) pre master secret" and
@@ -622,6 +678,15 @@ for the samples themselves (i.e. not the differences between samples).
 You can use this data to estimate the smallest detectable difference between
 samples for a given sample size.
 
+For minerva and bit size attacks there is no ``report.txt`` file. Finally a
+``bootstrap_test.results`` file is created for the bootstrap results for each
+nonce size. If some nonce size has large (typically >0.01) sign test p-value or
+Wilcoxon test p-value (found in respecive files) and the confidence intervals
+of the bootstrap test is small (typically <1ns) for the specific nonce size,
+then we can confirm that no side-channel is present for this nonce size
+otherwise if we have very small small sign test p-value or Wilcoxon test
+p-value (typically <0.00001) then a side-channel is present for this nonce
+size.
 
 Writing new test scripts
 ========================

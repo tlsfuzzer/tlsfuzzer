@@ -1036,13 +1036,29 @@ class ExpectCertificate(ExpectHandshake):
 
 
 class ExpectCertificateVerify(ExpectHandshake):
-    """Processing TLS Handshake protocol Certificate Verify messages."""
-    def __init__(self, version=None, sig_alg=None):
+    """
+    Processing TLS Handshake protocol Certificate Verify messages.
+    :param tuple(int,int) version: Expected TLS version of the message. If not
+    provided will be taken from the state.
+    :param tuple(int,int) sig_alg: Expected value of the signature scheme
+    created by the server. If not provided it will be compared with signature
+    algorithm extension from client hello.
+    :param str hash_file: The file where hashes of the signature context will
+    be logged
+    :param str sig_file: The file where the signatures themselves will be
+    logged
+
+    """
+    def __init__(
+        self, version=None, sig_alg=None, hash_file=None, sig_file=None
+    ):
         super(ExpectCertificateVerify, self).__init__(
             ContentType.handshake,
             HandshakeType.certificate_verify)
         self.version = version
         self.sig_alg = sig_alg
+        self.hash_file = hash_file
+        self.sig_file = sig_file
 
     def process(self, state, msg):
         """
@@ -1132,6 +1148,13 @@ class ExpectCertificateVerify(ExpectHandshake):
                 hash_name,
                 salt_len):
             raise AssertionError("Signature verification failed")
+
+        if self.hash_file:
+            data = getattr(hashlib, hash_name)(sig_context).digest()
+            self.hash_file.write(data)
+
+        if self.sig_file:
+            self.sig_file.write(cert_v.signature)
 
         state.handshake_messages.append(cert_v)
         state.handshake_hashes.update(msg.write())
