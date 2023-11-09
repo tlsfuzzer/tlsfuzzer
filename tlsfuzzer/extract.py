@@ -73,6 +73,8 @@ def help_msg():
     print(" --raw-data FILE Read the data used for signing from an external")
     print("                file. The file must be in binary format.")
     print(" --data-size num The size of data used for each signature.")
+    print(" --prehashed    Specifies that the data on the file are already")
+    print("                hashed. Canceled by hash-func option.")
     print(" --raw-sigs FILE Read the signatures from an external file.")
     print("                The file must be in binary format.")
     print(" --priv-key-ecdsa FILE Read the ecdsa private key from PEM file.")
@@ -120,6 +122,7 @@ def main():
     freq = None
     hash_func_name = None
     verbose = False
+    prehashed = False
 
     argv = sys.argv[1:]
 
@@ -131,7 +134,7 @@ def main():
                                ["help", "raw-times=", "binary=", "endian=",
                                 "no-quickack", "status-delay=",
                                 "status-newline", "raw-data=", "data-size=",
-                                "raw-sigs=", "priv-key-ecdsa=",
+                                "prehashed", "raw-sigs=", "priv-key-ecdsa=",
                                 "clock-frequency=", "hash-func=", "verbose"])
     for opt, arg in opts:
         if opt == '-l':
@@ -162,6 +165,8 @@ def main():
             data = arg
         elif opt == "--data-size":
             data_size = int(arg)
+        elif opt == "--prehashed":
+            prehashed = True
         elif opt == "--raw-sigs":
             sigs = arg
         elif opt == "--priv-key-ecdsa":
@@ -215,7 +220,10 @@ def main():
 data size, signatures file and one private key are necessary.")
 
     if hash_func_name == None:
-        hash_func = hashlib.sha256
+        if prehashed:
+            hash_func = None
+        else:
+            hash_func = hashlib.sha256
     else:
         try:
             hash_func = getattr(hashlib, hash_func_name)
@@ -311,7 +319,7 @@ class Extract:
         self.key_type = key_type
         self.frequency = frequency
         self.measurements_csv = measurements_csv
-        self.hash_func = hash_func
+        self.hash_func = hash_func  # None if data are already hashed
         self.verbose = verbose
         self._total_measurements = None
         self._measurements_fp = None
@@ -672,11 +680,19 @@ class Extract:
                 (syn, syn_ack, ack, c_msgs, c_msgs_acks, s_msgs, s_msgs_acks,
                     srv_fin, clnt_fin, ack_for_fin) = self.pckt_times.pop(0)
 
-                row = [
-                    syn - self._previous_lst_msg,
-                    syn_ack - syn,
-                    ack - syn_ack,
-                ]
+                if self._previous_lst_msg is None:
+                    row = [
+                        0,
+                        syn_ack - syn,
+                        ack - syn_ack,
+                    ]
+                else:
+                    row = [
+                        syn - self._previous_lst_msg,
+                        syn_ack - syn,
+                        ack - syn_ack,
+                    ]
+
                 prv_ack = ack
                 for c_msg, c_msg_ack, s_msg, s_msg_ack in zip(
                         c_msgs, c_msgs_acks.values(),
@@ -867,8 +883,11 @@ class Extract:
         data_iter = self._get_data_from_binary_file(self.data, self.data_size)
 
         for msg in data_iter:
-            hashed = self.hash_func(msg).digest()
-            hashed = hashed[: self.priv_key.curve.baselen]
+            if self.hash_func:
+                hashed = self.hash_func(msg).digest()
+                hashed = hashed[: self.priv_key.curve.baselen]
+            else:
+                hashed = msg
             number = int.from_bytes(hashed, 'big')
             max_length = ecdsa.util.bit_length(self.priv_key.curve.order)
             length = len(hashed) * 8
@@ -982,16 +1001,16 @@ class Extract:
                     self._measurements_dropped += num_of_values - 1
 
         for size in final_choices:
-            ranom_choice = choice(['before', 'after'])
+            random_choice = choice(['before', 'after'])
 
-            if ranom_choice not in final_choices[size]:
-                if ranom_choice == 'before':
-                    ranom_choice = 'after'
+            if random_choice not in final_choices[size]:
+                if random_choice == 'before':
+                    random_choice = 'after'
                 else:
-                    ranom_choice = 'before'
+                    random_choice = 'before'
 
-            self._line_to_write[size] = final_choices[size][ranom_choice]
-            self._selections[size][ranom_choice] += 1
+            self._line_to_write[size] = final_choices[size][random_choice]
+            self._selections[size][random_choice] += 1
 
         line = ""
         for size in self._line_to_write:
@@ -1164,8 +1183,8 @@ class Extract:
                         }
                 else:
                     if self._next_line is not None:
-                        ranom_choice = choice([0, 1])
-                        if ranom_choice == 0:
+                        random_choice = choice([0, 1])
+                        if random_choice == 0:
                             line = self._current_line
                         else:
                             line = self._next_line
