@@ -1679,21 +1679,23 @@ class Analysis(object):
                             passed += 1
                         total += 1
 
+            statistic = None
+            pvalue = None
             try:
                 results = stats.binomtest(
                     passed, total, p=0.5, alternative="two-sided"
                 )
+                statistic = results.statistic
+                pvalue = results.pvalue
             except AttributeError:
                 results = stats.binom_test(
                     passed, total, p=0.5, alternative="two-sided"
                 )
+                pvalue = results
 
             output_files['sign_test'].write(
                 "K size of {0}: successes={1}, n={2}, stats={3}, pvalue={4}\n"\
-                    .format(
-                        k_size, passed, total,
-                        results.statistic, results.pvalue
-                    )
+                    .format(k_size, passed, total, statistic, pvalue)
             )
 
             # Paired t-test
