@@ -290,7 +290,7 @@ class Extract:
         self.initial_syn_ack = None
         self.initial_ack = None
         self.warm_up_messages_left = WARM_UP
-        self.last_warmup_fin = None
+        self.last_warmup_fin = 0
         self.raw_times = raw_times
         self.binary = binary
         self.endian = endian
