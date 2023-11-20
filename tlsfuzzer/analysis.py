@@ -23,6 +23,7 @@ from collections import namedtuple
 from itertools import combinations, repeat, chain
 import os
 import time
+import warnings
 
 import numpy as np
 from scipy import stats
@@ -441,7 +442,8 @@ class Analysis(object):
             print("[i] Starting Friedman test")
         data = self.load_data()
         if len(self.class_names) < 3:
-            result.put(None)
+            warnings.warn("Friedman test requires more than 3 classes")
+            result.put(1)
             return
         _, pval = stats.friedmanchisquare(
             *(data.iloc[:, i] for i in range(len(self.class_names))))
@@ -547,6 +549,9 @@ class Analysis(object):
         # make sure the quantile point is visible on the graph
         quant[0] *= 0.98
         quant[1] *= 1.02
+        # XXX try to diagnose the warning about non-positive ylim on log-scale axis
+        if quant[0] < 0 or quant[1] < 0:
+            print(quant)
         ax.set_ylim(quant)
         canvas.print_figure(join(self.output, "scatter_plot_zoom_in.png"),
                             bbox_inches="tight")
