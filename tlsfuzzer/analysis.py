@@ -1321,10 +1321,22 @@ class Analysis(object):
                     "Results suggesting side-channel found, "
                     "collecting more data necessary for confirmation")
             else:
-                small_ci = min((diff_conf_int[key][2]-diff_conf_int[key][0])/2
-                               for key in
-                               ["mean", "trim_mean_05", "trim_mean_25",
-                                "trim_mean_45"])
+                small_cis = list(
+                    (diff_conf_int[key][2]-diff_conf_int[key][0])/2
+                    for key in
+                    ["mean", "median", "trim_mean_05", "trim_mean_25",
+                     "trim_mean_45"])
+                if max(small_cis) == 0:
+                    print("WARNING: all 95% CIs are equal 0. Too small sammple"
+                          " or too low clock resolution for the measurement.")
+                # when measuring values below clock frequency
+                # or very small pieces of code with high resolution clock
+                # it may cause the 95% CI to equal 0.0; that's not a realistic
+                # value so ignore it
+                # (for median it would be nice to actually check if we're not
+                # in the vicinity of the clock resolution, and ignore median
+                # then, but that's much more complex so don't do it for now)
+                small_ci = min(i for i in small_cis if i != 0)
                 if small_ci < 1e-10:
                     explanation = (
                         "Implementation verified as not "
