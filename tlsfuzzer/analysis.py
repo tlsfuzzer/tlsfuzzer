@@ -1349,7 +1349,7 @@ class Analysis(object):
                     explanation = (
                         "Large confidence intervals detected, "
                         "collecting more data necessary. Side channel "
-                        "leakege smaller than {0:.3e}s is possible".format(
+                        "leakage smaller than {0:.3e}s is possible".format(
                             small_ci))
                 else:
                     explanation = (
