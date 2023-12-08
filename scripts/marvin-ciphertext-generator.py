@@ -44,6 +44,7 @@ def help_msg():
     print("                Default 1")
     print(" --status-delay num How long to wait between status line updates.")
     print("                In seconds. Default: 2.0")
+    print(" --status-newline Use newline for separating lines in the status messages")
     print(" --help         this message")
 
 
@@ -57,6 +58,7 @@ def main():
     pms_tls_version = None
     probe_reuse = 1
     status_delay = 2.0
+    carriage_return = None
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv,
@@ -68,6 +70,7 @@ def main():
                                 "srv-cert=",
                                 "pms-tls-version=",
                                 "probe-reuse=",
+                                "status-newline",
                                 "status-delay="])
     for opt, arg in opts:
         if opt == '-o':
@@ -94,6 +97,8 @@ def main():
             pms_tls_version = divmod(int_ver, 256)
         elif opt == "--probe-reuse":
             probe_reuse = int(arg)
+        elif opt == "--status-newline":
+            carriage_return = '\n'
         elif opt == "--status-delay":
             status_delay = float(arg)
         elif opt == '--help':
@@ -135,6 +140,7 @@ def main():
         status = [0, len(test_classes) * repetitions, Event()]
         kwargs = dict()
         kwargs['delay'] = status_delay
+        kwargs['end'] = carriage_return
         progress = Thread(target=progress_report, args=(status,),
                           kwargs=kwargs)
         progress.start()
