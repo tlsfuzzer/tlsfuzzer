@@ -121,21 +121,39 @@ def main():
     ciphertexts = marvin_gen.generate()
     print("Test passed.")
 
-    print("Generating ciphertexts...")
-
     with open(
         os.path.join(outdir, 'pms_values.bin'),
         "wb"
     ) as pms_file:
-        # create a real order of tests to run
-        log = Log(os.path.join(outdir, "log.csv"))
+        print("Generating log...")
 
-        log.start_log(ciphertexts.keys())
-        for _ in range(repetitions):
-            log.shuffle_new_run()
+        status = [0, repetitions, Event()]
+        kwargs = dict()
+        kwargs['delay'] = status_delay
+        kwargs['end'] = carriage_return
+        progress = Thread(target=progress_report, args=(status,),
+                          kwargs=kwargs)
+        progress.start()
+
+        try:
+            # create a real order of tests to run
+            log = Log(os.path.join(outdir, "log.csv"))
+
+            log.start_log(ciphertexts.keys())
+            for i in range(repetitions):
+                status[0] = i+1
+                log.shuffle_new_run()
+        finally:
+            status[2].set()
+            progress.join()
+            print()
+        print("Log generated.")
         log.write()
+
         log.read_log()
         test_classes = log.get_classes()
+
+        print("Generating ciphertexts...")
 
         status = [0, len(test_classes) * repetitions, Event()]
         kwargs = dict()
@@ -154,7 +172,7 @@ def main():
                         executed % (len(test_classes) * probe_reuse) == 0:
                     ciphertexts = marvin_gen.generate()
 
-                status[0] = executed
+                status[0] = executed + 1
 
                 g_name = test_classes[index]
 
