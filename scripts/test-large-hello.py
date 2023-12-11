@@ -25,8 +25,9 @@ from tlslite.extensions import PaddingExtension, TLSExtension, \
         SupportedGroupsExtension, SignatureAlgorithmsExtension, \
         SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
+from tlsfuzzer.helpers import AutoEmptyExtension
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -50,6 +51,7 @@ def help_msg():
     print(" -m min-ext-no                   the minimum extension number to use (default=52)")
     print("                                 (the test uses random extensions past this number)")
     print(" --shorten-huge-hello-by amount  shorten the 'Huge hello' test by amount number of bytes (default=0)")
+    print(" -M | --ems                      enable support for Extended Master Secret")
     print(" --help                          this message")
 
 
@@ -63,6 +65,7 @@ def main():
     last_exp_tmp = None
     dhe = False
     huge_hello_reduction = 0
+    ems = False
     SIGS = [(getattr(HashAlgorithm, x), SignatureAlgorithm.rsa) for x in
                ['sha512', 'sha256']] + [
                    SignatureScheme.rsa_pss_rsae_sha256,
@@ -71,7 +74,7 @@ def main():
                    SignatureScheme.rsa_pss_pss_sha512]
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:m:d", ["help", "shorten-huge-hello-by="])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:m:dM", ["help", "shorten-huge-hello-by=", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -97,6 +100,8 @@ def main():
                 huge_hello_reduction = int(arg, 16) 
             else: 
                 huge_hello_reduction = int(arg)
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -112,8 +117,8 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
     if dhe:
-        ext = {}
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
@@ -127,9 +132,12 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     else:
-        ext = None
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    if not ext:
+        ext = None
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
@@ -152,7 +160,7 @@ def main():
     conversations["sanity"] = conversation
 
     # send client hello with large padding extension
-    final_size = 0xffff-4 if not dhe else  0xffff-50
+    final_size = 0xffff - (50 if dhe else 4) - (4 if ems else 0)
     for i in chain(range(10), range(0x3f00, 0x4010), range(0x1ff0, 0x2010),
                    range(0x8ff0, 0x9010), range(0xff00, final_size)):
         conversation = Connect(host, port)
@@ -176,6 +184,8 @@ def main():
             ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                     CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
             ext = {ExtensionType.client_hello_padding:PaddingExtension().create(i)}
+        if ems:
+            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
@@ -197,7 +207,7 @@ def main():
         conversations["ext padding, {0} bytes".format(i)] = conversation
 
     # send large extension from unallocated range
-    final_size = 0xffff-4 if not dhe else  0xffff-50
+    final_size = 0xffff - (50 if dhe else 4) - (4 if ems else 0)
     for i in chain(range(10), range(0x3f00, 0x4010), range(0x1ff0, 0x2010),
                    range(0x8ff0, 0x9010), range(0xff00, final_size)):
         conversation = Connect(host, port)
@@ -221,6 +231,8 @@ def main():
             ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                     CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
             ext = {80:TLSExtension(extType=80).create(bytearray(i))}
+        if ems:
+            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
@@ -243,7 +255,7 @@ def main():
 
     # send two extensions, where one is large (4096) and the other is
     # changing size
-    final_size = 0xefff-8 if not dhe else  0xefff-58
+    final_size = 0xefff - 8 - (50 if dhe else 0) - (4 if ems else 0)
     for i in chain(range(10), range(0x2f00, 0x3010),
                    range(0x3f00, 0x4010), range(0x1ff0, 0x2010),
                    range(0x8ff0, 0x9010), range(0xef00, final_size)):
@@ -271,6 +283,8 @@ def main():
             ext = {80:TLSExtension(extType=80).create(bytearray(i)),
                 ExtensionType.client_hello_padding:
                    PaddingExtension().create(0x1000)}
+        if ems:
+            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
@@ -292,7 +306,7 @@ def main():
         conversations["two ext, #80 {0} bytes".format(i)] = conversation
 
     # send client hello messages with multiple extensions
-    final_size = 0x10000//4 if not dhe else  0x10000//4 - 11
+    final_size = 0x10000//4 - (11 if dhe else 0) - (4 if ems else 0)
     for i in chain(range(10//4), range(0x3f00//4, 0x4010//4),
                    range(0x1ff0//4, 0x2010//4),
                    range(0x8ff0//4, 0x9010//4), range(0xff00//4, final_size)):
@@ -334,6 +348,8 @@ def main():
             ext = dict((j, TLSExtension(extType=j))
                         for j in range(min_ext, min_ext+i)
                         if j not in high_num_ext)
+        if ems:
+            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
@@ -383,9 +399,13 @@ def main():
                     CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                     CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         else:
-            ext = None
+            ext = {}
             ciphers += [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
                         CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+        if ems:
+            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+        if not ext:
+            ext = None
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
@@ -440,6 +460,8 @@ def main():
                     PaddingExtension().create(1)}
             ciphers += [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
                         CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+        if ems:
+            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         node = node.add_child(ClientHelloGenerator(ciphers,
                                                    extensions=ext))
         node = node.add_child(ExpectServerHello())
@@ -462,7 +484,7 @@ def main():
         conversations["ciphers odd {0}".format(i)] = conversation
 
     # hello split over at least two records, first very small (2B)
-    final_size = 0xffff-4 if not dhe else  0xffff-50
+    final_size = 0xffff - (50 if dhe else 4) - (4 if ems else 0)
     for i in chain(range(10), range(0x3f00, 0x4010), range(0x1ff0, 0x2010),
                    range(0x8ff0, 0x9010), range(0xff00, final_size)):
         fragment_list = []
@@ -487,6 +509,8 @@ def main():
             ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                     CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
             ext = {ExtensionType.client_hello_padding:PaddingExtension().create(i)}
+        if ems:
+            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         hello_gen = ClientHelloGenerator(ciphers, extensions=ext)
         node = node.add_child(split_message(hello_gen, fragment_list, 2))
         node = node.add_child(FlushMessageList(fragment_list))
@@ -513,8 +537,8 @@ def main():
     fragment_list = []
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
     if dhe:
-        ext = {}
         groups = [GroupName.secp256r1,
                 GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
@@ -528,9 +552,12 @@ def main():
                 CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                 CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     else:
-        ext=None
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                     CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    if not ext:
+        ext = None
     hello_gen = ClientHelloGenerator(ciphers, extensions=ext)
     node = node.add_child(split_message(hello_gen, fragment_list, 2))
     node = node.add_child(FlushMessageList(fragment_list))
@@ -563,8 +590,9 @@ def main():
         ciphers = list(range(0x0100, 0x5600))
         i -= 0x5600 - 0x0100
         ciphers += list(range(0x5601, 0x5601 + i))
+    ext = {}
+    huge_hello_len = 0xffff - huge_hello_reduction
     if dhe:
-        ext = {}
         groups = [GroupName.secp256r1,
                 GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
@@ -573,16 +601,21 @@ def main():
             SignatureAlgorithmsExtension().create(SIGS)
         ext[ExtensionType.signature_algorithms_cert] = \
             SignatureAlgorithmsCertExtension().create(SIGS)
-        ext[80] = TLSExtension(extType=80).create(bytearray(0xffff - 50 - huge_hello_reduction))
         ciphers += [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
                 CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
                 CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                 CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        huge_hello_len -= 50
     else:
         ciphers += [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV,
                     CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
         # the 4 bytes subtracted from 0xffff are for ext ID and ext len
-        ext = {80:TLSExtension(extType=80).create(bytearray(0xffff - 4 - huge_hello_reduction))}
+        huge_hello_len -= 4
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+        huge_hello_len -= 4
+    ext[80] = TLSExtension(extType=80).create(bytearray(huge_hello_len))
+
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
