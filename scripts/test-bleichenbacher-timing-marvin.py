@@ -1,6 +1,6 @@
 # Author: Hubert Kario, (c) 2021-2022
 # Released under Gnu GPL v2.0, see LICENSE file for details
-"""Bleichenbacher attack test for Marvin workaround."""
+"""Bleichenbacher attack test for servers employing the Marvin workaround."""
 from __future__ import print_function
 import traceback
 import sys
@@ -36,7 +36,7 @@ from tlsfuzzer.utils.log import Log
 from tlsfuzzer.utils.rsa import MarvinCiphertextGenerator
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -72,8 +72,12 @@ def help_msg():
     print("                /tmp by default")
     print(" --repeat rep   How many timing samples should be gathered for each test")
     print("                100 by default")
-    print(" --no-safe-renego  Allow the server not to support safe")
-    print("                renegotiation extension")
+    print(" --require-safe-renego Require the server to support safe renegotiation")
+    print("                extension. If any --require-* is used, they must specify")
+    print("                all extensions sent by server")
+    print(" --require-sni  Require the server to echo server name extension.")
+    print("                If any --require-* is used, they must specify all")
+    print("                extensions sent by the server")
     print(" --no-sni       do not send server name extension.")
     print("                Sends extension by default if the hostname is a")
     print("                valid DNS name, not an IP address")
@@ -115,7 +119,7 @@ def main():
     last_exp_tmp = None
     alert = AlertDescription.bad_record_mac
     level = AlertLevel.fatal
-    srv_extensions = {ExtensionType.renegotiation_info: None}
+    srv_extensions = dict()
     no_sni = False
     repetitions = 100
     interface = None
@@ -136,7 +140,8 @@ def main():
     opts, args = getopt.getopt(argv,
                                "h:p:e:x:X:n:a:l:o:i:C:",
                                ["help",
-                                "no-safe-renego",
+                                "require-safe-renego",
+                                "require-sni",
                                 "no-sni",
                                 "repeat=",
                                 "cpu-list=",
@@ -183,8 +188,10 @@ def main():
             outdir = arg
         elif opt == "--repeat":
             repetitions = int(arg)
-        elif opt == "--no-safe-renego":
-            srv_extensions = None
+        elif opt == "--require-safe-renego":
+            srv_extensions[ExtensionType.renegotiation_info] = None
+        elif opt == "--require-sni":
+            srv_extensions[ExtensionType.server_name] = None
         elif opt == "--no-sni":
             no_sni = True
         elif opt == "--cpu-list":
@@ -235,6 +242,11 @@ def main():
         run_only = set(args)
     else:
         run_only = None
+
+    if not srv_extensions:
+        # None for extensions means "expect RFC compliant behaviour for the
+        # ClientHello sent"
+        srv_extensions = None
 
     cln_extensions = {ExtensionType.renegotiation_info: None}
     if is_valid_hostname(host) and not no_sni:

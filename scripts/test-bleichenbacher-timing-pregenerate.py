@@ -33,7 +33,7 @@ from tlsfuzzer.utils.statics import WARM_UP
 from tlsfuzzer.utils.log import Log
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -71,8 +71,12 @@ def help_msg():
     print("                /tmp by default")
     print(" --repeat rep   How many timing samples should be gathered for each test")
     print("                100 by default")
-    print(" --no-safe-renego  Allow the server not to support safe")
-    print("                renegotiation extension")
+    print(" --require-safe-renego Require the server to support safe renegotiation")
+    print("                extension. If any --require-* is used, they must specify")
+    print("                all extensions sent by server")
+    print(" --require-sni  Require the server to echo server name extension.")
+    print("                If any --require-* is used, they must specify all")
+    print("                extensions sent by the server")
     print(" --no-sni       do not send server name extension.")
     print("                Sends extension by default if the hostname is a")
     print("                valid DNS name, not an IP address")
@@ -133,7 +137,7 @@ def main():
     timeout = 1.0
     alert = AlertDescription.bad_record_mac
     level = AlertLevel.fatal
-    srv_extensions = {ExtensionType.renegotiation_info: None}
+    srv_extensions = dict()
     no_sni = False
     repetitions = 100
     interface = None
@@ -157,7 +161,8 @@ def main():
     opts, args = getopt.getopt(argv,
                                "h:p:e:x:X:t:n:a:l:l:o:i:C:",
                                ["help",
-                                "no-safe-renego",
+                                "require-safe-renego",
+                                "require-sni",
                                 "no-sni",
                                 "repeat=",
                                 "cpu-list=",
@@ -207,8 +212,10 @@ def main():
             outdir = arg
         elif opt == "--repeat":
             repetitions = int(arg)
-        elif opt == "--no-safe-renego":
-            srv_extensions = None
+        elif opt == "--require-safe-renego":
+            srv_extensions[ExtensionType.renegotiation_info] = None
+        elif opt == "--require-sni":
+            srv_extensions[ExtensionType.server_name] = None
         elif opt == "--no-sni":
             no_sni = True
         elif opt == "--cpu-list":
@@ -244,6 +251,11 @@ def main():
         run_only = set(args)
     else:
         run_only = None
+
+    if not srv_extensions:
+        # None for extensions means "expect RFC compliant behaviour for the
+        # ClientHello sent"
+        srv_extensions = None
 
     if run_only and test_set:
         raise ValueError("Can't specify test set and individual tests together")
@@ -343,6 +355,7 @@ def main():
             runner.run()
             server_cert_state = runner.state
         except Exception as exp:
+            print(traceback.format_exc())
             # Exception means the server rejected the ciphersuite
             print("Failing on {0} because server does not support it. ".format(CipherSuite.ietfNames[cipher]))
             print(20 * '=')
