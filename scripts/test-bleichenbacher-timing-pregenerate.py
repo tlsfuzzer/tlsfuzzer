@@ -35,7 +35,7 @@ from tlsfuzzer.utils.log import Log
 from tlslite.utils.compat import a2b_hex, compatAscii2Bytes
 
 
-version = 6
+version = 7
 
 
 def help_msg():
@@ -382,6 +382,9 @@ def main():
             print(exp)
             exit(1)
 
+    exp_key_size = \
+        (len(server_cert_state.get_server_public_key()) + 7) // 8
+
     # check if a certain number doesn't trip up the server
     # (essentially a second sanity test)
     conversation = Connect(host, port, timeout=timeout)
@@ -432,7 +435,8 @@ def main():
         if i == 3:
             # for the third control probe make sure that the signal from
             # fuzzing is very visible to the server
-            padding_xors=dict((i, 0) for i in range(120))
+            padding_xors=dict((i, 0) for i in range(
+                min(120, exp_key_size - 46)))  # because PMS is 46 bytes long
         node = node.add_child(ClientKeyExchangeGenerator(
             padding_subs={-3: 0, -2: 3, -1: 3},
             padding_xors=padding_xors,
@@ -691,8 +695,41 @@ def main():
     generators["too long (49-byte) pre master secret"] = client_key_exchange_generator
 
     # check if very long PMS is detected
+    # 124 bytes + 1 version byte + 1 type byte + 8 byte padding + 1 separator
+    if exp_key_size >= 135:
+        client_key_exchange_generator = ClientKeyExchangeGenerator(
+            premaster_secret=bytearray([0] * 124),
+            reuse_encrypted_premaster=reuse_rsa_ciphertext,
+            psk=psk, psk_identity=psk_identity)
+
+        (conversation) = build_conn_graph(host, port, timeout,
+                                          cipher, cln_extensions, srv_extensions,
+                                          client_key_exchange_generator, level,
+                                          alert, no_alert, psk)
+
+        conversations["very long (124-byte) pre master secret"] = conversation
+        generators["very long (124-byte) pre master secret"] = \
+                client_key_exchange_generator
+
+    # 96 bytes + 1 version byte + 1 type byte + 8 byte padding + 1 separator
+    if exp_key_size >= 107:
+        client_key_exchange_generator = ClientKeyExchangeGenerator(
+            premaster_secret=bytearray([0] * 96),
+            reuse_encrypted_premaster=reuse_rsa_ciphertext,
+            psk=psk, psk_identity=psk_identity)
+
+        (conversation) = build_conn_graph(host, port, timeout,
+                                          cipher, cln_extensions, srv_extensions,
+                                          client_key_exchange_generator, level,
+                                          alert, no_alert, psk)
+
+        conversations["very long (96-byte) pre master secret"] = conversation
+        generators["very long (96-byte) pre master secret"] = \
+                client_key_exchange_generator
+
+    # max size of a correctly formed PKCS#1 padding with 512 bit key
     client_key_exchange_generator = ClientKeyExchangeGenerator(
-        premaster_secret=bytearray([0] * 124),
+        premaster_secret=bytearray([0] * 53),
         reuse_encrypted_premaster=reuse_rsa_ciphertext,
         psk=psk, psk_identity=psk_identity)
 
@@ -701,22 +738,8 @@ def main():
                                       client_key_exchange_generator, level,
                                       alert, no_alert, psk)
 
-    conversations["very long (124-byte) pre master secret"] = conversation
-    generators["very long (124-byte) pre master secret"] = client_key_exchange_generator
-
-    #
-    client_key_exchange_generator = ClientKeyExchangeGenerator(
-        premaster_secret=bytearray([0] * 96),
-        reuse_encrypted_premaster=reuse_rsa_ciphertext,
-        psk=psk, psk_identity=psk_identity)
-
-    (conversation) = build_conn_graph(host, port, timeout,
-                                      cipher, cln_extensions, srv_extensions,
-                                      client_key_exchange_generator, level,
-                                      alert, no_alert, psk)
-
-    conversations["very long (96-byte) pre master secret"] = conversation
-    generators["very long (96-byte) pre master secret"] = client_key_exchange_generator
+    conversations["long (53-byte) pre master secret"] = conversation
+    generators["long (53-byte) pre master secret"] = client_key_exchange_generator
 
     # check if wrong TLS version number is rejected
     client_key_exchange_generator = ClientKeyExchangeGenerator(
@@ -778,34 +801,36 @@ def main():
             generators["too short PKCS padding - {0} bytes{1}"
                 .format(i, suffix)] = client_key_exchange_generator
 
-    for j in range(4 if reuse_rsa_ciphertext else 1):
-        # check if very short PKCS padding doesn't have a different behaviour
+    # 48 byte PMS + 40 bytes of zeros + padding type + 8 bytes padding + sep
+    if exp_key_size >= 98:
+        for j in range(4 if reuse_rsa_ciphertext else 1):
+            # check if very short PKCS padding doesn't have a different behaviour
 
-        # move the start of the padding 40 bytes towards LSB
-        subs = {}
-        for i in range(41):
-            subs[i] = 0
-        subs[41] = 2
+            # move the start of the padding 40 bytes towards LSB
+            subs = {}
+            for i in range(41):
+                subs[i] = 0
+            subs[41] = 2
 
-        client_key_exchange_generator = ClientKeyExchangeGenerator(
-            padding_subs=subs,
-            reuse_encrypted_premaster=reuse_rsa_ciphertext,
-            psk=psk, psk_identity=psk_identity)
+            client_key_exchange_generator = ClientKeyExchangeGenerator(
+                padding_subs=subs,
+                reuse_encrypted_premaster=reuse_rsa_ciphertext,
+                psk=psk, psk_identity=psk_identity)
 
-        (conversation) = build_conn_graph(host, port, timeout,
-                                          cipher, cln_extensions,
-                                          srv_extensions,
-                                          client_key_exchange_generator,
-                                          level, alert, no_alert, psk)
+            (conversation) = build_conn_graph(host, port, timeout,
+                                              cipher, cln_extensions,
+                                              srv_extensions,
+                                              client_key_exchange_generator,
+                                              level, alert, no_alert, psk)
 
-        suffix = ""
-        if reuse_rsa_ciphertext:
-            suffix = " - {0}".format(j)
+            suffix = ""
+            if reuse_rsa_ciphertext:
+                suffix = " - {0}".format(j)
 
-        conversations["very short PKCS padding (40 bytes short){0}"
-            .format(suffix)] = conversation
-        generators["very short PKCS padding (40 bytes short){0}"
-            .format(suffix)] = client_key_exchange_generator
+            conversations["very short PKCS padding (40 bytes short){0}"
+                .format(suffix)] = conversation
+            generators["very short PKCS padding (40 bytes short){0}"
+                .format(suffix)] = client_key_exchange_generator
 
     # check if too long PKCS padding is detected
 
@@ -1127,9 +1152,6 @@ place where the timing leak happens:
                 log.read_log()
                 test_classes = log.get_classes()
                 queries = chain(repeat(0, WARM_UP), log.iterate_log())
-
-                exp_key_size = \
-                    (len(server_cert_state.get_server_public_key()) + 7) // 8
 
                 # generate the PMS values
                 for executed, index in enumerate(queries):
