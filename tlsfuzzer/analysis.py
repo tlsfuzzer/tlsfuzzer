@@ -1508,7 +1508,9 @@ class Analysis(object):
 
         self._write_legend()
 
-        self._write_sample_stats()
+        processes.append(
+            self._start_thread(self._write_sample_stats,
+                               "Generation of sample statistics failed"))
 
         difference, p_vals, sign_p_vals, worst_pair = \
             self._write_individual_results()
