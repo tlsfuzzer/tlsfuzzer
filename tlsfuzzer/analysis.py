@@ -55,13 +55,18 @@ def help_msg():
     print("""Usage: analysis [-o output]
  -o output         Directory where to place results (required)
                    and where timing.csv or measurements.csv is located
- --no-ecdf-plot    Don't create the ecdf_plot.png file
- --no-scatter-plot Don't create the scatter_plot.png file
- --no-conf-interval-plot Don't create the conf_interval_plot*.png files
+ --no-box-plot     Don't create the box_plot.png file
+ --no-ecdf-plot    Don't create the ECDF graphs
+ --no-scatter-plot Don't create the scatter plot graphs
+ --no-conf-interval-plot Don't create the confidence interval graphs
+ --no-box-test     Don't run the box test
  --no-wilcoxon-test Don't run the Wilcoxon signed rank test
-                for pairwise measurements
- --no-t-test    Don't run the paired sample t-test for pairwise measurements
- --no-sign-test [Hamming weight only] Don't run the sign test
+ --no-t-test       Don't run the paired sample t-test
+ --no-sign-test    [Hamming weight only] Don't run the sign test
+ --no-le-sign-test Don't run the less-equal, greater-equal sign tests
+ --minimal-analysis Run just the pairwise sign tests, Friedman test, and
+                   bootstrapping of confidence intervals (i.e. minimal amount
+                   of calculation necessary to generate report.txt)
  --multithreaded-graph Create graph and calculate statistical tests at the
                    same time. Note: this increases memory usage of analysis by
                    a factor of 8.
@@ -115,6 +120,9 @@ def main():
     scatter_plot = True
     conf_int_plot = True
     multithreaded_graph = False
+    box_plot = True
+    box_test = True
+    le_sign_test = True
     verbose = False
     clock_freq = None
     alpha = None
@@ -137,7 +145,11 @@ def main():
                                 "no-conf-interval-plot",
                                 "no-t-test",
                                 "no-sign-test",
+                                "no-box-plot",
+                                "no-box-test",
                                 "no-wilcoxon-test",
+                                "no-le-sign-test",
+                                "minimal-analysis",
                                 "multithreaded-graph",
                                 "clock-frequency=",
                                 "alpha=",
@@ -169,8 +181,23 @@ def main():
             sign_test = False
         elif opt == "--no-t-test":
             t_test = False
+        elif opt == "--no-box-plot":
+            box_plot = False
+        elif opt == "--no-box-test":
+            box_test = False
         elif opt == "--no-wilcoxon-test":
             wilcoxon_test = False
+        elif opt == "--no-le-sign-test":
+            le_sign_test = False
+        elif opt == "--minimal-analysis":
+            ecdf_plot = False
+            scatter_plot = False
+            conf_int_plot = False
+            box_plot = False
+            box_test = False
+            wilcoxon_test = False
+            t_test = False
+            le_sign_test = False
         elif opt == "--multithreaded-graph":
             multithreaded_graph = True
         elif opt == "--clock-frequency":
@@ -207,7 +234,8 @@ def main():
                             bit_size_analysis or hamming_weight_analysis,
                             smart_analysis, bit_size_desired_ci,
                             bit_recognition_size, measurements_filename,
-                            skip_sanity, wilcoxon_test, t_test, sign_test)
+                            skip_sanity, wilcoxon_test, t_test, sign_test,
+                            box_plot, box_test, le_sign_test)
 
         ret = analysis.generate_report(
             bit_size=bit_size_analysis,
@@ -229,7 +257,8 @@ class Analysis(object):
                  bit_size_analysis=False, smart_bit_size_analysis=True,
                  bit_size_desired_ci=1e-9, bit_recognition_size=4,
                  measurements_filename="measurements.csv", skip_sanity=False,
-                 run_wilcoxon_test=True, run_t_test=True, run_sign_test=True):
+                 run_wilcoxon_test=True, run_t_test=True, run_sign_test=True,
+                 draw_box_plot=True, run_box_test=True, run_le_sign_test=True):
         self.verbose = verbose
         self.output = output
         self.clock_frequency = clock_frequency
@@ -237,9 +266,12 @@ class Analysis(object):
         self.draw_ecdf_plot = draw_ecdf_plot
         self.draw_scatter_plot = draw_scatter_plot
         self.draw_conf_interval_plot = draw_conf_interval_plot
+        self.draw_box_plot = draw_box_plot
+        self.run_box_test = run_box_test
         self.run_wilcoxon_test = run_wilcoxon_test
         self.run_t_test = run_t_test
         self.run_sign_test = run_sign_test
+        self.run_le_sign_test = run_le_sign_test
         self.multithreaded_graph = multithreaded_graph
         self.workers = workers
         if alpha is None:
@@ -421,6 +453,8 @@ class Analysis(object):
 
     def box_test(self):
         """Cross-test all classes with the box test"""
+        if not self.run_box_test:
+            return None
         if self.verbose:
             start_time = time.time()
             print("[i] Starting the box_test")
@@ -438,6 +472,8 @@ class Analysis(object):
 
     def wilcoxon_test(self):
         """Cross-test all classes with the Wilcoxon signed-rank test"""
+        if not self.run_wilcoxon_test:
+            return None
         if self.verbose:
             start_time = time.time()
             print("[i] Starting Wilcoxon signed-rank test")
@@ -455,6 +491,8 @@ class Analysis(object):
     def rel_t_test(self):
         """Cross-test all classes using the t-test for dependent, paired
         samples."""
+        if not self.run_t_test:
+            return None
         if self.verbose:
             start_time = time.time()
             print("[i] Starting t-test for dependent, paired samples")
@@ -573,6 +611,8 @@ class Analysis(object):
 
     def box_plot(self):
         """Generate box plot for the test classes."""
+        if not self.draw_box_plot:
+            return None
         if self.verbose:
             start_time = time.time()
             print("[i] Generating the box plot")
@@ -1097,8 +1137,12 @@ class Analysis(object):
         box_results = self.box_test()
         wilcox_results = self.wilcoxon_test()
         sign_results = self.sign_test()
-        sign_less_results = self.sign_test(alternative="less")
-        sign_greater_results = self.sign_test(alternative="greater")
+        if self.run_le_sign_test:
+            sign_less_results = self.sign_test(alternative="less")
+            sign_greater_results = self.sign_test(alternative="greater")
+        else:
+            sign_less_results = None
+            sign_greater_results = None
         ttest_results = self.rel_t_test()
         desc_stats = self.desc_stats()
 
@@ -1107,45 +1151,58 @@ class Analysis(object):
         sign_p_vals = []
         with open(report_filename, 'w') as file:
             writer = csv.writer(file)
-            writer.writerow(["Class 1", "Class 2", "Box test",
-                             "Wilcoxon signed-rank test",
-                             "Sign test", "Sign test less",
-                             "Sign test greater",
-                             "paired t-test", "mean", "SD",
-                             "median", "IQR", "MAD"])
+            columns = ["Class 1", "Class 2"]
+            if self.run_box_test:
+                columns += ["Box test"]
+            if self.run_wilcoxon_test:
+                columns += ["Wilcoxon signed-rank test"]
+            columns += ["Sign test"]
+            if self.run_le_sign_test:
+                columns += ["Sign test less", "Sign test greater"]
+            if self.run_t_test:
+                columns += ["paired t-test"]
+            columns += ["mean", "SD", "median", "IQR", "MAD"]
+            writer.writerow(columns)
             worst_pair = None
             worst_p = None
             worst_median_difference = None
-            for pair, result in sorted(box_results.items()):
+            for pair, result in sorted(sign_results.items()):
                 index1, index2 = pair
                 diff_stats = desc_stats[pair]
                 box_write = "="
-                if result:
-                    print("Box test {0} vs {1}: {0} {2} {1}".format(index1,
-                                                                    index2,
-                                                                    result))
-                    box_write = result
-                else:
-                    print("Box test {} vs {}: No difference".format(index1,
-                                                                    index2))
-                print("Wilcoxon signed-rank test {} vs {}: {:.3}"
-                      .format(index1, index2, wilcox_results[pair]))
+                if self.run_box_test:
+                    result = box_results[pair]
+                    if result:
+                        print("Box test {0} vs {1}: {0} {2} {1}".format(
+                            index1,
+                            index2,
+                            result))
+                        box_write = result
+                    else:
+                        print("Box test {} vs {}: No difference".format(
+                            index1,
+                            index2))
+                if self.run_wilcoxon_test:
+                    print("Wilcoxon signed-rank test {} vs {}: {:.3}"
+                          .format(index1, index2, wilcox_results[pair]))
                 print("Sign test {} vs {}: {:.3}"
                       .format(index1, index2, sign_results[pair]))
-                print("Sign test, probability that {1} < {0}: {2:.3}"
-                      .format(index1, index2, sign_less_results[pair]))
-                print("Sign test, probability that {1} > {0}: {2:.3}"
-                      .format(index1, index2, sign_greater_results[pair]))
-                if sign_results[pair] > 0.05:
-                    sign_test_relation = "="
-                elif sign_less_results[pair] > sign_greater_results[pair]:
-                    sign_test_relation = "<"
-                else:
-                    sign_test_relation = ">"
-                print("Sign test interpretation: {} {} {}"
-                      .format(index2, sign_test_relation, index1))
-                print("Dependent t-test for paired samples {} vs {}: {:.3}"
-                      .format(index1, index2, ttest_results[pair]))
+                if self.run_le_sign_test:
+                    print("Sign test, probability that {1} < {0}: {2:.3}"
+                          .format(index1, index2, sign_less_results[pair]))
+                    print("Sign test, probability that {1} > {0}: {2:.3}"
+                          .format(index1, index2, sign_greater_results[pair]))
+                    if sign_results[pair] > 0.05:
+                        sign_test_relation = "="
+                    elif sign_less_results[pair] > sign_greater_results[pair]:
+                        sign_test_relation = "<"
+                    else:
+                        sign_test_relation = ">"
+                    print("Sign test interpretation: {} {} {}"
+                          .format(index2, sign_test_relation, index1))
+                if self.run_t_test:
+                    print("Dependent t-test for paired samples {} vs {}: {:.3}"
+                          .format(index1, index2, ttest_results[pair]))
                 print("{} vs {} stats: mean: {:.3}, SD: {:.3}, median: {:.3}, "
                       "IQR: {:.3}, MAD: {:.3}".format(
                           index1, index2, diff_stats["mean"], diff_stats["SD"],
@@ -1154,39 +1211,52 @@ class Analysis(object):
 
                 # If either of the pairwise tests shows a small p-value with
                 # Bonferroni correction consider it a possible side-channel
-                if wilcox_results[pair] < self.alpha / len(sign_results) or \
-                        sign_results[pair] < self.alpha / len(sign_results) or\
-                        ttest_results[pair] < self.alpha / len(sign_results):
+                if (self.run_wilcoxon_test and
+                    wilcox_results[pair] < self.alpha / len(sign_results)) or \
+                    sign_results[pair] < self.alpha / len(sign_results) or\
+                    (self.run_t_test and
+                     ttest_results[pair] < self.alpha / len(sign_results)):
                     difference = 1
 
-                wilcox_p = wilcox_results[pair]
+                if self.run_wilcoxon_test:
+                    wilcox_p = wilcox_results[pair]
+                else:
+                    wilcox_p = 1
                 sign_p = sign_results[pair]
-                ttest_p = ttest_results[pair]
+                if self.run_t_test:
+                    ttest_p = ttest_results[pair]
+                else:
+                    ttest_p = 1
                 row = [self.class_names[index1],
-                       self.class_names[index2],
-                       box_write,
-                       wilcox_p,
-                       sign_p,
-                       sign_less_results[pair],
-                       sign_greater_results[pair],
-                       ttest_p,
-                       diff_stats["mean"],
-                       diff_stats["SD"],
-                       diff_stats["median"],
-                       diff_stats["IQR"],
-                       diff_stats["MAD"]
-                       ]
+                       self.class_names[index2]]
+                if self.run_box_test:
+                    row.append(box_write)
+                if self.run_wilcoxon_test:
+                    row.append(wilcox_p)
+                row.append(sign_p)
+                if self.run_le_sign_test:
+                    row.extend([sign_less_results[pair],
+                                sign_greater_results[pair]])
+                if self.run_t_test:
+                    row.append(ttest_p)
+                row.extend([
+                           diff_stats["mean"],
+                           diff_stats["SD"],
+                           diff_stats["median"],
+                           diff_stats["IQR"],
+                           diff_stats["MAD"]
+                           ])
                 writer.writerow(row)
 
                 p_vals.append(wilcox_p)
                 sign_p_vals.append(sign_p)
                 median_difference = abs(diff_stats["median"])
 
-                if worst_pair is None or wilcox_p < worst_p or \
+                if worst_pair is None or sign_p < worst_p or \
                         worst_median_difference is None or \
                         worst_median_difference < median_difference:
                     worst_pair = pair
-                    worst_p = wilcox_p
+                    worst_p = sign_p
                     worst_median_difference = median_difference
 
         if self.verbose:
