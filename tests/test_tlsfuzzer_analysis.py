@@ -80,8 +80,8 @@ class TestReport(unittest.TestCase):
         #mock_box.assert_called_once()
         #mock_scatter.assert_called_once()
         # we're writing to report.csv, legend.csv,
-        # sample_stats.csv, and report.txt
-        self.assertEqual(mock_open.call_count, 4)
+        # and report.txt
+        self.assertEqual(mock_open.call_count, 3)
         self.assertEqual(ret, 0)
 
     @mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary")
@@ -111,9 +111,38 @@ class TestReport(unittest.TestCase):
         #mock_box.assert_called_once()
         #mock_scatter.assert_called_once()
         # we're writing to report.csv, legend.csv,
-        # sample_stats.csv, and report.txt
-        self.assertEqual(mock_open.call_count, 4)
+        # report.txt
+        self.assertEqual(mock_open.call_count, 3)
         self.assertEqual(ret, 0)
+
+    @mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary")
+    @mock.patch("__main__.__builtins__.open", new_callable=mock.mock_open)
+    @mock.patch("builtins.print")
+    @mock.patch("tlsfuzzer.analysis.Analysis.load_data")
+    @mock.patch("tlsfuzzer.analysis.Analysis.graph_worst_pair")
+    @mock.patch("tlsfuzzer.analysis.Analysis.conf_interval_plot")
+    @mock.patch("tlsfuzzer.analysis.Analysis.diff_scatter_plot")
+    @mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot")
+    @mock.patch("tlsfuzzer.analysis.Analysis.box_plot")
+    @mock.patch("tlsfuzzer.analysis.Analysis.diff_ecdf_plot")
+    @mock.patch("tlsfuzzer.analysis.Analysis.ecdf_plot")
+    def test_write_sample_stats(
+        self, mock_ecdf, mock_diff_ecdf, mock_box, mock_scatter,
+        mock_diff_scatter, mock_conf_int, mock_graph_worst_pair,
+        mock_load_data, mock_print, mock_open, mock_convert_to_binary,
+    ):
+        mock_load_data.return_value = self.timings
+
+        analysis = Analysis("/tmp", verbose=True)
+        ret = analysis._write_sample_stats()
+
+        mock_load_data.assert_called()
+        #mock_ecdf.assert_called_once()
+        #mock_box.assert_called_once()
+        #mock_scatter.assert_called_once()
+        # we're writing to sample_stats.csv
+        self.assertEqual(mock_open.call_count, 1)
+        self.assertIsNone(ret)
 
     @mock.patch("builtins.print")
     @mock.patch("__main__.__builtins__.open", new_callable=mock.mock_open)
@@ -143,8 +172,8 @@ class TestReport(unittest.TestCase):
         #mock_box.assert_called_once()
         #mock_scatter.assert_called_once()
         # we're writing to report.csv, legend.csv,
-        # sample_stats.csv, and report.txt
-        self.assertEqual(mock_open.call_count, 4)
+        # and report.txt
+        self.assertEqual(mock_open.call_count, 3)
         self.assertEqual(ret, 1)
 
     @mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary")
