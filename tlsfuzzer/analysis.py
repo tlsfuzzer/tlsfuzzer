@@ -64,6 +64,7 @@ def help_msg():
  --no-t-test       Don't run the paired sample t-test
  --no-sign-test    [Hamming weight only] Don't run the sign test
  --no-le-sign-test Don't run the less-equal, greater-equal sign tests
+ --no-sample-stats Don't calculate sample statistics (sample_stats.csv)
  --minimal-analysis Run just the pairwise sign tests, Friedman test, and
                    bootstrapping of confidence intervals (i.e. minimal amount
                    of calculation necessary to generate report.txt)
@@ -123,6 +124,7 @@ def main():
     box_plot = True
     box_test = True
     le_sign_test = True
+    sample_stats = True
     verbose = False
     clock_freq = None
     alpha = None
@@ -149,6 +151,7 @@ def main():
                                 "no-box-test",
                                 "no-wilcoxon-test",
                                 "no-le-sign-test",
+                                "no-sample-stats",
                                 "minimal-analysis",
                                 "multithreaded-graph",
                                 "clock-frequency=",
@@ -189,6 +192,8 @@ def main():
             wilcoxon_test = False
         elif opt == "--no-le-sign-test":
             le_sign_test = False
+        elif opt == "--no-sample-stats":
+            sample_stats = False
         elif opt == "--minimal-analysis":
             ecdf_plot = False
             scatter_plot = False
@@ -198,6 +203,7 @@ def main():
             wilcoxon_test = False
             t_test = False
             le_sign_test = False
+            sample_stats = False
         elif opt == "--multithreaded-graph":
             multithreaded_graph = True
         elif opt == "--clock-frequency":
@@ -235,7 +241,7 @@ def main():
                             smart_analysis, bit_size_desired_ci,
                             bit_recognition_size, measurements_filename,
                             skip_sanity, wilcoxon_test, t_test, sign_test,
-                            box_plot, box_test, le_sign_test)
+                            box_plot, box_test, le_sign_test, sample_stats)
 
         ret = analysis.generate_report(
             bit_size=bit_size_analysis,
@@ -258,7 +264,8 @@ class Analysis(object):
                  bit_size_desired_ci=1e-9, bit_recognition_size=4,
                  measurements_filename="measurements.csv", skip_sanity=False,
                  run_wilcoxon_test=True, run_t_test=True, run_sign_test=True,
-                 draw_box_plot=True, run_box_test=True, run_le_sign_test=True):
+                 draw_box_plot=True, run_box_test=True, run_le_sign_test=True,
+                 gen_sample_stats=True):
         self.verbose = verbose
         self.output = output
         self.clock_frequency = clock_frequency
@@ -272,6 +279,7 @@ class Analysis(object):
         self.run_t_test = run_t_test
         self.run_sign_test = run_sign_test
         self.run_le_sign_test = run_le_sign_test
+        self.gen_sample_stats = gen_sample_stats
         self.multithreaded_graph = multithreaded_graph
         self.workers = workers
         if alpha is None:
@@ -1276,6 +1284,8 @@ class Analysis(object):
 
     def _write_sample_stats(self):
         """Write summary statistics of samples to sample_stats.csv file."""
+        if not self.gen_sample_stats:
+            return None
         if self.verbose:
             start_time = time.time()
             print("[i] Writing summary statistics of samples to file")

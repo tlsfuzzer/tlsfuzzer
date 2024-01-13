@@ -926,7 +926,23 @@ class TestCommandLine(unittest.TestCase):
                         output, True, True, True, False, False, None, None,
                         None, None, None, False, True, 1e-09, 4,
                         'measurements.csv', False, True, True, True, True,
-                        True, True)
+                        True, True, True)
+
+    def test_call_with_no_sample_stats(self):
+        output = "/tmp"
+        args = ["analysis.py", "-o", output, "--no-sample-stats"]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.analysis.Analysis.generate_report') as mock_report:
+            with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
+                with mock.patch("sys.argv", args):
+                    main()
+                    mock_report.assert_called_once()
+                    mock_init.assert_called_once_with(
+                        output, True, True, True, False, False, None, None,
+                        None, None, None, False, True, 1e-09, 4,
+                        'measurements.csv', False, True, True, True, True,
+                        True, True, False)
 
     def test_minimal_analysis(self):
         output = "/tmp"
@@ -942,7 +958,7 @@ class TestCommandLine(unittest.TestCase):
                         output, False, False, False, False, False, None, None,
                         None, None, None, False, True, 1e-09, 4,
                         'measurements.csv', False, False, False, True, False,
-                        False, False)
+                        False, False, False)
 
     def test_call_with_no_box_test(self):
         output = "/tmp"
@@ -958,7 +974,7 @@ class TestCommandLine(unittest.TestCase):
                         output, True, True, True, False, False, None, None,
                         None, None, None, False, True, 1e-09, 4,
                         'measurements.csv', False, True, True, True, True,
-                        False, True)
+                        False, True, True)
 
     def test_call_with_no_le_sign_test(self):
         output = "/tmp"
@@ -974,7 +990,7 @@ class TestCommandLine(unittest.TestCase):
                         output, True, True, True, False, False, None, None,
                         None, None, None, False, True, 1e-09, 4,
                         'measurements.csv', False, True, True, True, True,
-                        True, False)
+                        True, False, True)
 
     def test_call_with_delay_and_CR(self):
         output = "/tmp"
@@ -991,7 +1007,7 @@ class TestCommandLine(unittest.TestCase):
                         output, True, True, True, False, False, None, None,
                         None, 3.5, '\n', False, True, 1e-09, 4,
                         'measurements.csv', False, True, True, True,
-                        True, True, True)
+                        True, True, True, True)
 
     def test_call_with_workers(self):
         output = "/tmp"
@@ -1007,7 +1023,7 @@ class TestCommandLine(unittest.TestCase):
                         output, True, True, True, False, False, None, None,
                         200, None, None, False, True, 1e-09, 4,
                         'measurements.csv', False, True, True, True,
-                        True, True, True)
+                        True, True, True, True)
 
     def test_call_with_verbose(self):
         output = "/tmp"
@@ -1023,7 +1039,7 @@ class TestCommandLine(unittest.TestCase):
                         output, True, True, True, False, True, None, None,
                         None, None, None, False, True, 1e-09, 4,
                         'measurements.csv', False, True, True, True,
-                        True, True, True)
+                        True, True, True, True)
 
     def test_call_with_multithreaded_plots(self):
         output = "/tmp"
@@ -1039,7 +1055,7 @@ class TestCommandLine(unittest.TestCase):
                         output, True, True, True, True, False, None, None,
                         None, None, None, False, True, 1e-09, 4,
                         'measurements.csv', False, True, True, True,
-                        True, True, True)
+                        True, True, True, True)
 
     def test_call_with_no_plots(self):
         output = "/tmp"
@@ -1057,7 +1073,7 @@ class TestCommandLine(unittest.TestCase):
                         output, False, False, False, False, False, None, None,
                         None, None, None, False, True, 1e-09, 4,
                         'measurements.csv', False, True, True, True,
-                        False, True, True)
+                        False, True, True, True)
 
     def test_call_with_frequency(self):
         output = "/tmp"
@@ -1073,7 +1089,7 @@ class TestCommandLine(unittest.TestCase):
                         output, True, True, True, False, False, 10*1e6, None,
                         None, None, None, False, True, 1e-09, 4,
                         'measurements.csv', False, True, True, True,
-                        True, True, True)
+                        True, True, True, True)
 
     def test_call_with_alpha(self):
         output = "/tmp"
@@ -1089,7 +1105,7 @@ class TestCommandLine(unittest.TestCase):
                         output, True, True, True, False, False, None, 1e-3,
                         None, None, None, False, True, 1e-09, 4,
                         'measurements.csv', False, True, True, True,
-                        True, True, True)
+                        True, True, True, True)
 
     def test_call_with_bit_size_measurements(self):
         output = "/tmp"
@@ -1107,7 +1123,7 @@ class TestCommandLine(unittest.TestCase):
                         output, True, True, True, False, False, None, None,
                         None, None, None, True, True, 1e-09, 4,
                         'measurements.csv', False, True, True, True,
-                        True, True, True)
+                        True, True, True, True)
 
     def test_call_with_skip_sanity(self):
         output = "/tmp"
@@ -1125,7 +1141,7 @@ class TestCommandLine(unittest.TestCase):
                         output, True, True, True, False, False, None, None,
                         None, None, None, True, True, 1e-09, 4,
                         'measurements.csv', True, True, True, True,
-                        True, True, True)
+                        True, True, True, True)
 
     def test_call_with_custom_measurements_filename(self):
         output = "/tmp"
@@ -1145,7 +1161,7 @@ class TestCommandLine(unittest.TestCase):
                         output, True, True, True, False, False, None, None,
                         None, None, None, True, True, 1e-09, 4,
                         measurements_filename, False, True, True, True,
-                        True, True, True)
+                        True, True, True, True)
 
     def test_call_with_no_smart_analysis(self):
         output = "/tmp"
@@ -1164,7 +1180,7 @@ class TestCommandLine(unittest.TestCase):
                         output, True, True, True, False, False, None, None,
                         None, None, None, True, False, 1e-09, 4,
                         'measurements.csv', False, True, True, True,
-                        True, True, True)
+                        True, True, True, True)
 
     def test_call_with_parametrized_smart_analysis(self):
         output = "/tmp"
@@ -1187,7 +1203,7 @@ class TestCommandLine(unittest.TestCase):
                         None, None, None, True, True,
                         bit_size_desire_ci * 1e-9, bit_recognition_size,
                         'measurements.csv', False, True, True, True,
-                        True, True, True)
+                        True, True, True, True)
 
     def test_call_with_Hamming_weight(self):
         output = "/tmp"
@@ -1204,7 +1220,7 @@ class TestCommandLine(unittest.TestCase):
                         output, True, True, True, False, False, None, None,
                         None, None, None, True, True, 1e-9, 4,
                         'measurements.csv', False, True, True, True,
-                        True, True, True)
+                        True, True, True, True)
                     mock_report.assert_called_once_with(
                         bit_size=False, hamming_weight=True)
 
@@ -1224,7 +1240,7 @@ class TestCommandLine(unittest.TestCase):
                         output, True, True, True, False, False, None, None,
                         None, None, None, True, True, 1e-9, 4,
                         'measurements.csv', False, False, False, False,
-                        True, True, True)
+                        True, True, True, True)
                     mock_report.assert_called_once_with(
                         bit_size=False, hamming_weight=True)
 
