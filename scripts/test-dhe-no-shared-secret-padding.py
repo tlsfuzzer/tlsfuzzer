@@ -26,10 +26,10 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
 from tlslite.extensions import SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlslite.utils.cryptomath import numBytes
-from tlsfuzzer.helpers import SIG_ALL
+from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
 
 
-version = 6
+version = 7
 
 
 def help_msg():
@@ -55,6 +55,7 @@ def help_msg():
     print(" -z             don't expect 1/n-1 record split in TLS1.0")
     print(" --extra-exts   Send additional extensions to advertise support for")
     print("                stronger primes and signatures")
+    print(" -M | --ems     enable support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -69,10 +70,11 @@ def main():
     min_zeros = 1
     record_split = True
     extra_exts = False
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:z", ["help", "min-zeros=",
-        "extra-exts"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:zM", ["help", "min-zeros=",
+        "extra-exts", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -83,6 +85,8 @@ def main():
         elif opt == '-x':
             expected_failures[arg] = None
             last_exp_tmp = str(arg)
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '-X':
             if not last_exp_tmp:
                 raise ValueError("-x has to be specified before -X")
@@ -123,6 +127,8 @@ def main():
     node = conversation
     exts = {}
     exts[ExtensionType.renegotiation_info] = None
+    if ems:
+        exts[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if extra_exts:
         exts[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create([GroupName.ffdhe2048, GroupName.ffdhe3072,
@@ -135,8 +141,11 @@ def main():
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         extensions=exts))
+    srv_ext = {ExtensionType.renegotiation_info:None}
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(
-        extensions={ExtensionType.renegotiation_info:None}))
+        extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
@@ -172,6 +181,8 @@ def main():
                                                        ssl2=ssl2))
             if prot > (3, 0):
                 ext = {ExtensionType.renegotiation_info: None}
+                if ems:
+                    ext[ExtensionType.extended_master_secret] = None
             else:
                 ext = None
             node = node.add_child(ExpectServerHello(extensions=ext,
