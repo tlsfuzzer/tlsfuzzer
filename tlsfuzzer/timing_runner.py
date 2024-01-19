@@ -210,6 +210,24 @@ class TimingRunner:
               "Install required packages to enable.")
         return 2
 
+    def analyse_bit_sizes(self):
+        """
+        Starts analysis if available
+
+        :return: int 0 for no side channel detected, 1 for side channel
+        detected, 2 unavailable
+        """
+        if self.check_analysis_availability():
+            from tlsfuzzer.analysis import Analysis
+            analysis = Analysis(self.out_dir, alpha=self.alpha,
+                                verbose=self.verbose_analysis,
+                                bit_size_analysis=True)
+            return analysis.analyze_bit_sizes()
+
+        print("Analysis is not available. "
+              "Install required packages to enable.")
+        return 2
+
     def sniff(self):
         """Start tcpdump with filter on communication to/from server"""
 

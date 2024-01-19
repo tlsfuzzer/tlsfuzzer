@@ -713,6 +713,47 @@ class TestCommandLine(unittest.TestCase):
                 mock_log.assert_not_called()
                 mock_process.assert_called_once()
 
+    @mock.patch('tlsfuzzer.extract.Log')
+    @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
+    @mock.patch('tlsfuzzer.extract.Extract._write_csv')
+    @mock.patch(
+        'tlsfuzzer.extract.Extract.process_and_create_multiple_csv_files'
+    )
+    @mock.patch('tlsfuzzer.extract.Extract.parse')
+    def test_prehashed_option(self, mock_parse, mock_process, mock_write,
+                              mock_write_pkt, mock_log):
+        output = "/tmp"
+        raw_data = "/tmp/data"
+        data_size = 32
+        raw_sigs = "/tmp/sigs"
+        raw_times = "/tmp/times"
+        priv_key = "/tmp/key"
+        args = ["extract.py",
+                "-o", output,
+                "--raw-data", raw_data,
+                "--data-size", data_size,
+                "--raw-sigs", raw_sigs,
+                "--raw-times", raw_times,
+                "--prehashed",
+                "--priv-key-ecdsa", priv_key]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
+            with mock.patch("sys.argv", args):
+                main()
+                mock_init.assert_called_once_with(
+                    mock.ANY, None, output, None, None,
+                    raw_times, None, binary=None, endian="little",
+                    no_quickack=False, delay=None, carriage_return=None,
+                    data=raw_data, data_size=data_size, sigs=raw_sigs,
+                    priv_key=priv_key, key_type="ecdsa",
+                    frequency=None, hash_func=None,
+                    verbose=False)
+                mock_write.assert_not_called()
+                mock_write_pkt.assert_not_called()
+                mock_log.assert_not_called()
+                mock_process.assert_called_once()
+
     def test_specify_to_private_keys(self):
         args = [
             "extract.py", "-o", "/tmp", "--raw-data", "/tmp/data",
