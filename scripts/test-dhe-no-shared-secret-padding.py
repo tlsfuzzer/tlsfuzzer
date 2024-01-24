@@ -29,7 +29,7 @@ from tlslite.utils.cryptomath import numBytes
 from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
 
 
-version = 7
+version = 8
 
 
 def help_msg():
@@ -181,7 +181,7 @@ def main():
                                                        ssl2=ssl2))
             if prot > (3, 0):
                 ext = {ExtensionType.renegotiation_info: None}
-                if ems:
+                if ems and not ssl2:
                     ext[ExtensionType.extended_master_secret] = None
             else:
                 ext = None
