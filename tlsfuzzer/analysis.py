@@ -803,6 +803,20 @@ class Analysis(object):
         _diffs = None
         return ret
 
+    def _calc_exact_values(self, diff):
+        mean = np.mean(diff)
+        q1, median, q3 = np.quantile(diff, [0.25, 0.5, 0.75])
+        trim_mean_05 = stats.trim_mean(diff, 0.05, 0)
+        trim_mean_25 = stats.trim_mean(diff, 0.25, 0)
+        trim_mean_45 = stats.trim_mean(diff, 0.45, 0)
+        trimean = (q1 + 2*median + q3)/4
+
+        return {"mean": mean, "median": median,
+                "trim_mean_05": trim_mean_05,
+                "trim_mean_25": trim_mean_25,
+                "trim_mean_45": trim_mean_45,
+                "trimean": trimean}
+
     def calc_diff_conf_int(self, pair, reps=5000, ci=0.95):
         """
         Bootstrap a confidence interval for the central tendencies of
@@ -840,21 +854,9 @@ class Analysis(object):
 
         data = self.load_data()
         diff = data.iloc[:, pair[1]] - data.iloc[:, pair[0]]
-        mean = np.mean(diff)
-        q1, median, q3 = np.quantile(diff, [0.25, 0.5, 0.75])
-        trim_mean_05 = stats.trim_mean(diff, 0.05, 0)
-        trim_mean_25 = stats.trim_mean(diff, 0.25, 0)
-        trim_mean_45 = stats.trim_mean(diff, 0.45, 0)
-        trimean = (q1 + 2*median + q3)/4
+        exact_values = self._calc_exact_values(diff)
 
         quantiles = [(1-ci)/2, 1-(1-ci)/2]
-
-        exact_values = {"mean": mean, "median": median,
-                        "trim_mean_05": trim_mean_05,
-                        "trim_mean_25": trim_mean_25,
-                        "trim_mean_45": trim_mean_45,
-                        "trimean": trimean}
-
         ret = {}
         for key, value in exact_values.items():
             calc_quant = np.quantile(cent_tend[key], quantiles)
@@ -1716,7 +1718,30 @@ class Analysis(object):
                 "K size of {0}: {1}\n".format(k_size, results[(0, 1)])
             )
 
+            # Creating graphs
+            self.conf_interval_plot()
+            self.diff_ecdf_plot()
+            self.diff_scatter_plot()
+            try:
+                self.graph_worst_pair(testPair)
+            except AssertionError:
+                if self.verbose:
+                    print(
+                        "[i] Couldn't create worst pair graph.".format(
+                            k_size
+                        )
+                    )
+
             # Bootstrap test
+            methods = {
+                    "mean": "Mean",
+                    "median": "Median",
+                    "trim_mean_05": "Trimmed mean (5%)",
+                    "trim_mean_25": "Trimmed mean (25%)",
+                    "trim_mean_45": "Trimmed mean (45%)",
+                    "trimean": "Trimean"
+                }
+
             if k_size == max_k_size:
                 output_files['bootstrap_test'].write(
                     "For K size {0} (sanity) ({1} samples):\n".format(
@@ -1732,75 +1757,45 @@ class Analysis(object):
                     )
                 )
 
+            data = self.load_data()
+            diff = data.iloc[:, 1] - data.iloc[:, 0]
+            exact_values = self._calc_exact_values(diff)
+
             if samples > 50:
-                results = self.calc_diff_conf_int(testPair, ci=0.95)
-                print_results = lambda result: \
-                    "{0}s, 95% CI: {1}s, {2}s (±{3}s)"\
-                        .format(
-                            result[1], result[0], result[2],
-                            (result[2] - result[0])
-                        )
-                output_files['bootstrap_test'].write(
-                    "Mean of differences: {0}\n".format(
-                        print_results(results['mean'])
-                    )
-                )
-                output_files['bootstrap_test'].write(
-                    "Median of differences: {0}\n".format(
-                        print_results(results['median'])
-                    )
-                )
-                output_files['bootstrap_test'].write(
-                    "Trimmed mean (5%) of differences: {0}\n".format(
-                        print_results(results['trim_mean_05'])
-                    )
-                )
-                output_files['bootstrap_test'].write(
-                    "Trimmed mean (25%) of differences: {0}\n".format(
-                        print_results(results['trim_mean_25'])
-                    )
-                )
-                output_files['bootstrap_test'].write(
-                    "Trimmed mean (45%) of differences: {0}\n".format(
-                        print_results(results['trim_mean_45'])
-                    )
-                )
-                output_files['bootstrap_test'].write(
-                    "Trimean of differences: {0}\n\n".format(
-                        print_results(results['trimean'])
-                    )
-                )
-            else:
-                diffs = []
-
-                with open(
-                    join(self.output, "timing.csv")
-                ) as in_fp:
-                    in_csv = csv.reader(in_fp)
-                    next(in_csv)
-                    for row in in_csv:
-                        diffs.append(float(row[1]) - float(row[0]))
-
-                output_files['bootstrap_test'].write(
-                    "Median of differences: {0}s\n\n"\
-                        .format(np.mean(diffs) * 1e-9)
-                )
-
-            # Creating graphs
-            if self.verbose:
-                print('Creating graphs for k size {0}...'.format(k_size))
-            self.conf_interval_plot()
-            self.diff_ecdf_plot()
-            self.diff_scatter_plot()
-            try:
-                self.graph_worst_pair(testPair)
-            except AssertionError:
                 if self.verbose:
-                    print(
-                        "K size {0}: Couldn't create worst pair graph.".format(
-                            k_size
+                    print("[i] Reusing bootstraps to calculate 95% CI")
+
+                for method, human_readable in methods.items():
+                    results = []
+                    with open(join(
+                            self.output, "bootstrapped_{0}.csv".format(method)
+                            )) as fp:
+                        for line in fp.read().splitlines()[1:]:
+                            results.append(float(line))
+
+                    calc_quant = np.quantile(results, [0.025, 0.975])
+
+                    output_files['bootstrap_test'].write(
+                        "{0} of differences: ".format(human_readable) +
+                        "{0}s, 95% CI: {1}s, {2}s (±{3}s)\n"
+                            .format(
+                                exact_values[method], calc_quant[0],
+                                calc_quant[1], (calc_quant[1] - calc_quant[0])
+                            )
+                    )
+                output_files['bootstrap_test'].write("\n")
+            else:
+                if self.verbose:
+                    print("[i] Not enough data to perform reliable "
+                          "bootstraping ({0} observations)".format(samples))
+
+                for method, human_readable in methods.items():
+                    output_files['bootstrap_test'].write(
+                        "{0} of differences: {1}s\n".format(
+                            human_readable, exact_values[method]
                         )
                     )
+                output_files['bootstrap_test'].write("\n")
 
         for key in output_files:
             output_files[key].close()
