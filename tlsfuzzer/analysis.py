@@ -40,7 +40,7 @@ TestPair = namedtuple('TestPair', 'index1  index2')
 mpl.use('Agg')
 
 
-VERSION = 5
+VERSION = 6
 
 
 _diffs = None
