@@ -77,6 +77,9 @@ def help_msg():
                 data from a measurements.csv file. A measurements.csv file
                 is expected as input and it should be in long-format
                 ("row id,column id,value").
+ --measurements Specifies the measurements file name that should be analyzed.
+                The file must be present in the output dir. This flag only
+                works in combination the --bit-size flag.
  --skip-sanity  Skip sanity measurements from analysis (if any).
  --help         Display this message""")
 
@@ -95,6 +98,7 @@ def main():
     delay = None
     carriage_return = None
     bit_size_analysis = False
+    measurements_filename = "measurements.csv"
     skip_sanity = False
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "o:",
@@ -107,6 +111,7 @@ def main():
                                 "status-delay=",
                                 "status-newline",
                                 "bit-size",
+                                "measurements=",
                                 "skip-sanity",
                                 "verbose"])
 
@@ -138,6 +143,8 @@ def main():
             carriage_return = '\n'
         elif opt == "--bit-size":
             bit_size_analysis = True
+        elif opt == "--measurements":
+            measurements_filename = arg
         elif opt == "--skip-sanity":
             skip_sanity = True
 
@@ -145,7 +152,7 @@ def main():
         analysis = Analysis(output, ecdf_plot, scatter_plot, conf_int_plot,
                             multithreaded_graph, verbose, clock_freq, alpha,
                             workers, delay, carriage_return, bit_size_analysis,
-                            skip_sanity)
+                            measurements_filename, skip_sanity)
         if bit_size_analysis:
             ret = analysis.analyze_bit_sizes()
         else:
@@ -163,7 +170,8 @@ class Analysis(object):
                  draw_conf_interval_plot=True, multithreaded_graph=False,
                  verbose=False, clock_frequency=None, alpha=None,
                  workers=None, delay=None, carriage_return=None,
-                 bit_size_analysis=False, skip_sanity=False):
+                 bit_size_analysis=False,
+                 measurements_filename="measurements.csv", skip_sanity=False):
         self.verbose = verbose
         self.output = output
         self.clock_frequency = clock_frequency
@@ -179,6 +187,7 @@ class Analysis(object):
             self.alpha = alpha
         self.delay = delay
         self.carriage_return = carriage_return
+        self.measurements_filename = measurements_filename
         self.skip_sanity = skip_sanity
 
         if not bit_size_analysis:
@@ -1468,12 +1477,12 @@ class Analysis(object):
             yield row
 
     def _read_bit_size_measurement_file(self):
-        """Returns an iterator with the data from the measurements.csv file."""
+        """Returns an iterator with the data from the measurements file."""
         current_max_k_value = None
         max_k_size = None
         previous_row = None
 
-        with open(join(self.output, "measurements.csv"), 'r') as in_fp:
+        with open(join(self.output, self.measurements_filename), 'r') as in_fp:
             data_iter = csv.reader(in_fp)
 
             if self.clock_frequency:
