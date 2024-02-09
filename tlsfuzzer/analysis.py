@@ -1676,6 +1676,26 @@ class Analysis(object):
                     ), bbox_inches="tight"
                 )
 
+    def _check_data_for_rel_t_test(self):
+        non_zero_diffs = 0
+        ret_val = False
+
+        with open(join(self.output, "timing.csv"), 'r') as fp:
+            chunks = pd.read_csv(
+                fp, iterator=True, chunksize=10, skiprows=1,
+                dtype=[("max_k", np.float32), ("non_max_k", np.float32)],
+                names=["max_k","non_max_k"]
+            )
+            for chunk in chunks:
+                for diff in chunk["max_k"] - chunk["non_max_k"]:
+                    if diff != 0:
+                        non_zero_diffs += 1
+                if non_zero_diffs >= 3:
+                    ret_val = True
+                    break
+
+        return ret_val
+
     def analyze_bit_sizes(self):
         """
         Analyses K bit-sizes and creates the plots and the test result files
@@ -1757,10 +1777,19 @@ class Analysis(object):
                 )
 
             # Paired t-test
-            results = self.rel_t_test()
-            output_files['paired_t_test'].write(
-                "K size of {0}: {1}\n".format(k_size, results[(0, 1)])
-            )
+            if self._check_data_for_rel_t_test():
+                results = self.rel_t_test()
+                output_files['paired_t_test'].write(
+                    "K size of {0}: {1}\n".format(k_size, results[(0, 1)])
+                )
+            else:
+                if self.verbose:
+                    print("[i] Not enough data to perform reliable "
+                          "paired t-test.")
+
+                output_files['paired_t_test'].write(
+                    "K size of {0}: Too few points\n".format(k_size)
+                )
 
             # Wilcoxon test
             results = self.wilcoxon_test()

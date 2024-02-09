@@ -1290,3 +1290,63 @@ class TestMeasurementAnalysis(unittest.TestCase):
             self.analysis.verbose = True
             ret_value = self.analysis.create_k_specific_dirs()
             self.analysis.verbose = False
+
+    @mock.patch("builtins.open")
+    def test_check_data_for_rel_t_test_all_zeros(self, open_mock):
+
+        def file_selector(*args, **kwargs):
+            file_name = args[0]
+            try:
+                mode = args[1]
+            except IndexError:
+                mode = "r"
+
+            return mock.mock_open(
+                read_data= "0.05,0.05\n" * 20
+            )(file_name, mode)
+
+        open_mock.side_effect = file_selector
+
+        ret_value = self.analysis._check_data_for_rel_t_test()
+
+        self.assertEqual(ret_value, False)
+
+    @mock.patch("builtins.open")
+    def test_check_data_for_rel_t_test_two_non_zero(self, open_mock):
+
+        def file_selector(*args, **kwargs):
+            file_name = args[0]
+            try:
+                mode = args[1]
+            except IndexError:
+                mode = "r"
+
+            return mock.mock_open(
+                read_data= ("0.05,0.05\n" * 20) + ("0.04,0.05\n" * 2)
+            )(file_name, mode)
+
+        open_mock.side_effect = file_selector
+
+        ret_value = self.analysis._check_data_for_rel_t_test()
+
+        self.assertEqual(ret_value, False)
+
+    @mock.patch("builtins.open")
+    def test_check_data_for_rel_t_test_five_non_zero(self, open_mock):
+
+        def file_selector(*args, **kwargs):
+            file_name = args[0]
+            try:
+                mode = args[1]
+            except IndexError:
+                mode = "r"
+
+            return mock.mock_open(
+                read_data= ("0.05,0.05\n" * 20) + ("0.04,0.05\n" * 5)
+            )(file_name, mode)
+
+        open_mock.side_effect = file_selector
+
+        ret_value = self.analysis._check_data_for_rel_t_test()
+
+        self.assertEqual(ret_value, True)
