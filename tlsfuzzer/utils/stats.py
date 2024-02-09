@@ -131,10 +131,10 @@ def _summarise_chunk(args):
         _summarise_tuple(current_block, all_groups, adjusted_ranks,
                          block_counts, pair_counts)
 
-    return adjusted_ranks, block_counts, pair_counts
+    return stop - start, adjusted_ranks, block_counts, pair_counts
 
 
-def skillings_mack_test(values, groups, blocks, duplicates=None):
+def skillings_mack_test(values, groups, blocks, duplicates=None, status=None):
     """Perform the Skillings-Mack rank sum test.
 
     Skillings-Mack test is a Friedman-like test for unbalanced incomplete
@@ -168,12 +168,17 @@ def skillings_mack_test(values, groups, blocks, duplicates=None):
       duplicate data entries, if set to ``first`` it will use the first
       value of specific group in the given block, if set to ``last`` it
       will use the last value in a block
+    :param list status: optional three-element list to communicate progress
+      to the ``progress_report()`` method
     :return: named tuple with values of (``p_value``, ``T``, ``df``)
     """
     assert duplicates is None or duplicates in ('first', 'last')
 
     if not (len(groups) == len(values) == len(blocks)):
         raise ValueError("values, groups, and blocks must be the same length")
+
+    if status is not None:
+        status[1] = len(groups)
 
     global _groups
     _groups = groups
@@ -199,14 +204,19 @@ def skillings_mack_test(values, groups, blocks, duplicates=None):
         # how many times the values are paired with each-other
         pair_counts = defaultdict(int)
 
-        chunk_size = min(1024*1024*64,
+        # smaller chunk size gives better updates on progress and
+        # less of a rounding error with summing
+        chunk_size = min(1024*1024,
                          max(10, len(blocks) // os.cpu_count()))
 
         chunks = p.imap_unordered(_summarise_chunk,
                                   ((all_groups, duplicates, i) for i in
                                    _block_slices(blocks, chunk_size)))
 
-        for chunk_ranks, chunk_block_counts, chunk_pair_counts in chunks:
+        for progress, chunk_ranks, chunk_block_counts, chunk_pair_counts \
+                in chunks:
+            if status is not None:
+                status[0] += progress
             for k, v in chunk_ranks.items():
                 adjusted_ranks[k] += v
             for k, v in chunk_block_counts.items():
