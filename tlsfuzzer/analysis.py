@@ -23,6 +23,7 @@ from collections import namedtuple
 from itertools import combinations, repeat, chain
 import os
 import time
+import queue
 
 import numpy as np
 from scipy import stats
@@ -1509,16 +1510,56 @@ class Analysis(object):
 
                 yield (current_max_k_value, value, k_size)
 
+    def _k_size_writer(self, k_size, k_queue, max_k_size):
+        data_buffer = []
+        buffer_size = 5
+
+        k_folder_path = join( self.output,
+            "analysis_results/k-by-size/{0}".format(k_size)
+        )
+        os.makedirs(k_folder_path)
+
+        with open(join(k_folder_path, "timing.csv"), 'w', encoding="utf-8") \
+                as fp:
+
+            if k_size != max_k_size:
+                fp.write("{0},{1}\n".format(max_k_size, k_size))
+            else:
+                fp.write("{0},{1}-sanity\n".format(max_k_size, max_k_size))
+
+            while True:
+                data = k_queue.get()
+                if data == -1:
+                    break
+                else:
+                    data_buffer.append(data)
+
+                if len(data_buffer) >= buffer_size:
+                    data_buffer = list(map(
+                        lambda data: "{0},{1}".format(data[0], data[1]),
+                        data_buffer
+                    ))
+                    data_string = "\n".join(data_buffer) + "\n"
+                    fp.write(data_string)
+                    data_buffer.clear()
+
+            if len(data_buffer) > 0:
+                data_buffer = list(map(
+                    lambda data: "{0},{1}".format(data[0], data[1]),
+                    data_buffer
+                ))
+                data_string = "\n".join(data_buffer)
+                fp.write(data_string)
+
     def create_k_specific_dirs(self):
         """
         Creates a folder with timing.csv for each K bit-size so it can be
         analyzed one at a time.
         """
-        k_sizes = []
-        k_size_files = {}
+        k_size_workers = {}
 
         if self.verbose:
-            print("Creating a dir for each K size...")
+            print("Creating a dir for each bit size...")
 
         data_iter = self._read_bit_size_measurement_file()
 
@@ -1528,29 +1569,20 @@ class Analysis(object):
         for data in data_iter:
             k_size = data[2]
 
-            if k_size not in k_size_files:
-                k_sizes.append(k_size)
+            if k_size not in k_size_workers:
+                k_queue = queue.Queue(maxsize=10)
+                k_proccess = Thread(target=self._k_size_writer,
+                                    args=(k_size, k_queue, max_k_size,))
+                k_proccess.start()
+                k_size_workers[k_size] = (k_queue, k_proccess)
 
-                k_folder_path = join(
-                    self.output,
-                    "analysis_results/k-by-size/{0}".format(k_size)
-                )
-                os.makedirs(k_folder_path)
-                k_size_files[k_size] = open(
-                    join(k_folder_path, "timing.csv"), 'w',
-                    encoding="utf-8"
-                )
-                if k_size != max_k_size:
-                    k_size_files[k_size].write(
-                        "{0},{1}\n".format(max_k_size, k_size)
-                    )
-                else:
-                    k_size_files[k_size].write(
-                        "{0},{1}-sanity\n".format(max_k_size, max_k_size)
-                    )
+            k_size_workers[k_size][0].put((data[0], data[1]))
 
-            k_size_files[k_size].write("{0},{1}\n".format(data[0], data[1]))
+        for k_queue, k_proccess in k_size_workers.values():
+            k_queue.put(-1)
+            k_proccess.join()
 
+        k_sizes = list(k_size_workers.keys())
         k_sizes = sorted(k_sizes, reverse=True)
 
         if self.skip_sanity and max_k_size in k_sizes:
@@ -1559,9 +1591,6 @@ class Analysis(object):
         if self.verbose:
             print("Max K size detected: {0}".format(max_k_size))
             print("Min K size detected: {0}".format(k_sizes[-1]))
-
-        for k_size in k_size_files:
-            k_size_files[k_size].close()
 
         if not self.skip_sanity:
             max_k_folder_path = join(
