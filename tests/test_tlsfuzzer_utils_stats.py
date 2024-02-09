@@ -19,7 +19,7 @@ except ImportError:
                  "Numpy missing")
 class TestSummariseChunk(unittest.TestCase):
     def assertEqualApprox(self, a, b, eta=1e-6):
-        if abs(a - b) > eta:
+        if abs(a - b) > (min(abs(a), abs(b)) * eta):
             raise AssertionError("{0} is not approximately equal {1}"
                                  .format(a, b))
 
@@ -38,8 +38,9 @@ class TestSummariseChunk(unittest.TestCase):
 
         ret = _summarise_chunk((all_groups, None, (0, len_groups)))
 
-        adjusted_ranks, block_counts, pair_counts = ret
+        progress, adjusted_ranks, block_counts, pair_counts = ret
 
+        self.assertEqual(progress, len_groups)
         self.assertEqual(len(adjusted_ranks), 3)
         self.assertEqualApprox(adjusted_ranks['3'], 13.124355652982139)
         self.assertEqualApprox(adjusted_ranks['1'], -11.392304845413262)
@@ -66,8 +67,9 @@ class TestSummariseChunk(unittest.TestCase):
 
         ret = _summarise_chunk((all_groups, 'last', (0, len_groups)))
 
-        adjusted_ranks, block_counts, pair_counts = ret
+        progress, adjusted_ranks, block_counts, pair_counts = ret
 
+        self.assertEqual(progress, len_groups)
         self.assertEqual(len(adjusted_ranks), 3)
         self.assertEqualApprox(adjusted_ranks['3'], 13.124355652982139)
         self.assertEqualApprox(adjusted_ranks['1'], -11.392304845413262)
@@ -114,8 +116,9 @@ class TestSummariseChunk(unittest.TestCase):
 
         ret = _summarise_chunk((all_groups, 'first', (0, len_groups)))
 
-        adjusted_ranks, block_counts, pair_counts = ret
+        progress, adjusted_ranks, block_counts, pair_counts = ret
 
+        self.assertEqual(progress, len_groups)
         self.assertEqual(len(adjusted_ranks), 3)
         self.assertEqualApprox(adjusted_ranks['3'], 13.124355652982139)
         self.assertEqualApprox(adjusted_ranks['1'], -11.392304845413262)
@@ -158,8 +161,8 @@ class TestSummariseChunk(unittest.TestCase):
 @unittest.skipIf(failed_import,
                  "Numpy missing")
 class TestSkillingsMackTest(unittest.TestCase):
-    def assertEqualApprox(self, a, b, eta=1e-5):
-        if abs(a - b) > eta:
+    def assertEqualApprox(self, a, b, eta=1e-6):
+        if abs(a - b) > (min(abs(a), abs(b)) * eta):
             raise AssertionError("{0} is not approximately equal {1}"
                                  .format(a, b))
 
@@ -221,8 +224,11 @@ class TestSkillingsMackTest(unittest.TestCase):
         blocks = [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7,
                   8, 8, 8]
 
-        res = skillings_mack_test(vals, groups, blocks)
+        status = [0, 1, None]
+        res = skillings_mack_test(vals, groups, blocks, status=status)
 
+        self.assertEqual(status[0], len(groups))
+        self.assertEqual(status[1], len(groups))
         self.assertIsInstance(res, skillings_mack_result)
         self.assertEqual(len(res), 3)
 
