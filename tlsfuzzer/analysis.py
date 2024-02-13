@@ -65,6 +65,7 @@ def help_msg():
                 similar.
  --alpha num    Acceptable probability of a false positive. Default: 1e-5.
  --verbose      Print the current task
+ --summary-only Print only summary of the test, skip pairwise results
  --workers num  Number of worker processes to use for paralelizable
                 computation. More workers will finish analysis faster, but
                 will require more memory to do so. By default: number of
@@ -95,6 +96,7 @@ def main():
     delay = None
     carriage_return = None
     bit_size_analysis = False
+    summary_only = False
     skip_sanity = False
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "o:",
@@ -108,6 +110,7 @@ def main():
                                 "status-newline",
                                 "bit-size",
                                 "skip-sanity",
+                                "summary-only",
                                 "verbose"])
 
     for opt, arg in opts:
@@ -132,6 +135,8 @@ def main():
             workers = int(arg)
         elif opt == "--verbose":
             verbose = True
+        elif opt == "--summary-only":
+            summary_only = True
         elif opt == "--status-delay":
             delay = float(arg)
         elif opt == "--status-newline":
@@ -145,7 +150,7 @@ def main():
         analysis = Analysis(output, ecdf_plot, scatter_plot, conf_int_plot,
                             multithreaded_graph, verbose, clock_freq, alpha,
                             workers, delay, carriage_return, bit_size_analysis,
-                            skip_sanity)
+                            skip_sanity, summary_only)
         if bit_size_analysis:
             ret = analysis.analyze_bit_sizes()
         else:
@@ -163,8 +168,10 @@ class Analysis(object):
                  draw_conf_interval_plot=True, multithreaded_graph=False,
                  verbose=False, clock_frequency=None, alpha=None,
                  workers=None, delay=None, carriage_return=None,
-                 bit_size_analysis=False, skip_sanity=False):
+                 bit_size_analysis=False, skip_sanity=False,
+                 summary_only=False):
         self.verbose = verbose
+        self.summary_only = summary_only
         self.output = output
         self.clock_frequency = clock_frequency
         self.class_names = []
@@ -1021,36 +1028,42 @@ class Analysis(object):
                 diff_stats = desc_stats[pair]
                 box_write = "="
                 if result:
-                    print("Box test {0} vs {1}: {0} {2} {1}".format(index1,
-                                                                    index2,
-                                                                    result))
+                    if not self.summary_only:
+                        print("Box test {0} vs {1}: {0} {2} {1}".format(index1,
+                                                                        index2,
+                                                                        result))
                     box_write = result
                 else:
-                    print("Box test {} vs {}: No difference".format(index1,
-                                                                    index2))
-                print("Wilcoxon signed-rank test {} vs {}: {:.3}"
-                      .format(index1, index2, wilcox_results[pair]))
-                print("Sign test {} vs {}: {:.3}"
-                      .format(index1, index2, sign_results[pair]))
-                print("Sign test, probability that {1} < {0}: {2:.3}"
-                      .format(index1, index2, sign_less_results[pair]))
-                print("Sign test, probability that {1} > {0}: {2:.3}"
-                      .format(index1, index2, sign_greater_results[pair]))
+                    if not self.summary_only:
+                        print("Box test {} vs {}: No difference".format(index1,
+                                                                        index2))
+                if not self.summary_only:
+                    print("Wilcoxon signed-rank test {} vs {}: {:.3}"
+                          .format(index1, index2, wilcox_results[pair]))
+                    print("Sign test {} vs {}: {:.3}"
+                          .format(index1, index2, sign_results[pair]))
+                    print("Sign test, probability that {1} < {0}: {2:.3}"
+                          .format(index1, index2, sign_less_results[pair]))
+                    print("Sign test, probability that {1} > {0}: {2:.3}"
+                          .format(index1, index2, sign_greater_results[pair]))
                 if sign_results[pair] > 0.05:
                     sign_test_relation = "="
                 elif sign_less_results[pair] > sign_greater_results[pair]:
                     sign_test_relation = "<"
                 else:
                     sign_test_relation = ">"
-                print("Sign test interpretation: {} {} {}"
-                      .format(index2, sign_test_relation, index1))
-                print("Dependent t-test for paired samples {} vs {}: {:.3}"
-                      .format(index1, index2, ttest_results[pair]))
-                print("{} vs {} stats: mean: {:.3}, SD: {:.3}, median: {:.3}, "
-                      "IQR: {:.3}, MAD: {:.3}".format(
-                          index1, index2, diff_stats["mean"], diff_stats["SD"],
-                          diff_stats["median"], diff_stats["IQR"],
-                          diff_stats["MAD"]))
+                if not self.summary_only:
+                    print("Sign test interpretation: {} {} {}"
+                          .format(index2, sign_test_relation, index1))
+                    print("Dependent t-test for paired samples {} vs {}: {:.3}"
+                          .format(index1, index2, ttest_results[pair]))
+                    print("{} vs {} stats: mean: {:.3}, SD: {:.3}, "
+                          "median: {:.3}, "
+                          "IQR: {:.3}, MAD: {:.3}".format(
+                              index1, index2, diff_stats["mean"],
+                              diff_stats["SD"],
+                              diff_stats["median"], diff_stats["IQR"],
+                              diff_stats["MAD"]))
 
                 # If either of the pairwise tests shows a small p-value with
                 # Bonferroni correction consider it a possible side-channel
