@@ -1477,7 +1477,7 @@ class Analysis(object):
             row[2] = float(row[2]) / self.clock_frequency
             yield row
 
-    def _read_bit_size_measurement_file(self):
+    def _read_bit_size_measurement_file(self, status=None):
         """Returns an iterator with the data from the measurements file."""
         current_max_k_value = None
         max_k_size = None
@@ -1494,12 +1494,18 @@ class Analysis(object):
             max_k_size = row[1]
             current_max_k_value = row[2]
 
+            if status:
+                status[0] += sum([len(x) for x in row], 3)
+
             yield (current_max_k_value, current_max_k_value, max_k_size)
 
             for row in data_iter:
                 current_row = row[0]
                 k_size = row[1]
                 value = row[2]
+
+                if status:
+                    status[0] += sum([len(x) for x in row], 3)
 
                 if k_size == max_k_size and previous_row != current_row:
                     current_max_k_value = value
@@ -1514,7 +1520,8 @@ class Analysis(object):
         data_buffer = []
         buffer_size = 5
 
-        k_folder_path = join( self.output,
+        k_folder_path = join(
+            self.output,
             "analysis_results/k-by-size/{0}".format(k_size)
         )
         os.makedirs(k_folder_path)
@@ -1561,7 +1568,24 @@ class Analysis(object):
         if self.verbose:
             print("Creating a dir for each bit size...")
 
-        data_iter = self._read_bit_size_measurement_file()
+        status = None
+        if self.verbose:
+            try:
+                total_size = os.path.getsize(
+                    join(self.output, self.measurements_filename)
+                )
+                status = [0, total_size, Event()]
+                kwargs = {}
+                kwargs['unit'] = ' bytes'
+                kwargs['delay'] = self.delay
+                kwargs['end'] = self.carriage_return
+                progress = Thread(target=progress_report, args=(status,),
+                                  kwargs=kwargs)
+                progress.start()
+            except FileNotFoundError:
+                pass
+
+        data_iter = self._read_bit_size_measurement_file(status=status)
 
         data = next(data_iter)
         max_k_size = data[2]
@@ -1577,6 +1601,11 @@ class Analysis(object):
                 k_size_workers[k_size] = (k_queue, k_proccess)
 
             k_size_workers[k_size][0].put((data[0], data[1]))
+
+        if status:
+            status[2].set()
+            progress.join()
+            print()
 
         for k_queue, k_proccess in k_size_workers.values():
             k_queue.put(-1)
@@ -1684,7 +1713,7 @@ class Analysis(object):
             chunks = pd.read_csv(
                 fp, iterator=True, chunksize=10, skiprows=1,
                 dtype=[("max_k", np.float32), ("non_max_k", np.float32)],
-                names=["max_k","non_max_k"]
+                names=["max_k", "non_max_k"]
             )
             for chunk in chunks:
                 for diff in chunk["max_k"] - chunk["non_max_k"]:
