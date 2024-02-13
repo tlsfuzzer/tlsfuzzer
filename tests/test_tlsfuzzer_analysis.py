@@ -271,15 +271,36 @@ class TestReport(unittest.TestCase):
 
                                             self.assertIn("Conf interval graph", str(exc.exception))
 
+    @mock.patch("tlsfuzzer.analysis.Analysis._bit_size_write_summary")
+    @mock.patch("tlsfuzzer.analysis.Analysis._bit_size_come_to_verdict")
+    @mock.patch("tlsfuzzer.analysis.Analysis.analyze_bit_sizes")
+    @mock.patch("tlsfuzzer.analysis.Analysis.skillings_mack_test")
+    def test_report_bit_size(self, mock_skilling_mack, mock_bit_sizes,
+            mock_verdict, mock_write_summary):
+        mock_verdict.return_value = (0, "test")
+
+        analysis = Analysis("/tmp", bit_size_analysis=True)
+        ret = analysis.generate_report(bit_size=True)
+
+        mock_skilling_mack.assert_called()
+        mock_bit_sizes.assert_called()
+        mock_verdict.assert_called()
+        mock_write_summary.assert_called()
+        self.assertEqual(ret, 0)
+
     def test_setting_alpha(self):
-        with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
+        with mock.patch(
+            "tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv
+        ):
             analysis = Analysis("/tmp", alpha=1e-12)
             self.mock_read_csv.assert_called_once()
 
             self.assertEqual(analysis.alpha, 1e-12)
 
     def test_wilcoxon_test(self):
-        with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
+        with mock.patch(
+            "tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv
+        ):
             analysis = Analysis("/tmp")
             self.mock_read_csv.assert_called_once()
 
@@ -294,7 +315,9 @@ class TestReport(unittest.TestCase):
         self.assertGreaterEqual(0.05, pval)
 
     def test_sign_test(self):
-        with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
+        with mock.patch(
+            "tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv
+        ):
             analysis = Analysis("/tmp")
             self.mock_read_csv.assert_called_once()
 
@@ -310,7 +333,9 @@ class TestReport(unittest.TestCase):
         self.assertLess(pval, 0.002)
 
     def test_sign_test_with_alternative_less(self):
-        with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
+        with mock.patch(
+            "tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv
+        ):
             analysis = Analysis("/tmp")
             self.mock_read_csv.assert_called_once()
 
@@ -340,7 +365,9 @@ class TestReport(unittest.TestCase):
                 self.assertLessEqual(result, 1)
 
     def test_rel_t_test(self):
-        with mock.patch("tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv):
+        with mock.patch(
+            "tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv
+        ):
             analysis = Analysis("/tmp")
             self.mock_read_csv.assert_called_once()
 
@@ -819,12 +846,12 @@ class TestCommandLine(unittest.TestCase):
         mock_init = mock.Mock()
         mock_init.return_value = None
         with mock.patch(
-            'tlsfuzzer.analysis.Analysis.analyze_bit_sizes'
-        ) as mock_analyze_bit_sizes:
+            'tlsfuzzer.analysis.Analysis.generate_report'
+        ) as mock_report:
             with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
                 with mock.patch("sys.argv", args):
                     main()
-                    mock_analyze_bit_sizes.assert_called_once()
+                    mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
                         None, None, None, True, 'measurements.csv', False)
@@ -835,12 +862,12 @@ class TestCommandLine(unittest.TestCase):
         mock_init = mock.Mock()
         mock_init.return_value = None
         with mock.patch(
-            'tlsfuzzer.analysis.Analysis.analyze_bit_sizes'
-        ) as mock_analyze_bit_sizes:
+            'tlsfuzzer.analysis.Analysis.generate_report'
+        ) as mock_report:
             with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
                 with mock.patch("sys.argv", args):
                     main()
-                    mock_analyze_bit_sizes.assert_called_once()
+                    mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
                         None, None, None, True, 'measurements.csv', True)
@@ -853,12 +880,12 @@ class TestCommandLine(unittest.TestCase):
         mock_init = mock.Mock()
         mock_init.return_value = None
         with mock.patch(
-            'tlsfuzzer.analysis.Analysis.analyze_bit_sizes'
-        ) as mock_analyze_bit_sizes:
+            'tlsfuzzer.analysis.Analysis.generate_report'
+        ) as mock_report:
             with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
                 with mock.patch("sys.argv", args):
                     main()
-                    mock_analyze_bit_sizes.assert_called_once()
+                    mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
                         None, None, None, True, measurements_filename, False)
@@ -1059,9 +1086,31 @@ class TestDataLoad(unittest.TestCase):
 
 @unittest.skipIf(failed_import,
                  "Could not import analysis. Skipping related tests.")
-class TestMeasurementAnalysis(unittest.TestCase):
+class TestBitSizeAnalysis(unittest.TestCase):
     def setUp(self):
         self.analysis = Analysis("/tmp", bit_size_analysis=True)
+
+        self.blocks = [
+            0, 0, 1, 1, 1, 2, 2, 3, 3, 3, 3, 4, 4, 5, 5, 5, 6, 6, 7, 7, 7, 8,
+            8, 8, 9, 9, 9, 10, 10, 11, 11, 12, 12, 12, 13, 13, 14, 14, 15, 15,
+            15, 16, 16, 17, 17, 17, 18, 18, 19, 19
+        ]
+        self.groups = [
+            256, 254, 256, 248, 250, 256, 255, 256, 254, 255, 251, 256, 255,
+            256, 254, 255, 256, 255, 256, 255, 252, 256, 255, 253, 256, 255,
+            249, 256, 255, 256, 254, 256, 255, 256, 256, 255, 256, 255, 256,
+            253, 256, 256, 255, 256, 255, 256, 256, 254, 256, 253
+        ]
+        self.values = [
+            1.3e-03, 8.4e-05, 1.0e-04, 8.7e-05, 8.5e-05, 9.1e-05, 8.4e-05,
+            8.4e-05, 8.4e-05, 8.4e-05, 9.7e-05, 9.1e-05, 8.4e-05, 8.5e-05,
+            8.4e-05, 8.7e-05, 8.3e-05, 9.2e-05, 9.3e-05, 8.4e-05, 8.4e-05,
+            8.4e-05, 8.4e-05, 8.4e-05, 9.1e-05, 8.4e-05, 8.5e-05, 8.5e-05,
+            9.1e-05, 8.4e-05, 8.5e-05, 8.4e-05, 8.4e-05, 8.4e-05, 8.5e-05,
+            8.4e-05, 8.3e-05, 9.0e-05, 8.3e-05, 8.4e-05, 8.5e-05, 8.5e-05,
+            1.1e-04, 9.0e-05, 8.5e-05, 8.4e-05, 8.4e-05, 8.4e-05, 8.49e-05,
+            8.5e-05
+        ]
 
     @mock.patch("tlsfuzzer.analysis.Analysis._calc_exact_values")
     @mock.patch("tlsfuzzer.analysis.Analysis.conf_plot_for_all_k")
@@ -1099,7 +1148,8 @@ class TestMeasurementAnalysis(unittest.TestCase):
                 )(file_name, mode)
 
             return mock.mock_open(
-                read_data="0,256,3\n0,255,102\n0,254,103\n1,256,4\n1,254,104\n1,253,105"
+                read_data="0,256,3\n0,255,102\n0,254,103\n1,256,4\n" +
+                          "1,254,104\n1,253,105"
             )(file_name, mode)
 
         open_mock.side_effect = file_selector
@@ -1178,7 +1228,8 @@ class TestMeasurementAnalysis(unittest.TestCase):
                 )(file_name, mode)
 
             return mock.mock_open(
-                read_data="0,256,3\n0,255,102\n0,254,103\n1,256,4\n1,254,104\n1,253,105"
+                read_data="0,256,3\n0,255,102\n0,254,103\n1,256,4\n" +
+                          "1,254,104\n1,253,105"
             )(file_name, mode)
 
         open_mock.side_effect = file_selector
@@ -1252,7 +1303,8 @@ class TestMeasurementAnalysis(unittest.TestCase):
                 )(file_name, mode)
 
             return mock.mock_open(
-                read_data="0,256,3\n0,255,102\n0,254,103\n1,256,4\n1,254,104\n1,253,105"
+                read_data="0,256,3\n0,255,102\n0,254,103\n1,256,4\n" +
+                          "1,254,104\n1,253,105"
             )(file_name, mode)
 
         open_mock.side_effect = file_selector
@@ -1316,7 +1368,8 @@ class TestMeasurementAnalysis(unittest.TestCase):
                 )(file_name, mode)
 
             return mock.mock_open(
-                read_data="0,256,3\n0,255,102\n0,254,103\n1,256,4\n1,254,104\n1,253,105"
+                read_data="0,256,3\n0,255,102\n0,254,103\n1,256,4\n" +
+                          "1,254,104\n1,253,105"
             )(file_name, mode)
 
         open_mock.side_effect = file_selector
@@ -1325,10 +1378,12 @@ class TestMeasurementAnalysis(unittest.TestCase):
 
         print_figure_mock.assert_called()
 
+    @mock.patch("tlsfuzzer.analysis.Thread.start")
+    @mock.patch("tlsfuzzer.analysis.Thread.join")
     @mock.patch("tlsfuzzer.analysis.os.makedirs")
     @mock.patch("builtins.open")
     def test_bit_size_measurement_analysis_create_k_dirs(self, open_mock,
-        makedirs_mock):
+        makedirs_mock, thread_start_mock, thread_join_mock):
 
         def file_selector(*args, **kwargs):
             file_name = args[0]
@@ -1341,7 +1396,8 @@ class TestMeasurementAnalysis(unittest.TestCase):
                 return mock.mock_open()(file_name, mode)
 
             return mock.mock_open(
-                read_data= "0,256,1\n0,255,102\n0,254,103\n0,256,2\n1,256,3\n1,254,104\n1,253,105"
+                read_data= "0,256,1\n0,255,102\n0,254,103\n0,256,2\n" +
+                           "1,256,3\n1,254,104\n1,253,105"
             )(file_name, mode)
 
         open_mock.side_effect = file_selector
@@ -1423,3 +1479,137 @@ class TestMeasurementAnalysis(unittest.TestCase):
         ret_value = self.analysis._check_data_for_rel_t_test()
 
         self.assertEqual(ret_value, True)
+
+    @unittest.skipIf(sys.version_info[0] == 3 and sys.version_info[1] == 6,
+                 "The test is not relevant to python 3.6")
+    @mock.patch("tlsfuzzer.analysis.np.memmap")
+    @mock.patch("builtins.open")
+    def test_long_format_to_binary(self, open_mock,
+        memmap_mock):
+
+        def file_selector(*args, **kwargs):
+            file_name = args[0]
+            try:
+                mode = args[1]
+            except IndexError:
+                mode = "r"
+
+            if "w" in mode:
+                return mock.mock_open()(file_name, mode)
+
+            return mock.mock_open(
+                read_data= ("0,256,1\n0,255,102\n0,254,103\n0,256,2\n" +
+                           "1,256,3\n1,254,104\n1,253,105\n" *
+                           (1024 * 1024 * 4))
+            )(file_name, mode)
+
+        open_mock.side_effect = file_selector
+
+        self.analysis._long_format_to_binary()
+
+    @mock.patch("builtins.print")
+    @mock.patch("tlsfuzzer.analysis.np.memmap")
+    @mock.patch("tlsfuzzer.analysis.os.path.isfile")
+    @mock.patch("tlsfuzzer.analysis.Analysis._long_format_to_binary")
+    def test_bit_size_skillings_mack_test(self, convert_mock, isfile_mock,
+            memmap_mock, print_mock):
+
+        isfile_mock.return_value = True
+        memmap_mock.return_value = {
+            "block": self.blocks, "group": self.groups, "value": self.values
+        }
+
+        self.analysis.skillings_mack_test()
+
+        convert_mock.assert_called_once()
+        isfile_mock.assert_called_once()
+        memmap_mock.assert_called_once()
+
+        self.analysis.verbose = True
+        self.analysis.skillings_mack_test()
+        self.analysis.verbose = False
+
+    def test_bit_size_come_to_verdict(self):
+        tests = [
+            (0.5, 1, 1, 1, "VULNERABLE"),
+            (1e-10, 1, 0, 1, "VULNERABLE"),
+            (1e-6, 1, 0, 1, "suggesting"),
+            (0.5, 1e-11, 0, 0, "verified"),
+            (0.5, 5e-10, 0, 0, "most likely"),
+            (0.5, 1e-3, 0, 1, "Large confidence intervals detected"),
+            (0.5, 1, 0, 1, "Very large confidence intervals detected"),
+        ]
+
+        values = [0, 1e-13]
+        bit_size_bootstraping = {
+            255: {
+                "trim_mean_05": values,
+                "trim_mean_45": values
+            },
+            254: {
+                "trim_mean_05": values,
+                "trim_mean_45": values
+            },
+            253: {
+                "trim_mean_05": values,
+                "trim_mean_45": values
+            }
+        }
+
+        for test in tests:
+            self.analysis.skillings_mack_pvalue = test[0]
+            bit_size_bootstraping[255]["trim_mean_05"][1] = test[1]
+            self.analysis._bit_size_bootstraping = bit_size_bootstraping
+
+            difference, verdict = \
+                self.analysis._bit_size_come_to_verdict(test[2])
+            self.assertEqual(difference, test[3])
+            self.assertIn(test[4], verdict)
+
+    @mock.patch("builtins.open")
+    def test_check_data_for_rel_t_test_five_non_zero(self, open_mock):
+        _summary = []
+
+        def file_selector(*args, **kwargs):
+            r = mock.mock_open()(*args, **kwargs)
+            r.write.side_effect = lambda s: (
+                _summary.extend(s.split('\n'))
+            )
+            return r
+
+        open_mock.side_effect = file_selector
+
+        values_pos = [0,5, 1e-9]
+        values_neg = [-0.5, 1e-9]
+        self.analysis._bit_size_bootstraping = {
+            255: {
+                "trim_mean_05": values_pos,
+                "trim_mean_45": values_neg
+            },
+            254: {
+                "trim_mean_05": values_neg,
+                "trim_mean_45": values_pos
+            },
+            253: {
+                "trim_mean_05": values_pos,
+                "trim_mean_45": values_neg
+            }
+        }
+        self.analysis._bit_size_sign_test = {255: 0.3, 254: 0.7, 253: 0.4}
+        self.analysis._bit_size_wilcoxon_test = {255: 0.2, 254: 0.8, 253: 0.6}
+        self.analysis.skillings_mack_pvalue = 0.5
+
+        self.analysis._bit_size_write_summary("passed")
+
+        self.assertEqual(_summary[0], "Skilling-Mack test p-value: 5.00e-01")
+        self.assertEqual(
+            _summary[1],
+            "Sign test p-values (min, average, max): " +
+            "3.00e-01, 4.67e-01, 7.00e-01"
+        )
+        self.assertEqual(
+            _summary[2],
+            "Wilcoxon test p-values (min, average, max): " +
+            "2.00e-01, 5.33e-01, 8.00e-01"
+        )
+        self.assertEqual(_summary[3], "passed")
