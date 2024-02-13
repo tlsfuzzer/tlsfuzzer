@@ -21,6 +21,7 @@ from tlsfuzzer.utils.log import Log
 failed_import = False
 try:
     from tlsfuzzer.extract import Extract, main, help_msg
+    import multiprocessing as mp
 except ImportError:
     failed_import = True
 
@@ -264,7 +265,7 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=False, delay=None, carriage_return=None,
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
-                    verbose=False)
+                    workers=None, verbose=False)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -301,7 +302,7 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=False, delay=3.5, carriage_return='\n',
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
-                    verbose=False)
+                    workers=None, verbose=False)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -337,7 +338,7 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=True, delay=None, carriage_return=None,
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
-                    verbose=False)
+                    workers=None, verbose=False)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -370,7 +371,7 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=False, delay=None, carriage_return=None,
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
-                    verbose=False)
+                    workers=None, verbose=False)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -404,7 +405,7 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=False, delay=None, carriage_return=None,
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
-                    verbose=False)
+                    workers=None, verbose=False)
                 mock_measurements.assert_not_called()
 
     @mock.patch('tlsfuzzer.extract.Log')
@@ -508,7 +509,7 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=False, delay=None, carriage_return=None,
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
-                    verbose=False)
+                    workers=None, verbose=False)
                 mock_measurements.assert_not_called()
 
     @mock.patch('__main__.__builtins__.print')
@@ -583,7 +584,7 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=False, delay=None, carriage_return=None,
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
                     priv_key=priv_key, key_type="ecdsa", frequency=None,
-                    hash_func=hashlib.sha256, verbose=False)
+                    hash_func=hashlib.sha256, workers=None, verbose=False)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -623,7 +624,7 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=False, delay=None, carriage_return=None,
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
                     priv_key=priv_key, key_type="ecdsa", frequency=None,
-                    hash_func=hashlib.sha256, verbose=True)
+                    hash_func=hashlib.sha256, workers=None, verbose=True)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -665,7 +666,7 @@ class TestCommandLine(unittest.TestCase):
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
                     priv_key=priv_key, key_type="ecdsa",
                     frequency=frequency * 1e6, hash_func=hashlib.sha256,
-                    verbose=False)
+                    workers=None, verbose=False)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -707,7 +708,7 @@ class TestCommandLine(unittest.TestCase):
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
                     priv_key=priv_key, key_type="ecdsa",
                     frequency=None, hash_func=hashlib.sha384,
-                    verbose=False)
+                    workers=None, verbose=False)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -748,7 +749,49 @@ class TestCommandLine(unittest.TestCase):
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
                     priv_key=priv_key, key_type="ecdsa",
                     frequency=None, hash_func=None,
-                    verbose=False)
+                    workers=None, verbose=False)
+                mock_write.assert_not_called()
+                mock_write_pkt.assert_not_called()
+                mock_log.assert_not_called()
+                mock_process.assert_called_once()
+
+    @mock.patch('tlsfuzzer.extract.Log')
+    @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
+    @mock.patch('tlsfuzzer.extract.Extract._write_csv')
+    @mock.patch(
+        'tlsfuzzer.extract.Extract.process_and_create_multiple_csv_files'
+    )
+    @mock.patch('tlsfuzzer.extract.Extract.parse')
+    def test_workers_option(self, mock_parse, mock_process, mock_write,
+                              mock_write_pkt, mock_log):
+        output = "/tmp"
+        raw_data = "/tmp/data"
+        data_size = 32
+        raw_sigs = "/tmp/sigs"
+        raw_times = "/tmp/times"
+        priv_key = "/tmp/key"
+        workers = 10
+        args = ["extract.py",
+                "-o", output,
+                "--raw-data", raw_data,
+                "--data-size", data_size,
+                "--raw-sigs", raw_sigs,
+                "--raw-times", raw_times,
+                "--workers", workers,
+                "--priv-key-ecdsa", priv_key]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
+            with mock.patch("sys.argv", args):
+                main()
+                mock_init.assert_called_once_with(
+                    mock.ANY, None, output, None, None,
+                    raw_times, None, binary=None, endian="little",
+                    no_quickack=False, delay=None, carriage_return=None,
+                    data=raw_data, data_size=data_size, sigs=raw_sigs,
+                    priv_key=priv_key, key_type="ecdsa",
+                    frequency=None, hash_func=hashlib.sha256,
+                    workers=workers, verbose=False)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -1058,7 +1101,10 @@ class TestTupleCreationRandomeness(unittest.TestCase):
 
     def file_emulator(self, *args, **kwargs):
         name = args[0]
-        mode = args[1]
+        try:
+            mode = args[1]
+        except IndexError:
+            mode = 'r'
         if "measurements.csv" in name:
             r = mock.mock_open()(name, mode)
             r.write.side_effect = lambda s: (
@@ -1249,6 +1295,7 @@ class TestMeasurementCreation(unittest.TestCase):
     def setUp(self):
         self.builtin_open = open
         self.times_used_write = 0
+        self.k_time_map = []
 
     def custom_generator(self, data):
         for item in data:
@@ -1259,10 +1306,25 @@ class TestMeasurementCreation(unittest.TestCase):
 
     def file_emulator(self, *args, **kwargs):
         name = args[0]
-        mode = args[1]
+        try:
+            mode = args[1]
+        except IndexError:
+            mode = 'r'
+
+        if type(name) == int:
+            return self.builtin_open(*args, **kwargs)
 
         if "tmp-" in name:
             return self.builtin_open(*args, **kwargs)
+
+        if "ecdsa-k-time-map.csv" in name:
+            r = mock.mock_open(
+                read_data="\n".join(self.k_time_map)
+            )(name, mode)
+            r.write.side_effect = lambda s: (
+                self.k_time_map.append(s[:-1])
+            )
+            return r
 
         if "w" in mode and "measurements" in name:
             r = mock.mock_open()(name, mode)
@@ -1282,6 +1344,7 @@ class TestMeasurementCreation(unittest.TestCase):
     def test_measurement_creation_with_verbose_and_frequency(
             self, mock_print, mock_file
         ):
+        out_dir = join(dirname(abspath(__file__)), "measurements_test_files")
         raw_times = join(dirname(abspath(__file__)),
                          "measurements_test_files", "times.bin")
         raw_sigs = join(dirname(abspath(__file__)),
@@ -1295,7 +1358,7 @@ class TestMeasurementCreation(unittest.TestCase):
         self.times_used_write = 0
 
         extract = Extract(
-            output="/tmp/minerva", raw_times=raw_times, binary=8,
+            output=out_dir, raw_times=raw_times, binary=8,
             sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
             key_type="ecdsa", frequency=1, verbose=True
         )
@@ -1313,6 +1376,7 @@ class TestMeasurementCreation(unittest.TestCase):
     def test_measurement_creation_with_invert_k_size(
             self, mock_file
         ):
+        out_dir = join(dirname(abspath(__file__)), "measurements_test_files")
         raw_times = join(dirname(abspath(__file__)),
                          "measurements_test_files", "times.bin")
         raw_sigs = join(dirname(abspath(__file__)),
@@ -1326,7 +1390,7 @@ class TestMeasurementCreation(unittest.TestCase):
         self.times_used_write = 0
 
         extract = Extract(
-            output="/tmp/minerva", raw_times=raw_times, binary=8,
+            output=out_dir, raw_times=raw_times, binary=8,
             sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
             key_type="ecdsa"
         )
@@ -1342,9 +1406,10 @@ class TestMeasurementCreation(unittest.TestCase):
         )
 
     @mock.patch('__main__.__builtins__.open')
-    def test_measurement_creation_with_hamming_weigt(
+    def test_measurement_creation_with_hamming_weight(
             self, mock_file
         ):
+        out_dir = join(dirname(abspath(__file__)), "measurements_test_files")
         raw_times = join(dirname(abspath(__file__)),
                          "measurements_test_files", "times.bin")
         raw_sigs = join(dirname(abspath(__file__)),
@@ -1358,7 +1423,7 @@ class TestMeasurementCreation(unittest.TestCase):
         self.times_used_write = 0
 
         extract = Extract(
-            output="/tmp/minerva", raw_times=raw_times, binary=8,
+            output=out_dir, raw_times=raw_times, binary=8,
             sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
             key_type="ecdsa"
         )
@@ -1376,6 +1441,7 @@ class TestMeasurementCreation(unittest.TestCase):
     def test_measurement_creation_with_invalid_iter_option(
             self, mock_file
         ):
+        out_dir = join(dirname(abspath(__file__)), "measurements_test_files")
         raw_times = join(dirname(abspath(__file__)),
                          "measurements_test_files", "times.bin")
         raw_sigs = join(dirname(abspath(__file__)),
@@ -1388,7 +1454,7 @@ class TestMeasurementCreation(unittest.TestCase):
         mock_file.side_effect = self.file_emulator
 
         extract = Extract(
-            output="/tmp/minerva", raw_times=raw_times, binary=8,
+            output=out_dir, raw_times=raw_times, binary=8,
             sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
             key_type="ecdsa"
         )
@@ -1408,6 +1474,7 @@ class TestMeasurementCreation(unittest.TestCase):
     def test_measurement_creation_with_wrong_hash_func(
             self, mock_file
         ):
+        out_dir = join(dirname(abspath(__file__)), "measurements_test_files")
         raw_times = join(dirname(abspath(__file__)),
                          "measurements_test_files", "times.bin")
         raw_sigs = join(dirname(abspath(__file__)),
@@ -1420,7 +1487,7 @@ class TestMeasurementCreation(unittest.TestCase):
         mock_file.side_effect = self.file_emulator
 
         extract = Extract(
-            output="/tmp/minerva", raw_times=raw_times, binary=8,
+            output=out_dir, raw_times=raw_times, binary=8,
             sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
             key_type="ecdsa", hash_func=hashlib.sha384
         )
@@ -1437,6 +1504,7 @@ class TestMeasurementCreation(unittest.TestCase):
     def test_measurement_creation_with_non_existing_data_file(
             self, mock_file
         ):
+        out_dir = join(dirname(abspath(__file__)), "measurements_test_files")
         raw_times = join(dirname(abspath(__file__)),
                          "measurements_test_files", "times.bin")
         raw_sigs = join(dirname(abspath(__file__)),
@@ -1449,7 +1517,7 @@ class TestMeasurementCreation(unittest.TestCase):
         mock_file.side_effect = self.file_emulator
 
         extract = Extract(
-            output="/tmp/minerva", raw_times=raw_times, binary=8,
+            output=out_dir, raw_times=raw_times, binary=8,
             sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
             key_type="ecdsa"
         )
@@ -1498,6 +1566,7 @@ class TestMeasurementCreation(unittest.TestCase):
     def test_multiple_measurement_creation(
             self, mock_file
         ):
+        out_dir = join(dirname(abspath(__file__)), "measurements_test_files")
         raw_times = join(dirname(abspath(__file__)),
                          "measurements_test_files", "times.bin")
         raw_sigs = join(dirname(abspath(__file__)),
@@ -1511,7 +1580,7 @@ class TestMeasurementCreation(unittest.TestCase):
         self.times_used_write = 0
 
         extract = Extract(
-            output="/tmp/minerva", raw_times=raw_times, binary=8,
+            output=out_dir, raw_times=raw_times, binary=8,
             sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
             key_type="ecdsa"
         )
@@ -1523,4 +1592,34 @@ class TestMeasurementCreation(unittest.TestCase):
         self.assertGreater(
             self.times_used_write, 0,
             "At least one measurement should have been written."
+        )
+
+    def test_k_extractions(self):
+        out_dir = join(dirname(abspath(__file__)), "measurements_test_files")
+        raw_times = join(dirname(abspath(__file__)),
+                         "measurements_test_files", "times.bin")
+        raw_sigs = join(dirname(abspath(__file__)),
+                         "measurements_test_files", "sigs.bin")
+        raw_data = join(dirname(abspath(__file__)),
+                         "measurements_test_files", "data.bin")
+        priv_key = join(dirname(abspath(__file__)),
+                         "measurements_test_files", "priv_key.pem")
+
+        extract = Extract(
+            output=out_dir, raw_times=raw_times, binary=8,
+            sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
+            key_type="ecdsa"
+        )
+
+        k_value = extract._ecdsa_calculate_k((
+            b'0F\x02!\x00\xbe.W"U\t9\x88\xe1o\xbbJ_\x03\x91\xf8+F\t\x08\xdc'
+            b'\xd3\x99\x14(\x96\xe4\x8f\xb0\xc0\xcc7\x02!\x00\xbcd+\x80\xf7'
+            b'\x19\xed\xee&\xdd!\'\xcd3\xb3\x05\xb5\x824q\x05\xcb\x95A\xe9f'
+            b'\x8b\x811\xb9\x91\xeb',
+            83983651653946891052825435279929518005474143915969857681446019417652752940765
+        ))
+
+        self.assertEqual(
+            k_value, 71987597947566147878177872172206774464759466237222610742967172613160700915855,
+            "The nonce value should be calculated correctly."
         )

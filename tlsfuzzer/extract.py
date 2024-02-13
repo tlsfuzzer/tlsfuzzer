@@ -11,9 +11,10 @@ import csv
 import time
 import math
 from os import remove
-from os.path import join, splitext, getsize
+from os.path import join, splitext, getsize, exists
 from collections import defaultdict
 from socket import inet_aton, gethostbyname, gaierror, error
+import multiprocessing as mp
 from threading import Thread, Event
 import hashlib
 import tempfile
@@ -87,6 +88,11 @@ def help_msg():
     print("                extracting the k value. The function should be")
     print("                available in hashlib module. The default function")
     print("                is sha256.")
+    print(" --workers num  Number of worker processes to use for")
+    print("                parallelizable computation. More workers")
+    print("                will finish analysis faster, but will require")
+    print("                more memory to do so. By default: number of")
+    print("                threads available on the system (`os.cpu_count()`)")
     print(" --verbose      Print's a more verbose output.")
     print(" --help         Display this message")
     print("")
@@ -121,6 +127,7 @@ def main():
     key_type = None
     freq = None
     hash_func_name = None
+    workers = None
     verbose = False
     prehashed = False
 
@@ -135,7 +142,8 @@ def main():
                                 "no-quickack", "status-delay=",
                                 "status-newline", "raw-data=", "data-size=",
                                 "prehashed", "raw-sigs=", "priv-key-ecdsa=",
-                                "clock-frequency=", "hash-func=", "verbose"])
+                                "clock-frequency=", "hash-func=", "workers=",
+                                "verbose"])
     for opt, arg in opts:
         if opt == '-l':
             logfile = arg
@@ -182,6 +190,8 @@ def main():
             freq = float(arg) * 1e6
         elif opt == "--hash-func":
             hash_func_name = arg
+        elif opt == "--workers":
+            workers = int(arg)
         elif opt == "--help":
             help_msg()
             sys.exit(0)
@@ -242,7 +252,7 @@ data size, signatures file and one private key are necessary.")
         delay=delay, carriage_return=carriage_return,
         data=data, data_size=data_size, sigs=sigs, priv_key=priv_key,
         key_type=key_type, frequency=freq, hash_func=hash_func,
-        verbose=verbose
+        workers=workers, verbose=verbose
     )
     extract.parse()
 
@@ -263,7 +273,8 @@ class Extract:
                  binary=None, endian='little', no_quickack=False, delay=None,
                  carriage_return=None, data=None, data_size=None, sigs=None,
                  priv_key=None, key_type=None, frequency=None,
-                 hash_func=hashlib.sha256, verbose=False, fin_as_resp=False):
+                 hash_func=hashlib.sha256, workers=None, verbose=False,
+                 fin_as_resp=False):
         """
         Initialises instance and sets up class name generator from log.
 
@@ -282,6 +293,10 @@ class Extract:
         :param bool no_quickack: If True, don't expect QUICKACK to be in use
         :param float delay: How often to print the status line.
         :param str carriage_return: What chacarter to use as status line end.
+        :param func hash_func: The hash function that will be used for hashing
+            the message in bit size analysis. None for prehashed data.
+        :param int workers: The amount of parallel workers to be used.
+        :param bool verbose: Prints a more verbose output
         :param bool fin_as_resp: consider the server FIN packet to be the
             response to previous client query
         """
@@ -320,6 +335,7 @@ class Extract:
         self.frequency = frequency
         self.measurements_csv = measurements_csv
         self.hash_func = hash_func  # None if data are already hashed
+        self.workers = workers
         self.verbose = verbose
         self._total_measurements = None
         self._measurements_fp = None
@@ -807,27 +823,33 @@ class Extract:
                 yield data
                 data = data_fp.read(data_size)
 
-    def _get_data_from_csv_file(self, filename, convert_to_float=False):
+    def _get_data_from_csv_file(self, filename, col_name=None,
+                                convert_to_float=False, convert_to_int=False):
         """
         Iterator. Reading data from a csv file. Can also convert the data to
-        float.
+        float or to integer.
         """
+        if not col_name:
+            col_name = self.col_name
+
         with open(filename, "r") as data_fp:
             reader = csv.reader(data_fp)
             columns = next(reader)
             column = 0
 
-            if len(columns) > 1 and self.col_name is None:
+            if len(columns) > 1 and col_name is None:
                 raise ValueError("Multiple columns in raw_times file and "
                     "no column name specified!")
 
-            if self.col_name:
-                column = columns.index(self.col_name)
+            if col_name:
+                column = columns.index(col_name)
 
             for row in reader:
                 data = row[column]
                 if convert_to_float:
                     data = float(data)
+                if convert_to_int:
+                    data = int(data)
                 yield data
 
     def _divide_by_frequency(self, value_iter):
@@ -835,15 +857,16 @@ class Extract:
         for value in value_iter:
             yield value / self.frequency
 
-    def _get_time_from_file(self):
+    def _get_time_from_file(self, filename=None):
         """Iterator. Read the times from file provided"""
         if self.binary:
             times_iter = self._get_data_from_binary_file(
-                self.raw_times, self.binary, convert_to_int=True
+                self.raw_times, filename if filename else self.binary,
+                convert_to_int=True
             )
         else:
             times_iter = self._get_data_from_csv_file(
-                self.raw_times, convert_to_float=True
+                filename if filename else self.raw_times, convert_to_float=True
             )
 
         if self.frequency:
@@ -851,9 +874,9 @@ class Extract:
 
         return times_iter
 
-    def _ecdsa_get_signature_from_file(self):
+    def _ecdsa_get_signature_from_file(self, filename=None):
         """Iterator. Read the signatures from file provided"""
-        with open(self.sigs, "rb") as sigs_fp:
+        with open(filename if filename else self.sigs, "rb") as sigs_fp:
             sig = sigs_fp.read(1)
             while sig:
                 if not ecdsa.der.is_sequence(sig):
@@ -878,9 +901,11 @@ class Extract:
                 yield sig
                 sig = sigs_fp.read(1)
 
-    def _ecdsa_message_to_int(self):
+    def _ecdsa_message_to_int(self, filename=None):
         """Iterator. Hashes the message used and converts it to int."""
-        data_iter = self._get_data_from_binary_file(self.data, self.data_size)
+        data_iter = self._get_data_from_binary_file(
+            filename if filename else self.data, self.data_size
+        )
 
         for msg in data_iter:
             if self.hash_func:
@@ -894,35 +919,34 @@ class Extract:
             number >>= max(0, length - max_length)
             yield number
 
-    def _ecdsa_calculate_k(self):
+    def _ecdsa_calculate_k(self, sig_and_hashed):
         """Iterator. Calculated the K value from a singature."""
-        sigs_iter = self._ecdsa_get_signature_from_file()
-        hashed_iter = self._ecdsa_message_to_int()
-        times_iter = self._get_time_from_file()
+        try:
+            sig, hashed = sig_and_hashed
+        except ValueError:
+            raise ValueError(
+                "Signature or hash not provided."
+            )
 
         n_value = self.priv_key.curve.order
         g_value = self.priv_key.curve.generator
 
-        with open(join(self.output, "k-time-map.csv"), "w") as out_fp:
-            for sig, hashed, time_value in \
-                    izip(sigs_iter, hashed_iter, times_iter):
-                r_value, s_value = ecdsa.util.sigdecode_der(
-                        sig, n_value
-                    )
-                k_value = (
-                    (hashed + (
-                        r_value * self.priv_key.privkey.secret_multiplier
-                    ))
-                    * ecdsa.ecdsa.numbertheory.inverse_mod(s_value, n_value)
-                    ) % n_value
-                kxg = (k_value * g_value).to_affine().x()
+        r_value, s_value = ecdsa.util.sigdecode_der(
+                sig, n_value
+            )
+        k_value = (
+            (hashed + (
+                r_value * self.priv_key.privkey.secret_multiplier
+            ))
+            * ecdsa.ecdsa.numbertheory.inverse_mod(s_value, n_value)
+            ) % n_value
+        kxg = (k_value * g_value).to_affine().x()
 
-                if kxg == r_value:
-                    out_fp.write("{0},{1}\n".format(k_value, time_value))
-                    yield k_value
-                else:
-                    raise ValueError(
-                        "Failed to calculate k from given signatures."
+        if kxg == r_value:
+            return k_value
+        else:
+            raise ValueError(
+                "Failed to calculate k from given signatures."
                     )
 
     def _convert_to_bit_size(self, value_iter):
@@ -945,7 +969,27 @@ class Extract:
         """
         Iterator. Iterator to use for signatures signed by ECDSA private key.
         """
-        k_iter = self._ecdsa_calculate_k()
+        k_map_filename = join(self.output, "ecdsa-k-time-map.csv")
+        sigs_iter = self._ecdsa_get_signature_from_file()
+        hashed_iter = self._ecdsa_message_to_int()
+        times_iter = self._get_time_from_file()
+
+        if not exists(k_map_filename):
+            with open(k_map_filename, "w") as fp:
+                with mp.Pool(self.workers) as pool:
+                    k_iter = pool.imap(
+                        self._ecdsa_calculate_k, izip(sigs_iter, hashed_iter),
+                        10000
+                    )
+
+                    fp.write("k_value,time\n")
+
+                    for k_value, time_value in izip(k_iter, times_iter):
+                        fp.write("{0},{1}\n".format(k_value, time_value))
+
+        k_iter = self._get_data_from_csv_file(
+            k_map_filename, col_name="k_value", convert_to_int=True
+        )
 
         if return_type == "k-size":
             k_wrap_iter = self._convert_to_bit_size(k_iter)
@@ -1246,6 +1290,9 @@ class Extract:
         "measurements.csv": "k-size"
     }):
         original_measuremments_csv = self.measurements_csv
+
+        if exists(join(self.output, "ecdsa-k-time-map.csv")):
+            remove(join(self.output, "ecdsa-k-time-map.csv"))
 
         for file in files:
             if self.verbose:
