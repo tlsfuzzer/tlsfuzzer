@@ -941,6 +941,28 @@ class TestCommandLine(unittest.TestCase):
                         bit_size_desire_ci * 1e-9, bit_recognition_size,
                         'measurements.csv', False)
 
+    def test_call_with_Hamming_weight(self):
+        output = "/tmp"
+        args = ["analysis.py", "-o", output, "--Hamming-weight"]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch(
+            'tlsfuzzer.analysis.Analysis.generate_report'
+        ) as mock_report:
+            with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
+                with mock.patch(
+                    'tlsfuzzer.analysis.Analysis.analyse_hamming_weights'
+                ) as mock_hamming:
+                    with mock.patch("sys.argv", args):
+                        main()
+                        mock_init.assert_called_once_with(
+                            output, True, True, True, False, False, None, None,
+                            None, None, None, True, True,
+                            1e-9, 4,
+                            'measurements.csv', False)
+                        mock_report.assert_not_called()
+                        mock_hamming.assert_called_once_with()
+
     def test_help(self):
         args = ["analysis.py", "--help"]
         with mock.patch('tlsfuzzer.analysis.help_msg') as help_mock:
