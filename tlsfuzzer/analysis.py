@@ -23,7 +23,6 @@ from collections import namedtuple
 from itertools import combinations, repeat, chain
 import os
 import time
-import queue
 
 import numpy as np
 from scipy import stats
@@ -1473,13 +1472,13 @@ class Analysis(object):
 
     def _read_bit_size_measurement_file(self, status=None):
         """Returns an iterator with the data from the measurements file."""
-        with open(join(self.output, self.measurements_filename), 'rb') as in_fp:
+        with open(join(self.output, self.measurements_filename), 'r') as in_fp:
             if status:
                 in_fp.seek(0, 2)
                 status[1] = in_fp.tell()
                 in_fp.seek(0)
 
-            first_line = str(in_fp.readline(), "utf-8").split(',')
+            first_line = in_fp.readline().split(',')
             previous_row = int(first_line[0])
             max_k_size = int(first_line[1])
             current_max_k_value = float(first_line[2])
@@ -1514,51 +1513,13 @@ class Analysis(object):
 
                     yield (current_max_k_value, value, k_size)
 
-    def _k_size_writer(self, k_size, k_queue, max_k_size):
-        data_buffer = []
-        buffer_size = 200
-
-        k_folder_path = join(
-            self.output,
-            "analysis_results/k-by-size/{0}".format(k_size)
-        )
-        os.makedirs(k_folder_path)
-
-        with open(join(k_folder_path, "timing.csv"), 'w', encoding="utf-8") \
-                as fp:
-
-            if k_size != max_k_size:
-                fp.write("{0},{1}\n".format(max_k_size, k_size))
-            else:
-                fp.write("{0},{1}-sanity\n".format(max_k_size, max_k_size))
-
-            while True:
-                data = k_queue.get()
-                if data == -1:
-                    break
-                else:
-                    data_buffer.append(data)
-
-                if len(data_buffer) >= buffer_size:
-                    data_string = "\n".join([
-                        "{0},{1}".format(data[0], data[1])
-                        for data in data_buffer
-                    ]) + "\n"
-                    fp.write(data_string)
-                    data_buffer.clear()
-
-            if len(data_buffer) > 0:
-                data_string = "\n".join([
-                    "{0},{1}".format(data[0], data[1]) for data in data_buffer
-                ])
-                fp.write(data_string)
-
     def create_k_specific_dirs(self):
         """
         Creates a folder with timing.csv for each K bit-size so it can be
         analyzed one at a time.
         """
-        k_size_workers = {}
+        k_size_files = {}
+        k_size_buffers = {}
 
         if self.verbose:
             print("Creating a dir for each bit size...")
@@ -1586,25 +1547,33 @@ class Analysis(object):
             for data in data_iter:
                 k_size = data[2]
 
-                if k_size not in k_size_workers:
-                    k_queue = queue.Queue(maxsize=10)
-                    k_proccess = Thread(target=self._k_size_writer,
-                                        args=(k_size, k_queue, max_k_size,))
-                    k_proccess.start()
-                    k_size_workers[k_size] = (k_queue, k_proccess)
+                if k_size not in k_size_files:
+                    k_folder_path = join(
+                        self.output,
+                        "analysis_results/k-by-size/{0}".format(k_size)
+                    )
 
-                k_size_workers[k_size][0].put((data[0], data[1]))
+                    os.makedirs(k_folder_path)
+                    k_size_files[k_size] = open(
+                        join(k_folder_path, "timing.csv"), 'w',
+                        encoding="utf-8"
+                    )
+
+                    k_size_buffers[k_size] = []
+
+                k_size_files[k_size].write(
+                    "{0},{1}\n".format(data[0], data[1])
+                )
         finally:
             if status:
                 status[2].set()
                 progress.join()
                 print()
 
-            for k_queue, k_proccess in k_size_workers.values():
-                k_queue.put(-1)
-                k_proccess.join()
+            for file in k_size_files.values():
+                file.close()
 
-        k_sizes = list(k_size_workers.keys())
+        k_sizes = list(k_size_files.keys())
         k_sizes = sorted(k_sizes, reverse=True)
 
         if self.skip_sanity and max_k_size in k_sizes:
@@ -1736,11 +1705,13 @@ class Analysis(object):
 
         output_files = {}
 
+        if self.verbose:
+            print('Starting bit size analysis.')
+
         if os.path.exists(join(self.output, "analysis_results")):
             shutil.rmtree(join(self.output, "analysis_results"))
 
         k_sizes = self.create_k_specific_dirs()
-        return 0
         max_k_size = k_sizes[0]
 
         for test in tests_to_perfom:
