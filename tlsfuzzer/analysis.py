@@ -1359,7 +1359,7 @@ class Analysis(object):
             print(txt)
             txt_file.write(txt)
             txt_file.write('\n')
-            if friedman_p < self.alpha:
+            if friedman_p is not None and friedman_p < self.alpha:
                 difference = 1
 
             txt = "Worst pair: {}({}), {}({})".format(
@@ -1383,6 +1383,12 @@ class Analysis(object):
                     name,
                     diff_conf_int[key][0], diff_conf_int[key][1],
                     diff_conf_int[key][2], txt_file)
+
+            # when comparing a data set with just 2 samples then
+            # Friedman test doesn't work, but in practice it's equivalent
+            # to the sign test
+            if friedman_p is None:
+                friedman_p = np.min(sign_p_vals)
 
             if friedman_p < 1e-9:
                 explanation = (
