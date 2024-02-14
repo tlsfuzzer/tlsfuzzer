@@ -1471,54 +1471,52 @@ class Analysis(object):
 
         return difference
 
-    def _div_by_freq(self, data_iter):
-        """Returns an iterator that data divided by given frequence."""
-        for row in data_iter:
-            row[2] = float(row[2]) / self.clock_frequency
-            yield row
-
     def _read_bit_size_measurement_file(self, status=None):
         """Returns an iterator with the data from the measurements file."""
-        current_max_k_value = None
-        max_k_size = None
-        previous_row = None
+        with open(join(self.output, self.measurements_filename), 'rb') as in_fp:
+            if status:
+                in_fp.seek(0, 2)
+                status[1] = in_fp.tell()
+                in_fp.seek(0)
 
-        with open(join(self.output, self.measurements_filename), 'r') as in_fp:
-            data_iter = csv.reader(in_fp)
+            first_line = str(in_fp.readline(), "utf-8").split(',')
+            previous_row = int(first_line[0])
+            max_k_size = int(first_line[1])
+            current_max_k_value = float(first_line[2])
 
             if self.clock_frequency:
-                data_iter = self._div_by_freq(data_iter)
-
-            row = next(data_iter)
-            previous_row = row[0]
-            max_k_size = row[1]
-            current_max_k_value = row[2]
-
-            if status:
-                status[0] += sum([len(x) for x in row], 3)
+                current_max_k_value /= self.clock_frequency
 
             yield (current_max_k_value, current_max_k_value, max_k_size)
 
-            for row in data_iter:
-                current_row = row[0]
-                k_size = row[1]
-                value = row[2]
+            chunks = pd.read_csv(
+                in_fp, iterator=True, chunksize=100000,
+                dtype=[("row", np.int16), ("k_size", np.int16),
+                       ("value", np.float32)],
+                names=["row", "k_size", "value"])
+
+            for chunk in chunks:
+                if self.clock_frequency:
+                    chunk["value"] /= self.clock_frequency
 
                 if status:
-                    status[0] += sum([len(x) for x in row], 3)
+                    status[0] = in_fp.tell()
 
-                if k_size == max_k_size and previous_row != current_row:
-                    current_max_k_value = value
-                    previous_row = current_row
-                    continue
-                elif k_size == max_k_size and self.skip_sanity:
-                    continue
+                for current_row, k_size, value in \
+                        zip(chunk["row"], chunk["k_size"], chunk["value"]):
 
-                yield (current_max_k_value, value, k_size)
+                    if k_size == max_k_size and previous_row != current_row:
+                        current_max_k_value = value
+                        previous_row = current_row
+                        continue
+                    elif k_size == max_k_size and self.skip_sanity:
+                        continue
+
+                    yield (current_max_k_value, value, k_size)
 
     def _k_size_writer(self, k_size, k_queue, max_k_size):
         data_buffer = []
-        buffer_size = 5
+        buffer_size = 200
 
         k_folder_path = join(
             self.output,
@@ -1542,20 +1540,17 @@ class Analysis(object):
                     data_buffer.append(data)
 
                 if len(data_buffer) >= buffer_size:
-                    data_buffer = list(map(
-                        lambda data: "{0},{1}".format(data[0], data[1]),
-                        data_buffer
-                    ))
-                    data_string = "\n".join(data_buffer) + "\n"
+                    data_string = "\n".join([
+                        "{0},{1}".format(data[0], data[1])
+                        for data in data_buffer
+                    ]) + "\n"
                     fp.write(data_string)
                     data_buffer.clear()
 
             if len(data_buffer) > 0:
-                data_buffer = list(map(
-                    lambda data: "{0},{1}".format(data[0], data[1]),
-                    data_buffer
-                ))
-                data_string = "\n".join(data_buffer)
+                data_string = "\n".join([
+                    "{0},{1}".format(data[0], data[1]) for data in data_buffer
+                ])
                 fp.write(data_string)
 
     def create_k_specific_dirs(self):
@@ -1571,10 +1566,7 @@ class Analysis(object):
         status = None
         if self.verbose:
             try:
-                total_size = os.path.getsize(
-                    join(self.output, self.measurements_filename)
-                )
-                status = [0, total_size, Event()]
+                status = [0, 0, Event()]
                 kwargs = {}
                 kwargs['unit'] = ' bytes'
                 kwargs['delay'] = self.delay
@@ -1590,26 +1582,27 @@ class Analysis(object):
         data = next(data_iter)
         max_k_size = data[2]
 
-        for data in data_iter:
-            k_size = data[2]
+        try:
+            for data in data_iter:
+                k_size = data[2]
 
-            if k_size not in k_size_workers:
-                k_queue = queue.Queue(maxsize=10)
-                k_proccess = Thread(target=self._k_size_writer,
-                                    args=(k_size, k_queue, max_k_size,))
-                k_proccess.start()
-                k_size_workers[k_size] = (k_queue, k_proccess)
+                if k_size not in k_size_workers:
+                    k_queue = queue.Queue(maxsize=10)
+                    k_proccess = Thread(target=self._k_size_writer,
+                                        args=(k_size, k_queue, max_k_size,))
+                    k_proccess.start()
+                    k_size_workers[k_size] = (k_queue, k_proccess)
 
-            k_size_workers[k_size][0].put((data[0], data[1]))
+                k_size_workers[k_size][0].put((data[0], data[1]))
+        finally:
+            if status:
+                status[2].set()
+                progress.join()
+                print()
 
-        if status:
-            status[2].set()
-            progress.join()
-            print()
-
-        for k_queue, k_proccess in k_size_workers.values():
-            k_queue.put(-1)
-            k_proccess.join()
+            for k_queue, k_proccess in k_size_workers.values():
+                k_queue.put(-1)
+                k_proccess.join()
 
         k_sizes = list(k_size_workers.keys())
         k_sizes = sorted(k_sizes, reverse=True)
@@ -1747,6 +1740,7 @@ class Analysis(object):
             shutil.rmtree(join(self.output, "analysis_results"))
 
         k_sizes = self.create_k_specific_dirs()
+        return 0
         max_k_size = k_sizes[0]
 
         for test in tests_to_perfom:
