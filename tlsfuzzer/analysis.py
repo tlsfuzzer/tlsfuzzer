@@ -77,6 +77,9 @@ def help_msg():
                 data from a measurements.csv file. A measurements.csv file
                 is expected as input and it should be in long-format
                 ("row id,column id,value").
+ --measurements Specifies the measurements file name that should be analyzed.
+                The file must be present in the output dir. This flag only
+                works in combination the --bit-size flag.
  --skip-sanity  Skip sanity measurements from analysis (if any).
  --help         Display this message""")
 
@@ -95,6 +98,7 @@ def main():
     delay = None
     carriage_return = None
     bit_size_analysis = False
+    measurements_filename = "measurements.csv"
     skip_sanity = False
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "o:",
@@ -107,6 +111,7 @@ def main():
                                 "status-delay=",
                                 "status-newline",
                                 "bit-size",
+                                "measurements=",
                                 "skip-sanity",
                                 "verbose"])
 
@@ -138,6 +143,8 @@ def main():
             carriage_return = '\n'
         elif opt == "--bit-size":
             bit_size_analysis = True
+        elif opt == "--measurements":
+            measurements_filename = arg
         elif opt == "--skip-sanity":
             skip_sanity = True
 
@@ -145,7 +152,7 @@ def main():
         analysis = Analysis(output, ecdf_plot, scatter_plot, conf_int_plot,
                             multithreaded_graph, verbose, clock_freq, alpha,
                             workers, delay, carriage_return, bit_size_analysis,
-                            skip_sanity)
+                            measurements_filename, skip_sanity)
         if bit_size_analysis:
             ret = analysis.analyze_bit_sizes()
         else:
@@ -163,7 +170,8 @@ class Analysis(object):
                  draw_conf_interval_plot=True, multithreaded_graph=False,
                  verbose=False, clock_frequency=None, alpha=None,
                  workers=None, delay=None, carriage_return=None,
-                 bit_size_analysis=False, skip_sanity=False):
+                 bit_size_analysis=False,
+                 measurements_filename="measurements.csv", skip_sanity=False):
         self.verbose = verbose
         self.output = output
         self.clock_frequency = clock_frequency
@@ -179,6 +187,7 @@ class Analysis(object):
             self.alpha = alpha
         self.delay = delay
         self.carriage_return = carriage_return
+        self.measurements_filename = measurements_filename
         self.skip_sanity = skip_sanity
 
         if not bit_size_analysis:
@@ -1461,87 +1470,110 @@ class Analysis(object):
 
         return difference
 
-    def _div_by_freq(self, data_iter):
-        """Returns an iterator that data divided by given frequence."""
-        for row in data_iter:
-            row[2] = float(row[2]) / self.clock_frequency
-            yield row
+    def _read_bit_size_measurement_file(self, status=None):
+        """Returns an iterator with the data from the measurements file."""
+        with open(join(self.output, self.measurements_filename), 'r') as in_fp:
+            if status:
+                in_fp.seek(0, 2)
+                status[1] = in_fp.tell()
+                in_fp.seek(0)
 
-    def _read_bit_size_measurement_file(self):
-        """Returns an iterator with the data from the measurements.csv file."""
-        current_max_k_value = None
-        max_k_size = None
-        previous_row = None
-
-        with open(join(self.output, "measurements.csv"), 'r') as in_fp:
-            data_iter = csv.reader(in_fp)
+            first_line = in_fp.readline().split(',')
+            previous_row = int(first_line[0])
+            max_k_size = int(first_line[1])
+            current_max_k_value = float(first_line[2])
 
             if self.clock_frequency:
-                data_iter = self._div_by_freq(data_iter)
-
-            row = next(data_iter)
-            previous_row = row[0]
-            max_k_size = row[1]
-            current_max_k_value = row[2]
+                current_max_k_value /= self.clock_frequency
 
             yield (current_max_k_value, current_max_k_value, max_k_size)
 
-            for row in data_iter:
-                current_row = row[0]
-                k_size = row[1]
-                value = row[2]
+            chunks = pd.read_csv(
+                in_fp, iterator=True, chunksize=100000,
+                dtype=[("row", np.int16), ("k_size", np.int16),
+                       ("value", np.float32)],
+                names=["row", "k_size", "value"])
 
-                if k_size == max_k_size and previous_row != current_row:
-                    current_max_k_value = value
-                    previous_row = current_row
-                    continue
-                elif k_size == max_k_size and self.skip_sanity:
-                    continue
+            for chunk in chunks:
+                if self.clock_frequency:
+                    chunk["value"] /= self.clock_frequency
 
-                yield (current_max_k_value, value, k_size)
+                if status:
+                    status[0] = in_fp.tell()
+
+                for current_row, k_size, value in \
+                        zip(chunk["row"], chunk["k_size"], chunk["value"]):
+
+                    if k_size == max_k_size and previous_row != current_row:
+                        current_max_k_value = value
+                        previous_row = current_row
+                        continue
+                    elif k_size == max_k_size and self.skip_sanity:
+                        continue
+
+                    yield (current_max_k_value, value, k_size)
 
     def create_k_specific_dirs(self):
         """
         Creates a folder with timing.csv for each K bit-size so it can be
         analyzed one at a time.
         """
-        k_sizes = []
         k_size_files = {}
+        k_size_buffers = {}
 
         if self.verbose:
-            print("Creating a dir for each K size...")
+            print("Creating a dir for each bit size...")
 
-        data_iter = self._read_bit_size_measurement_file()
+        status = None
+        if self.verbose:
+            try:
+                status = [0, 0, Event()]
+                kwargs = {}
+                kwargs['unit'] = ' bytes'
+                kwargs['delay'] = self.delay
+                kwargs['end'] = self.carriage_return
+                progress = Thread(target=progress_report, args=(status,),
+                                  kwargs=kwargs)
+                progress.start()
+            except FileNotFoundError:
+                pass
+
+        data_iter = self._read_bit_size_measurement_file(status=status)
 
         data = next(data_iter)
         max_k_size = data[2]
 
-        for data in data_iter:
-            k_size = data[2]
+        try:
+            for data in data_iter:
+                k_size = data[2]
 
-            if k_size not in k_size_files:
-                k_sizes.append(k_size)
-
-                k_folder_path = join(
-                    self.output,
-                    "analysis_results/k-by-size/{0}".format(k_size)
-                )
-                os.makedirs(k_folder_path)
-                k_size_files[k_size] = open(
-                    join(k_folder_path, "timing.csv"), 'w',
-                    encoding="utf-8"
-                )
-                if k_size != max_k_size:
-                    k_size_files[k_size].write(
-                        "{0},{1}\n".format(max_k_size, k_size)
-                    )
-                else:
-                    k_size_files[k_size].write(
-                        "{0},{1}-sanity\n".format(max_k_size, max_k_size)
+                if k_size not in k_size_files:
+                    k_folder_path = join(
+                        self.output,
+                        "analysis_results/k-by-size/{0}".format(k_size)
                     )
 
-            k_size_files[k_size].write("{0},{1}\n".format(data[0], data[1]))
+                    os.makedirs(k_folder_path)
+                    k_size_files[k_size] = open(
+                        join(k_folder_path, "timing.csv"), 'w',
+                        encoding="utf-8"
+                    )
 
+                    k_size_buffers[k_size] = []
+
+                k_size_files[k_size].write(
+                    "{0},{1}\n".format(data[0], data[1])
+                )
+        finally:
+            if status:
+                status[2].set()
+                progress.join()
+                print()
+
+            for file in k_size_files.values():
+                file.close()
+
+        k_sizes = list(k_size_files.keys())
         k_sizes = sorted(k_sizes, reverse=True)
 
         if self.skip_sanity and max_k_size in k_sizes:
@@ -1550,9 +1582,6 @@ class Analysis(object):
         if self.verbose:
             print("Max K size detected: {0}".format(max_k_size))
             print("Min K size detected: {0}".format(k_sizes[-1]))
-
-        for k_size in k_size_files:
-            k_size_files[k_size].close()
 
         if not self.skip_sanity:
             max_k_folder_path = join(
@@ -1638,6 +1667,26 @@ class Analysis(object):
                     ), bbox_inches="tight"
                 )
 
+    def _check_data_for_rel_t_test(self):
+        non_zero_diffs = 0
+        ret_val = False
+
+        with open(join(self.output, "timing.csv"), 'r') as fp:
+            chunks = pd.read_csv(
+                fp, iterator=True, chunksize=10, skiprows=1,
+                dtype=[("max_k", np.float32), ("non_max_k", np.float32)],
+                names=["max_k", "non_max_k"]
+            )
+            for chunk in chunks:
+                for diff in chunk["max_k"] - chunk["non_max_k"]:
+                    if diff != 0:
+                        non_zero_diffs += 1
+                if non_zero_diffs >= 3:
+                    ret_val = True
+                    break
+
+        return ret_val
+
     def analyze_bit_sizes(self):
         """
         Analyses K bit-sizes and creates the plots and the test result files
@@ -1655,6 +1704,9 @@ class Analysis(object):
         ret_val = 0
 
         output_files = {}
+
+        if self.verbose:
+            print('Starting bit size analysis.')
 
         if os.path.exists(join(self.output, "analysis_results")):
             shutil.rmtree(join(self.output, "analysis_results"))
@@ -1719,10 +1771,19 @@ class Analysis(object):
                 )
 
             # Paired t-test
-            results = self.rel_t_test()
-            output_files['paired_t_test'].write(
-                "K size of {0}: {1}\n".format(k_size, results[(0, 1)])
-            )
+            if self._check_data_for_rel_t_test():
+                results = self.rel_t_test()
+                output_files['paired_t_test'].write(
+                    "K size of {0}: {1}\n".format(k_size, results[(0, 1)])
+                )
+            else:
+                if self.verbose:
+                    print("[i] Not enough data to perform reliable "
+                          "paired t-test.")
+
+                output_files['paired_t_test'].write(
+                    "K size of {0}: Too few points\n".format(k_size)
+                )
 
             # Wilcoxon test
             results = self.wilcoxon_test()

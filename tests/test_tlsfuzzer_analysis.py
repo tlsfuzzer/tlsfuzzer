@@ -711,7 +711,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
-                        None, None, None, False, False)
+                        None, None, None, False, 'measurements.csv', False)
 
     def test_call_with_delay_and_CR(self):
         output = "/tmp"
@@ -726,7 +726,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
-                        None, 3.5, '\n', False, False)
+                        None, 3.5, '\n', False, 'measurements.csv', False)
 
     def test_call_with_workers(self):
         output = "/tmp"
@@ -740,7 +740,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
-                        200, None, None, False, False)
+                        200, None, None, False, 'measurements.csv', False)
 
     def test_call_with_verbose(self):
         output = "/tmp"
@@ -754,7 +754,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, True, None, None,
-                        None, None, None, False, False)
+                        None, None, None, False, 'measurements.csv', False)
 
     def test_call_with_multithreaded_plots(self):
         output = "/tmp"
@@ -768,7 +768,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, True, False, None, None,
-                        None, None, None, False, False)
+                        None, None, None, False, 'measurements.csv', False)
 
     def test_call_with_no_plots(self):
         output = "/tmp"
@@ -783,7 +783,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, False, False, False, False, False, None, None,
-                        None, None, None, False, False)
+                        None, None, None, False, 'measurements.csv', False)
 
     def test_call_with_frequency(self):
         output = "/tmp"
@@ -797,7 +797,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, 10*1e6, None,
-                        None, None, None, False, False)
+                        None, None, None, False, 'measurements.csv', False)
 
     def test_call_with_alpha(self):
         output = "/tmp"
@@ -811,7 +811,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, 1e-3,
-                        None, None, None, False, False)
+                        None, None, None, False, 'measurements.csv', False)
 
     def test_call_with_bit_size_measurements(self):
         output = "/tmp"
@@ -827,7 +827,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_analyze_bit_sizes.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
-                        None, None, None, True, False)
+                        None, None, None, True, 'measurements.csv', False)
 
     def test_call_with_skip_sanity(self):
         output = "/tmp"
@@ -843,7 +843,25 @@ class TestCommandLine(unittest.TestCase):
                     mock_analyze_bit_sizes.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
-                        None, None, None, True, True)
+                        None, None, None, True, 'measurements.csv', True)
+
+    def test_call_with_custom_measurements_filename(self):
+        output = "/tmp"
+        measurements_filename = "measurements-invert.csv"
+        args = ["analysis.py", "-o", output, "--bit-size", "--measurements",
+                 measurements_filename]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch(
+            'tlsfuzzer.analysis.Analysis.analyze_bit_sizes'
+        ) as mock_analyze_bit_sizes:
+            with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
+                with mock.patch("sys.argv", args):
+                    main()
+                    mock_analyze_bit_sizes.assert_called_once()
+                    mock_init.assert_called_once_with(
+                        output, True, True, True, False, False, None, None,
+                        None, None, None, True, measurements_filename, False)
 
     def test_help(self):
         args = ["analysis.py", "--help"]
@@ -1197,6 +1215,84 @@ class TestMeasurementAnalysis(unittest.TestCase):
         wilcoxon_test_mock.assert_called()
         calc_values_mock.assert_called()
 
+    @mock.patch("tlsfuzzer.analysis.Analysis._calc_exact_values")
+    @mock.patch("tlsfuzzer.analysis.Analysis.conf_plot_for_all_k")
+    @mock.patch("tlsfuzzer.analysis.Analysis.graph_worst_pair")
+    @mock.patch("tlsfuzzer.analysis.Analysis.diff_scatter_plot")
+    @mock.patch("tlsfuzzer.analysis.Analysis.diff_ecdf_plot")
+    @mock.patch("tlsfuzzer.analysis.Analysis.conf_interval_plot")
+    @mock.patch("tlsfuzzer.analysis.Analysis.wilcoxon_test")
+    @mock.patch("tlsfuzzer.analysis.Analysis.rel_t_test")
+    @mock.patch("tlsfuzzer.analysis.Analysis.load_data")
+    @mock.patch("tlsfuzzer.analysis.Analysis.create_k_specific_dirs")
+    @mock.patch("tlsfuzzer.analysis.shutil.rmtree")
+    @mock.patch("builtins.open")
+    @mock.patch("builtins.print")
+    def test_bit_size_measurement_analysis_main_verbose(self, print_mock,
+            open_mock, rmtree_mock, dir_creation_mock, load_data_mock,
+            rel_t_test_mock, wilcoxon_test_mock, interval_plot_mock,
+            ecdf_plot_mock, scatter_plot_mock, worst_pair_mock, conf_plot_mock,
+            calc_values_mock):
+
+        def file_selector(*args, **kwargs):
+            file_name = args[0]
+            try:
+                mode = args[1]
+            except IndexError:
+                mode = "r"
+
+            if "w" in mode:
+                return mock.mock_open()(file_name, mode)
+
+            if "timing.csv" in file_name:
+                k_size = file_name.split("/")[-2]
+                return mock.mock_open(
+                    read_data="256,{0}".format(k_size) +
+                              ("\n0.5,0.4\n0.4,0.5" * 6)
+                )(file_name, mode)
+
+            return mock.mock_open(
+                read_data="0,256,3\n0,255,102\n0,254,103\n1,256,4\n1,254,104\n1,253,105"
+            )(file_name, mode)
+
+        open_mock.side_effect = file_selector
+        dir_creation_mock.return_value = [256, 255, 254, 253]
+        rel_t_test_mock.return_value = {(0, 1): 0.5}
+        wilcoxon_test_mock.return_value = {(0, 1): 0.5}
+
+        class dotDict(dict):
+            __getattr__ = dict.__getitem__
+
+        binomtest_result = {"statistic": 0.5, "pvalue": 0.5}
+        binomtest_mock = mock.Mock()
+
+        calc_values_mock.return_value = {
+            "mean": 0.5, "median": 0.5, "trim_mean_05": 0.5,
+            "trim_mean_25": 0.5, "trim_mean_45": 0.5, "trimean": 0.5
+        }
+
+        self.analysis.verbose = True
+
+        try:
+            with mock.patch(
+                "tlsfuzzer.analysis.stats.binomtest", binomtest_mock
+            ):
+                binomtest_mock.return_value = dotDict(binomtest_result)
+                self.analysis.analyze_bit_sizes()
+        except AttributeError:
+            with mock.patch(
+                "tlsfuzzer.analysis.stats.binom_test", binomtest_mock
+            ):
+                binomtest_mock.return_value = binomtest_result["pvalue"]
+                self.analysis.analyze_bit_sizes()
+
+        self.analysis.verbose = False
+
+        binomtest_mock.assert_called()
+        rel_t_test_mock.assert_called()
+        wilcoxon_test_mock.assert_called()
+        calc_values_mock.assert_called()
+
     @mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure")
     @mock.patch("builtins.open")
     def test_bit_size_measurement_analysis_conf_plot(self, open_mock,
@@ -1251,24 +1347,79 @@ class TestMeasurementAnalysis(unittest.TestCase):
         open_mock.side_effect = file_selector
 
         ret_value = self.analysis.create_k_specific_dirs()
-        self.assertEqual(ret_value, ['256', '255', '254', '253'])
+        self.assertEqual(ret_value, [256, 255, 254, 253])
 
         self.analysis.clock_frequency = 10000000
         ret_value = self.analysis.create_k_specific_dirs()
-        self.assertEqual(ret_value, ['256', '255', '254', '253'])
-        with mock.patch(
-            "tlsfuzzer.analysis.Analysis._div_by_freq"
-        ) as div_by_freq_mock:
-            self.analysis.create_k_specific_dirs()
-            div_by_freq_mock.assert_called()
+        self.assertEqual(ret_value, [256, 255, 254, 253])
         self.analysis.clock_frequency = None
 
         self.analysis.skip_sanity = True
         ret_value = self.analysis.create_k_specific_dirs()
         self.analysis.skip_sanity = False
-        self.assertEqual(ret_value, ['255', '254', '253'])
+        self.assertEqual(ret_value, [255, 254, 253])
 
         with mock.patch("builtins.print"):
             self.analysis.verbose = True
             ret_value = self.analysis.create_k_specific_dirs()
             self.analysis.verbose = False
+
+    @mock.patch("builtins.open")
+    def test_check_data_for_rel_t_test_all_zeros(self, open_mock):
+
+        def file_selector(*args, **kwargs):
+            file_name = args[0]
+            try:
+                mode = args[1]
+            except IndexError:
+                mode = "r"
+
+            return mock.mock_open(
+                read_data= "0.05,0.05\n" * 20
+            )(file_name, mode)
+
+        open_mock.side_effect = file_selector
+
+        ret_value = self.analysis._check_data_for_rel_t_test()
+
+        self.assertEqual(ret_value, False)
+
+    @mock.patch("builtins.open")
+    def test_check_data_for_rel_t_test_two_non_zero(self, open_mock):
+
+        def file_selector(*args, **kwargs):
+            file_name = args[0]
+            try:
+                mode = args[1]
+            except IndexError:
+                mode = "r"
+
+            return mock.mock_open(
+                read_data= ("0.05,0.05\n" * 20) + ("0.04,0.05\n" * 2)
+            )(file_name, mode)
+
+        open_mock.side_effect = file_selector
+
+        ret_value = self.analysis._check_data_for_rel_t_test()
+
+        self.assertEqual(ret_value, False)
+
+    @mock.patch("builtins.open")
+    def test_check_data_for_rel_t_test_five_non_zero(self, open_mock):
+
+        def file_selector(*args, **kwargs):
+            file_name = args[0]
+            try:
+                mode = args[1]
+            except IndexError:
+                mode = "r"
+
+            return mock.mock_open(
+                read_data= ("0.05,0.05\n" * 20) + ("0.04,0.05\n" * 5)
+            )(file_name, mode)
+
+        open_mock.side_effect = file_selector
+
+        ret_value = self.analysis._check_data_for_rel_t_test()
+
+        self.assertEqual(ret_value, True)
