@@ -55,7 +55,11 @@ def help_msg():
                    and where timing.csv or measurements.csv is located
  --no-ecdf-plot    Don't create the ecdf_plot.png file
  --no-scatter-plot Don't create the scatter_plot.png file
- --no-conf-interval-plot Don't create the conf_interval_plot.png file
+ --no-conf-interval-plot Don't create the conf_interval_plot*.png files
+ --no-wilcoxon-test Don't run the Wilcoxon signed rank test
+                for pairwise measurements
+ --no-t-test    Don't run the paired sample t-test for pairwise measurements
+ --no-sign-test [Hamming weight only] Don't run the sign test
  --multithreaded-graph Create graph and calculate statistical tests at the
                    same time. Note: this increases memory usage of analysis by
                    a factor of 8.
@@ -115,6 +119,9 @@ def main():
     workers = None
     delay = None
     carriage_return = None
+    t_test = True
+    wilcoxon_test = True
+    sign_test = True
     bit_size_analysis = False
     smart_analysis = True
     bit_size_desire_ci = 1e-9
@@ -126,6 +133,9 @@ def main():
     opts, args = getopt.getopt(argv, "o:",
                                ["help", "no-ecdf-plot", "no-scatter-plot",
                                 "no-conf-interval-plot",
+                                "no-t-test",
+                                "no-sign-test",
+                                "no-wilcoxon-test",
                                 "multithreaded-graph",
                                 "clock-frequency=",
                                 "alpha=",
@@ -153,6 +163,12 @@ def main():
             scatter_plot = False
         elif opt == "--no-conf-interval-plot":
             conf_int_plot = False
+        elif opt == "--no-sign-test":
+            sign_test = False
+        elif opt == "--no-t-test":
+            t_test = False
+        elif opt == "--no-wilcoxon-test":
+            wilcoxon_test = False
         elif opt == "--multithreaded-graph":
             multithreaded_graph = True
         elif opt == "--clock-frequency":
@@ -189,11 +205,10 @@ def main():
                             bit_size_analysis or hamming_weight_analysis,
                             smart_analysis, bit_size_desire_ci,
                             bit_recognition_size, measurements_filename,
-                            skip_sanity)
+                            skip_sanity, wilcoxon_test, t_test, sign_test)
         if hamming_weight_analysis:
             ret = analysis.analyse_hamming_weights()
         else:
-
             ret = analysis.generate_report(bit_size=bit_size_analysis)
         return ret
     else:
@@ -209,7 +224,8 @@ class Analysis(object):
                  workers=None, delay=None, carriage_return=None,
                  bit_size_analysis=False, smart_bit_size_analysis=True,
                  bit_size_desire_ci=1e-9, bit_recognition_size=4,
-                 measurements_filename="measurements.csv", skip_sanity=False):
+                 measurements_filename="measurements.csv", skip_sanity=False,
+                 run_wilcoxon_test=True, run_t_test=True, run_sign_test=True):
         self.verbose = verbose
         self.output = output
         self.clock_frequency = clock_frequency
@@ -217,6 +233,9 @@ class Analysis(object):
         self.draw_ecdf_plot = draw_ecdf_plot
         self.draw_scatter_plot = draw_scatter_plot
         self.draw_conf_interval_plot = draw_conf_interval_plot
+        self.run_wilcoxon_test = run_wilcoxon_test
+        self.run_t_test = run_t_test
+        self.run_sign_test = run_sign_test
         self.multithreaded_graph = multithreaded_graph
         self.workers = workers
         if alpha is None:
@@ -2420,52 +2439,82 @@ class Analysis(object):
     def _analyse_weight_pairs(self, pairs):
         out_dir = self.output
         output_files = dict()
-        output_files['sign_test'] = open(
-            join(out_dir, "analysis_results", "sign_test.results"),
-            "w", encoding="utf-8")
-        output_files['t_test'] = open(
-            join(out_dir, "analysis_results", "t_test.results"),
-            "w", encoding="utf-8")
+        if self.run_sign_test:
+            output_files['sign_test'] = open(
+                join(out_dir, "analysis_results", "sign_test.results"),
+                "w", encoding="utf-8")
+        if self.run_t_test:
+            output_files['t_test'] = open(
+                join(out_dir, "analysis_results", "t_test.results"),
+                "w", encoding="utf-8")
+        if self.run_wilcoxon_test:
+            output_files['wilcoxon_test'] = open(
+                join(out_dir, "analysis_results", "wilcoxon_test.results"),
+                "w", encoding="utf-8")
         try:
-            for base_group, test_group in \
-                    sorted(i for i in pairs if i != 'slope'):
-                if self.verbose:
-                    print("Running test for {0}-{1}..."
-                          .format(base_group, test_group))
+            if any((self.run_sign_test, self.run_wilcoxon_test,
+                    self.run_t_test, self.draw_conf_interval_plot,
+                    self.draw_ecdf_plot)):
+                for base_group, test_group in \
+                        sorted(i for i in pairs if i != 'slope'):
+                    if self.verbose:
+                        print("Running test for {0}-{1}..."
+                              .format(base_group, test_group))
 
-                self.output = join(out_dir,
+                    self.output = join(out_dir,
                                    "analysis_results/by-pair-sizes/"
                                    "{0:04d}-{1:04d}"
-                                   .format(base_group, test_group))
+                                       .format(base_group, test_group))
 
-                data = self.load_data()
-                self.class_names = list(data)
+                    data = self.load_data()
+                    self.class_names = list(data)
 
-                results = self.sign_test()
-                output_files['sign_test'].write(
-                    "{0} to {1}: {2}\n".format(
-                        base_group, test_group, results[(0, 1)]))
+                    if self.run_sign_test:
+                        results = self.sign_test()
+                        output_files['sign_test'].write(
+                            "{0} to {1}: {2}\n".format(
+                                base_group, test_group, results[(0, 1)]))
 
-                results = self.rel_t_test()
-                output_files['t_test'].write(
-                    "{0} to {1}: {2}\n".format(
-                        base_group, test_group, results[(0, 1)]))
+                    if self.run_wilcoxon_test:
+                        results = self.wilcoxon_test()
+                        output_files['wilcoxon_test'].write(
+                            "{0} to {1}: {2}\n".format(
+                                base_group, test_group, results[(0, 1)]))
 
-                self.conf_interval_plot()
-                self.diff_ecdf_plot()
+                    if self.run_t_test:
+                        results = self.rel_t_test()
+                        output_files['t_test'].write(
+                            "{0} to {1}: {2}\n".format(
+                                base_group, test_group, results[(0, 1)]))
+
+                    if self.draw_conf_interval_plot:
+                        self.conf_interval_plot()
+                    if self.draw_ecdf_plot:
+                        self.diff_ecdf_plot()
 
             self.output = join(out_dir,
                                "analysis_results/by-pair-sizes/slope")
             data = self.load_data()
             self.class_names = list(data)
 
+            self.run_sign_test = True
             results = self.sign_test()
             print("Slope sign test: {0}".format(results[(0, 1)]))
 
+            self.run_wilcoxon_test = True
+            results = self.wilcoxon_test()
+            print("Slope Wilcoxon signed rank test: {0}".format(
+                results[(0, 1)]))
+
+            self.run_t_test = True
             results = self.rel_t_test()
             print("Slope t-test: {0}".format(results[(0, 1)]))
 
+            # conf_interval_plot is disabled by the draw_conf_interval_plot
+            old_conf_interval = self.draw_conf_interval_plot
+            self.draw_conf_interval_plot = True
             self.conf_interval_plot()
+            self.draw_conf_interval_plot = old_conf_interval
 
         finally:
             self.output = out_dir
@@ -2483,60 +2532,71 @@ class Analysis(object):
 
         boots = dict()
 
-        for base_group, test_group in \
-                sorted(i for i in pairs if i != 'slope'):
-            in_dir = join(out_dir,
-                          "analysis_results/by-pair-sizes/{0:04d}-{1:04d}"
-                          .format(base_group, test_group))
+        if self.draw_conf_interval_plot:
+            for base_group, test_group in \
+                    sorted(i for i in pairs if i != 'slope'):
+                in_dir = join(out_dir,
+                              "analysis_results/by-pair-sizes/{0:04d}-{1:04d}"
+                              .format(base_group, test_group))
 
-            if base_group not in boots:
-                boots[base_group] = dict((i, dict()) for i in methods)
+                if base_group not in boots:
+                    boots[base_group] = dict(
+                        (i, dict())
+                        for i in methods
+                    )
 
             for method in methods:
-                with open(join(in_dir, "bootstrapped_{0}.csv".format(method)),
-                          "r", encoding='utf-8') as fp:
-                    boots[base_group][method][
-                            '{0}-{1}'.format(test_group, base_group)
-                        ] = [
-                        float(x) for x in fp if x != "1-0\n"
-                    ]
+                    with open(join(in_dir,
+                                   "bootstrapped_{0}.csv".format(method)),
+                              "r", encoding='utf-8') as fp:
+                        boots[base_group][method][
+                                '{0}-{1}'.format(test_group, base_group)
+                            ] = [
+                            float(x) for x in fp if x != "1-0\n"
+                        ]
 
-        for base_group, data_by_method in boots.items():
-            for method, values in data_by_method.items():
-                name_readable = methods[method]
+            for base_group, data_by_method in boots.items():
+                for method, values in data_by_method.items():
+                    name_readable = methods[method]
 
-                min_max = len(values.keys())
-                # don't use smallest and biggest Hamming weights in the
-                # graph, they will have large confidence intervals anyway
-                start, stop = int(min_max * 0.2), int(math.ceil(min_max * 0.8))
+                    min_max = len(values.keys())
+                    # don't use smallest and biggest Hamming weights in the
+                    # graph, they will have large confidence intervals anyway
+                    start = int(min_max * 0.2)
+                    stop = int(math.ceil(min_max * 0.8))
 
-                fig = Figure(figsize=(24, 12))
-                canvas = FigureCanvas(fig)
-                ax = fig.add_subplot(1, 1, 1)
-                ax.violinplot(list(values.values())[start:stop], widths=0.7,
-                              showmeans=True, showextrema=True)
-                ax.set_xticks(range(1, stop - start + 1, 4))
-                ax.set_xticklabels(list(values.keys())[start:stop:4])
+                    fig = Figure(figsize=(24, 12))
+                    canvas = FigureCanvas(fig)
+                    ax = fig.add_subplot(1, 1, 1)
+                    ax.violinplot(list(values.values())[start:stop],
+                                  widths=0.7,
+                                  showmeans=True, showextrema=True)
+                    ax.set_xticks(range(1, stop - start + 1, 4))
+                    ax.set_xticklabels(list(values.keys())[start:stop:4])
 
-                formatter = mpl.ticker.EngFormatter('s')
-                ax.get_yaxis().set_major_formatter(formatter)
+                    formatter = mpl.ticker.EngFormatter('s')
+                    ax.get_yaxis().set_major_formatter(formatter)
 
-                ax.set_title((
-                    "Confidence intervals for {0} of differences with {1} "
-                    "as baseline"
-                    ).format(
-                        name_readable, base_group
+                    ax.set_title((
+                        "Confidence intervals for {0} of differences with {1} "
+                        "as baseline"
+                        ).format(
+                            name_readable, base_group
+                        )
                     )
-                )
-                ax.set_xlabel("differences")
-                ax.set_ylabel("{0} of differences".format(name_readable))
+                    ax.set_xlabel("differences")
+                    ax.set_ylabel("{0} of differences".format(name_readable))
 
-                canvas.print_figure(
-                    join(self.output, "analysis_results",
-                         "conf_interval_plot_{0}_{1}.png".format(
-                             base_group, method
-                         )
-                    ), bbox_inches="tight")
+                    canvas.print_figure(
+                        join(
+                            self.output,
+                            "analysis_results",
+                            "conf_interval_plot_{0}_{1}.png".format(
+                                 base_group, method
+                            )
+                        ),
+                        bbox_inches="tight"
+                    )
 
         in_dir = join(out_dir,
                       "analysis_results/by-pair-sizes/slope")
