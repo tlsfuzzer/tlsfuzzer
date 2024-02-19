@@ -298,3 +298,18 @@ class TestMain(unittest.TestCase):
         mock_combine_measurements.assert_called_once_with(
             "/tmp/output", ["./input1.csv", "./input2.csv"])
         mock_combine.assert_not_called()
+
+    @unittest.skipIf(sys.version_info < (2, 7),
+                     "mock_open doesn't work correctly in mock v2.0.0")
+    @mock.patch('tlsfuzzer.combine.combine')
+    def test_measurements_filelist_call(self, mock_combine):
+        args = ["combine.py", "-i", "./filelist", "-o", "/tmp/output"]
+
+        with mock.patch("__main__.__builtins__.open",
+                mock.mock_open(read_data='./input1.csv\n./input2.csv'))\
+                as mock_open:
+            with mock.patch("sys.argv", args):
+                main()
+
+        mock_combine.assert_called_once_with(
+            "/tmp/output", ["./input1.csv", "./input2.csv"])
