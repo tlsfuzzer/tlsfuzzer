@@ -13,6 +13,7 @@ try:
 except ImportError:
     import unittest.mock as mock
 
+import io
 import sys
 
 from tlsfuzzer.combine import help_msg, get_format, read_row_based_csv, \
@@ -308,6 +309,21 @@ class TestMain(unittest.TestCase):
         with mock.patch("__main__.__builtins__.open",
                 mock.mock_open(read_data='./input1.csv\n./input2.csv'))\
                 as mock_open:
+            with mock.patch("sys.argv", args):
+                main()
+
+        mock_combine.assert_called_once_with(
+            "/tmp/output", ["./input1.csv", "./input2.csv"])
+
+    @unittest.skipIf(sys.version_info < (2, 7),
+                     "mock_open doesn't work correctly in mock v2.0.0")
+    @mock.patch('tlsfuzzer.combine.combine')
+    def test_measurements_stdin_call(self, mock_combine):
+        args = ["combine.py", "-i", "-", "-o", "/tmp/output"]
+
+        with mock.patch("sys.stdin",
+                        io.StringIO('./input1.csv\n./input2.csv'))\
+                        as stdin:
             with mock.patch("sys.argv", args):
                 main()
 
