@@ -78,10 +78,16 @@ def read_column_based_csv(file_name):
 def read_row_based_textfile(file_name):
     """
     Reads a text file, yielding line after line.
+    For file_name being '-' STDIN is processed instead.
     """
-    with open(file_name, 'r') as file_r:
-        for i in file_r:
-            yield i
+
+    if file_name == '-':
+        for line in sys.stdin:
+            yield line
+    else:
+        with open(file_name, 'r') as file_r:
+            for line in file_r:
+                yield line
 
 
 def combine(output, inputs):
