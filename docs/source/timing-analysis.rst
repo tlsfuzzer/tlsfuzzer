@@ -474,6 +474,21 @@ paths to one or more ``timing.csv`` files:
    PYTHONPATH=. python tlsfuzzer/combine.py -o out-dir \
    in_1596892760/timing.csv in_1596892742/timing.csv
 
+Alternatively, you can provide an input filelist containing one input
+file per line:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/combine.py -o out-dir \
+   -i csv_filelist
+
+Or passing the filelist through STDIN.
+
+.. code:: bash
+
+   find in_* -name 'timing.csv' --print | \
+   PYTHONPATH=. python tlsfuzzer/combine.py -o out-dir \
+   -i -
 
 The ``combine.py`` script also include the ``--long-format`` option for csv
 files that have a long format. The script is expecting a csv file, in which

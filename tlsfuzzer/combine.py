@@ -76,8 +76,11 @@ def read_column_based_csv(file_name):
 
 
 def read_row_based_textfile(file_name):
-    with open(file_name, 'r') as f:
-        for i in f:
+    """
+    Reads a text file, yielding line after line.
+    """
+    with open(file_name, 'r') as file_r:
+        for i in file_r:
             yield i
 
 
