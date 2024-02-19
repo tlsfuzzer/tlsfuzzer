@@ -486,7 +486,7 @@ Or passing the filelist through STDIN.
 
 .. code:: bash
 
-   find in_* -name 'timing.csv' --print | \
+   find in_* -name 'timing.csv' -print | \
    PYTHONPATH=. python tlsfuzzer/combine.py -o out-dir \
    -i -
 
