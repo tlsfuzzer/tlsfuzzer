@@ -307,8 +307,8 @@ class TestMain(unittest.TestCase):
         args = ["combine.py", "-i", "./filelist", "-o", "/tmp/output"]
 
         with mock.patch("__main__.__builtins__.open",
-                mock.mock_open(read_data='./input1.csv\n./input2.csv'))\
-                as mock_open:
+                        mock.mock_open(read_data=u"./input1.csv\n./input2.csv"))\
+                        as mock_open:
             with mock.patch("sys.argv", args):
                 main()
 
@@ -322,7 +322,7 @@ class TestMain(unittest.TestCase):
         args = ["combine.py", "-i", "-", "-o", "/tmp/output"]
 
         with mock.patch("sys.stdin",
-                        io.StringIO('./input1.csv\n./input2.csv'))\
+                        io.StringIO(u"./input1.csv\n./input2.csv"))\
                         as stdin:
             with mock.patch("sys.argv", args):
                 main()
