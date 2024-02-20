@@ -176,7 +176,7 @@ def main():
 
     # extend filelist provided as arguments with files from input_filelist
     if input_filelist:
-        inputs.extend(map(str.strip, read_row_based_textfile(input_filelist)))
+        inputs.extend(map(lambda obj: obj.strip(), read_row_based_textfile(input_filelist)))
 
     if not inputs:
         raise ValueError("No input files provided")
