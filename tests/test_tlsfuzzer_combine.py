@@ -307,13 +307,12 @@ class TestMain(unittest.TestCase):
         args = ["combine.py", "-i", "./filelist", "-o", "/tmp/output"]
 
         with mock.patch("__main__.__builtins__.open",
-                        mock.mock_open(read_data=u"./input1.csv\n./input2.csv"))\
-                        as mock_open:
+                return_value=io.StringIO(u"./input1.csv\n./input2.csv")):
             with mock.patch("sys.argv", args):
                 main()
 
         mock_combine.assert_called_once_with(
-            "/tmp/output", ["./input1.csv", "./input2.csv"])
+            "/tmp/output", [u"./input1.csv", u"./input2.csv"])
 
     @unittest.skipIf(sys.version_info < (2, 7),
                      "mock_open doesn't work correctly in mock v2.0.0")
@@ -322,10 +321,9 @@ class TestMain(unittest.TestCase):
         args = ["combine.py", "-i", "-", "-o", "/tmp/output"]
 
         with mock.patch("sys.stdin",
-                        io.StringIO(u"./input1.csv\n./input2.csv"))\
-                        as stdin:
+                io.StringIO(u"./input1.csv\n./input2.csv")):
             with mock.patch("sys.argv", args):
                 main()
 
         mock_combine.assert_called_once_with(
-            "/tmp/output", ["./input1.csv", "./input2.csv"])
+            "/tmp/output", [u"./input1.csv", u"./input2.csv"])
