@@ -16,4 +16,5 @@ Submodules
    tlsfuzzer.utils.progress_report
    tlsfuzzer.utils.shared_numpy
    tlsfuzzer.utils.stats
+   tlsfuzzer.utils.summer
 
