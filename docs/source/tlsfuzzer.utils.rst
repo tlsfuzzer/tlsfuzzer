@@ -15,4 +15,5 @@ Submodules
    tlsfuzzer.utils.ordered_dict
    tlsfuzzer.utils.progress_report
    tlsfuzzer.utils.stats
+   tlsfuzzer.utils.summer
 
