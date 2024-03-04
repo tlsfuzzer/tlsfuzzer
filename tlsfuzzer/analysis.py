@@ -33,6 +33,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.utils.progress_report import progress_report
+from tlsfuzzer.utils.stats import skillings_mack_test
 from tlsfuzzer.messages import div_ceil
 
 
@@ -153,11 +154,8 @@ def main():
                             multithreaded_graph, verbose, clock_freq, alpha,
                             workers, delay, carriage_return, bit_size_analysis,
                             measurements_filename, skip_sanity)
-        if bit_size_analysis:
-            ret = analysis.analyze_bit_sizes()
-        else:
-            ret = analysis.generate_report()
 
+        ret = analysis.generate_report(bit_size=bit_size_analysis)
         return ret
     else:
         raise ValueError("Missing -o option!")
@@ -193,6 +191,19 @@ class Analysis(object):
         if not bit_size_analysis:
             data = self.load_data()
             self.class_names = list(data)
+        else:
+            self._bit_size_sign_test = {}
+            self._bit_size_wilcoxon_test = {}
+            self._bit_size_bootstraping = {}
+
+            self._bit_size_methods = {
+                "mean": "Mean",
+                "median": "Median",
+                "trim_mean_05": "Trimmed mean (5%)",
+                "trim_mean_25": "Trimmed mean (25%)",
+                "trim_mean_45": "Trimmed mean (45%)",
+                "trimean": "Trimean"
+            }
 
     def _convert_to_binary(self):
         timing_bin_path = join(self.output, "timing.bin")
@@ -1409,64 +1420,337 @@ class Analysis(object):
         if errors:
             raise Exception(str(errors))
 
-    def generate_report(self):
+    def _long_format_to_binary(self):
+        """Turns csv with long format data to binary"""
+        measurements_csv_path = join(self.output, self.measurements_filename)
+        measurements_bin_path = join(
+            self.output,
+            self._remove_suffix(self.measurements_filename, ".csv") + ".bin"
+        )
+        measurements_bin_shape_path = measurements_bin_path + ".shape"
+
+        if os.path.isfile(measurements_bin_path) and \
+                os.path.isfile(measurements_bin_shape_path) and \
+                os.path.isfile(measurements_csv_path) and \
+                os.path.getmtime(measurements_csv_path) < \
+                os.path.getmtime(measurements_bin_path):
+            return
+
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Converting the data from text to binary format")
+
+        csv_reader = pd.read_csv(measurements_csv_path,
+                                 dtype=[('block', np.int64),
+                                        ('group', np.int32),
+                                        ('value', np.float64)],
+                                 names=['block', 'group', 'value'],
+                                 chunksize=1024*1024*8,
+                                 header=None,
+                                 iterator=True)
+
+        row_written = 0
+
+        chunk = next(csv_reader)
+        measurements_bin = np.memmap(measurements_bin_path,
+                                     dtype=[('block', np.dtype('i8')),
+                                            ('group', np.dtype('i2')),
+                                            ('value', np.dtype('f8'))],
+                                     mode="w+",
+                                     shape=(len(chunk.index), 1),
+                                     order="C")
+
+        measurements_bin['block'] = chunk.iloc[:, 0:1]
+        measurements_bin['group'] = chunk.iloc[:, 1:2]
+        measurements_bin['value'] = chunk.iloc[:, 2:3]
+
+        row_written += len(chunk.index)
+
+        del measurements_bin
+
+        for chunk in csv_reader:
+            measurements_bin = np.memmap(measurements_bin_path,
+                                         dtype=[('block', np.dtype('i8')),
+                                                ('group', np.dtype('i2')),
+                                                ('value', np.dtype('f8'))],
+                                         mode="r+",
+                                         shape=(row_written + len(chunk.index),
+                                                1),
+                                         order="C")
+            measurements_bin['block'][row_written:, :] = chunk.iloc[:, 0:1]
+            measurements_bin['group'][row_written:, :] = chunk.iloc[:, 1:2]
+            measurements_bin['value'][row_written:, :] = chunk.iloc[:, 2:3]
+            row_written += len(chunk.index)
+            del measurements_bin
+
+        with open(measurements_bin_shape_path, "w") as shape_f:
+            shape_f.write("{0},3\n".format(row_written))
+
+        if self.verbose:
+            print("[i] Conversion to binary format done in {:.3}s".format(
+                time.time() - start_time))
+
+    def _remove_suffix(self, string, suffix):
+        '''
+        Removes the chosen suffix of from the string if exists otherwise does
+        nothing to the original string
+        '''
+        new_string = string
+
+        try:
+            new_string = string.removesuffix(suffix)
+        except AttributeError:
+            suffix_len = len(suffix)
+            if string[-suffix_len:] == suffix_len:
+                new_string = string[:-suffix_len]
+
+        return new_string
+
+    def skillings_mack_test(self):
+        """
+        Calculate the p-value of the Skillings-Mack test for the Hamming weight
+        data.
+        """
+        self._long_format_to_binary()
+
+        measurements_bin_path = join(
+            self.output,
+            self._remove_suffix(self.measurements_filename, ".csv") + ".bin"
+        )
+
+        if not os.path.isfile(measurements_bin_path):
+            raise ValueError("Conversion of " + self.measurements_filename +
+                             " to binary was not successfull.")
+
+        data = np.memmap(measurements_bin_path,
+                         dtype=[('block', np.dtype('i8')),
+                                ('group', np.dtype('i2')),
+                                ('value', np.dtype('f8'))],
+                         mode="r")
+
+        try:
+            blocks = data['block']
+            groups = data['group']
+            values = data['value']
+
+            status = None
+            if self.verbose:
+                print("[i] Calculating Skillings-Mack test")
+                start_time = time.time()
+                status = [0, len(blocks), Event()]
+                kwargs = dict()
+                kwargs['unit'] = " obs"
+                kwargs['delay'] = self.delay
+                kwargs['end'] = self.carriage_return
+                progress = Thread(target=progress_report, args=(status,),
+                                  kwargs=kwargs)
+                progress.start()
+
+            try:
+                sm_test = skillings_mack_test(values, groups, blocks,
+                                              # because the blocks are sorted,
+                                              # and the first instance of the
+                                              # biggest k is the base value,
+                                              # while the second instance is
+                                              # the sanity check, in case of
+                                              # duplicates we want to use first
+                                              # value
+                                              "first",
+                                              status=status)
+            finally:
+                if self.verbose:
+                    print("[i] Skillings-Mack test done in {:.3}s".format(
+                        time.time() - start_time))
+                    status[2].set()
+                    progress.join()
+                    print()
+
+        finally:
+            del data
+
+        return sm_test.p_value
+
+    def _bit_size_come_to_verdict(self, analysis_ret_val,
+                                  skillings_mack_pvalue):
+        """Comes to a verdict if implementation is vulnerable"""
+        explanation = None
+        difference = 1
+
+        if analysis_ret_val != 0:
+            explanation = ("Definite side-channel detected, "
+                           "implementation is VULNERABLE.")
+        elif skillings_mack_pvalue < 1e-9:
+            explanation = ("Definite side-channel detected, "
+                           "implementation is VULNERABLE.")
+        elif skillings_mack_pvalue < 1e-5:
+            explanation = ("Results suggesting side-channel found, "
+                           "collecting more data necessary for confirmation.")
+        else:
+            k_sizes = list(self._bit_size_bootstraping.keys())
+            k_sizes.sort(reverse=True)
+            top_k_sizes = k_sizes[1:5]
+
+            larger_ci = max(
+                self._bit_size_bootstraping[k_size][method][1]
+                for k_size in top_k_sizes
+                for method in self._bit_size_bootstraping[k_size]
+            )
+
+            if larger_ci < 1e-10:
+                explanation = ("Implementation verified as not "
+                               "providing a timing side-channel signal.")
+                difference = 0
+            elif larger_ci < 1e-9:
+                explanation = ("Implementation most likely not "
+                               "providing a timing side-channel signal.")
+                difference = 0
+            elif larger_ci < 1e-2:
+                explanation = ("Large confidence intervals detected, "
+                               "collecting more data necessary. Side channel "
+                               "leakage smaller than {0:.2e}s is possible."
+                               .format(larger_ci))
+            else:
+                explanation = ("Very large confidence intervals detected. "
+                               "Incorrect or missing --clock-frequency "
+                               "option?")
+
+        return difference, explanation
+
+    def _bit_size_write_summary(self, verdict, skillings_mack_pvalue):
+        """Wrights summary to the report.txt"""
+        all_sign_test_values = list(self._bit_size_sign_test.values())
+        all_wilcoxon_values = list(self._bit_size_wilcoxon_test.values())
+        with open(join(self.output, "report.txt"), "w") as fp:
+            fp.write(
+                "Skilling-Mack test p-value: {0:.6e}\n"
+                    .format(skillings_mack_pvalue) +
+                "Sign test p-values (min, average, max): " +
+                "{0:.2e}, {1:.2e}, {2:.2e}\n"
+                    .format(
+                        min(all_sign_test_values),
+                        np.average(all_sign_test_values),
+                        max(all_sign_test_values),
+                    ) +
+                "Wilcoxon test p-values (min, average, max): " +
+                "{0:.2e}, {1:.2e}, {2:.2e}\n"
+                    .format(
+                        min(all_wilcoxon_values),
+                        np.average(all_wilcoxon_values),
+                        max(all_wilcoxon_values),
+                    ) +
+                verdict + "\n\n" + ("-" * 88) + "\n" +
+                "| size | Sign test | Wilcoxon test " +
+                "|    {0}    |    {1}   |\n"
+                    .format(
+                        self._bit_size_methods["trim_mean_05"],
+                        self._bit_size_methods["trim_mean_45"]
+                    )
+            )
+
+            for k_size in self._bit_size_bootstraping:
+                bootstraping_of_size = self._bit_size_bootstraping[k_size]
+
+                if bootstraping_of_size["trim_mean_05"][0] < 0:
+                    trim_mean_05 = "{0:.3e} (±{1:.2e}s)".format(
+                        bootstraping_of_size["trim_mean_05"][0],
+                        bootstraping_of_size["trim_mean_05"][1]
+                    )
+                else:
+                    trim_mean_05 = " {0:.3e} (±{1:.2e}s)".format(
+                        bootstraping_of_size["trim_mean_05"][0],
+                        bootstraping_of_size["trim_mean_05"][1]
+                    )
+
+                if bootstraping_of_size["trim_mean_45"][0] < 0:
+                    trim_mean_45 = "{0:.3e} (±{1:.2e}s)".format(
+                        bootstraping_of_size["trim_mean_45"][0],
+                        bootstraping_of_size["trim_mean_45"][1]
+                    )
+                else:
+                    trim_mean_45 = " {0:.3e} (±{1:.2e}s)".format(
+                        bootstraping_of_size["trim_mean_45"][0],
+                        bootstraping_of_size["trim_mean_45"][1]
+                    )
+
+                fp.write(
+                    ("|  {0} |  {1:.2e} |    {2:.2e}   | {3} | {4} |\n")
+                    .format(
+                        k_size, self._bit_size_sign_test[k_size],
+                        self._bit_size_wilcoxon_test[k_size],
+                        trim_mean_05, trim_mean_45
+                    )
+                )
+
+            fp.write(("-" * 88) + "\n")
+
+    def generate_report(self, bit_size=False):
         """
         Compiles a report consisting of statistical tests and plots.
 
         :return: int 0 if no difference was detected, 1 otherwise
         """
-        # the Friedman test is fairly long running, non-multithreadable
-        # and with fairly limited memory use, so run it in background
-        # unconditionally
-        friedman_result = mp.Queue()
-        friedman_process = mp.Process(target=self.friedman_test,
-                                      args=(friedman_result, ))
-        friedman_process.start()
-        # plot in separate processes so that the matplotlib memory leaks are
-        # not cumulative, see https://stackoverflow.com/q/28516828/462370
-        processes = []
-        processes.append(
-            self._start_thread(self.box_plot,
-                               "Box plot graph generation failed"))
-        processes.append(
-            self._start_thread(self.scatter_plot,
-                               "Scatter plot graph generation failed"))
-        processes.append(
-            self._start_thread(self.ecdf_plot,
-                               "ECDF graph generation failed"))
-        processes.append(
-            self._start_thread(self.conf_interval_plot,
-                               "Conf interval graph generation failed"))
-        processes.append(
-            self._start_thread(self.diff_ecdf_plot,
-                               "Generation of ECDF graph of differences "
-                               "failed"))
-        processes.append(
-            self._start_thread(self.diff_scatter_plot,
-                               "Generation of scatter plot of differences "
-                               "failed"))
+        if bit_size:
+            skillings_mack_pvalue = self.skillings_mack_test()
+            ret_val = self.analyze_bit_sizes()
+            difference, verdict = self._bit_size_come_to_verdict(
+                ret_val, skillings_mack_pvalue
+            )
+            self._bit_size_write_summary(verdict, skillings_mack_pvalue)
 
-        self._write_legend()
+        else:
+            # the Friedman test is fairly long running, non-multithreadable
+            # and with fairly limited memory use, so run it in background
+            # unconditionally
+            friedman_result = mp.Queue()
+            friedman_process = mp.Process(target=self.friedman_test,
+                                          args=(friedman_result, ))
+            friedman_process.start()
+            # plot in separate processes so that the matplotlib memory leaks
+            # are not cumulative, see
+            # https://stackoverflow.com/q/28516828/462370
+            processes = []
+            processes.append(
+                self._start_thread(self.box_plot,
+                                   "Box plot graph generation failed"))
+            processes.append(
+                self._start_thread(self.scatter_plot,
+                                   "Scatter plot graph generation failed"))
+            processes.append(
+                self._start_thread(self.ecdf_plot,
+                                   "ECDF graph generation failed"))
+            processes.append(
+                self._start_thread(self.conf_interval_plot,
+                                   "Conf interval graph generation failed"))
+            processes.append(
+                self._start_thread(self.diff_ecdf_plot,
+                                   "Generation of ECDF graph of differences "
+                                   "failed"))
+            processes.append(
+                self._start_thread(self.diff_scatter_plot,
+                                   "Generation of scatter plot of differences "
+                                   "failed"))
 
-        self._write_sample_stats()
+            self._write_legend()
 
-        difference, p_vals, sign_p_vals, worst_pair = \
-            self._write_individual_results()
+            self._write_sample_stats()
 
-        worst_pair_conf_int = self.calc_diff_conf_int(worst_pair)
+            difference, p_vals, sign_p_vals, worst_pair = \
+                self._write_individual_results()
 
-        self.graph_worst_pair(worst_pair)
+            worst_pair_conf_int = self.calc_diff_conf_int(worst_pair)
 
-        friedman_process.join()
+            self.graph_worst_pair(worst_pair)
 
-        difference = self._write_summary(difference, p_vals, sign_p_vals,
-                                         worst_pair,
-                                         friedman_result.get(),
-                                         worst_pair_conf_int)
+            friedman_process.join()
 
-        friedman_result.close()
-        friedman_result.join_thread()
-        self._stop_all_threads(processes)
+            difference = self._write_summary(difference, p_vals, sign_p_vals,
+                                             worst_pair,
+                                             friedman_result.get(),
+                                             worst_pair_conf_int)
+
+            friedman_result.close()
+            friedman_result.join_thread()
+            self._stop_all_threads(processes)
 
         return difference
 
@@ -1519,7 +1803,6 @@ class Analysis(object):
         analyzed one at a time.
         """
         k_size_files = {}
-        k_size_buffers = {}
 
         if self.verbose:
             print("Creating a dir for each bit size...")
@@ -1558,8 +1841,14 @@ class Analysis(object):
                         join(k_folder_path, "timing.csv"), 'w',
                         encoding="utf-8"
                     )
-
-                    k_size_buffers[k_size] = []
+                    if k_size == max_k_size:
+                        k_size_files[k_size].write(
+                            "{0},{0}-sanity\n".format(max_k_size)
+                        )
+                    else:
+                        k_size_files[k_size].write(
+                            "{0},{1}\n".format(max_k_size, k_size)
+                        )
 
                 k_size_files[k_size].write(
                     "{0},{1}\n".format(data[0], data[1])
@@ -1706,12 +1995,13 @@ class Analysis(object):
         output_files = {}
 
         if self.verbose:
-            print('Starting bit size analysis.')
+            print('[i] Starting bit size analysis')
 
         if os.path.exists(join(self.output, "analysis_results")):
             shutil.rmtree(join(self.output, "analysis_results"))
 
         k_sizes = self.create_k_specific_dirs()
+        alpha_with_correction = (self.alpha / len(k_sizes))
         max_k_size = k_sizes[0]
 
         for test in tests_to_perfom:
@@ -1762,8 +2052,9 @@ class Analysis(object):
                     "K size of {0}: {1} ({2} out of {3} passed)\n"\
                         .format(k_size, pvalue, passed, total)
                 )
+                self._bit_size_sign_test[k_size] = pvalue
 
-                if pvalue < (self.alpha / len(k_sizes)):
+                if pvalue < alpha_with_correction:
                     ret_val = 1
             else:
                 output_files['sign_test'].write(
@@ -1787,9 +2078,13 @@ class Analysis(object):
 
             # Wilcoxon test
             results = self.wilcoxon_test()
+            pvalue = results[(0, 1)]
             output_files['wilcoxon_test'].write(
-                "K size of {0}: {1}\n".format(k_size, results[(0, 1)])
+                "K size of {0}: {1}\n".format(k_size, pvalue)
             )
+            self._bit_size_wilcoxon_test[k_size] = pvalue
+            if pvalue < alpha_with_correction:
+                ret_val = 1
 
             # Creating graphs
             self.conf_interval_plot()
@@ -1806,15 +2101,6 @@ class Analysis(object):
                     )
 
             # Bootstrap test
-            methods = {
-                "mean": "Mean",
-                "median": "Median",
-                "trim_mean_05": "Trimmed mean (5%)",
-                "trim_mean_25": "Trimmed mean (25%)",
-                "trim_mean_45": "Trimmed mean (45%)",
-                "trimean": "Trimean"
-            }
-
             if k_size == max_k_size:
                 output_files['bootstrap_test'].write(
                     "For K size {0} (sanity) ({1} samples):\n".format(
@@ -1838,7 +2124,8 @@ class Analysis(object):
                 if self.verbose:
                     print("[i] Reusing bootstraps to calculate 95% CI")
 
-                for method, human_readable in methods.items():
+                bootstraping_results = {}
+                for method, human_readable in self._bit_size_methods.items():
                     results = []
                     with open(join(
                             self.output, "bootstrapped_{0}.csv".format(method)
@@ -1856,13 +2143,20 @@ class Analysis(object):
                                 calc_quant[1], (calc_quant[1] - calc_quant[0])
                             )
                     )
+                    if method in ["trim_mean_05", "trim_mean_45"]:
+                        bootstraping_results[method] = (
+                            exact_values[method], calc_quant[1] - calc_quant[0]
+                        )
+                if len(self._bit_size_bootstraping) < 10:
+                    self._bit_size_bootstraping[k_size] = bootstraping_results
+
                 output_files['bootstrap_test'].write("\n")
             else:
                 if self.verbose:
                     print("[i] Not enough data to perform reliable "
                           "bootstraping ({0} observations)".format(samples))
 
-                for method, human_readable in methods.items():
+                for method, human_readable in self._bit_size_methods.items():
                     output_files['bootstrap_test'].write(
                         "{0} of differences: {1}s\n".format(
                             human_readable, exact_values[method]
@@ -1877,8 +2171,12 @@ class Analysis(object):
         self.class_names = []
 
         if self.verbose:
-            print("Create conf value plot for all K sizes...")
+            print("[i] Create conf value plot for all K sizes")
+            start_time = time.time()
         self.conf_plot_for_all_k(k_sizes)
+        if self.verbose:
+            print("[i] Plot for all K sizes created in {:.3}s".format(
+                time.time()-start_time))
 
         return ret_val
 
