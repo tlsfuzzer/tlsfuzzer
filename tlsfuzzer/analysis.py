@@ -51,38 +51,50 @@ _DATA = None
 def help_msg():
     """Print help message"""
     print("""Usage: analysis [-o output]
- -o output      Directory where to place results (required)
-                and where timing.csv or measurements.csv is located
- --no-ecdf-plot Don't create the ecdf_plot.png file
+ -o output         Directory where to place results (required)
+                   and where timing.csv or measurements.csv is located
+ --no-ecdf-plot    Don't create the ecdf_plot.png file
  --no-scatter-plot Don't create the scatter_plot.png file
  --no-conf-interval-plot Don't create the conf_interval_plot.png file
  --multithreaded-graph Create graph and calculate statistical tests at the
-                same time. Note: this increases memory usage of analysis by
-                a factor of 8.
+                   same time. Note: this increases memory usage of analysis by
+                   a factor of 8.
  --clock-frequency freq Assume that the times in the file are not specified in
-                seconds but rather in clock cycles of a clock running at
-                frequency 'freq' specified in MHz. Use when the clock source
-                are the raw reads from the Time Stamp Counter register or
-                similar.
- --alpha num    Acceptable probability of a false positive. Default: 1e-5.
- --verbose      Print the current task
- --workers num  Number of worker processes to use for paralelizable
-                computation. More workers will finish analysis faster, but
-                will require more memory to do so. By default: number of
-                threads available on the system (`os.cpu_count()`).
- --status-delay num How often to print the status line for long-running tasks
-                in seconds.
- --status-newline Use newline for printing status line, not carriage return,
-                works better with output redirection to file.
- --bit-size     Specifies that the program will analyze bit-size measurement
-                data from a measurements.csv file. A measurements.csv file
-                is expected as input and it should be in long-format
-                ("row id,column id,value").
- --measurements Specifies the measurements file name that should be analyzed.
-                The file must be present in the output dir. This flag only
-                works in combination the --bit-size flag.
- --skip-sanity  Skip sanity measurements from analysis (if any).
- --help         Display this message""")
+                   seconds but rather in clock cycles of a clock running at
+                   frequency 'freq' specified in MHz. Use when the clock source
+                   are the raw reads from the Time Stamp Counter register or
+                   similar.
+ --alpha num       Acceptable probability of a false positive. Default: 1e-5.
+ --verbose         Print the current task
+ --workers num     Number of worker processes to use for paralelizable
+                   computation. More workers will finish analysis faster, but
+                   will require more memory to do so. By default: number of
+                   threads available on the system (`os.cpu_count()`).
+ --status-delay    num How often to print the status line for long-running
+                   tasks in seconds.
+ --status-newline  Use newline for printing status line, not carriage return,
+                   works better with output redirection to file.
+ --bit-size        Specifies that the program will analyze bit-size measurement
+                   data from a measurements.csv file. A measurements.csv file
+                   is expected as input and it should be in long-format
+                   ("row id,column id,value").
+ --no-smart-analysis By default when analysing bit size the script will compute
+                   how much data are needed to calculate small confidence
+                   interval to the 4th bit size and use only this number of
+                   data (if available). This option disables this feature and
+                   uses all the available data.
+ --bit-size-desired-ci num The desired amount of ns (or lower) that the CIs
+                   should have after the analysis up to recall size option.
+                   Used only with smart analysis. Default 1 ns.
+ --bit-recall-size num The <num> bigger bit size will be used to determine how
+                   many samples will be used to get the desired CI from the
+                   analysis. Used only with smart analysis. Default 4.
+ --measurements    Specifies the measurements file name that should be
+                   analyzed.
+                   The file must be present in the output dir. This flag only
+                   works in combination the --bit-size flag.
+ --skip-sanity     Skip sanity measurements from analysis (if any).
+ --help            Display this message""")
 
 
 def main():
@@ -99,6 +111,9 @@ def main():
     delay = None
     carriage_return = None
     bit_size_analysis = False
+    smart_analysis = True
+    bit_size_desire_ci = 1e-9
+    bit_size_recall_size = 4
     measurements_filename = "measurements.csv"
     skip_sanity = False
     argv = sys.argv[1:]
@@ -112,6 +127,9 @@ def main():
                                 "status-delay=",
                                 "status-newline",
                                 "bit-size",
+                                "no-smart-analysis",
+                                "bit-size-desire-ci=",
+                                "bit-recall-size=",
                                 "measurements=",
                                 "skip-sanity",
                                 "verbose"])
@@ -144,6 +162,12 @@ def main():
             carriage_return = '\n'
         elif opt == "--bit-size":
             bit_size_analysis = True
+        elif opt == "--no-smart-analysis":
+            smart_analysis = False
+        elif opt == "--bit-size-desire-ci":
+            bit_size_desire_ci = int(arg) * 1e-9
+        elif opt == "--bit-recall-size":
+            bit_size_recall_size = int(arg)
         elif opt == "--measurements":
             measurements_filename = arg
         elif opt == "--skip-sanity":
@@ -153,7 +177,9 @@ def main():
         analysis = Analysis(output, ecdf_plot, scatter_plot, conf_int_plot,
                             multithreaded_graph, verbose, clock_freq, alpha,
                             workers, delay, carriage_return, bit_size_analysis,
-                            measurements_filename, skip_sanity)
+                            smart_analysis, bit_size_desire_ci,
+                            bit_size_recall_size, measurements_filename,
+                            skip_sanity)
 
         ret = analysis.generate_report(bit_size=bit_size_analysis)
         return ret
@@ -168,7 +194,8 @@ class Analysis(object):
                  draw_conf_interval_plot=True, multithreaded_graph=False,
                  verbose=False, clock_frequency=None, alpha=None,
                  workers=None, delay=None, carriage_return=None,
-                 bit_size_analysis=False,
+                 bit_size_analysis=False, smart_bit_size_analysis=True,
+                 bit_size_desire_ci=1e-9, bit_size_recall_size=4,
                  measurements_filename="measurements.csv", skip_sanity=False):
         self.verbose = verbose
         self.output = output
@@ -187,6 +214,15 @@ class Analysis(object):
         self.carriage_return = carriage_return
         self.measurements_filename = measurements_filename
         self.skip_sanity = skip_sanity
+
+        if bit_size_analysis and smart_bit_size_analysis:
+            self._bit_size_data_limit = 10000  # staring amount of samples
+            self._bit_size_data_used = None
+            self.bit_size_desire_ci = bit_size_desire_ci
+            self.bit_size_recall_size = \
+                bit_size_recall_size if bit_size_recall_size >= 0 else 1
+        else:
+            self._bit_size_data_limit = None
 
         if not bit_size_analysis:
             data = self.load_data()
@@ -301,6 +337,15 @@ class Analysis(object):
                                mode="r", shape=(nrow, ncol), order="C")
 
         data = pd.DataFrame(timing_bin, columns=columns, copy=False)
+
+        if self._bit_size_data_limit:
+            if not self._bit_size_data_used:
+                len_data = len(data)
+                self._bit_size_data_used = min(
+                    len_data, self._bit_size_data_limit
+                )
+            data = data.iloc[:self._bit_size_data_limit]
+
         return data
 
     @staticmethod
@@ -1561,6 +1606,8 @@ class Analysis(object):
                 if self.verbose:
                     print("[i] Skillings-Mack test done in {:.3}s".format(
                         time.time() - start_time))
+                    print("[i] Skillings-Mack p-value: {0:.6e}".format(
+                        sm_test.p_value))
                     status[2].set()
                     progress.join()
                     print()
@@ -1620,7 +1667,7 @@ class Analysis(object):
         """Wrights summary to the report.txt"""
         all_sign_test_values = list(self._bit_size_sign_test.values())
         all_wilcoxon_values = list(self._bit_size_wilcoxon_test.values())
-        with open(join(self.output, "report.txt"), "w") as fp:
+        with open(join(self.output, "analysis_results/report.txt"), "w") as fp:
             fp.write(
                 "Skilling-Mack test p-value: {0:.6e}\n"
                     .format(skillings_mack_pvalue) +
@@ -1976,6 +2023,48 @@ class Analysis(object):
 
         return ret_val
 
+    def _figure_out_analysis_data_size(self, k_sizes):
+        pair = TestPair(0, 1)
+        old_output = self.output
+
+        if self.bit_size_recall_size > len(k_sizes):
+            self.bit_size_recall_size = min(len(k_sizes), 4)
+
+        k_size = k_sizes[self.bit_size_recall_size]
+        self.output = join(
+            self.output, "analysis_results/k-by-size/{0}".format(k_size)
+        )
+
+        recall_results = self.calc_diff_conf_int(pair)
+        all_recall_cis = [
+            recall_results[method][2] - recall_results[method][0]
+            for method in recall_results
+        ]
+        smaller_recall_ci = min(x for x in all_recall_cis if x > 0)
+        magnitude_diff = smaller_recall_ci / self.bit_size_desire_ci
+        self._bit_size_data_limit = round(
+            (magnitude_diff ** 2) * self._bit_size_data_used
+        )
+
+        if self.verbose:
+            if self.bit_size_recall_size == 1:
+                size_text = "1st"
+            elif self.bit_size_recall_size == 2:
+                size_text = "2nd"
+            elif self.bit_size_recall_size == 3:
+                size_text = "3rd"
+            else:
+                size_text = "{0}th".format(self.bit_size_recall_size)
+
+            print(
+                "[i] Calculated that {0:,} samples are needed for "
+                    .format(self._bit_size_data_limit) +
+                "{0:.3}s CI in the {1} larger bit size."
+                    .format(self.bit_size_desire_ci, size_text)
+            )
+
+        self.output = old_output
+
     def analyze_bit_sizes(self):
         """
         Analyses K bit-sizes and creates the plots and the test result files
@@ -2003,6 +2092,9 @@ class Analysis(object):
         k_sizes = self.create_k_specific_dirs()
         alpha_with_correction = (self.alpha / len(k_sizes))
         max_k_size = k_sizes[0]
+
+        if self._bit_size_data_limit:
+            self._figure_out_analysis_data_size(k_sizes)
 
         for test in tests_to_perfom:
             output_files[test] = open(
