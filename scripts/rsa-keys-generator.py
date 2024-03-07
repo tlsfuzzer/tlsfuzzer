@@ -19,11 +19,13 @@ version = 1
 def help_msg():
     print("Usage: {0} -o file.pem [-c int] [-s int]".format(sys.argv[0]))
     print("""
- -o file   File name to which to append newly generated keys
- -c int    Number of keys to generate (100000 by default)
- -s int    Bit size of the generated RSA keys (2048 by default)
- --verbose Verbose output, progress reporting
- --help    Print this message
+ -o file       File name to which to append newly generated keys
+ -c int        Number of keys to generate (100000 by default)
+ -s int        Bit size of the generated RSA keys (2048 by default)
+ --workers int Number of worker processes to run in parallel (equal to numer
+               of CPUs in the system by default)
+ --verbose     Verbose output, progress reporting
+ --help        Print this message
 """)
 
 
@@ -65,10 +67,11 @@ def main():
     out_name = None
     size = 2048
     verbose = False
+    workers = None
 
     argv = sys.argv[1:]
 
-    opts, args = getopt.getopt(argv, "o:c:s:", ["verbose", "help"])
+    opts, args = getopt.getopt(argv, "o:c:s:", ["verbose", "help", "workers="])
     for opt, arg in opts:
         if opt == "-o":
             out_name = arg
@@ -78,6 +81,8 @@ def main():
             size = int(arg)
         elif opt == "--verbose":
             verbose = True
+        elif opt == "--workers":
+            workers = int(arg)
         elif opt == "--help":
             help_msg()
             sys.exit(0)
@@ -104,7 +109,7 @@ def main():
     try:
         with open(out_name, "ab") as out_file:
 
-            with Pool() as pool:
+            with Pool(workers) as pool:
                 keys = pool.imap_unordered(pem_rsa_key, repeat(size, count),
                                            10)
 
