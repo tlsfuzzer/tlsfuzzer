@@ -247,7 +247,7 @@ def key_share_gen(group, version=(3, 4)):
     """
     kex = kex_for_group(group, version)
     private = kex.get_random_private_key()
-    share = kex.calc_public_value(private)
+    share = bytearray(kex.calc_public_value(private))
     return KeyShareEntry().create(group, share, private)
 
 
