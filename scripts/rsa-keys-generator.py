@@ -68,10 +68,14 @@ def main():
     size = 2048
     verbose = False
     workers = None
+    endline = '\r'
+    delay = 2.0
 
     argv = sys.argv[1:]
 
-    opts, args = getopt.getopt(argv, "o:c:s:", ["verbose", "help", "workers="])
+    opts, args = getopt.getopt(argv, "o:c:s:", ["verbose", "help", "workers=",
+                                                "status-newline",
+                                                "status-delay="])
     for opt, arg in opts:
         if opt == "-o":
             out_name = arg
@@ -83,6 +87,10 @@ def main():
             verbose = True
         elif opt == "--workers":
             workers = int(arg)
+        elif opt == "--status-newline":
+            endline = '\n'
+        elif opt == "--status-delay":
+            delay = float(arg)
         elif opt == "--help":
             help_msg()
             sys.exit(0)
@@ -102,6 +110,8 @@ def main():
     if verbose:
         status = [0, count, Event()]
         kwargs = {"unit": " keygen"}
+        kwargs['end'] = endline
+        kwargs['delay'] = delay
         progress = Thread(target=progress_report, args=(status,),
                           kwargs=kwargs)
         progress.start()
