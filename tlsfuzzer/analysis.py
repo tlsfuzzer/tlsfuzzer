@@ -224,6 +224,7 @@ class Analysis(object):
                 bit_recognition_size if bit_recognition_size >= 0 else 1
         else:
             self._bit_size_data_limit = None
+            self._bit_size_data_used = None
 
         if not bit_size_analysis:
             data = self.load_data()
@@ -346,6 +347,9 @@ class Analysis(object):
                     len_data, self._bit_size_data_limit
                 )
             data = data.iloc[:self._bit_size_data_limit]
+        else:
+            if not self._bit_size_data_used:
+                self._bit_size_data_used = len(data)
 
         return data
 
@@ -1638,10 +1642,20 @@ class Analysis(object):
             k_sizes.sort(reverse=True)
             top_k_sizes = k_sizes[1:5]
 
-            larger_ci = max(
-                self._bit_size_bootstraping[k_size][method][1]
-                for k_size in top_k_sizes
-                for method in self._bit_size_bootstraping[k_size]
+            if len(top_k_sizes) == 0:
+                explanation = "Not enough bit sizes detected."
+                difference = 2
+                return difference, explanation
+
+            # We want the larger_ci to be the larger one in top bit sizes in
+            # a method but the smallest one between methods. If one of the
+            # tested methods shows that we have small enough CIs, we can use
+            # use this one.
+            larger_ci = min(
+                max(
+                    self._bit_size_bootstraping[k_size][method][1]
+                    for k_size in top_k_sizes
+                ) for method in self._bit_size_bootstraping[top_k_sizes[0]]
             )
 
             if larger_ci < 1e-10:
@@ -1669,6 +1683,7 @@ class Analysis(object):
         all_sign_test_values = list(self._bit_size_sign_test.values())
         all_wilcoxon_values = list(self._bit_size_wilcoxon_test.values())
         with open(join(self.output, "analysis_results/report.txt"), "w") as fp:
+            print(self._bit_size_data_used)
             fp.write(
                 "Skilling-Mack test p-value: {0:.6e}\n"
                     .format(skillings_mack_pvalue) +
@@ -1686,6 +1701,8 @@ class Analysis(object):
                         np.average(all_wilcoxon_values),
                         max(all_wilcoxon_values),
                     ) +
+                "Used {0:,} data observations for results\n"
+                    .format(self._bit_size_data_used) +
                 verdict + "\n\n" + ("-" * 88) + "\n" +
                 "| size | Sign test | Wilcoxon test " +
                 "|    {0}    |    {1}   |\n"
