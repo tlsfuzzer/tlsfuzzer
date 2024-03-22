@@ -975,17 +975,40 @@ class Extract:
         times_iter = self._get_time_from_file()
 
         if not exists(k_map_filename):
-            with open(k_map_filename, "w") as fp:
-                with mp.Pool(self.workers) as pool:
-                    k_iter = pool.imap(
-                        self._ecdsa_calculate_k, izip(sigs_iter, hashed_iter),
-                        10000
-                    )
+            if self.verbose:
+                print("[i] Creating ecdsa-k-time-map.csv file...")
 
-                    fp.write("k_value,time\n")
+            progress = None
+            status = [0]
+            if self.verbose and self._total_measurements:
+                status = [0, self._total_measurements, Event()]
+                kwargs = {}
+                kwargs['unit'] = ' signatures'
+                kwargs['prefix'] = 'decimal'
+                kwargs['delay'] = self.delay
+                kwargs['end'] = self.carriage_return
+                progress = Thread(target=progress_report, args=(status,),
+                                kwargs=kwargs)
+                progress.start()
 
-                    for k_value, time_value in izip(k_iter, times_iter):
-                        fp.write("{0},{1}\n".format(k_value, time_value))
+            try:
+                with open(k_map_filename, "w") as fp:
+                    with mp.Pool(self.workers) as pool:
+                        k_iter = pool.imap(
+                            self._ecdsa_calculate_k,
+                            izip(sigs_iter, hashed_iter), 10000
+                        )
+
+                        fp.write("k_value,time\n")
+
+                        for k_value, time_value in izip(k_iter, times_iter):
+                            fp.write("{0},{1}\n".format(k_value, time_value))
+                            status[0] += 1
+            finally:
+                if progress:
+                    status[2].set()
+                    progress.join()
+                    print()
 
         k_iter = self._get_data_from_csv_file(
             k_map_filename, col_name="k_value", convert_to_int=True
@@ -1001,7 +1024,8 @@ class Extract:
             k_wrap_iter = self._convert_to_hamming_weight(k_iter)
         else:
             raise ValueError(
-                "Iterator return must be k-size, invert-k-size or hamming-weight."
+                "Iterator return must be "
+                "k-size, invert-k-size or hamming-weight."
             )
 
         return k_wrap_iter
@@ -1142,8 +1166,8 @@ class Extract:
         remove(temp_file_path)
 
         if self.verbose:
-            print('Added {0:,} {1}-sized sanity entries.'.format(
-                sanity_entries_count, self._max_value
+            print('[i] {0}-bit-sized sanity entries: {1:,}'.format(
+                self._max_value, sanity_entries_count
             ))
 
     def _check_for_iter_left_overs(self, iterator, desc=''):
@@ -1187,7 +1211,11 @@ class Extract:
 
         time_iter = self._get_time_from_file()
 
+        if self.verbose:
+            print("[i] Creating {0} file...".format(self.measurements_csv))
+
         progress = None
+        status = [0]
         if self.verbose and self._total_measurements:
             status = [0, self._total_measurements, Event()]
             kwargs = {}
@@ -1200,11 +1228,8 @@ class Extract:
             progress.start()
 
         try:
-            i = 0
             for value, time_value in izip(values_iter, time_iter):
-                if progress:
-                    status[0] = i
-                    i += 1
+                status[0] += 1
 
                 # The idea here is that every value != comparing_value chooses
                 # randomly to pair with the comparing_value before or with
@@ -1272,17 +1297,18 @@ class Extract:
         if self.verbose:
             if self._total_measurements:
                 print(
-                    'There was {0} measurements that have been dropped. ({1:.2f}%)'
+                    '[i] Measurements that have been dropped: {0:,} ({1:.2f}%)'
                     .format(
                         self._measurements_dropped,
-                        (
-                            self._measurements_dropped * 100
-                        ) / self._total_measurements
-                    ))
-            print('The biggest tuple in file is of size {0}.'.format(
-                int(self._max_tuple_size)
-            ))
-            print('{0} rows was written.'.format(self._row))
+                        (self._measurements_dropped * 100)
+                        / self._total_measurements
+                    )
+                )
+            print(
+                '[i] Biggest tuple size in file: {0}\n'
+                    .format(int(self._max_tuple_size)) +
+                '[i] Written rows: {0:,}'.format(self._row)
+            )
 
         self._measurements_fp.close()
 
@@ -1295,10 +1321,6 @@ class Extract:
             remove(join(self.output, "ecdsa-k-time-map.csv"))
 
         for file in files:
-            if self.verbose:
-                print("Creating {0} file...".format(file))
-
-
             self.measurements_csv = file
 
             self.process_measurements_and_create_csv_file(
@@ -1327,7 +1349,6 @@ class Extract:
             return inet_aton(ip)
         except gaierror:
             raise Exception("Hostname is not an IPv4 or a reachable hostname")
-
 
 if __name__ == '__main__':
     main()

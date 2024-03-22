@@ -1621,7 +1621,7 @@ class TestBitSizeAnalysis(unittest.TestCase):
             self.assertIn(test[4], verdict)
 
     @mock.patch("builtins.open")
-    def test_check_data_for_rel_t_test_five_non_zero(self, open_mock):
+    def test_bit_size_write_summary(self, open_mock):
         _summary = []
 
         def file_selector(*args, **kwargs):
@@ -1651,6 +1651,7 @@ class TestBitSizeAnalysis(unittest.TestCase):
         }
         self.analysis._bit_size_sign_test = {255: 0.3, 254: 0.7, 253: 0.4}
         self.analysis._bit_size_wilcoxon_test = {255: 0.2, 254: 0.8, 253: 0.6}
+        self.analysis._bit_size_data_used = 1000
 
         self.analysis._bit_size_write_summary("passed", 0.5)
 
@@ -1667,7 +1668,11 @@ class TestBitSizeAnalysis(unittest.TestCase):
             "Wilcoxon test p-values (min, average, max): " +
             "2.00e-01, 5.33e-01, 8.00e-01"
         )
-        self.assertEqual(_summary[3], "passed")
+        self.assertEqual(
+            _summary[3],
+            "Used 1,000 data observations for results"
+        )
+        self.assertEqual(_summary[4], "passed")
 
     @mock.patch("tlsfuzzer.analysis.Analysis.calc_diff_conf_int")
     @mock.patch("builtins.print")
