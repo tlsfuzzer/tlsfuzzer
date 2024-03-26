@@ -346,6 +346,8 @@ def main():
         node = node.add_child(ResetHandshakeHashes())
         renego_exts = OrderedDict(ext)
         del renego_exts[drop_ext]
+        if drop_ext == ExtensionType.supported_groups:
+            del renego_exts[ExtensionType.key_share]
         # use None for autogeneration of the renegotiation_info with correct
         # payload
         renego_exts[ExtensionType.renegotiation_info] = None
