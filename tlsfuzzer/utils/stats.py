@@ -178,7 +178,7 @@ def skillings_mack_test(values, groups, blocks, duplicates=None, status=None):
         raise ValueError("values, groups, and blocks must be the same length")
 
     if status is not None:
-        status[1] = len(groups)
+        status[1] = len(groups) + 1
 
     global _groups
     _groups = groups
@@ -197,6 +197,9 @@ def skillings_mack_test(values, groups, blocks, duplicates=None, status=None):
         for i in chunks:
             all_groups.update(i)
 
+        if status is not None:
+            status[0] = 1
+
         adjusted_ranks = defaultdict(float)
         # how many times a group is present in a block adjusted by individual
         # block sizes
@@ -207,7 +210,7 @@ def skillings_mack_test(values, groups, blocks, duplicates=None, status=None):
         # smaller chunk size gives better updates on progress and
         # less of a rounding error with summing
         chunk_size = min(1024*1024,
-                         max(10, len(blocks) // os.cpu_count()))
+                         max(10, len(blocks) // (os.cpu_count() * 100)))
 
         chunks = p.imap_unordered(_summarise_chunk,
                                   ((all_groups, duplicates, i) for i in

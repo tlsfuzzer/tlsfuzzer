@@ -31,6 +31,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.utils.progress_report import progress_report
 from tlslite.utils.cryptomath import bytesToNumber
+from tlslite.utils.python_key import Python_Key
 
 try:
     from itertools import izip
@@ -88,6 +89,10 @@ def help_msg():
     print("                extracting the k value. The function should be")
     print("                available in hashlib module. The default function")
     print("                is sha256.")
+    print(" --rsa-keys FILE Analyse the times based on RSA private keys")
+    print("                values. Creates separate measurements.csv files")
+    print("                for the d, p, q, dP, dQ, and qInv values.")
+    print("                Contents must be concatenated PKCS#8 PEM keys.")
     print(" --workers num  Number of worker processes to use for")
     print("                parallelizable computation. More workers")
     print("                will finish analysis faster, but will require")
@@ -128,6 +133,7 @@ def main():
     freq = None
     hash_func_name = None
     workers = None
+    rsa_keys = None
     verbose = False
     prehashed = False
 
@@ -143,7 +149,7 @@ def main():
                                 "status-newline", "raw-data=", "data-size=",
                                 "prehashed", "raw-sigs=", "priv-key-ecdsa=",
                                 "clock-frequency=", "hash-func=", "workers=",
-                                "verbose"])
+                                "verbose", "rsa-keys="])
     for opt, arg in opts:
         if opt == '-l':
             logfile = arg
@@ -177,6 +183,8 @@ def main():
             prehashed = True
         elif opt == "--raw-sigs":
             sigs = arg
+        elif opt == "--rsa-keys":
+            rsa_keys = arg
         elif opt == "--priv-key-ecdsa":
             priv_key = arg
             if not key_type:
@@ -216,9 +224,10 @@ def main():
         raise ValueError(
             "Only 'little' and 'big' endianess supported")
 
-    if not all([any([logfile, sigs]), output]):
+    if not all([any([logfile, sigs, rsa_keys]), output]):
         raise ValueError(
-            "Specifying either logfile or raw sigs and output is mandatory")
+            "Specifying either logfile, rsa keys, or raw sigs and output "
+            "is mandatory")
 
     if capture and not all([logfile, output, ip_address, port]):
         raise ValueError("Some arguments are missing!")
@@ -252,7 +261,7 @@ data size, signatures file and one private key are necessary.")
         delay=delay, carriage_return=carriage_return,
         data=data, data_size=data_size, sigs=sigs, priv_key=priv_key,
         key_type=key_type, frequency=freq, hash_func=hash_func,
-        workers=workers, verbose=verbose
+        workers=workers, verbose=verbose, rsa_keys=rsa_keys
     )
     extract.parse()
 
@@ -261,6 +270,9 @@ data size, signatures file and one private key are necessary.")
             "measurements.csv": "k-size",
             "measurements-invert.csv": "invert-k-size",
         })
+
+    if rsa_keys:
+        extract.process_rsa_keys()
 
 
 class Extract:
@@ -274,7 +286,7 @@ class Extract:
                  carriage_return=None, data=None, data_size=None, sigs=None,
                  priv_key=None, key_type=None, frequency=None,
                  hash_func=hashlib.sha256, workers=None, verbose=False,
-                 fin_as_resp=False):
+                 fin_as_resp=False, rsa_keys=None):
         """
         Initialises instance and sets up class name generator from log.
 
@@ -349,6 +361,7 @@ class Extract:
         self._row = 0
         self._max_value = None
         self._fin_as_resp = fin_as_resp
+        self.rsa_keys = rsa_keys
 
         if data and data_size:
             try:
@@ -1349,6 +1362,93 @@ class Extract:
             return inet_aton(ip)
         except gaierror:
             raise Exception("Hostname is not an IPv4 or a reachable hostname")
+
+    def _read_private_key(self, file):
+        lines = []
+        while True:
+            line = file.readline()
+            # empty line still has '\n', only EOF is an empty string
+            if not line:
+                return None
+            line = line.strip()
+            if line == "-----BEGIN PRIVATE KEY-----":
+                lines.append(line)
+                break
+        while True:
+            line = file.readline()
+            if not line:
+                raise ValueError("Truncated private key file!")
+            line = line.strip()
+            if line == "-----BEGIN PRIVATE KEY-----":
+                raise ValueError("Inconsistent private key file!")
+            lines.append(line)
+            if line == "-----END PRIVATE KEY-----":
+                break
+
+        one_pem_key = "\n".join(lines)
+
+        return Python_Key.parsePEM(one_pem_key)
+
+    def process_rsa_keys(self):
+        # list of values for the Hamming weight of d, p, q, dP, dQ, qInv
+        values = []
+        times = []
+        max_len = 20
+
+        tuple_num = 0
+
+        value_names = ('d', 'p', 'q', 'dP', 'dQ', 'qInv')
+
+        rsa_keys = None
+        measurements = dict((i, None) for i in value_names)
+
+        times_iterator = self._get_time_from_file()
+
+        try:
+            rsa_keys = open(self.rsa_keys, "rt")
+            for i in value_names:
+                f_name = join(self.output, 'measurements-' + i + '.csv')
+                measurements[i] = open(f_name, 'wt')
+
+            while True:
+                # read an RSA private key
+                key = self._read_private_key(rsa_keys)
+                if key:
+                    # extract Hamming weights of the private key parameters
+                    values.append(dict((i, getattr(key, i).bit_count())
+                                       for i in
+                                       value_names))
+                    times.append(next(times_iterator))
+
+                # once we have few measurements collect them into tuples
+                # and write to files
+                if len(values) >= max_len or (not key and times):
+                    for v_n in value_names:
+                        keys = set(v[v_n] for v in values)
+                        size_and_time = sorted(zip(
+                            (v[v_n] for v in values), times))
+
+                        for k in sorted(keys):
+                            to_select = [i for i in size_and_time if i[0] == k]
+                            # since sometimes for the same key we can have
+                            # multiple values, write a randomly selected one
+                            selected = choice(to_select)
+                            measurements[v_n].write("{0},{1},{2}\n".format(
+                                tuple_num, selected[0], selected[1]))
+
+                    values = []
+                    times = []
+                    tuple_num += 1
+
+                if not key:
+                    break
+
+        finally:
+            if rsa_keys:
+                rsa_keys.close()
+            for i in value_names:
+                if measurements[i]:
+                    measurements[i].close()
 
 if __name__ == '__main__':
     main()

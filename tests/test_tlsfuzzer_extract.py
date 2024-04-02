@@ -265,7 +265,7 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=False, delay=None, carriage_return=None,
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
-                    workers=None, verbose=False)
+                    workers=None, verbose=False, rsa_keys=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -302,7 +302,7 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=False, delay=3.5, carriage_return='\n',
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
-                    workers=None, verbose=False)
+                    workers=None, verbose=False, rsa_keys=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -338,7 +338,7 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=True, delay=None, carriage_return=None,
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
-                    workers=None, verbose=False)
+                    workers=None, verbose=False, rsa_keys=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -371,7 +371,7 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=False, delay=None, carriage_return=None,
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
-                    workers=None, verbose=False)
+                    workers=None, verbose=False, rsa_keys=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -405,7 +405,7 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=False, delay=None, carriage_return=None,
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
-                    workers=None, verbose=False)
+                    workers=None, verbose=False, rsa_keys=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch('tlsfuzzer.extract.Log')
@@ -509,7 +509,7 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=False, delay=None, carriage_return=None,
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
-                    workers=None, verbose=False)
+                    workers=None, verbose=False, rsa_keys=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch('__main__.__builtins__.print')
@@ -551,6 +551,43 @@ class TestCommandLine(unittest.TestCase):
             with self.assertRaises(ValueError):
                 main()
 
+    @mock.patch('tlsfuzzer.extract.Extract.process_rsa_keys')
+    @mock.patch('tlsfuzzer.extract.Log')
+    @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
+    @mock.patch('tlsfuzzer.extract.Extract._write_csv')
+    @mock.patch(
+        'tlsfuzzer.extract.Extract.process_and_create_multiple_csv_files'
+    )
+    @mock.patch('tlsfuzzer.extract.Extract.parse')
+    def test_rsa_keys_options(self, mock_parse, mock_write, mock_process,
+                                 mock_write_pkt, mock_log, mock_process_rsa):
+        output = "/tmp"
+        raw_times = "/tmp/times.bin"
+        priv_key = "/tmp/keys.pem"
+        args = ["extract.py",
+                "-o", output,
+                "--raw-times", raw_times,
+                "--binary", "8",
+                "--rsa-keys", priv_key]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
+            with mock.patch("sys.argv", args):
+                main()
+                mock_init.assert_called_once_with(
+                    mock.ANY, None, output, None, None,
+                    raw_times, None, binary=8, endian="little",
+                    no_quickack=False, delay=None, carriage_return=None,
+                    data=None, data_size=None, sigs=None,
+                    priv_key=None, key_type=None, frequency=None,
+                    hash_func=hashlib.sha256, workers=None, verbose=False,
+                    rsa_keys=priv_key)
+                mock_write.assert_not_called()
+                mock_write_pkt.assert_not_called()
+                mock_log.assert_not_called()
+                mock_process.assert_not_called()
+                mock_process_rsa.assert_called_once_with()
+
     @mock.patch('tlsfuzzer.extract.Log')
     @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
     @mock.patch('tlsfuzzer.extract.Extract._write_csv')
@@ -584,7 +621,8 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=False, delay=None, carriage_return=None,
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
                     priv_key=priv_key, key_type="ecdsa", frequency=None,
-                    hash_func=hashlib.sha256, workers=None, verbose=False)
+                    hash_func=hashlib.sha256, workers=None, verbose=False,
+                    rsa_keys=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -624,7 +662,8 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=False, delay=None, carriage_return=None,
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
                     priv_key=priv_key, key_type="ecdsa", frequency=None,
-                    hash_func=hashlib.sha256, workers=None, verbose=True)
+                    hash_func=hashlib.sha256, workers=None, verbose=True,
+                    rsa_keys=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -666,7 +705,7 @@ class TestCommandLine(unittest.TestCase):
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
                     priv_key=priv_key, key_type="ecdsa",
                     frequency=frequency * 1e6, hash_func=hashlib.sha256,
-                    workers=None, verbose=False)
+                    workers=None, verbose=False, rsa_keys=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -708,7 +747,7 @@ class TestCommandLine(unittest.TestCase):
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
                     priv_key=priv_key, key_type="ecdsa",
                     frequency=None, hash_func=hashlib.sha384,
-                    workers=None, verbose=False)
+                    workers=None, verbose=False, rsa_keys=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -749,7 +788,7 @@ class TestCommandLine(unittest.TestCase):
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
                     priv_key=priv_key, key_type="ecdsa",
                     frequency=None, hash_func=None,
-                    workers=None, verbose=False)
+                    workers=None, verbose=False, rsa_keys=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -791,7 +830,7 @@ class TestCommandLine(unittest.TestCase):
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
                     priv_key=priv_key, key_type="ecdsa",
                     frequency=None, hash_func=hashlib.sha256,
-                    workers=workers, verbose=False)
+                    workers=workers, verbose=False, rsa_keys=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -1623,3 +1662,361 @@ class TestMeasurementCreation(unittest.TestCase):
             k_value, 71987597947566147878177872172206774464759466237222610742967172613160700915855,
             "The nonce value should be calculated correctly."
         )
+
+@unittest.skipIf(failed_import,
+                 "Could not import extraction. Skipping tests.")
+class TestRSAExtraction(unittest.TestCase):
+    def file_emulator(self, *args, **kwargs):
+        name = args[0]
+        try:
+            mode = args[1]
+        except IndexError:
+            mode = 'r'
+        if "measurements" in name:
+            r = mock.mock_open()(name, mode)
+            r.write.side_effect = lambda s: (
+                self._file_writes[name].append(s[:-1])
+            )
+            return r
+        elif "keys.pem" in name:
+            r = mock.mock_open(read_data=self.keys)(name, mode)
+            return r
+        elif "raw_times" in name:
+            r = mock.mock_open(read_data=self.times)(name, mode)
+            return r
+        if "w" in mode:
+            r = mock.mock_open()(name, mode)
+            r.write.side_effect = None
+            return r
+        return self.builtin_open(*args, **kwargs)
+
+    def setUp(self):
+        self.builtin_open = open
+
+        self._file_writes = defaultdict(list)
+
+        self.times = \
+"""raw_times
+0.00020507089741402605
+0.0002059934765712842
+0.00019222393031043447
+0.00019565723238987182
+0.0001830923962755899
+0.00020832848543018523
+0.00021710487200429402
+0.0002231827851164632
+0.00020670983833812588
+0.00019981020196043874
+0.00019833458383513867
+0.00020809377105346672
+0.00018978595578132706
+0.00020474540295661384
+0.0001886440444905395
+0.00018949469432983157
+0.00020388111366458653
+0.0001818376112599913
+0.00021440584928914512
+0.0001973387367154229
+0.00019065431059477997
+0.00020886432585053927
+0.00019457421365438348
+0.00020016401477401138
+0.00020348861155977603
+"""
+
+        self.keys = """
+-----BEGIN PRIVATE KEY-----
+MIHDAgEAMA0GCSqGSIb3DQEBAQUABIGuMIGrAgEAAiEAwNxYQzxmyIFG3cmBt+c/
+nwcUiZCE2V5j2pWZM363VTUCAwEAAQIfDYAosF93LtD4gKMThdxArAzpPbPLNQyW
+U8S/w956JwIRAOqt+wJL1pnjFKzTIs6qFtsCEQDSYcTTqvvMyWEB83vlEVkvAhEA
+s/Tr6UvcaS7vuMNDCrT1RwIRAJt7fE7/F/dCgXpCq7cguisCEQCINmVeC+/sO0xe
+jvyL4LAR
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHDAgEAMA0GCSqGSIb3DQEBAQUABIGuMIGrAgEAAiEAsUDuUPuNW42ra3Pn48tc
+XauXg7m2pIhPo/ZUst1VUNsCAwEAAQIgK1tND90AHjFgiUeQJK2lGVI1s3w5gz4P
+YlU45eNtH7UCEQDPwzBSgmgZeIkFdWjAvuqtAhEA2mhiamwErJGNMYNoKURipwIR
+AK47UlrfYc16d+5L9/0sHkECEGoMsWzXUlWwvwxBsDwJdpUCEQCbho9XfVxq0EGI
+lFhYsgjB
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHDAgEAMA0GCSqGSIb3DQEBAQUABIGuMIGrAgEAAiEA6Rvm610ykipYYBdzQo0a
+4LG26bCZ0PCR45VUF8wLLtMCAwEAAQIgaERku65KKnrqYMDce04mULRf68h6A82w
+n5GBRnR3ZdECEQD3FzqLdUci0vtU5yI7GItNAhEA8YOdZWbxGbygKwowZOZSnwIQ
+ZZXnO+67kFWtfvqH2EP/AQIRAKE27QL6Q2idrADu7Tz9LhsCEQDhpEwyMYbFBNQq
+2760ChOJ
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHBAgEAMA0GCSqGSIb3DQEBAQUABIGsMIGpAgEAAiEAtho2BgpHzW3UJeuZLkzA
+/z+JF2g+g7zKycBAPCuoPwsCAwEAAQIgS28YKfBgRgzU8NBjp/ZLi7zMR6B1yeG/
+Qn9+Wmhi2uECEQDByBKpR6er0cTQ33gUJIm9AhEA8JIq1dizLt+OeI35LLNkZwIQ
+ROipwiqp9E6nB4PABqGrnQIQLd6w7DV1dOqLb9EiQbOy4QIQUsmVYFEMVhE9yT7O
+LK9ZPQ==
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHCAgEAMA0GCSqGSIb3DQEBAQUABIGtMIGqAgEAAiEAmeOJVzlMObTEH6t7+e5e
+/Z2nFYd4zgnIZE3HkdU1DxkCAwEAAQIgDkt2VcmfBMo/oKB9kPMdVCVWjQ6HIw+s
+VYayPw5DckECEQDBc34kxtsX3iVDVsqNcd75AhEAy6VbJKkoDb9C1azexAkZIQIR
+AJvkg1oFuhdg2GyMq4wSoJkCECLEn3P54Vm/frSmZ/4GI6ECEE9qf1Db06oS2sau
+ACOQs70=
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHCAgEAMA0GCSqGSIb3DQEBAQUABIGtMIGqAgEAAiEApnsish8Tt9FHyxT/4WMy
+O9CIhiQ7nLY+6alZsbYFRm0CAwEAAQIgFNGWM6cePKDvtO4x13ojqFJ4vMuTbhAg
+7gU+nR+EFfECEQDdJaLX3ugMuyhuoKm8WIYFAhEAwLfz3Aswd4FITo3Jw3EDSQIQ
+azwLyceyGDJM+c/4XndCjQIRAJ/T75p+bSOvRJhhXwOHpoECECvE7o126Cza6Mhn
+0zFn0fI=
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHEAgEAMA0GCSqGSIb3DQEBAQUABIGvMIGsAgEAAiEAu+mgD4HPaHtSpotqKT3E
+7XGwMVQjAV0qBZlYGbOq010CAwEAAQIgBHE+z3RfgDYqJgsgX16Odo7cv3J3zttY
+fcqVaRMP3gECEQDgEF8tti6N4/QKECSUs/yxAhEA1rIqZ1G6DfMLUtPpJWr8bQIR
+AIulCHzH13ntQTJoXzQifPECEQC+/Odz2eQlHJxqJlE1FCNRAhEArMhDHBYz9RPD
+hY+6ErAr+A==
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHCAgEAMA0GCSqGSIb3DQEBAQUABIGtMIGqAgEAAiEA0Lsw8vwwaTbVtdnF+Iy5
+fcu7xZ4JHN8KM0SjZdwKVrkCAwEAAQIgNjMdQ0MT6QYpmSZavy7/bQAtOcp7gkT/
+KMJLXgsOLjcCEQDfBHIpv2hSNbvrWOgDPvi7AhEA75ndNeI1+bMcfNvrAKIhGwIQ
+L3zf3lnemdrNSADnboGDLwIQLFX9X/4m3Liu+c+78ZcOpwIRANGqDkELt8xIop6o
+xDT7nfo=
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHCAgEAMA0GCSqGSIb3DQEBAQUABIGtMIGqAgEAAiEAs72I9nMGyImQFc3dOArU
+jILn5xhe8RizpUOEp1plw8kCAwEAAQIgFqTjuuy954jRIrYXTyaqJT2Qn7gdrvsp
+YzfRd+cDZosCEQDTWQKVm3FZH6tW48zcBvnPAhEA2bcBYqUEaWqyF8RpDyiG5wIR
+AMoBWacFW+GDk5EJStVDFaECEG+5AOX9JoFuNkwKB5u2wVsCEAGM4+wba392NOeB
+VT6D4pE=
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHDAgEAMA0GCSqGSIb3DQEBAQUABIGuMIGrAgEAAiEAv4YDOSWbOX4MDVsHwnJn
+3moNv6q+05qJDqmTA3rN5zUCAwEAAQIgUGx17glcpUfIx9Lx7zUbaA+DPsZBXJ4X
+Z0AQTCB4SgECEQDLqRY6wSFRhpau9eYUALLTAhEA8L5tOAblybdnr62r1OZo1wIR
+AMZrBDdV9gohoCjxdalDTPUCEQCHxc3RGErGPdKTSK4tLxkXAhBuClqMBeJp7B9d
+qP/amhAE
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHBAgEAMA0GCSqGSIb3DQEBAQUABIGsMIGpAgEAAiEAsZ5K0/lTaXhCxx0yyqv9
+t2OVUq2IUGyeZjV0bkKVubUCAwEAAQIgUQqvDLnpr6liGrS9XJEOIXDU495j2/GI
+WOT/zzQofi8CEQDVFHvnmDQUgTfFHoiHxWuzAhEA1WU4DR0KhVKuQhlpO9Hw9wIQ
+ZQYxOLyQ9KfPKUYwtS6EwQIQeTBhs7jRd8Pr6OgLhoiFIwIQY63yG1Pu0xrJ+DnF
+lFv60Q==
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHCAgEAMA0GCSqGSIb3DQEBAQUABIGtMIGqAgEAAiEA2m6BrBOSyXjKUEiMbfMo
+hNLEsgCoGwiNSlsKAplgnlMCAwEAAQIgWU0ri5fW/7J3+Bmo+/yY9+8Oeqp7rxKc
+kHJ3NF9bb3kCEQD3HHQuDwCfH5JisWsT6AXJAhEA4kn0e3PPqyJLXjI46pWBOwIR
+APOuEHd2/eLsrFs8n94SeNkCEGSwNYnM8UWbn9+NB0hSN8sCEGrps8Pv1E24JTnb
+iVPfSz0=
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHDAgEAMA0GCSqGSIb3DQEBAQUABIGuMIGrAgEAAiEAzMN9F2rElLYzJmSBmv+R
+9fPv2PKEZdUca+A+EMZdSC8CAwEAAQIgTHlsdDz7e2EK/HlIEHgH7kyguxPWfCa+
+WEhxgKiffakCEQD8Phl+RuFAgY/bR9U6Qbd5AhEAz9BVRgFuVO+LuPgKe5YK5wIR
+AMu1XyNDHODagZJG1eYhcokCEA8X+pmTEQhqPaO5oElJpJECEQCbqw4EeSsb5W1p
+vXD8C4rO
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHDAgEAMA0GCSqGSIb3DQEBAQUABIGuMIGrAgEAAiEAo7mnTgf8ImbB+GqiUEHa
+yvltssVB/zeNv3t3/HhkQzMCAwEAAQIgD+POTX/v5ATWEX6D50ck7UNO2tFHOcy6
++NnT1UrAF+UCEQDY3VOZG5zxs9M/GnsD3N/vAhEAwUVncCsCYf58NmGGlWBM/QIQ
+D03nRWnWdJQ9NznWLpqazwIRAJLx1edui+09s+sU02KXSXECEQDO5yqMgT2G/RKr
+W8q8IMoC
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHDAgEAMA0GCSqGSIb3DQEBAQUABIGuMIGrAgEAAiEA9nzZjObA/uHWCAmnDNvR
+rEf/kG9WEx4tcypUpfA8qqkCAwEAAQIgBX0/TQuAhcyauyAX58nnb+8USLPmUPoM
+qcWbwIJ6lGcCEQD7cuFKtLw7/Qrwd4Pgrtz/AhEA+vL7aTWTgjgn+yc4S+BwVwIR
+AJ7Bv6DNT/OIJnoA25Dmlr0CEHTH0lt5hTWaMHDeJYKZ5W0CEQCVfpgW8DksM8ux
+V2BTEi0a
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHCAgEAMA0GCSqGSIb3DQEBAQUABIGtMIGqAgEAAiEAsHTa7p5fr+INRWtl1E3n
+ghPlk3vp/4fJzLXJ5WQ29xMCAwEAAQIgUChVR+5j01ch5jYaZO4ayufpTTfHLqtr
+wTvRNzIautECEQDhJH/BAP40kKxCGZaoV87ZAhEAyKQfi18iTjk3OcVQkkDZywIQ
+FEIdgLdfKEmwRk5ZIRKtmQIRAMM/8/KNAbVduIBfo6ivs0ECEFHgSrPELdshgtVO
+JoUm9oc=
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHCAgEAMA0GCSqGSIb3DQEBAQUABIGtMIGqAgEAAiEAxzSTx8MlwU71rsFZdX17
+UQbkC2IxCjfkcmywVxb7lDMCAwEAAQIgErJNmHcpaP5HMtK02cEgPK0HBLFYaH5+
+oIypgg8FwZECEQDMlqlYSTkkfOXbMcKsSkErAhEA+UOdNMTnozGmfC7ZUPAlGQIQ
+KEbI0+6mZz6Had2j+5MqvQIQbFzrnAQ6G2U7VmNbkGdGCQIRAKO5eO7BcnpR8qps
+04FVsxs=
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHDAgEAMA0GCSqGSIb3DQEBAQUABIGuMIGrAgEAAiEA1beX4vHuP+VhehJTBNAK
+lwG2RT3jY51Xgd2igtWOpzECAwEAAQIgAgtK/xyG8FfZJP9BibAUYdU4i8tNe4Q6
+XAEEo+Ick2ECEQD2P1K5mhe1FrzFjd/jH7Z5AhEA3i5zKDb+BUzb8lAH/eKoeQIQ
+WzXbW3ozO9VfOMGzYzp06QIRAMLhY0jG05C6lcG4yQm8IaECEQDbmWztdUEWMOxL
+dVTsYWUE
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHDAgEAMA0GCSqGSIb3DQEBAQUABIGuMIGrAgEAAiEA1xiXMETBJHH/V2HzBhcN
+3j8K2pvXB66NLNcidFn8w40CAwEAAQIgNNoMujZGrAUby/WcIKS1CfHAf1nTWZdI
+CU/yUqM3fPECEQD3rT+lRYfILr2NNs2D8rRRAhEA3lMNQaYNZIhe3/xn/zk4fQIR
+AJxQmYSjd2jeJv/DAL4wJaECEFq0Y6ovBzPG935Gyl80hzkCEQCQ7JvOAjze8shH
+BjWC5YKz
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHCAgEAMA0GCSqGSIb3DQEBAQUABIGtMIGqAgEAAiEAxe2u/y61/CPOWJxFVrsB
+398posSJE1PRXlV4T5zbILUCAwEAAQIgC8qe2/msF9WzlliA/QDDxLf94dKUEzIN
+iUZoW37AT+UCEQD0ECHQIpVOwnJW9R/Sayq7AhEAz5vovaLDpQ/tdlRgnC5DTwIQ
+eptcES4+aYl/XTXZHaDenwIQRKzPRYPE8iIdrAnnV2KaUwIRALO/Qs06+JQHOVLc
+7J/uxe8=
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHEAgEAMA0GCSqGSIb3DQEBAQUABIGvMIGsAgEAAiEA1pRujWqi0zEXToeDYaeF
+mnKiLQFHKzxLFSUNqgdXqbECAwEAAQIgCUx1Xft5At3lvKlysBCqYWq1/dMd52o5
+NVoxe43s2uECEQDpIJlymnPPfn5UmE1keKNTAhEA66H6lBuKtCJxAlI6y/BCawIR
+AIAtFVFGjIA8Gzdl2b9w+NMCEQDP1xVetJh44XRK9tsz7d23AhEAp/aa7VdWWGdj
+t786CMm8tA==
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHBAgEAMA0GCSqGSIb3DQEBAQUABIGsMIGpAgEAAiEAxsSMurJW6Z8ItWN1jI4o
+JdjE7TwturP1STnwgN37mMECAwEAAQIgFzUzyUixZS2wcp1eSD8A6NVJhVayN7Po
+ssPoku0QctECEQDHwFg28klzIdgD+SIykakzAhEA/r1NJrPNHgTd2nRl11P+OwIQ
+Su1MabfyczxjsgHWoQ9gXwIQMGGFqKcXeu8Tr6zRts7GBwIQb+GPFSFyYO6+c9Cn
+bdOrEA==
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHBAgEAMA0GCSqGSIb3DQEBAQUABIGsMIGpAgEAAiEAnipyLixuBVfAuO0dGX1k
+C2+Pk8nLVkgh/Z0hKocdDEsCAwEAAQIgAYpZbuiMcJ+9BxAMtIEiayYsJyMBP99f
+xqJsNfcskgECEQDQLNXFgjv+uYFVpQwAIFMLAhEAwoB4OU04SgHr7Wt2UqHzwQIQ
+SeTQUNaEs0tnxF3cn6LZtwIQF7T48mMLHVomm4WhomjDAQIQT5A+TnSq9rVFAaFf
+fvOJEA==
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHEAgEAMA0GCSqGSIb3DQEBAQUABIGvMIGsAgEAAiEAqaJStAuPDuNPynt1l0Ys
+05DUrU+Cbku3eiZB8JWqs5MCAwEAAQIgFAMR1aq9bEi1y5HoC/ob5IJjEXVOeDBR
+LKNNcpZnbL0CEQDdAUBBwBwBWSYM3TcnGjN9AhEAxH6uyKh+qq1d3ieOC2EQTwIR
+AKTwPROVG5GKBhLNuk6tiEUCEQCD+RYJfWm91r0SBX0Y1XNvAhEAhOV6/AXlP+Lh
+fBqzd7VvBQ==
+-----END PRIVATE KEY-----
+-----BEGIN PRIVATE KEY-----
+MIHCAgEAMA0GCSqGSIb3DQEBAQUABIGtMIGqAgEAAiEAuAF/KqesbaDxKA6mEpNN
+o7oXC8A+m+ZC+J+Cxjk03ysCAwEAAQIgNMdJIIUDslZNlb3N6NoTlHwrpk1V+M21
+rfRhRKMf9vECEQDkO/7qz2S37vmCkNkhIn6tAhEAzmQSnyy6cKu0POeP8DdINwIR
+AIIlQBCvoLRN/lOYu2fsnqUCEAX/Akt9kS0Uz/e1AomIEaECEEyiaxJo9SJdnlkl
+F4sOO3w=
+-----END PRIVATE KEY-----
+"""
+
+    def test_rsa_extractions(self):
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_emulator
+
+            extract = Extract(output="/tmp/", rsa_keys="/tmp/keys.pem",
+                              raw_times="/tmp/raw_times.csv")
+            extract.process_rsa_keys()
+
+        file_name = '/tmp/measurements-d.csv'
+        values = [
+            [(0, 114, 0.00020388111366458653)],
+            [(0, 115, 0.0001818376112599913)],
+            [(0, 116, 0.00019981020196043874)],
+            [(0, 119, 0.00020507089741402605)],
+            [(0, 120, 0.0001830923962755899)],
+            [(0, 123, 0.0002059934765712842)],
+            [(0, 125, 0.00019222393031043447),
+             (0, 125, 0.0002231827851164632)],
+            [(0, 126, 0.00021440584928914512)],
+            [(0, 127, 0.0001886440444905395),
+             (0, 127, 0.00018978595578132706),
+             (0, 127, 0.00020832848543018523)],
+            [(0, 129, 0.00019565723238987182),
+             (0, 129, 0.0001973387367154229)],
+            [(0, 133, 0.00018949469432983157),
+             (0, 133, 0.00019833458383513867),
+             (0, 133, 0.00021710487200429402)],
+            [(0, 136, 0.00020670983833812588)],
+            [(0, 138, 0.00020474540295661384)],
+            [(0, 152, 0.00020809377105346672)],
+            [(1, 116, 0.00019457421365438348)],
+            [(1, 121, 0.00020016401477401138)],
+            [(1, 122, 0.00020886432585053927)],
+            [(1, 130, 0.00020348861155977603)],
+            [(1, 137, 0.00019065431059477997)],
+        ]
+        for i, j in zip(self._file_writes[file_name], values):
+            self.assertIn(
+                i,
+                ["{0},{1},{2}".format(x, y, z) for x, y, z in j]
+            )
+
+        file_name = '/tmp/measurements-p.csv'
+        values = [
+            [(0, 58, 0.00019981020196043874),
+             (0, 58, 0.0002059934765712842)],
+            [(0, 59, 0.00018949469432983157),
+             (0, 59, 0.00020388111366458653)],
+            [(0, 60, 0.00019565723238987182),
+             (0, 60, 0.00021710487200429402)],
+            [(0, 61, 0.0001973387367154229),
+             (0, 61, 0.00020809377105346672)],
+            [(0, 62, 0.00019833458383513867),
+             (0, 62, 0.00020832848543018523)],
+            [(0, 67, 0.00018978595578132706),
+             (0, 67, 0.00019222393031043447),
+             (0, 67, 0.00020507089741402605)],
+            [(0, 69, 0.00020670983833812588),
+             (0, 69, 0.0002231827851164632)],
+            [(0, 70, 0.0001830923962755899),
+             (0, 70, 0.00021440584928914512)],
+            [(0, 75, 0.0001886440444905395)],
+            [(0, 76, 0.0001818376112599913)],
+            [(0, 77, 0.00020474540295661384)],
+            [(1, 53, 0.00020016401477401138)],
+            [(1, 54, 0.00019457421365438348)],
+            [(1, 57, 0.00020886432585053927)],
+            [(1, 66, 0.00019065431059477997)],
+            [(1, 72, 0.00020348861155977603)],
+        ]
+
+        for i, j in zip(self._file_writes[file_name], values):
+            self.assertIn(
+                i,
+                ["{0},{1},{2}".format(x, y, z) for x, y, z in j]
+            )
+
+    def test_rsa_extractions_with_broken_file(self):
+
+        self.keys = """
+-----BEGIN PRIVATE KEY-----
+MIHDAgEAMA0GCSqGSIb3DQEBAQUABIGuMIGrAgEAAiEAwNxYQzxmyIFG3cmBt+c/
+nwcUiZCE2V5j2pWZM363VTUCAwEAAQIfDYAosF93LtD4gKMThdxArAzpPbPLNQyW
+U8S/w956JwIRAOqt+wJL1pnjFKzTIs6qFtsCEQDSYcTTqvvMyWEB83vlEVkvAhEA
+s/Tr6UvcaS7vuMNDCrT1RwIRAJt7fE7/F/dCgXpCq7cguisCEQCINmVeC+/sO0xe
+jvyL4LAR
+"""
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_emulator
+
+            extract = Extract(output="/tmp/", rsa_keys="/tmp/keys.pem",
+                              raw_times="/tmp/raw_times.csv")
+            with self.assertRaises(ValueError) as e:
+                extract.process_rsa_keys()
+
+            self.assertIn("Truncated private key", str(e.exception))
+
+
+    def test_rsa_extractions_with_inconsistent_file(self):
+
+        self.keys = """
+-----BEGIN PRIVATE KEY-----
+MIHDAgEAMA0GCSqGSIb3DQEBAQUABIGuMIGrAgEAAiEAwNxYQzxmyIFG3cmBt+c/
+nwcUiZCE2V5j2pWZM363VTUCAwEAAQIfDYAosF93LtD4gKMThdxArAzpPbPLNQyW
+U8S/w956JwIRAOqt+wJL1pnjFKzTIs6qFtsCEQDSYcTTqvvMyWEB83vlEVkvAhEA
+s/Tr6UvcaS7vuMNDCrT1RwIRAJt7fE7/F/dCgXpCq7cguisCEQCINmVeC+/sO0xe
+jvyL4LAR
+-----BEGIN PRIVATE KEY-----
+"""
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_emulator
+
+            extract = Extract(output="/tmp/", rsa_keys="/tmp/keys.pem",
+                              raw_times="/tmp/raw_times.csv")
+            with self.assertRaises(ValueError) as e:
+                extract.process_rsa_keys()
+
+            self.assertIn("Inconsistent private key", str(e.exception))

@@ -227,8 +227,8 @@ class TestSkillingsMackTest(unittest.TestCase):
         status = [0, 1, None]
         res = skillings_mack_test(vals, groups, blocks, status=status)
 
-        self.assertEqual(status[0], len(groups))
-        self.assertEqual(status[1], len(groups))
+        self.assertEqual(status[0], len(groups) + 1)
+        self.assertEqual(status[1], len(groups) + 1)
         self.assertIsInstance(res, skillings_mack_result)
         self.assertEqual(len(res), 3)
 

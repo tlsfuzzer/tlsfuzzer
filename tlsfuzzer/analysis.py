@@ -55,7 +55,11 @@ def help_msg():
                    and where timing.csv or measurements.csv is located
  --no-ecdf-plot    Don't create the ecdf_plot.png file
  --no-scatter-plot Don't create the scatter_plot.png file
- --no-conf-interval-plot Don't create the conf_interval_plot.png file
+ --no-conf-interval-plot Don't create the conf_interval_plot*.png files
+ --no-wilcoxon-test Don't run the Wilcoxon signed rank test
+                for pairwise measurements
+ --no-t-test    Don't run the paired sample t-test for pairwise measurements
+ --no-sign-test [Hamming weight only] Don't run the sign test
  --multithreaded-graph Create graph and calculate statistical tests at the
                    same time. Note: this increases memory usage of analysis by
                    a factor of 8.
@@ -78,6 +82,10 @@ def help_msg():
                    data from a measurements.csv file. A measurements.csv file
                    is expected as input and it should be in long-format
                    ("row id,column id,value").
+ --Hamming-weight  Specified that the analysis will expect data for analysing
+                   Hamming weight data from a measurements.csv file.
+                   The measurements.csv is expected as input in the long-format
+                   ("row id,column id,value")
  --no-smart-analysis By default when analysing bit size the script will compute
                    how much data are needed to calculate small confidence
                    interval to the 4th bit size and use only this number of
@@ -111,16 +119,23 @@ def main():
     workers = None
     delay = None
     carriage_return = None
+    t_test = True
+    wilcoxon_test = True
+    sign_test = True
     bit_size_analysis = False
     smart_analysis = True
     bit_size_desire_ci = 1e-9
     bit_recognition_size = 4
     measurements_filename = "measurements.csv"
     skip_sanity = False
+    hamming_weight_analysis = False
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "o:",
                                ["help", "no-ecdf-plot", "no-scatter-plot",
                                 "no-conf-interval-plot",
+                                "no-t-test",
+                                "no-sign-test",
+                                "no-wilcoxon-test",
                                 "multithreaded-graph",
                                 "clock-frequency=",
                                 "alpha=",
@@ -133,6 +148,7 @@ def main():
                                 "bit-recognition-size=",
                                 "measurements=",
                                 "skip-sanity",
+                                "Hamming-weight",
                                 "verbose"])
 
     for opt, arg in opts:
@@ -147,6 +163,12 @@ def main():
             scatter_plot = False
         elif opt == "--no-conf-interval-plot":
             conf_int_plot = False
+        elif opt == "--no-sign-test":
+            sign_test = False
+        elif opt == "--no-t-test":
+            t_test = False
+        elif opt == "--no-wilcoxon-test":
+            wilcoxon_test = False
         elif opt == "--multithreaded-graph":
             multithreaded_graph = True
         elif opt == "--clock-frequency":
@@ -163,6 +185,8 @@ def main():
             carriage_return = '\n'
         elif opt == "--bit-size":
             bit_size_analysis = True
+        elif opt == "--Hamming-weight":
+            hamming_weight_analysis = True
         elif opt == "--no-smart-analysis":
             smart_analysis = False
         elif opt == "--bit-size-desire-ci":
@@ -177,12 +201,15 @@ def main():
     if output:
         analysis = Analysis(output, ecdf_plot, scatter_plot, conf_int_plot,
                             multithreaded_graph, verbose, clock_freq, alpha,
-                            workers, delay, carriage_return, bit_size_analysis,
+                            workers, delay, carriage_return,
+                            bit_size_analysis or hamming_weight_analysis,
                             smart_analysis, bit_size_desire_ci,
                             bit_recognition_size, measurements_filename,
-                            skip_sanity)
-
-        ret = analysis.generate_report(bit_size=bit_size_analysis)
+                            skip_sanity, wilcoxon_test, t_test, sign_test)
+        if hamming_weight_analysis:
+            ret = analysis.analyse_hamming_weights()
+        else:
+            ret = analysis.generate_report(bit_size=bit_size_analysis)
         return ret
     else:
         raise ValueError("Missing -o option!")
@@ -197,7 +224,8 @@ class Analysis(object):
                  workers=None, delay=None, carriage_return=None,
                  bit_size_analysis=False, smart_bit_size_analysis=True,
                  bit_size_desire_ci=1e-9, bit_recognition_size=4,
-                 measurements_filename="measurements.csv", skip_sanity=False):
+                 measurements_filename="measurements.csv", skip_sanity=False,
+                 run_wilcoxon_test=True, run_t_test=True, run_sign_test=True):
         self.verbose = verbose
         self.output = output
         self.clock_frequency = clock_frequency
@@ -205,6 +233,9 @@ class Analysis(object):
         self.draw_ecdf_plot = draw_ecdf_plot
         self.draw_scatter_plot = draw_scatter_plot
         self.draw_conf_interval_plot = draw_conf_interval_plot
+        self.run_wilcoxon_test = run_wilcoxon_test
+        self.run_t_test = run_t_test
+        self.run_sign_test = run_sign_test
         self.multithreaded_graph = multithreaded_graph
         self.workers = workers
         if alpha is None:
@@ -1359,7 +1390,7 @@ class Analysis(object):
             print(txt)
             txt_file.write(txt)
             txt_file.write('\n')
-            if friedman_p < self.alpha:
+            if friedman_p is not None and friedman_p < self.alpha:
                 difference = 1
 
             txt = "Worst pair: {}({}), {}({})".format(
@@ -1383,6 +1414,12 @@ class Analysis(object):
                     name,
                     diff_conf_int[key][0], diff_conf_int[key][1],
                     diff_conf_int[key][2], txt_file)
+
+            # when comparing a data set with just 2 samples then
+            # Friedman test doesn't work, but in practice it's equivalent
+            # to the sign test
+            if friedman_p is None:
+                friedman_p = np.min(sign_p_vals)
 
             if friedman_p < 1e-9:
                 explanation = (
@@ -1470,13 +1507,10 @@ class Analysis(object):
         if errors:
             raise Exception(str(errors))
 
-    def _long_format_to_binary(self):
+    def _long_format_to_binary(self, name, name_bin):
         """Turns csv with long format data to binary"""
-        measurements_csv_path = join(self.output, self.measurements_filename)
-        measurements_bin_path = join(
-            self.output,
-            self._remove_suffix(self.measurements_filename, ".csv") + ".bin"
-        )
+        measurements_csv_path = name
+        measurements_bin_path = name_bin
         measurements_bin_shape_path = measurements_bin_path + ".shape"
 
         if os.path.isfile(measurements_bin_path) and \
@@ -1551,26 +1585,18 @@ class Analysis(object):
             new_string = string.removesuffix(suffix)
         except AttributeError:
             suffix_len = len(suffix)
-            if string[-suffix_len:] == suffix_len:
+            if string[-suffix_len:] == suffix:
                 new_string = string[:-suffix_len]
 
         return new_string
 
-    def skillings_mack_test(self):
+    def skillings_mack_test(self, name):
         """
         Calculate the p-value of the Skillings-Mack test for the Hamming weight
         data.
         """
-        self._long_format_to_binary()
 
-        measurements_bin_path = join(
-            self.output,
-            self._remove_suffix(self.measurements_filename, ".csv") + ".bin"
-        )
-
-        if not os.path.isfile(measurements_bin_path):
-            raise ValueError("Conversion of " + self.measurements_filename +
-                             " to binary was not successfull.")
+        measurements_bin_path = name
 
         data = np.memmap(measurements_bin_path,
                          dtype=[('block', np.dtype('i8')),
@@ -1755,7 +1781,11 @@ class Analysis(object):
         :return: int 0 if no difference was detected, 1 otherwise
         """
         if bit_size:
-            skillings_mack_pvalue = self.skillings_mack_test()
+            name = join(self.output, self.measurements_filename)
+            name_bin = self._remove_suffix(name, '.csv') + '.bin'
+            self._long_format_to_binary(name, name_bin)
+
+            skillings_mack_pvalue = self.skillings_mack_test(name_bin)
             ret_val = self.analyze_bit_sizes()
             difference, verdict = self._bit_size_come_to_verdict(
                 ret_val, skillings_mack_pvalue
@@ -2299,6 +2329,339 @@ class Analysis(object):
                 time.time()-start_time))
 
         return ret_val
+
+    def _read_hamming_weight_data(self, name, mode="r"):
+        # first make sure the binary file exists
+        data = np.memmap(name,
+                         dtype=[('block', np.dtype('i8')),
+                                ('group', np.dtype('i2')),
+                                ('value', np.dtype('f8'))],
+                         mode=mode)
+        return data
+
+    def _read_tuples(self, data):
+        current_block_id = None
+        block_values = dict()
+        for value, group, block in zip(data['value'],
+                                       data['group'],
+                                       data['block']):
+            if block != current_block_id:
+                if block_values:
+                    yield block_values
+                    block_values = dict()
+                current_block_id = block
+            block_values[group] = value
+        if block_values:
+            yield block_values
+
+    def _add_value_to_group(self, name, group, diff):
+        data = self._read_hamming_weight_data(name, mode="r+")
+        try:
+            groups = data['group']
+            values = data['value']
+            values[groups == group] += diff
+        finally:
+            del data
+
+    def _split_data_to_pairwise(self, name):
+        data = self._read_hamming_weight_data(name)
+        try:
+            pair_writers = dict()
+
+            unique_vals, unique_counts = np.unique(data['group'],
+                                                   return_counts=True)
+            group_counts = list((i, j)
+                                for i, j
+                                in zip(unique_vals, unique_counts))
+            group_counts = sorted(group_counts,
+                                  key=lambda x: x[1])
+            most_common = set(i for i, j in group_counts[-5:])
+
+            slope_path = join(
+                    self.output,
+                    "analysis_results/by-pair-sizes/slope")
+            try:
+                os.makedirs(slope_path)
+            except FileExistsError:
+                pass
+
+            pair_writers['slope'] = open(
+                    join(slope_path, "timing.csv"), "w")
+            pair_writers['slope'].write(
+                    "lower,higher\n")
+
+            for block_vals in self._read_tuples(data):
+                # save data to estimate the slope of the time to Hamming weight
+                # dependency (if there is no dependency then the slope will
+                # be 0
+                i = iter(sorted(block_vals.items()))
+                for lower, higher in zip(i, i):
+                    pair_writers['slope'].write(
+                        "{0},{1}\n".format(lower[1], higher[1]))
+
+                # create pairwise comparisons graphs only for the most common
+                # groups, skip blocks that have only uncommon groups in them
+                for base_group in most_common.intersection(block_vals.keys()):
+                    base_value = block_vals[base_group]
+                    for compared_group, compared_value in block_vals.items():
+                        if base_group == compared_group:
+                            continue
+
+                        pair = (base_group, compared_group)
+                        # if it's a new pair, open the file for it and write
+                        # a header
+                        if pair not in pair_writers:
+                            pair_path = join(
+                                    self.output,
+                                    "analysis_results/by-pair-sizes/"
+                                    "{0:04d}-{1:04d}"
+                                    .format(base_group, compared_group))
+                            try:
+                                os.makedirs(pair_path)
+                            except FileExistsError:
+                                pass
+                            pair_writers[pair] = open(
+                                    join(pair_path, "timing.csv"), "w")
+                            pair_writers[pair].write(
+                                    "{0},{1}\n".format(base_group,
+                                                       compared_group))
+
+                        pair_writers[pair].write(
+                                "{0},{1}\n".format(base_value, compared_value))
+
+        finally:
+            del data
+            for writer in pair_writers.values():
+                writer.close()
+
+        return [i for i, j in group_counts[-5:]], pair_writers.keys()
+
+    def _analyse_weight_pairs(self, pairs):
+        out_dir = self.output
+        output_files = dict()
+        if self.run_sign_test:
+            output_files['sign_test'] = open(
+                join(out_dir, "analysis_results", "sign_test.results"),
+                "w", encoding="utf-8")
+        if self.run_t_test:
+            output_files['t_test'] = open(
+                join(out_dir, "analysis_results", "t_test.results"),
+                "w", encoding="utf-8")
+        if self.run_wilcoxon_test:
+            output_files['wilcoxon_test'] = open(
+                join(out_dir, "analysis_results", "wilcoxon_test.results"),
+                "w", encoding="utf-8")
+        try:
+            if any((self.run_sign_test, self.run_wilcoxon_test,
+                    self.run_t_test, self.draw_conf_interval_plot,
+                    self.draw_ecdf_plot)):
+                for base_group, test_group in \
+                        sorted(i for i in pairs if i != 'slope'):
+                    if self.verbose:
+                        print("Running test for {0}-{1}..."
+                              .format(base_group, test_group))
+
+                    self.output = join(
+                        out_dir,
+                        "analysis_results/by-pair-sizes/"
+                        "{0:04d}-{1:04d}"
+                            .format(base_group, test_group))
+
+                    data = self.load_data()
+                    self.class_names = list(data)
+
+                    if self.run_sign_test:
+                        results = self.sign_test()
+                        output_files['sign_test'].write(
+                            "{0} to {1}: {2}\n".format(
+                                base_group, test_group, results[(0, 1)]))
+
+                    if self.run_wilcoxon_test:
+                        results = self.wilcoxon_test()
+                        output_files['wilcoxon_test'].write(
+                            "{0} to {1}: {2}\n".format(
+                                base_group, test_group, results[(0, 1)]))
+
+                    if self.run_t_test:
+                        results = self.rel_t_test()
+                        output_files['t_test'].write(
+                            "{0} to {1}: {2}\n".format(
+                                base_group, test_group, results[(0, 1)]))
+
+                    if self.draw_conf_interval_plot:
+                        self.conf_interval_plot()
+                    if self.draw_ecdf_plot:
+                        self.diff_ecdf_plot()
+
+            self.output = join(out_dir,
+                               "analysis_results/by-pair-sizes/slope")
+            data = self.load_data()
+            self.class_names = list(data)
+
+            self.run_sign_test = True
+            results = self.sign_test()
+            print("Slope sign test: {0}".format(results[(0, 1)]))
+
+            self.run_wilcoxon_test = True
+            results = self.wilcoxon_test()
+            print("Slope Wilcoxon signed rank test: {0}".format(
+                results[(0, 1)]))
+
+            self.run_t_test = True
+            results = self.rel_t_test()
+            print("Slope t-test: {0}".format(results[(0, 1)]))
+
+            # conf_interval_plot is disabled by the draw_conf_interval_plot
+            old_conf_interval = self.draw_conf_interval_plot
+            self.draw_conf_interval_plot = True
+            self.conf_interval_plot()
+            self.draw_conf_interval_plot = old_conf_interval
+
+        finally:
+            self.output = out_dir
+            for i in output_files.values():
+                i.close()
+
+        methods = {
+            "mean": "Mean",
+            "median": "Median",
+            "trim_mean_05": "Trimmed mean (5%)",
+            "trim_mean_25": "Trimmed mean (25%)",
+            "trim_mean_45": "Trimmed mean (45%)",
+            "trimean": "Trimean"
+        }
+
+        boots = dict()
+
+        if self.draw_conf_interval_plot:
+            for base_group, test_group in \
+                    sorted(i for i in pairs if i != 'slope'):
+                in_dir = join(out_dir,
+                              "analysis_results/by-pair-sizes/{0:04d}-{1:04d}"
+                              .format(base_group, test_group))
+
+                if base_group not in boots:
+                    boots[base_group] = dict(
+                        (i, dict())
+                        for i in methods
+                    )
+
+                for method in methods:
+                    with open(join(in_dir,
+                                   "bootstrapped_{0}.csv".format(method)),
+                              "r", encoding='utf-8') as fp:
+                        boots[base_group][method][
+                                '{0}-{1}'.format(test_group, base_group)
+                            ] = [
+                            float(x) for x in fp if x != "1-0\n"
+                        ]
+
+            for base_group, data_by_method in boots.items():
+                for method, values in data_by_method.items():
+                    name_readable = methods[method]
+
+                    min_max = len(values.keys())
+                    # don't use smallest and biggest Hamming weights in the
+                    # graph, they will have large confidence intervals anyway
+                    start = int(min_max * 0.2)
+                    stop = int(math.ceil(min_max * 0.8))
+
+                    fig = Figure(figsize=(24, 12))
+                    canvas = FigureCanvas(fig)
+                    ax = fig.add_subplot(1, 1, 1)
+                    ax.violinplot(list(values.values())[start:stop],
+                                  widths=0.7,
+                                  showmeans=True, showextrema=True)
+                    ax.set_xticks(range(1, stop - start + 1, 4))
+                    ax.set_xticklabels(list(values.keys())[start:stop:4])
+
+                    formatter = mpl.ticker.EngFormatter('s')
+                    ax.get_yaxis().set_major_formatter(formatter)
+
+                    ax.set_title((
+                        "Confidence intervals for {0} of differences with {1} "
+                        "as baseline"
+                        ).format(
+                            name_readable, base_group
+                        )
+                    )
+                    ax.set_xlabel("differences")
+                    ax.set_ylabel("{0} of differences".format(name_readable))
+
+                    canvas.print_figure(
+                        join(
+                            self.output,
+                            "analysis_results",
+                            "conf_interval_plot_{0}_{1}.png".format(
+                                 base_group, method
+                            )
+                        ),
+                        bbox_inches="tight"
+                    )
+
+        in_dir = join(out_dir,
+                      "analysis_results/by-pair-sizes/slope")
+
+        boots = dict()
+        print("Bootstrapped confidence intervals for the time/weight slope")
+        for method, method_name in methods.items():
+            with open(join(in_dir, "bootstrapped_{0}.csv".format(method)),
+                      "r", encoding='utf-8') as fp:
+                boots[method] = [
+                    float(x) for x in fp if x != "1-0\n"
+                ]
+
+            quantile = np.quantile(boots[method], [0.025, 0.975, 0.5])
+            print("{0} of differences: {4:.5e} s/bit, 95% CI: "
+                  "{1:.5e} s/bit, {2:.5e} s/bit (±{3:.3e} s/bit)".format(
+                      method_name, quantile[0], quantile[1],
+                      (quantile[1] - quantile[0])/2, quantile[2]))
+
+    def analyse_hamming_weights(self, name=None):
+        if name is None:
+            name = "measurements.csv"
+        name = join(self.output, name)
+
+        # first make sure the binary file exists
+        name_bin = self._remove_suffix(name, '.csv') + ".bin"
+        self._long_format_to_binary(name, name_bin)
+
+        skillings_mack_p_value = self.skillings_mack_test(name_bin)
+
+        print("Skillings-Mack test p-value: {0}".format(
+            skillings_mack_p_value))
+
+        most_common, pairs = self._split_data_to_pairwise(name_bin)
+
+        ns_sm_p_value = None
+        hundred_ps_sm_p_value = None
+        if skillings_mack_p_value > 1e-5:
+            tmp_file = name_bin + ".tmp"
+            shutil.copyfile(name_bin, tmp_file)
+            self._add_value_to_group(tmp_file, most_common[0], 1e-9)
+            ns_sm_p_value = self.skillings_mack_test(tmp_file)
+            print("1ns: {}".format(ns_sm_p_value))
+            os.remove(tmp_file)
+
+            shutil.copyfile(name_bin, tmp_file)
+            self._add_value_to_group(tmp_file, most_common[0], 1e-10)
+            hundred_ps_sm_p_value = self.skillings_mack_test(tmp_file)
+            print("0.1ns: {}".format(hundred_ps_sm_p_value))
+            os.remove(tmp_file)
+
+        self._analyse_weight_pairs(pairs)
+
+        print("Skillings-Mack test p-value: {0}".format(
+            skillings_mack_p_value))
+        if ns_sm_p_value is not None:
+            print("Sample large enough to detect 1 ns difference: {}"
+                  .format(ns_sm_p_value < 1e-9))
+            print("Sample large enough to detect 0.1 ns difference: {}"
+                  .format(hundred_ps_sm_p_value < 1e-9))
+
+        if skillings_mack_p_value < self.alpha:
+            return 1
+        return 0
 
 
 # exclude from coverage as it's a). trivial, and b). not easy to test
