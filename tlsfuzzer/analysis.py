@@ -1860,16 +1860,14 @@ class Analysis(object):
             first_line = in_fp.readline().split(',')
             previous_row = int(first_line[0])
             max_k_size = int(first_line[1])
-            previous_max_k_value = pd.to_numeric(float(first_line[2]),
-                                                 downcast='float')
-
+            previous_max_k_value = float(first_line[2])
             if self.clock_frequency:
                 previous_max_k_value /= self.clock_frequency
 
             chunks = pd.read_csv(
                 in_fp, iterator=True, chunksize=100000,
                 dtype=[("row", np.int16), ("k_size", np.int16),
-                       ("value", np.float32)],
+                       ("value", np.float64)],
                 names=["row", "k_size", "value"])
 
             for chunk in chunks:
@@ -1967,9 +1965,7 @@ class Analysis(object):
                                 if subchunk is None:
                                     break
                                 subchunk = subchunk[['curr_maxk_val', 'value']]
-                                subchunk.to_csv(f,
-                                                float_format=float,  # ->double
-                                                header=False, index=False)
+                                subchunk.to_csv(f, header=False, index=False)
                                 q.task_done()
                             f.close()
                             q.task_done()
