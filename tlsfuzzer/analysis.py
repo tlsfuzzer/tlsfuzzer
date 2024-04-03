@@ -1860,12 +1860,12 @@ class Analysis(object):
             first_line = in_fp.readline().split(',')
             previous_row = int(first_line[0])
             max_k_size = int(first_line[1])
-            current_max_k_value = float(first_line[2])
+            previous_max_k_value = float(first_line[2])
 
             if self.clock_frequency:
-                current_max_k_value /= self.clock_frequency
+                previous_max_k_value /= self.clock_frequency
 
-            yield (current_max_k_value, current_max_k_value, max_k_size)
+            yield (previous_max_k_value, previous_max_k_value, max_k_size)
 
             chunks = pd.read_csv(
                 in_fp, iterator=True, chunksize=100000,
@@ -1880,17 +1880,19 @@ class Analysis(object):
                 if status:
                     status[0] = in_fp.tell()
 
-                for current_row, k_size, value in \
-                        zip(chunk["row"], chunk["k_size"], chunk["value"]):
+                rows, k_sizes, values = \
+                    chunk["row"], chunk["k_size"], chunk["value"]
 
-                    if k_size == max_k_size and previous_row != current_row:
-                        current_max_k_value = value
+                for current_row, k_size, value in zip(rows, k_sizes, values):
+                    if previous_row != current_row:
+                        assert k_size == max_k_size
+                        previous_max_k_value = value
                         previous_row = current_row
                         continue
                     elif k_size == max_k_size and self.skip_sanity:
                         continue
 
-                    yield (current_max_k_value, value, k_size)
+                    yield (previous_max_k_value, value, k_size)
 
     def create_k_specific_dirs(self):
         """
