@@ -1939,13 +1939,10 @@ class Analysis(object):
                         encoding="utf-8"
                     )
                     if k_size == max_k_size:
-                        k_size_files[k_size].write(
-                            "{0},{0}-sanity\n".format(max_k_size)
-                        )
+                        header = "{0},{0}-sanity\n".format(max_k_size)
                     else:
-                        k_size_files[k_size].write(
-                            "{0},{1}\n".format(max_k_size, k_size)
-                        )
+                        header = "{0},{1}\n".format(max_k_size, k_size)
+                    k_size_files[k_size].write(header)
 
                 k_size_files[k_size].write(
                     "{0},{1}\n".format(data[0], data[1])
