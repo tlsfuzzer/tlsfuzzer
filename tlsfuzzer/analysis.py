@@ -1866,8 +1866,6 @@ class Analysis(object):
             if self.clock_frequency:
                 previous_max_k_value /= self.clock_frequency
 
-            yield (previous_max_k_value, previous_max_k_value, max_k_size)
-
             chunks = pd.read_csv(
                 in_fp, iterator=True, chunksize=100000,
                 dtype=[("row", np.int16), ("k_size", np.int16),
@@ -1914,9 +1912,7 @@ class Analysis(object):
 
                 out = chunk.drop(columns="row")
                 out = out.assign(curr_maxk_val=curr_maxk_vals)[mask]
-                for vs in zip(out['curr_maxk_val'], out['value'],
-                              out['k_size']):
-                    yield vs
+                yield max_k_size, out
 
                 previous_row = rows.iat[-1]
                 previous_max_k_value = curr_maxk_vals.iat[-1]
@@ -1945,35 +1941,35 @@ class Analysis(object):
             except FileNotFoundError:
                 pass
 
-        data_iter = self._read_bit_size_measurement_file(status=status)
-
-        data = next(data_iter)
-        max_k_size = data[2]
+        measurement_iter = self._read_bit_size_measurement_file(status=status)
 
         try:
-            for data in data_iter:
-                k_size = data[2]
+            for max_k_size, chunk in measurement_iter:
+                for k_size, subchunk in chunk.groupby("k_size"):
+                    if k_size not in k_size_files:
+                        k_folder_path = join(
+                            self.output,
+                            "analysis_results/k-by-size/{0}".format(k_size)
+                        )
 
-                if k_size not in k_size_files:
-                    k_folder_path = join(
-                        self.output,
-                        "analysis_results/k-by-size/{0}".format(k_size)
-                    )
-
-                    os.makedirs(k_folder_path)
-                    k_size_files[k_size] = open(
-                        join(k_folder_path, "timing.csv"), 'w',
-                        encoding="utf-8"
-                    )
-                    if k_size == max_k_size:
-                        header = "{0},{0}-sanity\n".format(max_k_size)
-                    else:
-                        header = "{0},{1}\n".format(max_k_size, k_size)
-                    k_size_files[k_size].write(header)
-
-                k_size_files[k_size].write(
-                    "{0},{1}\n".format(data[0], data[1])
-                )
+                        os.makedirs(k_folder_path)
+                        k_size_files[k_size] = open(
+                            join(k_folder_path, "timing.csv"), 'w',
+                            encoding="utf-8"
+                        )
+                        if k_size == max_k_size:
+                            k_size_files[k_size].write(
+                                "{0},{0}-sanity\n".format(max_k_size)
+                            )
+                        else:
+                            k_size_files[k_size].write(
+                                "{0},{1}\n".format(max_k_size, k_size)
+                            )
+                    subchunk = subchunk[['curr_maxk_val', 'value']]
+                    subchunk.to_csv(k_size_files[k_size],
+                                    float_format=float,  # cast to double
+                                    header=False,
+                                    index=False)
         finally:
             if status:
                 status[2].set()
