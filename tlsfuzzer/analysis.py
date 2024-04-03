@@ -1860,7 +1860,8 @@ class Analysis(object):
             first_line = in_fp.readline().split(',')
             previous_row = int(first_line[0])
             max_k_size = int(first_line[1])
-            previous_max_k_value = float(first_line[2])
+            previous_max_k_value = pd.to_numeric(float(first_line[2]),
+                                                 downcast='float')
 
             if self.clock_frequency:
                 previous_max_k_value /= self.clock_frequency
@@ -1883,16 +1884,42 @@ class Analysis(object):
                 rows, k_sizes, values = \
                         chunk["row"], chunk["k_size"], chunk["value"]
 
-                for current_row, k_size, value in zip(rows, k_sizes, values):
-                    if previous_row != current_row:
-                        assert k_size == max_k_size
-                        previous_max_k_value = value
-                        previous_row = current_row
-                        continue
-                    elif k_size == max_k_size and self.skip_sanity:
-                        continue
+                # Row switching always happens on k_size == max_k_size
 
-                    yield (previous_max_k_value, value, k_size)
+                # input:
+                #     rows            0 0 1 1 2 2 2 3 3 3
+                #     k_sizes         9 8 9 8 9 8 9 9 9 7
+                #     values          a b c d e f g h i j
+                # intermediates:
+                #     row_same          T   T   T T   T T
+                #     curr_maxk_vals' a - c - e - - h - -
+                #     curr_maxk_vals' a a c c e e e h h h
+                #     mask            F   F   F   F F F   (skip_sanity=True)
+                #     mask                F   F   F F     (skip_sanity=False)
+                # output:
+                #     curr_maxk_vals  a a   c   e     h h
+                #     values          a b   d   f     i j
+                #     k_sizes         9 8   8   8     9 7
+
+                row_same = rows.eq(rows.shift(fill_value=previous_row))
+
+                curr_maxk_vals = values.mask(row_same)
+                if rows.iat[0] == previous_row:
+                    curr_maxk_vals.iat[0] = previous_max_k_value
+                curr_maxk_vals = curr_maxk_vals.ffill()
+
+                mask = row_same
+                if self.skip_sanity:
+                    mask &= k_sizes.ne(max_k_size)
+
+                out = chunk.drop(columns="row")
+                out = out.assign(curr_maxk_val=curr_maxk_vals)[mask]
+                for vs in zip(out['curr_maxk_val'], out['value'],
+                              out['k_size']):
+                    yield vs
+
+                previous_row = rows.iat[-1]
+                previous_max_k_value = curr_maxk_vals.iat[-1]
 
     def create_k_specific_dirs(self):
         """
