@@ -1946,37 +1946,46 @@ class Analysis(object):
             for max_k_size, chunk in measurement_iter:
                 for k_size, subchunk in chunk.groupby("k_size"):
                     if k_size not in k_size_files:
-                        k_folder_path = join(
-                            self.output,
-                            "analysis_results/k-by-size/{0}".format(k_size)
-                        )
+                        def worker(k_size, q):
+                            k_folder_path = join(
+                                self.output,
+                                "analysis_results/k-by-size/{0}".format(k_size)
+                            )
 
-                        os.makedirs(k_folder_path)
-                        k_size_files[k_size] = open(
-                            join(k_folder_path, "timing.csv"), 'w',
-                            encoding="utf-8"
-                        )
-                        if k_size == max_k_size:
-                            k_size_files[k_size].write(
-                                "{0},{0}-sanity\n".format(max_k_size)
-                            )
-                        else:
-                            k_size_files[k_size].write(
-                                "{0},{1}\n".format(max_k_size, k_size)
-                            )
-                    subchunk = subchunk[['cmaxk_v', 'value']]
-                    subchunk.to_csv(k_size_files[k_size],
-                                    float_format=float,  # cast to double
-                                    header=False,
-                                    index=False)
+                            os.makedirs(k_folder_path)
+
+                            f = open(join(k_folder_path, "timing.csv"), 'wb')
+                            if k_size == max_k_size:
+                                header = "{0},{0}-sanity\n".format(max_k_size)
+                            else:
+                                header = "{0},{1}\n".format(max_k_size, k_size)
+                            f.write(header.encode('ascii'))
+
+                            while True:
+                                subchunk = q.get()
+                                if subchunk is None:
+                                    break
+                                subchunk = subchunk[['cmaxk_v', 'value']]
+                                subchunk.to_csv(f,
+                                                float_format=float,  # ->double
+                                                header=False, index=False)
+                                q.task_done()
+                            f.close()
+                            q.task_done()
+
+                        q = mp.JoinableQueue(32)
+                        mp.Process(target=worker, args=(k_size, q)).start()
+                        k_size_files[k_size] = q
+                    k_size_files[k_size].put(subchunk)
         finally:
+            for q in k_size_files.values():
+                q.put(None)
+                q.join()
+
             if status:
                 status[2].set()
                 progress.join()
                 print()
-
-            for file in k_size_files.values():
-                file.close()
 
         k_sizes = list(k_size_files.keys())
         k_sizes = sorted(k_sizes, reverse=True)
