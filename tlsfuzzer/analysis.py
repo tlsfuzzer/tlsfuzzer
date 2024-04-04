@@ -1953,21 +1953,24 @@ class Analysis(object):
 
                             os.makedirs(k_folder_path)
 
-                            f = open(join(k_folder_path, "timing.csv"), 'wb')
-                            if k_size == max_k_size:
-                                header = "{0},{0}-sanity\n".format(max_k_size)
-                            else:
-                                header = "{0},{1}\n".format(max_k_size, k_size)
-                            f.write(header.encode('ascii'))
+                            with open(join(k_folder_path, "timing.csv"),
+                                      'wb') as f:
+                                header = (
+                                    "{0},{1}\n".format(max_k_size, k_size)
+                                    if k_size != max_k_size else
+                                    "{0},{0}-sanity\n".format(max_k_size)
+                                )
+                                f.write(header.encode('ascii'))
 
-                            while True:
-                                subchunk = q.get()
-                                if subchunk is None:
-                                    break
-                                subchunk = subchunk[['curr_maxk_val', 'value']]
-                                subchunk.to_csv(f, header=False, index=False)
-                                q.task_done()
-                            f.close()
+                                while True:
+                                    subchunk = q.get()
+                                    if subchunk is None:
+                                        break
+                                    subchunk = subchunk[['curr_maxk_val',
+                                                         'value']]
+                                    subchunk.to_csv(f,
+                                                    header=False, index=False)
+                                    q.task_done()
                             q.task_done()
 
                         q = mp.JoinableQueue(32)
