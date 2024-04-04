@@ -15,6 +15,7 @@ import os
 from socket import inet_aton
 from os.path import join, dirname, abspath
 import hashlib
+from random import choice
 
 from tlsfuzzer.utils.log import Log
 
@@ -836,6 +837,51 @@ class TestCommandLine(unittest.TestCase):
                 mock_log.assert_not_called()
                 mock_process.assert_called_once()
 
+    @mock.patch('tlsfuzzer.extract.Log')
+    @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
+    @mock.patch('tlsfuzzer.extract.Extract._write_csv')
+    @mock.patch(
+        'tlsfuzzer.extract.Extract.process_and_create_multiple_csv_files'
+    )
+    @mock.patch('tlsfuzzer.extract.Extract.parse')
+    def test_skip_invert_option(self, mock_parse, mock_process, mock_write,
+                              mock_write_pkt, mock_log):
+        output = "/tmp"
+        raw_data = "/tmp/data"
+        data_size = 32
+        raw_sigs = "/tmp/sigs"
+        raw_times = "/tmp/times"
+        priv_key = "/tmp/key"
+        args = ["extract.py",
+                "-o", output,
+                "--raw-data", raw_data,
+                "--data-size", data_size,
+                "--raw-sigs", raw_sigs,
+                "--raw-times", raw_times,
+                "--priv-key-ecdsa", priv_key,
+                "--skip-invert"]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
+            with mock.patch("sys.argv", args):
+                main()
+                mock_init.assert_called_once_with(
+                    mock.ANY, None, output, None, None,
+                    raw_times, None, binary=None, endian="little",
+                    no_quickack=False, delay=None, carriage_return=None,
+                    data=raw_data, data_size=data_size, sigs=raw_sigs,
+                    priv_key=priv_key, key_type="ecdsa",
+                    frequency=None, hash_func=hashlib.sha256,
+                    workers=None, verbose=False, rsa_keys=None)
+                mock_write.assert_not_called()
+                mock_write_pkt.assert_not_called()
+                mock_log.assert_not_called()
+                mock_process.assert_called_once()
+
+                files_passes_in_process = mock_process.call_args[0][0]
+                for mode in files_passes_in_process.values():
+                    self.assertNotIn("invert", mode)
+
     def test_specify_to_private_keys(self):
         args = [
             "extract.py", "-o", "/tmp", "--raw-data", "/tmp/data",
@@ -1334,14 +1380,34 @@ class TestMeasurementCreation(unittest.TestCase):
     def setUp(self):
         self.builtin_open = open
         self.times_used_write = 0
+        self.times_used_write_on_hamming = 0
         self.k_time_map = []
+
+        out_dir = join(dirname(abspath(__file__)), "measurements_test_files")
+        raw_times = join(dirname(abspath(__file__)),
+                         "measurements_test_files", "times.bin")
+        raw_sigs = join(dirname(abspath(__file__)),
+                         "measurements_test_files", "sigs.bin")
+        raw_data = join(dirname(abspath(__file__)),
+                         "measurements_test_files", "data.bin")
+        priv_key = join(dirname(abspath(__file__)),
+                         "measurements_test_files", "priv_key.pem")
+
+        self.extract = Extract(
+            output=out_dir, raw_times=raw_times, binary=8,
+            sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
+            key_type="ecdsa"
+        )
 
     def custom_generator(self, data):
         for item in data:
             yield item
 
-    def add_to_times_used_write (self, i):
-        self.times_used_write += i
+    def add_to_times_used_write (self, i, hamming=False):
+        if hamming:
+            self.times_used_write_on_hamming += i
+        else:
+            self.times_used_write += i
 
     def file_emulator(self, *args, **kwargs):
         name = args[0]
@@ -1365,10 +1431,14 @@ class TestMeasurementCreation(unittest.TestCase):
             )
             return r
 
+        if "tmp_HWI_values.csv" in name:
+            r = mock.mock_open()(name, mode)
+            return r
+
         if "w" in mode and "measurements" in name:
             r = mock.mock_open()(name, mode)
             r.write.side_effect = lambda s: (
-                self.add_to_times_used_write(1)
+                self.add_to_times_used_write(1, hamming=("hamming" in name))
             )
             return r
         elif "w" in mode:
@@ -1383,92 +1453,56 @@ class TestMeasurementCreation(unittest.TestCase):
     def test_measurement_creation_with_verbose_and_frequency(
             self, mock_print, mock_file
         ):
-        out_dir = join(dirname(abspath(__file__)), "measurements_test_files")
-        raw_times = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "times.bin")
-        raw_sigs = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "sigs.bin")
-        raw_data = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "data.bin")
-        priv_key = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "priv_key.pem")
+        self.extract.frequency = 1
+        self.extract.verbose = True
 
         mock_file.side_effect = self.file_emulator
         self.times_used_write = 0
 
-        extract = Extract(
-            output=out_dir, raw_times=raw_times, binary=8,
-            sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
-            key_type="ecdsa", frequency=1, verbose=True
-        )
-
-        extract.process_measurements_and_create_csv_file(
-            extract.ecdsa_iter(), extract.ecdsa_max_value()
+        self.extract.process_measurements_and_create_csv_file(
+            self.extract.ecdsa_iter(), self.extract.ecdsa_max_value()
         )
 
         self.assertGreater(
             self.times_used_write, 0,
             "At least one measurement should have been written."
         )
+
+        self.times_used_write = 0
+        self.extract.frequency = None
+        self.extract.verbose = False
 
     @mock.patch('__main__.__builtins__.open')
-    def test_measurement_creation_with_invert_k_size(
+    def test_measurement_creation_with_k_size_invert(
             self, mock_file
         ):
-        out_dir = join(dirname(abspath(__file__)), "measurements_test_files")
-        raw_times = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "times.bin")
-        raw_sigs = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "sigs.bin")
-        raw_data = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "data.bin")
-        priv_key = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "priv_key.pem")
+        self.extract._temp_HWI_name = "tmp_HWI_values.csv"
 
         mock_file.side_effect = self.file_emulator
         self.times_used_write = 0
 
-        extract = Extract(
-            output=out_dir, raw_times=raw_times, binary=8,
-            sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
-            key_type="ecdsa"
-        )
-
-        extract.process_measurements_and_create_csv_file(
-            extract.ecdsa_iter(return_type="invert-k-size"),
-            extract.ecdsa_max_value()
+        self.extract.process_measurements_and_create_csv_file(
+            self.extract.ecdsa_iter(return_type="k-size-invert"),
+            self.extract.ecdsa_max_value()
         )
 
         self.assertGreater(
             self.times_used_write, 0,
             "At least one measurement should have been written."
         )
+
+        self.times_used_write = 0
+        self.extract._temp_HWI_name = None
 
     @mock.patch('__main__.__builtins__.open')
     def test_measurement_creation_with_hamming_weight(
             self, mock_file
         ):
-        out_dir = join(dirname(abspath(__file__)), "measurements_test_files")
-        raw_times = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "times.bin")
-        raw_sigs = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "sigs.bin")
-        raw_data = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "data.bin")
-        priv_key = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "priv_key.pem")
-
         mock_file.side_effect = self.file_emulator
         self.times_used_write = 0
 
-        extract = Extract(
-            output=out_dir, raw_times=raw_times, binary=8,
-            sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
-            key_type="ecdsa"
-        )
-
-        extract.process_measurements_and_create_csv_file(
-            extract.ecdsa_iter(return_type="hamming-weight"), 128
+        self.extract.process_measurements_and_create_hamming_csv_file(
+            self.extract.ecdsa_iter(return_type="hamming-weight")
         )
 
         self.assertGreater(
@@ -1476,36 +1510,76 @@ class TestMeasurementCreation(unittest.TestCase):
             "At least one measurement should have been written."
         )
 
+        self.times_used_write = 0
+
+    @mock.patch('tlsfuzzer.extract.Extract._check_for_iter_left_overs')
+    @mock.patch('__main__.__builtins__.print')
+    @mock.patch('__main__.__builtins__.open')
+    def test_measurement_creation_with_hamming_weight_non_exact_multiple(
+            self, mock_file, mock_print, mock_left_overs
+        ):
+        self.extract.verbose = True
+
+        def custom_ecdsa_iter():
+            counter = 0
+            even_list = [127, 128, 129]
+            odd_list = [125, 126, 130, 130]
+
+            while counter < 106:
+                if counter % 2 == 0:
+                    yield choice(even_list)
+                else:
+                    yield choice(odd_list)
+                counter += 1
+
+        mock_file.side_effect = self.file_emulator
+        self.times_used_write = 0
+
+        self.extract.process_measurements_and_create_hamming_csv_file(
+            custom_ecdsa_iter())
+
+        self.assertGreater(
+            self.times_used_write, 0,
+            "At least one measurement should have been written."
+        )
+        mock_print.assert_called()
+
+        self.times_used_write = 0
+        self.extract.verbose = False
+
+    @mock.patch('__main__.__builtins__.open')
+    def test_measurement_creation_with_hamming_weight_invert(
+            self, mock_file
+        ):
+        mock_file.side_effect = self.file_emulator
+        self.times_used_write = 0
+
+        self.extract.process_measurements_and_create_hamming_csv_file(
+            self.extract.ecdsa_iter(return_type="hamming-weight-invert")
+        )
+
+        self.assertGreater(
+            self.times_used_write, 0,
+            "At least one measurement should have been written."
+        )
+
+        self.times_used_write = 0
+
     @mock.patch('__main__.__builtins__.open')
     def test_measurement_creation_with_invalid_iter_option(
             self, mock_file
         ):
-        out_dir = join(dirname(abspath(__file__)), "measurements_test_files")
-        raw_times = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "times.bin")
-        raw_sigs = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "sigs.bin")
-        raw_data = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "data.bin")
-        priv_key = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "priv_key.pem")
-
         mock_file.side_effect = self.file_emulator
 
-        extract = Extract(
-            output=out_dir, raw_times=raw_times, binary=8,
-            sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
-            key_type="ecdsa"
-        )
-
         with self.assertRaises(ValueError) as e:
-            extract.process_measurements_and_create_csv_file(
-                extract.ecdsa_iter(return_type="not-an-option"),
-                extract.ecdsa_max_value()
+            self.extract.process_measurements_and_create_csv_file(
+                self.extract.ecdsa_iter(return_type="not-an-option"),
+                self.extract.ecdsa_max_value()
             )
 
         self.assertIn(
-            "Iterator return must be k-size, invert-k-size or hamming-weight.",
+            "Iterator return must be k-size[-invert] "
+            "or hamming-weight[-invert]",
             str(e.exception)
         )
 
@@ -1513,144 +1587,167 @@ class TestMeasurementCreation(unittest.TestCase):
     def test_measurement_creation_with_wrong_hash_func(
             self, mock_file
         ):
-        out_dir = join(dirname(abspath(__file__)), "measurements_test_files")
-        raw_times = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "times.bin")
-        raw_sigs = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "sigs.bin")
-        raw_data = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "data.bin")
-        priv_key = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "priv_key.pem")
+        self.extract.hash_func = hashlib.sha384
 
         mock_file.side_effect = self.file_emulator
 
-        extract = Extract(
-            output=out_dir, raw_times=raw_times, binary=8,
-            sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
-            key_type="ecdsa", hash_func=hashlib.sha384
-        )
-
         with self.assertRaises(ValueError) as e:
-            extract.process_measurements_and_create_csv_file(
-                extract.ecdsa_iter(), extract.ecdsa_max_value()
+            self.extract.process_measurements_and_create_csv_file(
+                self.extract.ecdsa_iter(), self.extract.ecdsa_max_value()
             )
 
         self.assertIn("Failed to calculate k from given signatures.",
                         str(e.exception))
 
+        self.extract.hash_func = hashlib.sha256
+
     @mock.patch('__main__.__builtins__.open')
     def test_measurement_creation_with_non_existing_data_file(
             self, mock_file
         ):
-        out_dir = join(dirname(abspath(__file__)), "measurements_test_files")
-        raw_times = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "times.bin")
-        raw_sigs = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "sigs.bin")
-        raw_data = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "data2.bin")
-        priv_key = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "priv_key.pem")
+        self.extract.data = self.extract.data.replace("data", "data2")
 
         mock_file.side_effect = self.file_emulator
 
-        extract = Extract(
-            output=out_dir, raw_times=raw_times, binary=8,
-            sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
-            key_type="ecdsa"
-        )
-
         with self.assertRaises(FileNotFoundError) as e:
-            extract.process_measurements_and_create_csv_file(
-                extract.ecdsa_iter(), extract.ecdsa_max_value()
+            self.extract.process_measurements_and_create_csv_file(
+                self.extract.ecdsa_iter(), self.extract.ecdsa_max_value()
             )
 
         self.assertIn("No such file or directory", str(e.exception))
+
+        self.extract.data = self.extract.data.replace("data2", "data")
 
     @mock.patch('builtins.print')
     @mock.patch('__main__.__builtins__.open')
     def test_measurement_creation_with_incomplete_times(
             self, mock_file, mock_print
         ):
-        raw_times = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "times.bin")
-        raw_sigs = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "sigs.bin")
-        raw_data = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "data.bin")
-        priv_key = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "priv_key.pem")
+        original_output = self.extract.output
+        self.extract.output = "/tmp/minerva"
 
         mock_file.side_effect = self.file_emulator
         times = self.custom_generator(
             [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 ]
         )
 
-        extract = Extract(
-            output="/tmp/minerva", raw_times=raw_times, binary=8,
-            sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
-            key_type="ecdsa", verbose=True
-        )
-
         with self.assertRaises(ValueError) as e:
-            extract.process_measurements_and_create_csv_file(
-                times, extract.ecdsa_max_value()
+            self.extract.process_measurements_and_create_csv_file(
+                times, self.extract.ecdsa_max_value()
             )
 
         self.assertIn("There are some extra values that are not used.",
                       str(e.exception))
 
+        self.extract.output = original_output
+
+    @mock.patch('__main__.__builtins__.print')
     @mock.patch('__main__.__builtins__.open')
     def test_multiple_measurement_creation(
-            self, mock_file
+            self, mock_file, mock_print
         ):
-        out_dir = join(dirname(abspath(__file__)), "measurements_test_files")
-        raw_times = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "times.bin")
-        raw_sigs = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "sigs.bin")
-        raw_data = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "data.bin")
-        priv_key = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "priv_key.pem")
+        self.extract.verbose = True
 
         mock_file.side_effect = self.file_emulator
         self.times_used_write = 0
 
-        extract = Extract(
-            output=out_dir, raw_times=raw_times, binary=8,
-            sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
-            key_type="ecdsa"
-        )
-
-        extract.process_and_create_multiple_csv_files({
-            "measurements.csv": "k-size",
+        self.extract.process_and_create_multiple_csv_files({
+            "measurements.csv": "k-size"
         })
 
         self.assertGreater(
             self.times_used_write, 0,
             "At least one measurement should have been written."
         )
+        mock_print.assert_called()
 
-    def test_k_extractions(self):
-        out_dir = join(dirname(abspath(__file__)), "measurements_test_files")
-        raw_times = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "times.bin")
-        raw_sigs = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "sigs.bin")
-        raw_data = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "data.bin")
-        priv_key = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "priv_key.pem")
+        self.times_used_write = 0
+        self.extract.verbose = False
 
-        extract = Extract(
-            output=out_dir, raw_times=raw_times, binary=8,
-            sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
-            key_type="ecdsa"
+    @mock.patch('__main__.__builtins__.print')
+    @mock.patch('__main__.__builtins__.open')
+    def test_multiple_measurement_creation_hamming_weight(
+            self, mock_file, mock_print
+        ):
+        self.extract.verbose = True
+
+        mock_file.side_effect = self.file_emulator
+        self.times_used_write = 0
+
+        self.extract.process_and_create_multiple_csv_files({
+            "measurements-hamming.csv": "hamming-weight"
+        })
+
+        self.assertGreater(
+            self.times_used_write_on_hamming, 0,
+            "At least one measurement should have been written."
+        )
+        mock_print.assert_called()
+
+        self.times_used_write_on_hamming = 0
+        self.extract.verbose = False
+
+    @mock.patch('__main__.__builtins__.print')
+    @mock.patch('tlsfuzzer.extract.remove')
+    @mock.patch('tlsfuzzer.extract.Extract.ecdsa_iter')
+    @mock.patch('__main__.__builtins__.open')
+    def test_multiple_measurement_creation_invert(
+            self, mock_file, mock_ecdsa_iter, mock_remove, mock_print
+        ):
+        def custom_ecdsa_iter(return_type):
+            counter = 0
+
+            even_list = None
+            odd_list = None
+            if return_type == "k-size-invert":
+                even_list = [256]
+                odd_list = [255, 254, 253, 252]
+            elif return_type == "hamming-weight-invert":
+                even_list = [127, 128, 129]
+                odd_list = [125, 126, 130, 130]
+
+            while counter < 500:
+                if counter % 2 == 0:
+                    yield choice(even_list)
+                else:
+                    yield choice(odd_list)
+                counter += 1
+
+        mock_file.side_effect = self.file_emulator
+        mock_ecdsa_iter.side_effect = custom_ecdsa_iter
+        self.times_used_write = 0
+        self.times_used_write_on_hamming = 0
+
+        self.extract.process_and_create_multiple_csv_files({
+            "measurements-hamming-invert.csv": "hamming-weight-invert",
+            "measurements-invert.csv": "k-size-invert",
+        })
+
+        mock_print.assert_not_called()
+        self.assertGreater(
+            self.times_used_write, 0,
+            "At least one measurement should have been written."
+        )
+        self.assertGreater(
+            self.times_used_write_on_hamming, 0,
+            "At least one measurement should have been written."
         )
 
-        k_value = extract._ecdsa_calculate_k((
+        self.extract.verbose = True
+
+        self.extract.process_and_create_multiple_csv_files({
+            "measurements-hamming-invert.csv": "hamming-weight-invert",
+            "measurements-invert.csv": "k-size-invert",
+        })
+
+        mock_print.assert_called()
+
+        self.times_used_write = 0
+        self.times_used_write_on_hamming = 0
+        self.extract.verbose = False
+
+    def test_k_extractions(self):
+        k_value = self.extract._ecdsa_calculate_k((
             b'0F\x02!\x00\xbe.W"U\t9\x88\xe1o\xbbJ_\x03\x91\xf8+F\t\x08\xdc'
             b'\xd3\x99\x14(\x96\xe4\x8f\xb0\xc0\xcc7\x02!\x00\xbcd+\x80\xf7'
             b'\x19\xed\xee&\xdd!\'\xcd3\xb3\x05\xb5\x824q\x05\xcb\x95A\xe9f'
