@@ -82,13 +82,15 @@ def help_msg():
     print(" --priv-key-ecdsa FILE Read the ecdsa private key from PEM file.")
     print(" --clock-frequency freq Assume that the times in the file are not")
     print("                specified in seconds but rather in clock cycles of")
-    print("                a clock running at requency 'freq' specified in")
+    print("                a clock running at frequency 'freq' specified in")
     print("                MHz. Use when the clock source are the raw reads")
     print("                from the Time Stamp Counter register or similar.")
     print(" --hash-func func Specifies the hash function to use for")
     print("                extracting the k value. The function should be")
     print("                available in hashlib module. The default function")
     print("                is sha256.")
+    print(" --skip-invert  Skipping the creation of invert K value")
+    print("                measurement files.")
     print(" --rsa-keys FILE Analyse the times based on RSA private keys")
     print("                values. Creates separate measurements.csv files")
     print("                for the d, p, q, dP, dQ, and qInv values.")
@@ -127,15 +129,16 @@ def main():
     carriage_return = None
     data = None
     data_size = None
+    prehashed = False
     sigs = None
     priv_key = None
     key_type = None
     freq = None
     hash_func_name = None
-    workers = None
+    invert = True
     rsa_keys = None
+    workers = None
     verbose = False
-    prehashed = False
 
     argv = sys.argv[1:]
 
@@ -148,8 +151,9 @@ def main():
                                 "no-quickack", "status-delay=",
                                 "status-newline", "raw-data=", "data-size=",
                                 "prehashed", "raw-sigs=", "priv-key-ecdsa=",
-                                "clock-frequency=", "hash-func=", "workers=",
-                                "verbose", "rsa-keys="])
+                                "clock-frequency=", "hash-func=",
+                                "skip-invert", "workers=", "rsa-keys=",
+                                "verbose"])
     for opt, arg in opts:
         if opt == '-l':
             logfile = arg
@@ -198,6 +202,8 @@ def main():
             freq = float(arg) * 1e6
         elif opt == "--hash-func":
             hash_func_name = arg
+        elif opt == "--skip-invert":
+            invert = False
         elif opt == "--workers":
             workers = int(arg)
         elif opt == "--help":
@@ -266,10 +272,19 @@ data size, signatures file and one private key are necessary.")
     extract.parse()
 
     if all([raw_times, data, data_size, sigs, priv_key]):
-        extract.process_and_create_multiple_csv_files({
+        files = {
             "measurements.csv": "k-size",
-            "measurements-invert.csv": "invert-k-size",
-        })
+            "measurements-hamming-weight.csv": "hamming-weight"
+        }
+
+        if invert:
+            file_list = list(files.keys())
+
+            for file in file_list:
+                invert_file_name = file.split(".")[0] + '-invert.csv'
+                files[invert_file_name] = "invert-" + files[file]
+
+        extract.process_and_create_multiple_csv_files(files)
 
     if rsa_keys:
         extract.process_rsa_keys()
@@ -362,6 +377,7 @@ class Extract:
         self._max_value = None
         self._fin_as_resp = fin_as_resp
         self.rsa_keys = rsa_keys
+        self._temp_HWI_name = None
 
         if data and data_size:
             try:
@@ -851,8 +867,10 @@ class Extract:
             column = 0
 
             if len(columns) > 1 and col_name is None:
-                raise ValueError("Multiple columns in raw_times file and "
-                    "no column name specified!")
+                raise ValueError(
+                    "Multiple columns in {0} and ".format(filename) +
+                    "no column name specified!"
+                )
 
             if col_name:
                 column = columns.index(col_name)
@@ -975,8 +993,20 @@ class Extract:
     def _calculate_invert_k(self, value_iter):
         """Iterator. It will calculate the invert K."""
         n_value = self.priv_key.curve.order
-        for value in value_iter:
-            yield ecdsa.ecdsa.numbertheory.inverse_mod(value, n_value)
+
+        if self._temp_HWI_name and not exists(self._temp_HWI_name):
+            with open(self._temp_HWI_name, "w") as fp:
+                fp.write("{0}\n".format("invert_K_bit_count"))
+                for value in value_iter:
+                    invert = ecdsa.ecdsa.numbertheory.inverse_mod(
+                        value, n_value)
+                    invert_bit_count = bit_count(invert)
+                    fp.write("{0}\n".format(invert_bit_count))
+                    yield invert
+        else:
+            for value in value_iter:
+                invert = ecdsa.ecdsa.numbertheory.inverse_mod(value, n_value)
+                yield invert
 
     def ecdsa_iter(self, return_type="k-size"):
         """
@@ -1027,18 +1057,23 @@ class Extract:
             k_map_filename, col_name="k_value", convert_to_int=True
         )
 
-        if return_type == "k-size":
+        if "invert" in return_type:
+            if ("hamming-weight" in return_type and self._temp_HWI_name
+                    and exists(self._temp_HWI_name)):
+                return self._get_data_from_csv_file(
+                    filename=self._temp_HWI_name
+                )
+            else:
+                k_iter = self._calculate_invert_k(k_iter)
+
+        if "k-size" in return_type:
             k_wrap_iter = self._convert_to_bit_size(k_iter)
-        elif return_type == "invert-k-size":
-            k_wrap_iter = self._convert_to_bit_size(
-                self._calculate_invert_k(k_iter)
-            )
-        elif return_type == "hamming-weight":
+        elif "hamming-weight" in return_type:
             k_wrap_iter = self._convert_to_hamming_weight(k_iter)
         else:
             raise ValueError(
                 "Iterator return must be "
-                "k-size, invert-k-size or hamming-weight."
+                "k-size[-invert] or hamming-weight[-invert]"
             )
 
         return k_wrap_iter
@@ -1183,17 +1218,17 @@ class Extract:
                 self._max_value, sanity_entries_count
             ))
 
-    def _check_for_iter_left_overs(self, iterator, desc=''):
-        left_overs = []
+    def _check_for_iter_left_overs(
+            self, iterator, desc='Left-overs on iterator:'):
+        left_overs_counter = 0
         for item in iterator:
-            left_overs.append(item)
-        if len(left_overs) > 0 and self.verbose:
-            if desc:
-                print(desc)
-            else:
-                print("Left-overs on iterator:")
-            for item in left_overs:
+            left_overs_counter += 1
+            if self.verbose:
                 print(item)
+
+        if left_overs_counter > 0:
+            if self.verbose:
+                print(desc + " {0}".format(left_overs_counter))
 
             raise ValueError("There are some extra values that are not used.")
 
@@ -1325,20 +1360,136 @@ class Extract:
 
         self._measurements_fp.close()
 
+    def process_measurements_and_create_hamming_csv_file(self, values_iter):
+        """
+        Processing all the measurements from the given files and
+        creates a measurement file with tuples associating with the hamming
+        weight of the measurements.
+        """
+        self._measurements_fp = open(
+            join(self.output, self.measurements_csv), "w"
+        )
+
+        items_in_tuple = 20
+        line_to_write = defaultdict(lambda: [])
+        items_buffered = 0
+        row = 0
+        measurements_dropped = 0
+        min_tuple_size = items_in_tuple
+
+        time_iter = self._get_time_from_file()
+
+        if self.verbose:
+            print("[i] Creating {0} file...".format(self.measurements_csv))
+
+        progress = None
+        status = [0]
+        if self.verbose and self._total_measurements:
+            status = [0, self._total_measurements, Event()]
+            kwargs = {}
+            kwargs['unit'] = ' signatures'
+            kwargs['prefix'] = 'decimal'
+            kwargs['delay'] = self.delay
+            kwargs['end'] = self.carriage_return
+            progress = Thread(target=progress_report, args=(status,),
+                            kwargs=kwargs)
+            progress.start()
+
+        try:
+            for value, time_value in izip(values_iter, time_iter):
+                status[0] += 1
+
+                if value not in line_to_write:
+                    line_to_write[value] = []
+
+                line_to_write[value].append(time_value)
+                items_buffered += 1
+
+                if items_buffered == items_in_tuple:
+                    for key in line_to_write:
+                        if len(line_to_write[key]) == 1:
+                            line_to_write[key] = line_to_write[key][0]
+                        else:
+                            measurements_dropped += len(line_to_write[key]) - 1
+                            line_to_write[key] = choice(line_to_write[key])
+
+                        self._measurements_fp.write("{0},{1},{2}\n".format(
+                            row, key, line_to_write[key]))
+
+                    min_tuple_size = min(
+                        len(line_to_write.keys()), min_tuple_size)
+
+                    row += 1
+                    line_to_write = defaultdict(lambda: [])
+                    items_buffered = 0
+        finally:
+            if progress:
+                status[2].set()
+                progress.join()
+                print()
+
+        self._check_for_iter_left_overs(values_iter)
+        self._check_for_iter_left_overs(time_iter)
+
+        if self.verbose:
+            if self._total_measurements:
+                print(
+                    '[i] Measurements that have been dropped: {0:,} ({1:.2f}%)'
+                    .format(
+                        measurements_dropped,
+                        (measurements_dropped * 100)
+                        / self._total_measurements
+                    )
+                )
+            print(
+                '[i] Smallest tuple size in file: {0}\n'
+                    .format(int(min_tuple_size)) +
+                '[i] Written rows: {0:,}'.format(row)
+            )
+
+        self._measurements_fp.close()
+
     def process_and_create_multiple_csv_files(self, files = {
         "measurements.csv": "k-size"
     }):
         original_measuremments_csv = self.measurements_csv
+        skipped_h_weight_invert = False
+        h_weight_invert_file = None
+        h_weight_invert_mode = None
 
         if exists(join(self.output, "ecdsa-k-time-map.csv")):
             remove(join(self.output, "ecdsa-k-time-map.csv"))
 
+        for file, mode in files.items():
+            if "hamming-weight" in mode and "invert" in mode:
+                skipped_h_weight_invert = True
+                h_weight_invert_file = file
+                h_weight_invert_mode = mode
+                self._temp_HWI_name = join(self.output, "tmp_HWI_values.csv")
+
         for file in files:
             self.measurements_csv = file
 
-            self.process_measurements_and_create_csv_file(
-                self.ecdsa_iter(return_type=files[file]), self.ecdsa_max_value()
+            if "hamming-weight" in files[file]:
+                if "invert" in files[file]:
+                    continue
+
+                self.process_measurements_and_create_hamming_csv_file(
+                    self.ecdsa_iter(return_type=files[file])
+                )
+            else:
+                self.process_measurements_and_create_csv_file(
+                    self.ecdsa_iter(return_type=files[file]),
+                    self.ecdsa_max_value()
+                )
+
+        if skipped_h_weight_invert:
+            self.measurements_csv = h_weight_invert_file
+            self.process_measurements_and_create_hamming_csv_file(
+                self.ecdsa_iter(return_type=h_weight_invert_mode)
             )
+            remove(self._temp_HWI_name)
+            self._temp_HWI_name = None
 
         self.measurements_csv = original_measuremments_csv
 

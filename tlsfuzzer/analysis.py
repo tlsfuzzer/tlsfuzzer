@@ -124,7 +124,7 @@ def main():
     sign_test = True
     bit_size_analysis = False
     smart_analysis = True
-    bit_size_desire_ci = 1e-9
+    bit_size_desired_ci = 1e-9
     bit_recognition_size = 4
     measurements_filename = "measurements.csv"
     skip_sanity = False
@@ -144,7 +144,7 @@ def main():
                                 "status-newline",
                                 "bit-size",
                                 "no-smart-analysis",
-                                "bit-size-desire-ci=",
+                                "bit-size-desired-ci=",
                                 "bit-recognition-size=",
                                 "measurements=",
                                 "skip-sanity",
@@ -189,8 +189,8 @@ def main():
             hamming_weight_analysis = True
         elif opt == "--no-smart-analysis":
             smart_analysis = False
-        elif opt == "--bit-size-desire-ci":
-            bit_size_desire_ci = int(arg) * 1e-9
+        elif opt == "--bit-size-desired-ci":
+            bit_size_desired_ci = float(arg) * 1e-9
         elif opt == "--bit-recognition-size":
             bit_recognition_size = int(arg)
         elif opt == "--measurements":
@@ -203,7 +203,7 @@ def main():
                             multithreaded_graph, verbose, clock_freq, alpha,
                             workers, delay, carriage_return,
                             bit_size_analysis or hamming_weight_analysis,
-                            smart_analysis, bit_size_desire_ci,
+                            smart_analysis, bit_size_desired_ci,
                             bit_recognition_size, measurements_filename,
                             skip_sanity, wilcoxon_test, t_test, sign_test)
         if hamming_weight_analysis:
@@ -223,7 +223,7 @@ class Analysis(object):
                  verbose=False, clock_frequency=None, alpha=None,
                  workers=None, delay=None, carriage_return=None,
                  bit_size_analysis=False, smart_bit_size_analysis=True,
-                 bit_size_desire_ci=1e-9, bit_recognition_size=4,
+                 bit_size_desired_ci=1e-9, bit_recognition_size=4,
                  measurements_filename="measurements.csv", skip_sanity=False,
                  run_wilcoxon_test=True, run_t_test=True, run_sign_test=True):
         self.verbose = verbose
@@ -250,7 +250,7 @@ class Analysis(object):
         if bit_size_analysis and smart_bit_size_analysis:
             self._bit_size_data_limit = 10000  # staring amount of samples
             self._bit_size_data_used = None
-            self.bit_size_desire_ci = bit_size_desire_ci
+            self.bit_size_desired_ci = bit_size_desired_ci
             self.bit_recognition_size = \
                 bit_recognition_size if bit_recognition_size >= 0 else 1
         else:
@@ -1635,13 +1635,13 @@ class Analysis(object):
                                               status=status)
             finally:
                 if self.verbose:
+                    status[2].set()
+                    progress.join()
+                    print()
                     print("[i] Skillings-Mack test done in {:.3}s".format(
                         time.time() - start_time))
                     print("[i] Skillings-Mack p-value: {0:.6e}".format(
                         sm_test.p_value))
-                    status[2].set()
-                    progress.join()
-                    print()
 
         finally:
             del data
@@ -1709,7 +1709,6 @@ class Analysis(object):
         all_sign_test_values = list(self._bit_size_sign_test.values())
         all_wilcoxon_values = list(self._bit_size_wilcoxon_test.values())
         with open(join(self.output, "analysis_results/report.txt"), "w") as fp:
-            print(self._bit_size_data_used)
             fp.write(
                 "Skilling-Mack test p-value: {0:.6e}\n"
                     .format(skillings_mack_pvalue) +
@@ -2094,15 +2093,17 @@ class Analysis(object):
             print("[W] There is not enough data on recognicion size to " +
                   "calulate desired sample size. Using all available samples.")
             self._bit_size_data_limit = None
+            self._bit_size_data_used = None
             return
 
         smaller_recognition_ci = min(
             x for x in non_zero_recognition_cis if x > 0
         )
-        magnitude_diff = smaller_recognition_ci / self.bit_size_desire_ci
+        magnitude_diff = smaller_recognition_ci / self.bit_size_desired_ci
         self._bit_size_data_limit = round(
             (magnitude_diff ** 2) * self._bit_size_data_used
         )
+        self._bit_size_data_used = None
 
         if self.verbose:
             if self.bit_recognition_size == 1:
@@ -2118,7 +2119,7 @@ class Analysis(object):
                 "[i] Calculated that {0:,} samples are needed for "
                     .format(self._bit_size_data_limit) +
                 "{0:.3}s CI in the {1} larger bit size."
-                    .format(self.bit_size_desire_ci, size_text)
+                    .format(self.bit_size_desired_ci, size_text)
             )
 
         self.output = old_output
