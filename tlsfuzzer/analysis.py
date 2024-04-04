@@ -1866,7 +1866,7 @@ class Analysis(object):
 
             chunks = pd.read_csv(
                 in_fp, iterator=True, chunksize=100000,
-                dtype=[("row", np.int16), ("k_size", np.int16),
+                dtype=[("row", np.uint64), ("k_size", np.uint16),
                        ("value", np.float64)],
                 names=["row", "k_size", "value"])
 
