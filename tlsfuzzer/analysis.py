@@ -41,7 +41,7 @@ TestPair = namedtuple('TestPair', 'index1  index2')
 mpl.use('Agg')
 
 
-VERSION = 6
+VERSION = 8
 
 
 _diffs = None
@@ -206,10 +206,12 @@ def main():
                             smart_analysis, bit_size_desired_ci,
                             bit_recognition_size, measurements_filename,
                             skip_sanity, wilcoxon_test, t_test, sign_test)
-        if hamming_weight_analysis:
-            ret = analysis.analyse_hamming_weights()
-        else:
-            ret = analysis.generate_report(bit_size=bit_size_analysis)
+
+        ret = analysis.generate_report(
+            bit_size=bit_size_analysis,
+            hamming_weight=hamming_weight_analysis
+        )
+
         return ret
     else:
         raise ValueError("Missing -o option!")
@@ -250,12 +252,14 @@ class Analysis(object):
         if bit_size_analysis and smart_bit_size_analysis:
             self._bit_size_data_limit = 10000  # staring amount of samples
             self._bit_size_data_used = None
+            self._total_bit_size_data_used = 0
             self.bit_size_desired_ci = bit_size_desired_ci
             self.bit_recognition_size = \
                 bit_recognition_size if bit_recognition_size >= 0 else 1
         else:
             self._bit_size_data_limit = None
             self._bit_size_data_used = None
+            self._total_bit_size_data_used = 0
 
         if not bit_size_analysis:
             data = self.load_data()
@@ -264,6 +268,7 @@ class Analysis(object):
             self._bit_size_sign_test = {}
             self._bit_size_wilcoxon_test = {}
             self._bit_size_bootstraping = {}
+            self._hamming_weight_report = ""
 
             self._bit_size_methods = {
                 "mean": "Mean",
@@ -372,12 +377,16 @@ class Analysis(object):
         data = pd.DataFrame(timing_bin, columns=columns, copy=False)
 
         if self._bit_size_data_limit:
+            len_data = len(data)
             if not self._bit_size_data_used:
-                len_data = len(data)
                 self._bit_size_data_used = min(
                     len_data, self._bit_size_data_limit
                 )
-            data = data.iloc[:self._bit_size_data_limit]
+            start = 0
+            data_diff = len_data - self._bit_size_data_limit
+            if data_diff > 0:
+                start = np.random.randint(0, data_diff)
+            data = data.iloc[start:start + self._bit_size_data_limit]
         else:
             if not self._bit_size_data_used:
                 self._bit_size_data_used = len(data)
@@ -1590,13 +1599,11 @@ class Analysis(object):
 
         return new_string
 
-    def skillings_mack_test(self, name):
+    def skillings_mack_test(self, measurements_bin_path):
         """
         Calculate the p-value of the Skillings-Mack test for the Hamming weight
         data.
         """
-
-        measurements_bin_path = name
 
         data = np.memmap(measurements_bin_path,
                          dtype=[('block', np.dtype('i8')),
@@ -1710,6 +1717,8 @@ class Analysis(object):
         all_wilcoxon_values = list(self._bit_size_wilcoxon_test.values())
         with open(join(self.output, "analysis_results/report.txt"), "w") as fp:
             fp.write(
+                "tlsfuzzer analyse.py version {0} bit size analysis\n\n"
+                    .format(VERSION) +
                 "Skilling-Mack test p-value: {0:.6e}\n"
                     .format(skillings_mack_pvalue) +
                 "Sign test p-values (min, average, max): " +
@@ -1727,7 +1736,7 @@ class Analysis(object):
                         max(all_wilcoxon_values),
                     ) +
                 "Used {0:,} data observations for results\n"
-                    .format(self._bit_size_data_used) +
+                    .format(self._total_bit_size_data_used) +
                 verdict + "\n\n" + ("-" * 88) + "\n" +
                 "| size | Sign test | Wilcoxon test " +
                 "|    {0}    |    {1}   |\n"
@@ -1773,13 +1782,19 @@ class Analysis(object):
 
             fp.write(("-" * 88) + "\n")
 
-    def generate_report(self, bit_size=False):
+    def generate_report(self, bit_size=False, hamming_weight=False):
         """
         Compiles a report consisting of statistical tests and plots.
 
         :return: int 0 if no difference was detected, 1 otherwise
         """
-        if bit_size:
+        if hamming_weight:
+            difference = self.analyse_hamming_weights()
+            with open(join(
+                self.output, "analysis_results/report.Hamming_weight.txt"
+            ), "w") as fp:
+                fp.write(self._hamming_weight_report)
+        elif bit_size:
             name = join(self.output, self.measurements_filename)
             name_bin = self._remove_suffix(name, '.csv') + '.bin'
             self._long_format_to_binary(name, name_bin)
@@ -1790,7 +1805,6 @@ class Analysis(object):
                 ret_val, skillings_mack_pvalue
             )
             self._bit_size_write_summary(verdict, skillings_mack_pvalue)
-
         else:
             # the Friedman test is fairly long running, non-multithreadable
             # and with fairly limited memory use, so run it in background
@@ -2073,37 +2087,43 @@ class Analysis(object):
     def _figure_out_analysis_data_size(self, k_sizes):
         pair = TestPair(0, 1)
         old_output = self.output
+        old_vebose = self.verbose
+        self.verbose = False
+        max_limit = 0
 
         if self.bit_recognition_size >= len(k_sizes):
             self.bit_recognition_size = len(k_sizes) - 1
 
-        k_size = k_sizes[self.bit_recognition_size]
-        self.output = join(
-            self.output, "analysis_results/k-by-size/{0}".format(k_size)
-        )
+        for index in range(self.bit_recognition_size - 1, -1, -1):
+            k_size = k_sizes[index]
+            self.output = join(
+                old_output, "analysis_results/k-by-size/{0}".format(k_size))
 
-        recognition_results = self.calc_diff_conf_int(pair)
-        recognition_cis = [
-            recognition_results[method][2] - recognition_results[method][0]
-            for method in recognition_results
-        ]
-        non_zero_recognition_cis = [x for x in recognition_cis if x > 0]
+            recognition_results = self.calc_diff_conf_int(pair)
+            recognition_cis = [
+                recognition_results[method][2] - recognition_results[method][0]
+                for method in recognition_results
+            ]
+            non_zero_recognition_cis = [x for x in recognition_cis if x > 0]
 
-        if len(non_zero_recognition_cis) == 0:
-            print("[W] There is not enough data on recognicion size to " +
-                  "calulate desired sample size. Using all available samples.")
-            self._bit_size_data_limit = None
+            if len(non_zero_recognition_cis) == 0:
+                print("[W] There is not enough data on recognicion size to " +
+                      "calulate desired sample size. " +
+                      "Using all available samples.")
+                self._bit_size_data_limit = None
+                self._bit_size_data_used = None
+                return
+
+            smaller_recognition_ci = min(
+                x for x in non_zero_recognition_cis if x > 0)
+            magnitude_diff = smaller_recognition_ci / self.bit_size_desired_ci
+            max_limit = max(max_limit, round(
+                (magnitude_diff ** 2) * self._bit_size_data_used))
             self._bit_size_data_used = None
-            return
 
-        smaller_recognition_ci = min(
-            x for x in non_zero_recognition_cis if x > 0
-        )
-        magnitude_diff = smaller_recognition_ci / self.bit_size_desired_ci
-        self._bit_size_data_limit = round(
-            (magnitude_diff ** 2) * self._bit_size_data_used
-        )
-        self._bit_size_data_used = None
+        self._bit_size_data_limit = max_limit
+        self.verbose = old_vebose
+        self.output = old_output
 
         if self.verbose:
             if self.bit_recognition_size == 1:
@@ -2121,8 +2141,6 @@ class Analysis(object):
                 "{0:.3}s CI in the {1} larger bit size."
                     .format(self.bit_size_desired_ci, size_text)
             )
-
-        self.output = old_output
 
     def analyze_bit_sizes(self):
         """
@@ -2315,6 +2333,10 @@ class Analysis(object):
                     )
                 output_files['bootstrap_test'].write("\n")
 
+            if self._bit_size_data_used:
+                self._total_bit_size_data_used += self._bit_size_data_used
+                self._bit_size_data_used = None
+
         for key in output_files:
             output_files[key].close()
 
@@ -2378,13 +2400,9 @@ class Analysis(object):
                                   key=lambda x: x[1])
             most_common = set(i for i, j in group_counts[-5:])
 
-            slope_path = join(
-                    self.output,
-                    "analysis_results/by-pair-sizes/slope")
-            try:
-                os.makedirs(slope_path)
-            except FileExistsError:
-                pass
+            slope_path = join(self.output,
+                              "analysis_results/by-pair-sizes/slope")
+            os.makedirs(slope_path, exist_ok=True)
 
             pair_writers['slope'] = open(
                     join(slope_path, "timing.csv"), "w")
@@ -2500,17 +2518,28 @@ class Analysis(object):
             self.class_names = list(data)
 
             self.run_sign_test = True
-            results = self.sign_test()
-            print("Slope sign test: {0}".format(results[(0, 1)]))
+            sign_test_results = self.sign_test()
+            sign_test_text = "Slope sign test: {0}".format(
+                sign_test_results[(0, 1)])
 
             self.run_wilcoxon_test = True
-            results = self.wilcoxon_test()
-            print("Slope Wilcoxon signed rank test: {0}".format(
-                results[(0, 1)]))
+            wilcoxon_test_results = self.wilcoxon_test()
+            wilcoxon_test_text = "Slope Wilcoxon signed rank test: {0}"\
+                .format(wilcoxon_test_results[(0, 1)])
 
             self.run_t_test = True
-            results = self.rel_t_test()
-            print("Slope t-test: {0}".format(results[(0, 1)]))
+            rel_t_test_results = self.rel_t_test()
+            rel_t_test_text = "Slope t-test: {0}".format(
+                rel_t_test_results[(0, 1)])
+
+            self._hamming_weight_report += '\n'
+            self._hamming_weight_report += sign_test_text + '\n'
+            self._hamming_weight_report += wilcoxon_test_text + '\n'
+            self._hamming_weight_report += rel_t_test_text + '\n'
+            if self.verbose:
+                print("[i] " + sign_test_text)
+                print("[i] " + wilcoxon_test_text)
+                print("[i] " + rel_t_test_text)
 
             # conf_interval_plot is disabled by the draw_conf_interval_plot
             old_conf_interval = self.draw_conf_interval_plot
@@ -2604,7 +2633,12 @@ class Analysis(object):
                       "analysis_results/by-pair-sizes/slope")
 
         boots = dict()
-        print("Bootstrapped confidence intervals for the time/weight slope")
+        self._hamming_weight_report += ("\nBootstrapped confidence " +
+                                        "intervals for the time/weight " +
+                                        "slope\n")
+        if self.verbose:
+            print("[i] Bootstrapped confidence intervals " +
+                  "for the time/weight slope")
         for method, method_name in methods.items():
             with open(join(in_dir, "bootstrapped_{0}.csv".format(method)),
                       "r", encoding='utf-8') as fp:
@@ -2613,15 +2647,23 @@ class Analysis(object):
                 ]
 
             quantile = np.quantile(boots[method], [0.025, 0.975, 0.5])
-            print("{0} of differences: {4:.5e} s/bit, 95% CI: "
-                  "{1:.5e} s/bit, {2:.5e} s/bit (±{3:.3e} s/bit)".format(
-                      method_name, quantile[0], quantile[1],
-                      (quantile[1] - quantile[0])/2, quantile[2]))
+            quantile_text = "{0} of differences: ".format(method_name)
+            quantile_text += "{0:.5e} s/bit, 95% CI: {1:.5e} s/bit, ".format(
+                quantile[2], quantile[0])
+            quantile_text += "{0:.5e} s/bit (±{1:.3e} s/bit)".format(
+                quantile[1], (quantile[1] - quantile[0])/2)
 
-    def analyse_hamming_weights(self, name=None):
-        if name is None:
-            name = "measurements.csv"
-        name = join(self.output, name)
+            self._hamming_weight_report += quantile_text + '\n'
+            if self.verbose:
+                print("[i] " + quantile_text)
+
+    def analyse_hamming_weights(self):
+        name = join(self.output, self.measurements_filename)
+
+        self._hamming_weight_report += "tlsfuzzer analyse.py version {0} "\
+            .format(VERSION)
+        self._hamming_weight_report += "Hamming weight analysis "
+        self._hamming_weight_report += "(experimental)\n\n"
 
         # first make sure the binary file exists
         name_bin = self._remove_suffix(name, '.csv') + ".bin"
@@ -2629,36 +2671,38 @@ class Analysis(object):
 
         skillings_mack_p_value = self.skillings_mack_test(name_bin)
 
-        print("Skillings-Mack test p-value: {0}".format(
-            skillings_mack_p_value))
+        self._hamming_weight_report += "Skillings-Mack test p-value: {0}\n"\
+            .format(skillings_mack_p_value)
 
         most_common, pairs = self._split_data_to_pairwise(name_bin)
 
-        ns_sm_p_value = None
-        hundred_ps_sm_p_value = None
+        sm_p_values = {}
         if skillings_mack_p_value > 1e-5:
             tmp_file = name_bin + ".tmp"
-            shutil.copyfile(name_bin, tmp_file)
-            self._add_value_to_group(tmp_file, most_common[0], 1e-9)
-            ns_sm_p_value = self.skillings_mack_test(tmp_file)
-            print("1ns: {}".format(ns_sm_p_value))
-            os.remove(tmp_file)
+            self._hamming_weight_report += "Skillings-Mack test p-value after "
+            self._hamming_weight_report += "intoducing a side-channel of:\n"
 
-            shutil.copyfile(name_bin, tmp_file)
-            self._add_value_to_group(tmp_file, most_common[0], 1e-10)
-            hundred_ps_sm_p_value = self.skillings_mack_test(tmp_file)
-            print("0.1ns: {}".format(hundred_ps_sm_p_value))
-            os.remove(tmp_file)
+            for time in [10, 1, 0.1]:
+                shutil.copyfile(name_bin, tmp_file)
+                self._add_value_to_group(tmp_file, most_common[0], time * 1e-9)
+                p_value = self.skillings_mack_test(tmp_file)
+                sm_p_values[time] = p_value
+                self._hamming_weight_report += "\t{0}ns: {1}\n".format(
+                    time, p_value)
+                if self.verbose:
+                    print("[i] {0}ns: {1}".format(time, p_value))
+                os.remove(tmp_file)
 
         self._analyse_weight_pairs(pairs)
 
-        print("Skillings-Mack test p-value: {0}".format(
-            skillings_mack_p_value))
-        if ns_sm_p_value is not None:
-            print("Sample large enough to detect 1 ns difference: {}"
-                  .format(ns_sm_p_value < 1e-9))
-            print("Sample large enough to detect 0.1 ns difference: {}"
-                  .format(hundred_ps_sm_p_value < 1e-9))
+        if self.verbose:
+            print("[i] Skillings-Mack test p-value: {0}".format(
+                skillings_mack_p_value))
+            if len(sm_p_values.keys()) is not None:
+                for time in sm_p_values:
+                    print(("[i] Sample large enough to detect {0} ns "
+                           "difference: {1}").format(
+                               time, sm_p_values[time] < 1e-9))
 
         if skillings_mack_p_value < self.alpha:
             return 1

@@ -1024,18 +1024,14 @@ class TestCommandLine(unittest.TestCase):
             'tlsfuzzer.analysis.Analysis.generate_report'
         ) as mock_report:
             with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
-                with mock.patch(
-                    'tlsfuzzer.analysis.Analysis.analyse_hamming_weights'
-                ) as mock_hamming:
-                    with mock.patch("sys.argv", args):
-                        main()
-                        mock_init.assert_called_once_with(
-                            output, True, True, True, False, False, None, None,
-                            None, None, None, True, True,
-                            1e-9, 4,
-                            'measurements.csv', False, True, True, True)
-                        mock_report.assert_not_called()
-                        mock_hamming.assert_called_once_with()
+                with mock.patch("sys.argv", args):
+                    main()
+                    mock_init.assert_called_once_with(
+                        output, True, True, True, False, False, None, None,
+                        None, None, None, True, True, 1e-9, 4,
+                        'measurements.csv', False, True, True, True)
+                    mock_report.assert_called_once_with(
+                        bit_size=False, hamming_weight=True)
 
     def test_call_Hamming_weight_with_minimal_analysis(self):
         output = "/tmp"
@@ -1047,18 +1043,14 @@ class TestCommandLine(unittest.TestCase):
             'tlsfuzzer.analysis.Analysis.generate_report'
         ) as mock_report:
             with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
-                with mock.patch(
-                    'tlsfuzzer.analysis.Analysis.analyse_hamming_weights'
-                ) as mock_hamming:
-                    with mock.patch("sys.argv", args):
-                        main()
-                        mock_init.assert_called_once_with(
-                            output, True, True, True, False, False, None, None,
-                            None, None, None, True, True,
-                            1e-9, 4,
-                            'measurements.csv', False, False, False, False)
-                        mock_report.assert_not_called()
-                        mock_hamming.assert_called_once_with()
+                with mock.patch("sys.argv", args):
+                    main()
+                    mock_init.assert_called_once_with(
+                        output, True, True, True, False, False, None, None,
+                        None, None, None, True, True, 1e-9, 4,
+                        'measurements.csv', False, False, False, False)
+                    mock_report.assert_called_once_with(
+                        bit_size=False, hamming_weight=True)
 
     def test_help(self):
         args = ["analysis.py", "--help"]
@@ -1768,28 +1760,29 @@ class TestBitSizeAnalysis(unittest.TestCase):
         }
         self.analysis._bit_size_sign_test = {255: 0.3, 254: 0.7, 253: 0.4}
         self.analysis._bit_size_wilcoxon_test = {255: 0.2, 254: 0.8, 253: 0.6}
-        self.analysis._bit_size_data_used = 1000
+        self.analysis._total_bit_size_data_used = 10000
 
         self.analysis._bit_size_write_summary("passed", 0.5)
 
         self.assertEqual(
-            _summary[0], "Skilling-Mack test p-value: 5.000000e-01"
+            _summary[2], "Skilling-Mack test p-value: 5.000000e-01"
         )
         self.assertEqual(
-            _summary[1],
+            _summary[3],
             "Sign test p-values (min, average, max): " +
             "3.00e-01, 4.67e-01, 7.00e-01"
         )
         self.assertEqual(
-            _summary[2],
+            _summary[4],
             "Wilcoxon test p-values (min, average, max): " +
             "2.00e-01, 5.33e-01, 8.00e-01"
         )
         self.assertEqual(
-            _summary[3],
-            "Used 1,000 data observations for results"
+            _summary[5],
+            "Used 10,000 data observations for results"
         )
-        self.assertEqual(_summary[4], "passed")
+        self.assertEqual(_summary[6], "passed")
+
 
     @mock.patch("tlsfuzzer.analysis.Analysis.calc_diff_conf_int")
     @mock.patch("builtins.print")
@@ -1799,50 +1792,25 @@ class TestBitSizeAnalysis(unittest.TestCase):
         old_bit_recall_size = self.analysis.bit_recognition_size
         self.analysis.verbose = True
 
-        calc_diff_conf_int_mock.return_value = {
-            'mean': (-5.0e-07, -9.9e-08, 2.5e-07),
-            'median': (-8.0e-08, -3.8e-08, 1.1e-08),
-            'trim_mean_05': (-1.6e-07, 1.5e-08, 2.1e-07),
-            'trim_mean_25': (-6.9e-08, -2.4e-08, 2.5e-08),
-            'trim_mean_45': (-7.9e-08, -3.5e-08, 1.3e-08),
-            'trimean': (-7.9e-08, -2.2e-08, 3.86e-08)
-        }
+        def custom_calc_conf_int(pair):
+            self.analysis._bit_size_data_used = 1000
+            return {
+                'mean': (-5.0e-07, -9.9e-08, 2.5e-07),
+                'median': (-8.0e-08, -3.8e-08, 1.1e-08),
+                'trim_mean_05': (-1.6e-07, 1.5e-08, 2.1e-07),
+                'trim_mean_25': (-6.9e-08, -2.4e-08, 2.5e-08),
+                'trim_mean_45': (-7.9e-08, -3.5e-08, 1.3e-08),
+                'trimean': (-7.9e-08, -2.2e-08, 3.86e-08)
+            }
 
-        # first test run
-        self.analysis._bit_size_data_limit = 10000
-        self.analysis._bit_size_data_used = 1000
-        self.analysis.bit_recognition_size = 1
-        self.analysis._figure_out_analysis_data_size(k_sizes)
-        self.assertEqual(self.analysis._bit_size_data_limit, 8281000)
+        calc_diff_conf_int_mock.side_effect = custom_calc_conf_int
 
-        # second test run
-        self.analysis._bit_size_data_limit = 10000
-        self.analysis._bit_size_data_used = 1000
-        self.analysis.bit_recognition_size = 2
-        self.analysis._figure_out_analysis_data_size(k_sizes)
-        self.assertEqual(self.analysis._bit_size_data_limit, 8281000)
-
-        # third test run
-        self.analysis._bit_size_data_limit = 10000
-        self.analysis._bit_size_data_used = 1000
-        self.analysis.bit_recognition_size = 3
-        self.analysis._figure_out_analysis_data_size(k_sizes)
-        self.assertEqual(self.analysis._bit_size_data_limit, 8281000)
-
-        # forth test run
-        self.analysis._bit_size_data_limit = 10000
-        self.analysis._bit_size_data_used = 1000
-        self.analysis.bit_recognition_size = 30
-        self.analysis._figure_out_analysis_data_size(k_sizes)
-        self.assertEqual(self.analysis._bit_size_data_limit, 8281000)
-
-        # forth test run
-        self.analysis.verbose = False
-        self.analysis._bit_size_data_limit = 10000
-        self.analysis._bit_size_data_used = 1000
-        self.analysis.bit_recognition_size = 4
-        self.analysis._figure_out_analysis_data_size(k_sizes)
-        self.assertEqual(self.analysis._bit_size_data_limit, 8281000)
+        for size in [1, 2, 3, 30, 4]:
+            self.analysis._bit_size_data_limit = 10000
+            # self.analysis._bit_size_data_used = 1000
+            self.analysis.bit_recognition_size = size
+            self.analysis._figure_out_analysis_data_size(k_sizes)
+            self.assertEqual(self.analysis._bit_size_data_limit, 8281000)
 
         # restore of changed variables
         self._bit_size_data_limit = 10000
@@ -1870,7 +1838,7 @@ class TestHammingAnalysis(unittest.TestCase):
                         data.write("{0},{1},{2}\n".format(tuple_num, i, j))
 
             analysis = Analysis(
-                tmpdirname, verbose=False, draw_conf_interval_plot=False,
+                tmpdirname, verbose=True, draw_conf_interval_plot=False,
                 bit_size_analysis=True, run_wilcoxon_test=False,
                 run_t_test=False, run_sign_test=False, draw_ecdf_plot=False
             )
@@ -1883,7 +1851,8 @@ class TestHammingAnalysis(unittest.TestCase):
         self.assertEqual(ret, 0)
 
         self.assertIn(
-            mock.call('Sample large enough to detect 1 ns difference: True'),
+            mock.call(
+                '[i] Sample large enough to detect 1 ns difference: True'),
             mock_print.mock_calls
         )
         for i in mock_print.mock_calls:
@@ -1910,7 +1879,7 @@ class TestHammingAnalysis(unittest.TestCase):
                         data.write("{0},{1},{2}\n".format(tuple_num, i, j))
 
             analysis = Analysis(
-                tmpdirname, verbose=False, draw_conf_interval_plot=False,
+                tmpdirname, verbose=True, draw_conf_interval_plot=False,
                 bit_size_analysis=True, run_wilcoxon_test=False,
                 run_t_test=False, run_sign_test=False, draw_ecdf_plot=False
             )
@@ -1923,11 +1892,13 @@ class TestHammingAnalysis(unittest.TestCase):
         self.assertEqual(ret, 1)
 
         self.assertNotIn(
-            mock.call('Sample large enough to detect 1 ns difference: True'),
+            mock.call(
+                '[i] Sample large enough to detect 1 ns difference: True'),
             mock_print.mock_calls
         )
         self.assertNotIn(
-            mock.call('Sample large enough to detect 1 ns difference: False'),
+            mock.call(
+                '[i] Sample large enough to detect 1 ns difference: False'),
             mock_print.mock_calls
         )
         for i in mock_print.mock_calls:
@@ -1980,7 +1951,8 @@ class TestHammingAnalysis(unittest.TestCase):
         self.assertEqual(ret, 0)
 
         self.assertIn(
-            mock.call('Sample large enough to detect 1 ns difference: True'),
+            mock.call(
+                '[i] Sample large enough to detect 1 ns difference: True'),
             mock_print.mock_calls
         )
         for i in mock_print.mock_calls:
