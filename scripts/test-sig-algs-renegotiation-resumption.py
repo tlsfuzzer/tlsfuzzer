@@ -78,6 +78,27 @@ def help_msg():
     # -o output directory for files related to collection of timing information
 
 
+def build_conn_graph(host, port, ciphers, ext, dhe, sig_algs_drop_ok = True):
+    """ Reuse the same block as a function, to simplify code """
+    conversation = Connect(host, port)
+    node = conversation
+
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    if sig_algs_drop_ok:
+        node = node.add_child(ExpectServerHello())
+        node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+
+    return (conversation, node)
+
+
 def main():
     host = "localhost"
     port = 4433
@@ -131,8 +152,6 @@ def main():
 
     conversations = {}
 
-    conversation = Connect(host, port)
-    node = conversation
     ext = {}
     ext[ExtensionType.signature_algorithms] = \
         SignatureAlgorithmsExtension().create(SIG_ALL)
@@ -152,17 +171,9 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectCertificate())
-    if dhe:
-        node = node.add_child(ExpectServerKeyExchange())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
+
+    (conversation, node) = build_conn_graph(host, port, ciphers, ext, dhe)
+
     node = node.add_child(ApplicationDataGenerator(
         bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     # some servers incorrectly send reply in multiple records,
@@ -174,8 +185,6 @@ def main():
     conversations["sanity"] = conversation
 
     # check if renegotiation is supported
-    conversation = Connect(host, port)
-    node = conversation
     ext = {}
     ext[ExtensionType.signature_algorithms] = \
         SignatureAlgorithmsExtension().create(SIG_ALL)
@@ -195,17 +204,9 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectCertificate())
-    if dhe:
-        node = node.add_child(ExpectServerKeyExchange())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
+
+    (conversation, node) = build_conn_graph(host, port, ciphers, ext, dhe, sig_algs_drop_ok=True)
+
     node = node.add_child(ResetHandshakeHashes())
     renego_exts = dict(ext)
     # use None for autogeneration of the renegotiation_info with correct
@@ -255,8 +256,6 @@ def main():
     conversations["sanity - renegotiation"] = conversation
 
     # check if renegotiation with resumption is supported
-    conversation = Connect(host, port)
-    node = conversation
     ext = {}
     ext[ExtensionType.signature_algorithms] = \
         SignatureAlgorithmsExtension().create(SIG_ALL)
@@ -276,17 +275,9 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectCertificate())
-    if dhe:
-        node = node.add_child(ExpectServerKeyExchange())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
+
+    (conversation, node) = build_conn_graph(host, port, ciphers, ext, dhe, sig_algs_drop_ok=True)
+
     node = node.add_child(ResetHandshakeHashes())
     renego_exts = dict(ext)
     # use None for autogeneration of the renegotiation_info with correct
@@ -331,8 +322,6 @@ def main():
     conversations["sanity - renegotiation with session_id resumption"] = conversation
 
     # no sig_algs and sig_algs_cert
-    conversation = Connect(host, port)
-    node = conversation
     ext = {}
     if ems:
         ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
@@ -348,17 +337,9 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectCertificate())
-    if dhe:
-        node = node.add_child(ExpectServerKeyExchange())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
+
+    (conversation, node) = build_conn_graph(host, port, ciphers, ext, dhe, sig_algs_drop_ok=True)
+
     node = node.add_child(ApplicationDataGenerator(
         bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     # some servers incorrectly send reply in multiple records,
@@ -370,8 +351,6 @@ def main():
     conversations["without signature_algorithms and signature_algorithms_cert ext"] = conversation
 
     # no sig_algs
-    conversation = Connect(host, port)
-    node = conversation
     ext = {}
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(SIG_ALL)
@@ -389,18 +368,10 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+
+    (conversation, node) = build_conn_graph(host, port, ciphers, ext, dhe, sig_algs_drop_ok=sig_algs_drop_ok)
+
     if sig_algs_drop_ok:
-        node = node.add_child(ExpectServerHello())
-        node = node.add_child(ExpectCertificate())
-        if dhe:
-            node = node.add_child(ExpectServerKeyExchange())
-        node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator())
-        node = node.add_child(ChangeCipherSpecGenerator())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectFinished())
         node = node.add_child(ApplicationDataGenerator(
             bytearray(b"GET / HTTP/1.0\r\n\r\n")))
         # some servers incorrectly send reply in multiple records,
@@ -416,8 +387,6 @@ def main():
     conversations["without signature_algorithms ext"] = conversation
 
     # drop the sig_algs on renegotiated handshake
-    conversation = Connect(host, port)
-    node = conversation
     ext = {}
     ext[ExtensionType.signature_algorithms] = \
         SignatureAlgorithmsExtension().create(SIG_ALL)
@@ -437,17 +406,9 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectCertificate())
-    if dhe:
-        node = node.add_child(ExpectServerKeyExchange())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
+
+    (conversation, node) = build_conn_graph(host, port, ciphers, ext, dhe, sig_algs_drop_ok=True)
+
     node = node.add_child(ResetHandshakeHashes())
     renego_exts = dict(ext)
     # use None for autogeneration of the renegotiation_info with correct
@@ -502,8 +463,6 @@ def main():
     conversations["renegotiation without signature_algorithms ext"] = conversation
 
     # drop the sig_algs_cert on renegotiated handshake
-    conversation = Connect(host, port)
-    node = conversation
     ext = {}
     ext[ExtensionType.signature_algorithms] = \
         SignatureAlgorithmsExtension().create(SIG_ALL)
@@ -523,17 +482,9 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectCertificate())
-    if dhe:
-        node = node.add_child(ExpectServerKeyExchange())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
+
+    (conversation, node) = build_conn_graph(host, port, ciphers, ext, dhe, sig_algs_drop_ok=True)
+
     node = node.add_child(ResetHandshakeHashes())
     renego_exts = dict(ext)
     # use None for autogeneration of the renegotiation_info with correct
@@ -584,8 +535,6 @@ def main():
     conversations["renegotiation without signature_algorithms_cert ext"] = conversation
 
     # drop the sig_algs and sig_algs_cert on renegotiated handshake
-    conversation = Connect(host, port)
-    node = conversation
     ext = {}
     ext[ExtensionType.signature_algorithms] = \
         SignatureAlgorithmsExtension().create(SIG_ALL)
@@ -605,17 +554,9 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectCertificate())
-    if dhe:
-        node = node.add_child(ExpectServerKeyExchange())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
+
+    (conversation, node) = build_conn_graph(host, port, ciphers, ext, dhe, sig_algs_drop_ok=True)
+
     node = node.add_child(ResetHandshakeHashes())
     renego_exts = dict(ext)
     # use None for autogeneration of the renegotiation_info with correct
@@ -667,8 +608,6 @@ def main():
     conversations["renegotiation without signature_algorithms and sig_algs_cert ext"] = conversation
 
     # check if renegotiation with resumption with missing sig_algs works
-    conversation = Connect(host, port)
-    node = conversation
     ext = {}
     ext[ExtensionType.signature_algorithms] = \
         SignatureAlgorithmsExtension().create(SIG_ALL)
@@ -688,17 +627,9 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectCertificate())
-    if dhe:
-        node = node.add_child(ExpectServerKeyExchange())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
+
+    (conversation, node) = build_conn_graph(host, port, ciphers, ext, dhe, sig_algs_drop_ok=True)
+
     node = node.add_child(ResetHandshakeHashes())
     renego_exts = dict(ext)
     # use None for autogeneration of the renegotiation_info with correct
@@ -744,8 +675,6 @@ def main():
     conversations["renegotiation with session_id resumption without signature_algorithms ext"] = conversation
 
     # check if renegotiation with resumption with missing sig_algs and sig_algs_cert works
-    conversation = Connect(host, port)
-    node = conversation
     ext = {}
     if ems:
         ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
@@ -765,17 +694,9 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectCertificate())
-    if dhe:
-        node = node.add_child(ExpectServerKeyExchange())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
+
+    (conversation, node) = build_conn_graph(host, port, ciphers, ext, dhe, sig_algs_drop_ok=True)
+
     node = node.add_child(ResetHandshakeHashes())
     renego_exts = dict(ext)
     # use None for autogeneration of the renegotiation_info with correct
@@ -822,8 +743,6 @@ def main():
     conversations["renegotiation with session_id resumption without signature_algorithms and signature_algorithms_cert ext"] = conversation
 
     # check if renegotiation with resumption with missing sig_algs_cert works
-    conversation = Connect(host, port)
-    node = conversation
     ext = {}
     ext[ExtensionType.signature_algorithms] = \
         SignatureAlgorithmsExtension().create(SIG_ALL)
@@ -843,17 +762,9 @@ def main():
     else:
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectCertificate())
-    if dhe:
-        node = node.add_child(ExpectServerKeyExchange())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
+
+    (conversation, node) = build_conn_graph(host, port, ciphers, ext, dhe, sig_algs_drop_ok=True)
+
     node = node.add_child(ResetHandshakeHashes())
     renego_exts = dict(ext)
     # use None for autogeneration of the renegotiation_info with correct
