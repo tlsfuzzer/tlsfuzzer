@@ -998,7 +998,7 @@ class TestCommandLine(unittest.TestCase):
         bit_size_desire_ci = 5
         bit_recognition_size = 2
         args = ["analysis.py", "-o", output, "--bit-size",
-                "--bit-size-desire-ci", bit_size_desire_ci,
+                "--bit-size-desired-ci", bit_size_desire_ci,
                 "--bit-recognition-size", bit_recognition_size,]
         mock_init = mock.Mock()
         mock_init.return_value = None
@@ -1797,7 +1797,6 @@ class TestBitSizeAnalysis(unittest.TestCase):
             calc_diff_conf_int_mock):
         k_sizes = [256, 255, 254, 253, 252]
         old_bit_recall_size = self.analysis.bit_recognition_size
-        self.analysis._bit_size_data_used = 1000
         self.analysis.verbose = True
 
         calc_diff_conf_int_mock.return_value = {
@@ -1811,24 +1810,28 @@ class TestBitSizeAnalysis(unittest.TestCase):
 
         # first test run
         self.analysis._bit_size_data_limit = 10000
+        self.analysis._bit_size_data_used = 1000
         self.analysis.bit_recognition_size = 1
         self.analysis._figure_out_analysis_data_size(k_sizes)
         self.assertEqual(self.analysis._bit_size_data_limit, 8281000)
 
         # second test run
         self.analysis._bit_size_data_limit = 10000
+        self.analysis._bit_size_data_used = 1000
         self.analysis.bit_recognition_size = 2
         self.analysis._figure_out_analysis_data_size(k_sizes)
         self.assertEqual(self.analysis._bit_size_data_limit, 8281000)
 
         # third test run
         self.analysis._bit_size_data_limit = 10000
+        self.analysis._bit_size_data_used = 1000
         self.analysis.bit_recognition_size = 3
         self.analysis._figure_out_analysis_data_size(k_sizes)
         self.assertEqual(self.analysis._bit_size_data_limit, 8281000)
 
         # forth test run
         self.analysis._bit_size_data_limit = 10000
+        self.analysis._bit_size_data_used = 1000
         self.analysis.bit_recognition_size = 30
         self.analysis._figure_out_analysis_data_size(k_sizes)
         self.assertEqual(self.analysis._bit_size_data_limit, 8281000)
@@ -1836,6 +1839,7 @@ class TestBitSizeAnalysis(unittest.TestCase):
         # forth test run
         self.analysis.verbose = False
         self.analysis._bit_size_data_limit = 10000
+        self.analysis._bit_size_data_used = 1000
         self.analysis.bit_recognition_size = 4
         self.analysis._figure_out_analysis_data_size(k_sizes)
         self.assertEqual(self.analysis._bit_size_data_limit, 8281000)
@@ -1843,7 +1847,6 @@ class TestBitSizeAnalysis(unittest.TestCase):
         # restore of changed variables
         self._bit_size_data_limit = 10000
         self.analysis.bit_recognition_size = old_bit_recall_size
-        self.analysis._bit_size_data_used = None
 
         self.assertEqual(self.analysis.output, "/tmp")
 
