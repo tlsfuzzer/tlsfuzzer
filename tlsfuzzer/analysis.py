@@ -1859,17 +1859,15 @@ class Analysis(object):
             first_line = in_fp.readline().split(',')
             previous_row = int(first_line[0])
             max_k_size = int(first_line[1])
-            current_max_k_value = float(first_line[2])
+            previous_max_k_value = float(first_line[2])
 
             if self.clock_frequency:
-                current_max_k_value /= self.clock_frequency
-
-            yield (current_max_k_value, current_max_k_value, max_k_size)
+                previous_max_k_value /= self.clock_frequency
 
             chunks = pd.read_csv(
                 in_fp, iterator=True, chunksize=100000,
-                dtype=[("row", np.int16), ("k_size", np.int16),
-                       ("value", np.float32)],
+                dtype=[("row", np.uint64), ("k_size", np.uint16),
+                       ("value", np.float64)],
                 names=["row", "k_size", "value"])
 
             for chunk in chunks:
@@ -1879,24 +1877,71 @@ class Analysis(object):
                 if status:
                     status[0] = in_fp.tell()
 
-                for current_row, k_size, value in \
-                        zip(chunk["row"], chunk["k_size"], chunk["value"]):
+                rows, k_sizes, values = \
+                    chunk["row"], chunk["k_size"], chunk["value"]
 
-                    if k_size == max_k_size and previous_row != current_row:
-                        current_max_k_value = value
-                        previous_row = current_row
-                        continue
-                    elif k_size == max_k_size and self.skip_sanity:
-                        continue
+                # Row switching always happens on k_size == max_k_size
 
-                    yield (current_max_k_value, value, k_size)
+                # input:
+                #     rows            0 0 1 1 2 2 2 3 3 3
+                #     k_sizes         9 8 9 8 9 8 9 9 9 7
+                #     values          a b c d e f g h i j
+                # intermediates:
+                #     row_same          T   T   T T   T T
+                #     curr_maxk_vals' a - c - e - - h - -
+                #     curr_maxk_vals' a a c c e e e h h h
+                #     mask            F   F   F   F F F   (skip_sanity=True)
+                #     mask                F   F   F F     (skip_sanity=False)
+                # output:
+                #     curr_maxk_vals  a a   c   e     h h
+                #     values          a b   d   f     i j
+                #     k_sizes         9 8   8   8     9 7
+
+                row_same = rows.eq(rows.shift(fill_value=previous_row))
+
+                curr_maxk_vals = values.mask(row_same)
+                if rows.iat[0] == previous_row:
+                    curr_maxk_vals.iat[0] = previous_max_k_value
+                curr_maxk_vals = curr_maxk_vals.ffill()
+
+                mask = row_same
+                if self.skip_sanity:
+                    mask &= k_sizes.ne(max_k_size)
+
+                out = chunk.drop(columns="row")
+                out = out.assign(curr_maxk_val=curr_maxk_vals)[mask]
+                yield max_k_size, out
+
+                previous_row = rows.iat[-1]
+                previous_max_k_value = curr_maxk_vals.iat[-1]
+
+    @staticmethod
+    def _k_specific_writing_worker(k_folder_path, pipe, k_size, max_k_size):
+        os.makedirs(k_folder_path)
+
+        try:
+            with open(join(k_folder_path, "timing.csv"), 'wb') as f:
+                if k_size != max_k_size:
+                    header = "{0},{1}\n".format(max_k_size, k_size)
+                else:
+                    header = "{0},{0}-sanity\n".format(max_k_size)
+                f.write(header.encode('ascii'))
+
+                while True:
+                    subchunk = pipe.recv()
+                    if subchunk is None:
+                        break
+                    subchunk = subchunk[['curr_maxk_val', 'value']]
+                    subchunk.to_csv(f, header=False, index=False)
+        finally:
+            pipe.close()
 
     def create_k_specific_dirs(self):
         """
         Creates a folder with timing.csv for each K bit-size so it can be
         analyzed one at a time.
         """
-        k_size_files = {}
+        k_size_process_pipe = {}
 
         if self.verbose:
             print("Creating a dir for each bit size...")
@@ -1915,48 +1960,37 @@ class Analysis(object):
             except FileNotFoundError:
                 pass
 
-        data_iter = self._read_bit_size_measurement_file(status=status)
-
-        data = next(data_iter)
-        max_k_size = data[2]
+        measurement_iter = self._read_bit_size_measurement_file(status=status)
 
         try:
-            for data in data_iter:
-                k_size = data[2]
-
-                if k_size not in k_size_files:
-                    k_folder_path = join(
-                        self.output,
-                        "analysis_results/k-by-size/{0}".format(k_size)
-                    )
-
-                    os.makedirs(k_folder_path)
-                    k_size_files[k_size] = open(
-                        join(k_folder_path, "timing.csv"), 'w',
-                        encoding="utf-8"
-                    )
-                    if k_size == max_k_size:
-                        k_size_files[k_size].write(
-                            "{0},{0}-sanity\n".format(max_k_size)
+            for max_k_size, chunk in measurement_iter:
+                for k_size, subchunk in chunk.groupby("k_size"):
+                    if k_size not in k_size_process_pipe:
+                        pipe_recv, pipe_send = mp.Pipe(duplex=False)
+                        k_folder_path = join(
+                            self.output,
+                            "analysis_results/k-by-size/{0}".format(k_size)
                         )
-                    else:
-                        k_size_files[k_size].write(
-                            "{0},{1}\n".format(max_k_size, k_size)
-                        )
+                        p = mp.Process(target=self._k_specific_writing_worker,
+                                       args=(k_folder_path, pipe_recv,
+                                             k_size, max_k_size))
+                        p.start()
+                        k_size_process_pipe[k_size] = (p, pipe_send)
 
-                k_size_files[k_size].write(
-                    "{0},{1}\n".format(data[0], data[1])
-                )
+                    _, pipe = k_size_process_pipe[k_size]
+                    pipe.send(subchunk)
         finally:
+            for process, pipe in k_size_process_pipe.values():
+                pipe.send(None)
+                pipe.close()
+                process.join()
+
             if status:
                 status[2].set()
                 progress.join()
                 print()
 
-            for file in k_size_files.values():
-                file.close()
-
-        k_sizes = list(k_size_files.keys())
+        k_sizes = list(k_size_process_pipe.keys())
         k_sizes = sorted(k_sizes, reverse=True)
 
         if self.skip_sanity and max_k_size in k_sizes:
