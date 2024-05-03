@@ -30,7 +30,7 @@ from tlsfuzzer.utils.statics import WARM_UP
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.utils.progress_report import progress_report
-from tlslite.utils.cryptomath import bytesToNumber
+from tlslite.utils.cryptomath import bytesToNumber, numberToByteArray
 from tlslite.utils.python_key import Python_Key
 
 try:
@@ -79,6 +79,8 @@ def help_msg():
     print("                hashed. Canceled by hash-func option.")
     print(" --raw-sigs FILE Read the signatures from an external file.")
     print("                The file must be in binary format.")
+    print(" --sig-format [DER|RAW] Specifies the format of the signatures in")
+    print("                the binary file, 'DER' or 'RAW'. Default DER.")
     print(" --priv-key-ecdsa FILE Read the ecdsa private key from PEM file.")
     print(" --clock-frequency freq Assume that the times in the file are not")
     print("                specified in seconds but rather in clock cycles of")
@@ -131,6 +133,7 @@ def main():
     data_size = None
     prehashed = False
     sigs = None
+    sig_format = "DER"
     priv_key = None
     key_type = None
     freq = None
@@ -150,10 +153,10 @@ def main():
                                ["help", "raw-times=", "binary=", "endian=",
                                 "no-quickack", "status-delay=",
                                 "status-newline", "raw-data=", "data-size=",
-                                "prehashed", "raw-sigs=", "priv-key-ecdsa=",
-                                "clock-frequency=", "hash-func=",
-                                "skip-invert", "workers=", "rsa-keys=",
-                                "verbose"])
+                                "prehashed", "raw-sigs=", "sig-format=",
+                                "priv-key-ecdsa=", "clock-frequency=",
+                                "hash-func=", "skip-invert", "workers=",
+                                "rsa-keys=", "verbose"])
     for opt, arg in opts:
         if opt == '-l':
             logfile = arg
@@ -187,6 +190,8 @@ def main():
             prehashed = True
         elif opt == "--raw-sigs":
             sigs = arg
+        elif opt == "--sig-format":
+            sig_format = arg
         elif opt == "--rsa-keys":
             rsa_keys = arg
         elif opt == "--priv-key-ecdsa":
@@ -267,7 +272,8 @@ data size, signatures file and one private key are necessary.")
         delay=delay, carriage_return=carriage_return,
         data=data, data_size=data_size, sigs=sigs, priv_key=priv_key,
         key_type=key_type, frequency=freq, hash_func=hash_func,
-        workers=workers, verbose=verbose, rsa_keys=rsa_keys
+        workers=workers, verbose=verbose, rsa_keys=rsa_keys,
+        sig_format=sig_format
     )
     extract.parse()
 
@@ -301,7 +307,7 @@ class Extract:
                  carriage_return=None, data=None, data_size=None, sigs=None,
                  priv_key=None, key_type=None, frequency=None,
                  hash_func=hashlib.sha256, workers=None, verbose=False,
-                 fin_as_resp=False, rsa_keys=None):
+                 fin_as_resp=False, rsa_keys=None, sig_format="DER"):
         """
         Initialises instance and sets up class name generator from log.
 
@@ -358,6 +364,7 @@ class Extract:
         self.data = data
         self.data_size = data_size
         self.sigs = sigs
+        self.r_or_s_size = None
         self.key_type = key_type
         self.frequency = frequency
         self.measurements_csv = measurements_csv
@@ -379,6 +386,12 @@ class Extract:
         self.rsa_keys = rsa_keys
         self._temp_HWI_name = None
 
+        if sig_format not in ["DER", "RAW"]:
+            raise ValueError(
+                "Unknown signature format {0}. ".format(sigs_format) +
+                "Please use 'DER' or 'RAW'."
+            )
+
         if data and data_size:
             try:
                 self._total_measurements = int(getsize(data) / data_size)
@@ -389,6 +402,8 @@ class Extract:
         if key_type == "ecdsa":
             with open(priv_key, 'r') as f:
                 self.priv_key = ecdsa.SigningKey.from_pem(f.read())
+            if sig_format == 'RAW':
+                self.r_or_s_size = self.priv_key.baselen
 
         # set up class names generator
         self.log = log
@@ -905,14 +920,26 @@ class Extract:
 
         return times_iter
 
-    def _ecdsa_get_signature_from_file(self, filename=None):
-        """Iterator. Read the signatures from file provided"""
-        with open(filename if filename else self.sigs, "rb") as sigs_fp:
+    def _ecdsa_get_raw_signature_from_file_pointer(self, filename):
+        """Iterator. Read the raw signatures from file provided"""
+        with open(filename, "rb") as sigs_fp:
+            r_and_s = sigs_fp.read(self.r_or_s_size * 2)
+            while r_and_s:
+                if len(r_and_s) != 2 * self.r_or_s_size:
+                    raise ValueError(
+                        "There was an error in parsing signatures. " +
+                        "Incomplete r or s values in binary file.")
+                yield r_and_s
+                r_and_s = sigs_fp.read(self.r_or_s_size * 2)
+
+    def _ecdsa_get_der_signature_from_file_pointer(self, filename):
+        """Iterator. Read the DER signatures from file provided"""
+        with open(filename, "rb") as sigs_fp:
             sig = sigs_fp.read(1)
             while sig:
                 if not ecdsa.der.is_sequence(sig):
-                    raise \
-                        ValueError("There was an error in parsing signatures.")
+                    raise ValueError(
+                        "There was an error in parsing signatures.")
                 length_bytes = sigs_fp.read(1)
                 sig_length = 0
                 try:
@@ -922,8 +949,8 @@ class Extract:
                     try:
                         sig_length = ecdsa.der.read_length(length_bytes)[0]
                     except ecdsa.UnexpectedDER:
-                        raise \
-                            ValueError("Couldn't read size of a signature.")
+                        raise ValueError(
+                            "Couldn't read size of a signature.")
                 sig_data = sigs_fp.read(sig_length)
                 if sig_length != len(sig_data):
                     raise \
@@ -931,6 +958,14 @@ class Extract:
                 sig += length_bytes + sig_data
                 yield sig
                 sig = sigs_fp.read(1)
+
+    def _ecdsa_get_signature_from_file(self, filename=None):
+        """Iterator. Read the signatures from file provided"""
+        filename = filename if filename else self.sigs
+        if self.r_or_s_size:
+            return self._ecdsa_get_raw_signature_from_file_pointer(filename)
+        else:
+            return self._ecdsa_get_der_signature_from_file_pointer(filename)
 
     def _ecdsa_message_to_int(self, filename=None):
         """Iterator. Hashes the message used and converts it to int."""
@@ -962,9 +997,11 @@ class Extract:
         n_value = self.priv_key.curve.order
         g_value = self.priv_key.curve.generator
 
-        r_value, s_value = ecdsa.util.sigdecode_der(
-                sig, n_value
-            )
+        if self.r_or_s_size:
+            r_value, s_value = ecdsa.util.sigdecode_string(sig, n_value)
+        else:
+            r_value, s_value = ecdsa.util.sigdecode_der(sig, n_value)
+
         k_value = (
             (hashed + (
                 r_value * self.priv_key.privkey.secret_multiplier
@@ -977,8 +1014,7 @@ class Extract:
             return k_value
         else:
             raise ValueError(
-                "Failed to calculate k from given signatures."
-                    )
+                "Failed to calculate k from given signatures.")
 
     def _convert_to_bit_size(self, value_iter):
         """Iterator. Convert a value to the bit length of it."""
