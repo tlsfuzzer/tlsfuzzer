@@ -1743,8 +1743,12 @@ class Analysis(object):
                         np.average(all_wilcoxon_values),
                         max(all_wilcoxon_values),
                     ) +
-                "Used {0:,} data observations for results\n"
-                    .format(self._total_bit_size_data_used) +
+                "Used {0:,} out of {1:,} available data observations "
+                    .format(
+                        self._total_bit_size_data_used,
+                        self._total_bit_size_data
+                    ) +
+                "for results.\n" +
                 verdict + "\n\n" + ("-" * 88) + "\n" +
                 "| size | Sign test | Wilcoxon test " +
                 "|    {0}    |    {1}   |\n"

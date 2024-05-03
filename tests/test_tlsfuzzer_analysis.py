@@ -1978,6 +1978,7 @@ class TestBitSizeAnalysis(unittest.TestCase):
         }
         self.analysis._bit_size_sign_test = {255: 0.3, 254: 0.7, 253: 0.4}
         self.analysis._bit_size_wilcoxon_test = {255: 0.2, 254: 0.8, 253: 0.6}
+        self.analysis._total_bit_size_data = 100000
         self.analysis._total_bit_size_data_used = 10000
 
         self.analysis._bit_size_write_summary("passed", 0.5)
@@ -1997,7 +1998,8 @@ class TestBitSizeAnalysis(unittest.TestCase):
         )
         self.assertEqual(
             _summary[5],
-            "Used 10,000 data observations for results"
+            "Used 10,000 out of 100,000 available " +
+            "data observations for results."
         )
         self.assertEqual(_summary[6], "passed")
 
