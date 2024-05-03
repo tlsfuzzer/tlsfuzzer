@@ -16,6 +16,7 @@ from socket import inet_aton
 from os.path import join, dirname, abspath
 import hashlib
 from random import choice
+import ecdsa
 
 from tlsfuzzer.utils.log import Log
 
@@ -266,7 +267,7 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=False, delay=None, carriage_return=None,
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
-                    workers=None, verbose=False, rsa_keys=None)
+                    workers=None, verbose=False, rsa_keys=None, r_and_s=False)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -303,7 +304,7 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=False, delay=3.5, carriage_return='\n',
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
-                    workers=None, verbose=False, rsa_keys=None)
+                    workers=None, verbose=False, rsa_keys=None, r_and_s=False)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -339,7 +340,7 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=True, delay=None, carriage_return=None,
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
-                    workers=None, verbose=False, rsa_keys=None)
+                    workers=None, verbose=False, rsa_keys=None, r_and_s=False)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -372,7 +373,7 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=False, delay=None, carriage_return=None,
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
-                    workers=None, verbose=False, rsa_keys=None)
+                    workers=None, verbose=False, rsa_keys=None, r_and_s=False)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -406,7 +407,7 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=False, delay=None, carriage_return=None,
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
-                    workers=None, verbose=False, rsa_keys=None)
+                    workers=None, verbose=False, rsa_keys=None, r_and_s=False)
                 mock_measurements.assert_not_called()
 
     @mock.patch('tlsfuzzer.extract.Log')
@@ -510,7 +511,7 @@ class TestCommandLine(unittest.TestCase):
                     no_quickack=False, delay=None, carriage_return=None,
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
-                    workers=None, verbose=False, rsa_keys=None)
+                    workers=None, verbose=False, rsa_keys=None, r_and_s=False)
                 mock_measurements.assert_not_called()
 
     @mock.patch('__main__.__builtins__.print')
@@ -582,7 +583,7 @@ class TestCommandLine(unittest.TestCase):
                     data=None, data_size=None, sigs=None,
                     priv_key=None, key_type=None, frequency=None,
                     hash_func=hashlib.sha256, workers=None, verbose=False,
-                    rsa_keys=priv_key)
+                    rsa_keys=priv_key, r_and_s=False)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -623,7 +624,7 @@ class TestCommandLine(unittest.TestCase):
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
                     priv_key=priv_key, key_type="ecdsa", frequency=None,
                     hash_func=hashlib.sha256, workers=None, verbose=False,
-                    rsa_keys=None)
+                    rsa_keys=None, r_and_s=False)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -664,7 +665,7 @@ class TestCommandLine(unittest.TestCase):
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
                     priv_key=priv_key, key_type="ecdsa", frequency=None,
                     hash_func=hashlib.sha256, workers=None, verbose=True,
-                    rsa_keys=None)
+                    rsa_keys=None, r_and_s=False)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -706,7 +707,7 @@ class TestCommandLine(unittest.TestCase):
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
                     priv_key=priv_key, key_type="ecdsa",
                     frequency=frequency * 1e6, hash_func=hashlib.sha256,
-                    workers=None, verbose=False, rsa_keys=None)
+                    workers=None, verbose=False, rsa_keys=None, r_and_s=False)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -748,7 +749,7 @@ class TestCommandLine(unittest.TestCase):
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
                     priv_key=priv_key, key_type="ecdsa",
                     frequency=None, hash_func=hashlib.sha384,
-                    workers=None, verbose=False, rsa_keys=None)
+                    workers=None, verbose=False, rsa_keys=None, r_and_s=False)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -789,7 +790,7 @@ class TestCommandLine(unittest.TestCase):
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
                     priv_key=priv_key, key_type="ecdsa",
                     frequency=None, hash_func=None,
-                    workers=None, verbose=False, rsa_keys=None)
+                    workers=None, verbose=False, rsa_keys=None, r_and_s=False)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -831,7 +832,8 @@ class TestCommandLine(unittest.TestCase):
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
                     priv_key=priv_key, key_type="ecdsa",
                     frequency=None, hash_func=hashlib.sha256,
-                    workers=workers, verbose=False, rsa_keys=None)
+                    workers=workers, verbose=False, rsa_keys=None,
+                    r_and_s=False)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -872,7 +874,7 @@ class TestCommandLine(unittest.TestCase):
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
                     priv_key=priv_key, key_type="ecdsa",
                     frequency=None, hash_func=hashlib.sha256,
-                    workers=None, verbose=False, rsa_keys=None)
+                    workers=None, verbose=False, rsa_keys=None, r_and_s=False)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -881,6 +883,47 @@ class TestCommandLine(unittest.TestCase):
                 files_passes_in_process = mock_process.call_args[0][0]
                 for mode in files_passes_in_process.values():
                     self.assertNotIn("invert", mode)
+
+    @mock.patch('tlsfuzzer.extract.Log')
+    @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
+    @mock.patch('tlsfuzzer.extract.Extract._write_csv')
+    @mock.patch(
+        'tlsfuzzer.extract.Extract.process_and_create_multiple_csv_files'
+    )
+    @mock.patch('tlsfuzzer.extract.Extract.parse')
+    def test_skip_invert_option(self, mock_parse, mock_process, mock_write,
+                              mock_write_pkt, mock_log):
+        output = "/tmp"
+        raw_data = "/tmp/data"
+        data_size = 32
+        raw_sigs = "/tmp/sigs"
+        raw_times = "/tmp/times"
+        priv_key = "/tmp/key"
+        args = ["extract.py",
+                "-o", output,
+                "--raw-data", raw_data,
+                "--data-size", data_size,
+                "--raw-sigs", raw_sigs,
+                "--raw-times", raw_times,
+                "--priv-key-ecdsa", priv_key,
+                "--r-and-s"]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
+            with mock.patch("sys.argv", args):
+                main()
+                mock_init.assert_called_once_with(
+                    mock.ANY, None, output, None, None,
+                    raw_times, None, binary=None, endian="little",
+                    no_quickack=False, delay=None, carriage_return=None,
+                    data=raw_data, data_size=data_size, sigs=raw_sigs,
+                    priv_key=priv_key, key_type="ecdsa",
+                    frequency=None, hash_func=hashlib.sha256,
+                    workers=None, verbose=False, rsa_keys=None, r_and_s=True)
+                mock_write.assert_not_called()
+                mock_write_pkt.assert_not_called()
+                mock_log.assert_not_called()
+                mock_process.assert_called_once()
 
     def test_specify_to_private_keys(self):
         args = [
@@ -1383,15 +1426,16 @@ class TestMeasurementCreation(unittest.TestCase):
         self.times_used_write_on_hamming = 0
         self.k_time_map = []
 
-        out_dir = join(dirname(abspath(__file__)), "measurements_test_files")
+        common_dir = "measurements_test_files"
+        out_dir = join(dirname(abspath(__file__)), common_dir)
         raw_times = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "times.bin")
+                         common_dir, "times.bin")
         raw_sigs = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "sigs.bin")
+                         common_dir, "sigs.bin")
         raw_data = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "data.bin")
+                         common_dir, "data.bin")
         priv_key = join(dirname(abspath(__file__)),
-                         "measurements_test_files", "priv_key.pem")
+                         common_dir, "priv_key.pem")
 
         self.extract = Extract(
             output=out_dir, raw_times=raw_times, binary=8,
@@ -1455,6 +1499,7 @@ class TestMeasurementCreation(unittest.TestCase):
         ):
         self.extract.frequency = 1
         self.extract.verbose = True
+        self.k_time_map = []
 
         mock_file.side_effect = self.file_emulator
         self.times_used_write = 0
@@ -1471,6 +1516,43 @@ class TestMeasurementCreation(unittest.TestCase):
         self.times_used_write = 0
         self.extract.frequency = None
         self.extract.verbose = False
+        self.k_time_map = []
+
+    @mock.patch('builtins.print')
+    def test_measurement_creation_r_and_s(self, mock_print):
+        self.k_time_map = []
+        common_dir = "measurements_test_files"
+        out_dir = join(dirname(abspath(__file__)), common_dir)
+        raw_times = join(dirname(abspath(__file__)),
+                         common_dir, "times_r_and_s.bin")
+        raw_sigs = join(dirname(abspath(__file__)),
+                         common_dir, "sigs_r_and_s.bin")
+        raw_data = join(dirname(abspath(__file__)),
+                         common_dir, "data_r_and_s.bin")
+        priv_key = join(dirname(abspath(__file__)),
+                         common_dir, "priv_key_r_and_s.pem")
+
+        extract = Extract(
+            output=out_dir, raw_times=raw_times, binary=8,
+            sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
+            key_type="ecdsa", hash_func=None, r_and_s=True
+        )
+
+        self.times_used_write = 0
+
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_emulator
+            extract.process_measurements_and_create_csv_file(
+                extract.ecdsa_iter(), extract.ecdsa_max_value()
+            )
+
+        self.assertGreater(
+            self.times_used_write, 0,
+            "At least one measurement should have been written."
+        )
+
+        self.times_used_write = 0
+        self.k_time_map = []
 
     @mock.patch('__main__.__builtins__.open')
     def test_measurement_creation_with_k_size_invert(
