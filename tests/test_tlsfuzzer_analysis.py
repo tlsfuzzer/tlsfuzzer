@@ -13,6 +13,7 @@ except ImportError:
 import sys
 import os
 import tempfile
+from collections import defaultdict
 
 failed_import = False
 try:
@@ -362,6 +363,51 @@ class TestReport(unittest.TestCase):
         mock_write_summary.assert_called()
         self.assertEqual(ret, 0)
 
+        with mock.patch("tlsfuzzer.analysis.os.path.exists") as mock_exists:
+            with mock.patch("__main__.__builtins__.open") as mock_open:
+                mock_open.side_effect = mock.mock_open(read_data="2000,2")
+                mock_exists.return_value = True
+                analysis._total_bit_size_data = 0
+
+                ret = analysis.generate_report(bit_size=True)
+
+                self.assertEqual(ret, 0)
+                self.assertEqual(analysis._total_bit_size_data, 2000)
+
+    @mock.patch("tlsfuzzer.analysis.Analysis.analyse_hamming_weights")
+    @mock.patch("__main__.__builtins__.open")
+    def test_report_hamming_weights(self, mock_open, mock_hamming_weights):
+        report_text = "testing_hamming_weight_report"
+        self.writen_text = ""
+        mock_hamming_weights.return_value = 0
+
+        def add_to_written(x):
+            self.writen_text += x
+
+        def file_selector(*args, **kwargs):
+            file_name = args[0]
+            try:
+                mode = args[1]
+            except IndexError:
+                mode = "r"
+
+            r = mock.mock_open()(file_name, mode)
+
+            if "w" in mode:
+                r.write.side_effect = lambda s: (add_to_written(s))
+
+            return r
+
+        mock_open.side_effect = file_selector
+
+        analysis = Analysis("/tmp", bit_size_analysis=True)
+        analysis._hamming_weight_report = report_text
+        ret = analysis.generate_report(hamming_weight=True)
+
+        mock_hamming_weights.assert_called_once_with()
+        self.assertEqual(ret, 0)
+        self.assertEqual(self.writen_text, report_text)
+
     def test_setting_alpha(self):
         with mock.patch(
             "tlsfuzzer.analysis.Analysis.load_data", self.mock_read_csv
@@ -550,6 +596,50 @@ class TestReport(unittest.TestCase):
             'median': 0.5491948234999999,
             'IQR': 0.45029303825,
             'MAD': 0.250156351})
+
+    @mock.patch("tlsfuzzer.analysis.Analysis.load_data")
+    @mock.patch("builtins.open")
+    def test__write_summary(self, mock_open, mock_load_data):
+        mock_open.side_effect = mock.mock_open()
+
+        fake_conf_ints = {
+            'mean': (0, 0, 0),
+            'median': (0, 0, 0),
+            'trim_mean_05': (0, 0, 0),
+            'trim_mean_25': (0, 0, 0),
+            'trim_mean_45': (0, 0, 0),
+            'trimean': (0, 0, 0)
+        }
+
+        tests = [
+            (None, (0, 0, 0), 0, "Definite side-channel detected"),
+            (1e-10, (0, 0, 0), 1, "Definite side-channel detected"),
+            (1e-6, (0, 0, 0), 1, "Results suggesting side-channel found"),
+            (1, (0, 0, 0), 0, "ERROR"),
+            (1, (1e-11, 0, 2e-11), 0, "Implementation verified as not"),
+            (1, (1e-10, 0, 6e-10), 0, "Implementation most likely not"),
+            (1, (1e-3, 0, 2e-3), 0, "Large confidence intervals detected"),
+            (1, (1, 0, 2), 0, "Very large confidence intervals detected"),
+        ]
+
+        analysis = Analysis("/tmp")
+        analysis.class_names = {"0":"0", "1":"1"}
+        analysis.alpha = 1e-5
+
+        for test in tests:
+            with mock.patch("builtins.print") as mock_print:
+                fake_conf_ints['mean'] = test[1]
+                difference = analysis._write_summary(
+                    0, None, [1e-4, 1e-10, 1e-5, 1], ["0", "1"],
+                    test[0], fake_conf_ints
+                )
+                self.assertEqual(difference, test[2])
+                for i in mock_print.mock_calls:
+                    if test[3] in str(i):
+                        break
+                else:
+                    self.assertTrue(False)
+
 
 
 @unittest.skipIf(failed_import,
@@ -1024,18 +1114,14 @@ class TestCommandLine(unittest.TestCase):
             'tlsfuzzer.analysis.Analysis.generate_report'
         ) as mock_report:
             with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
-                with mock.patch(
-                    'tlsfuzzer.analysis.Analysis.analyse_hamming_weights'
-                ) as mock_hamming:
-                    with mock.patch("sys.argv", args):
-                        main()
-                        mock_init.assert_called_once_with(
-                            output, True, True, True, False, False, None, None,
-                            None, None, None, True, True,
-                            1e-9, 4,
-                            'measurements.csv', False, True, True, True)
-                        mock_report.assert_not_called()
-                        mock_hamming.assert_called_once_with()
+                with mock.patch("sys.argv", args):
+                    main()
+                    mock_init.assert_called_once_with(
+                        output, True, True, True, False, False, None, None,
+                        None, None, None, True, True, 1e-9, 4,
+                        'measurements.csv', False, True, True, True)
+                    mock_report.assert_called_once_with(
+                        bit_size=False, hamming_weight=True)
 
     def test_call_Hamming_weight_with_minimal_analysis(self):
         output = "/tmp"
@@ -1047,18 +1133,14 @@ class TestCommandLine(unittest.TestCase):
             'tlsfuzzer.analysis.Analysis.generate_report'
         ) as mock_report:
             with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
-                with mock.patch(
-                    'tlsfuzzer.analysis.Analysis.analyse_hamming_weights'
-                ) as mock_hamming:
-                    with mock.patch("sys.argv", args):
-                        main()
-                        mock_init.assert_called_once_with(
-                            output, True, True, True, False, False, None, None,
-                            None, None, None, True, True,
-                            1e-9, 4,
-                            'measurements.csv', False, False, False, False)
-                        mock_report.assert_not_called()
-                        mock_hamming.assert_called_once_with()
+                with mock.patch("sys.argv", args):
+                    main()
+                    mock_init.assert_called_once_with(
+                        output, True, True, True, False, False, None, None,
+                        None, None, None, True, True, 1e-9, 4,
+                        'measurements.csv', False, False, False, False)
+                    mock_report.assert_called_once_with(
+                        bit_size=False, hamming_weight=True)
 
     def test_help(self):
         args = ["analysis.py", "--help"]
@@ -1371,6 +1453,76 @@ class TestBitSizeAnalysis(unittest.TestCase):
     @mock.patch("tlsfuzzer.analysis.Analysis.create_k_specific_dirs")
     @mock.patch("tlsfuzzer.analysis.shutil.rmtree")
     @mock.patch("builtins.open")
+    def test_bit_size_measurement_analysis_main_2_samples(self, open_mock,
+            rmtree_mock, dir_creation_mock, load_data_mock, rel_t_test_mock,
+            wilcoxon_test_mock, interval_plot_mock, ecdf_plot_mock,
+            scatter_plot_mock, worst_pair_mock, conf_plot_mock,
+            calc_values_mock, figure_out_mock):
+
+        def file_selector(*args, **kwargs):
+            file_name = args[0]
+            try:
+                mode = args[1]
+            except IndexError:
+                mode = "r"
+
+            if "w" in mode:
+                return mock.mock_open()(file_name, mode)
+
+            if "timing.csv" in file_name:
+                k_size = file_name.split("/")[-2]
+                return mock.mock_open(
+                    read_data="256,{0}".format(k_size) +
+                              ("\n0.5,0.4\n0.4,0.5")
+                )(file_name, mode)
+
+            return mock.mock_open(
+                read_data="0,256,3\n0,255,102\n0,254,103\n1,256,4\n" +
+                          "1,254,104\n1,253,105"
+            )(file_name, mode)
+
+        open_mock.side_effect = file_selector
+        dir_creation_mock.return_value = [256, 255, 254, 253]
+
+        class dotDict(dict):
+            __getattr__ = dict.__getitem__
+
+        binomtest_mock = mock.Mock()
+
+        calc_values_mock.return_value = {
+            "mean": 0.5, "median": 0.5, "trim_mean_05": 0.5,
+            "trim_mean_25": 0.5, "trim_mean_45": 0.5, "trimean": 0.5
+        }
+
+        try:
+            with mock.patch(
+                "tlsfuzzer.analysis.stats.binomtest", binomtest_mock
+            ):
+                self.analysis.analyze_bit_sizes()
+        except AttributeError:
+            with mock.patch(
+                "tlsfuzzer.analysis.stats.binom_test", binomtest_mock
+            ):
+                self.analysis.analyze_bit_sizes()
+
+        binomtest_mock.assert_not_called()
+        rel_t_test_mock.assert_not_called()
+        wilcoxon_test_mock.assert_not_called()
+        calc_values_mock.assert_called()
+
+    @mock.patch("tlsfuzzer.analysis.Analysis._figure_out_analysis_data_size")
+    @mock.patch("tlsfuzzer.analysis.Analysis._calc_exact_values")
+    @mock.patch("tlsfuzzer.analysis.Analysis.conf_plot_for_all_k")
+    @mock.patch("tlsfuzzer.analysis.Analysis.graph_worst_pair")
+    @mock.patch("tlsfuzzer.analysis.Analysis.diff_scatter_plot")
+    @mock.patch("tlsfuzzer.analysis.Analysis.diff_ecdf_plot")
+    @mock.patch("tlsfuzzer.analysis.Analysis.conf_interval_plot")
+    @mock.patch("tlsfuzzer.analysis.Analysis.wilcoxon_test")
+    @mock.patch("tlsfuzzer.analysis.Analysis.rel_t_test")
+    @mock.patch("tlsfuzzer.analysis.Analysis.load_data")
+    @mock.patch("tlsfuzzer.analysis.Analysis.create_k_specific_dirs")
+    @mock.patch("tlsfuzzer.analysis.shutil.rmtree")
+    @mock.patch("builtins.open")
     def test_bit_size_measurement_analysis_main_100_samples(self, open_mock,
             rmtree_mock, dir_creation_mock, load_data_mock,
             rel_t_test_mock, wilcoxon_test_mock, interval_plot_mock,
@@ -1421,23 +1573,52 @@ class TestBitSizeAnalysis(unittest.TestCase):
             "trim_mean_25": 0.5, "trim_mean_45": 0.5, "trimean": 0.5
         }
 
+        old_alpha = self.analysis.alpha
+        self.analysis.alpha = 10
+
         try:
             with mock.patch(
                 "tlsfuzzer.analysis.stats.binomtest", binomtest_mock
             ):
                 binomtest_mock.return_value = dotDict(binomtest_result)
-                self.analysis.analyze_bit_sizes()
+                ret_val = self.analysis.analyze_bit_sizes()
         except AttributeError:
             with mock.patch(
                 "tlsfuzzer.analysis.stats.binom_test", binomtest_mock
             ):
                 binomtest_mock.return_value = binomtest_result["pvalue"]
-                self.analysis.analyze_bit_sizes()
+                ret_val = self.analysis.analyze_bit_sizes()
+
+        self.analysis.alpha = old_alpha
 
         binomtest_mock.assert_called()
         rel_t_test_mock.assert_called()
         wilcoxon_test_mock.assert_called()
         calc_values_mock.assert_called()
+        self.assertEqual(ret_val, 1)
+
+        with mock.patch("builtins.print"):
+            self.analysis.verbose = True
+            old_bit_size_data_used = self.analysis._bit_size_data_used
+            self.analysis._bit_size_data_used = 1000
+            old_total_bit_size_data_used = self.analysis._bit_size_data_used
+
+            try:
+                with mock.patch(
+                    "tlsfuzzer.analysis.stats.binomtest", binomtest_mock
+                ):
+                    binomtest_mock.return_value = dotDict(binomtest_result)
+                    self.analysis.analyze_bit_sizes()
+            except AttributeError:
+                with mock.patch(
+                    "tlsfuzzer.analysis.stats.binom_test", binomtest_mock
+                ):
+                    binomtest_mock.return_value = binomtest_result["pvalue"]
+                    self.analysis.analyze_bit_sizes()
+
+            self.analysis.verbose = False
+            self.analysis._bit_size_data_used = old_bit_size_data_used
+            self.analysis._bit_size_data_used = old_total_bit_size_data_used
 
     @mock.patch("tlsfuzzer.analysis.Analysis._figure_out_analysis_data_size")
     @mock.patch("tlsfuzzer.analysis.Analysis._calc_exact_values")
@@ -1498,6 +1679,7 @@ class TestBitSizeAnalysis(unittest.TestCase):
         }
 
         self.analysis.verbose = True
+        self.analysis.smart_bit_size_analysis = False
 
         try:
             with mock.patch(
@@ -1513,6 +1695,7 @@ class TestBitSizeAnalysis(unittest.TestCase):
                 self.analysis.analyze_bit_sizes()
 
         self.analysis.verbose = False
+        self.analysis.smart_bit_size_analysis = True
 
         binomtest_mock.assert_called()
         rel_t_test_mock.assert_called()
@@ -1558,6 +1741,7 @@ class TestBitSizeAnalysis(unittest.TestCase):
     @mock.patch("builtins.open")
     def test_bit_size_measurement_analysis_create_k_dirs(self, open_mock,
         makedirs_mock, thread_start_mock, thread_join_mock):
+        self.k_by_size = defaultdict(list)
 
         def file_selector(*args, **kwargs):
             file_name = args[0]
@@ -1566,36 +1750,53 @@ class TestBitSizeAnalysis(unittest.TestCase):
             except IndexError:
                 mode = "r"
 
-            if "w" in mode:
-                return mock.mock_open()(file_name, mode)
+            if type(file_name) == int:
+                return self.builtin_open(*args, **kwargs)
+
+            if "k-by-size" in file_name:
+                if "w" in mode:
+                    r = mock.mock_open()(*args, **kwargs)
+                    r.write.side_effect = lambda s: (
+                        self.k_by_size[file_name].append(s)
+                    )
+                    return r
+                else:
+                    print(self.k_by_size[file_name])
+                    print()
+                    return mock.mock_open(
+                        read_data = "".join(self.k_by_size[file_name])
+                    )(*args, **kwargs)
 
             return mock.mock_open(
-                read_data= "0,256,1\n0,255,102\n0,254,103\n0,256,2\n" +
-                           "1,256,3\n1,254,104\n1,253,105"
-            )(file_name, mode)
+                read_data="0,256,1\n0,255,102\n0,254,103\n0,256,2\n" +
+                          "1,256,3\n1,254,104\n1,253,105"
+            )(*args, **kwargs)
 
         open_mock.side_effect = file_selector
 
         ret_value = self.analysis.create_k_specific_dirs()
         self.assertEqual(ret_value, [256, 255, 254, 253])
 
+        self.k_by_size.clear()
         self.analysis.clock_frequency = 10000000
         ret_value = self.analysis.create_k_specific_dirs()
         self.assertEqual(ret_value, [256, 255, 254, 253])
         self.analysis.clock_frequency = None
 
+        self.k_by_size.clear()
         self.analysis.skip_sanity = True
         ret_value = self.analysis.create_k_specific_dirs()
         self.analysis.skip_sanity = False
         self.assertEqual(ret_value, [255, 254, 253])
 
         with mock.patch("builtins.print"):
+            self.k_by_size.clear()
             self.analysis.verbose = True
             ret_value = self.analysis.create_k_specific_dirs()
             self.analysis.verbose = False
 
     @mock.patch("builtins.open")
-    def test_check_data_for_rel_t_test_all_zeros(self, open_mock):
+    def test_check_data_for_zero_all_zeros(self, open_mock):
 
         def file_selector(*args, **kwargs):
             file_name = args[0]
@@ -1610,12 +1811,12 @@ class TestBitSizeAnalysis(unittest.TestCase):
 
         open_mock.side_effect = file_selector
 
-        ret_value = self.analysis._check_data_for_rel_t_test()
+        ret_value = self.analysis._check_data_for_zero()
 
         self.assertEqual(ret_value, False)
 
     @mock.patch("builtins.open")
-    def test_check_data_for_rel_t_test_two_non_zero(self, open_mock):
+    def test_check_data_for_zero_two_non_zero(self, open_mock):
 
         def file_selector(*args, **kwargs):
             file_name = args[0]
@@ -1630,12 +1831,12 @@ class TestBitSizeAnalysis(unittest.TestCase):
 
         open_mock.side_effect = file_selector
 
-        ret_value = self.analysis._check_data_for_rel_t_test()
+        ret_value = self.analysis._check_data_for_zero()
 
         self.assertEqual(ret_value, False)
 
     @mock.patch("builtins.open")
-    def test_check_data_for_rel_t_test_five_non_zero(self, open_mock):
+    def test_check_data_for_zero_five_non_zero(self, open_mock):
 
         def file_selector(*args, **kwargs):
             file_name = args[0]
@@ -1650,7 +1851,7 @@ class TestBitSizeAnalysis(unittest.TestCase):
 
         open_mock.side_effect = file_selector
 
-        ret_value = self.analysis._check_data_for_rel_t_test()
+        ret_value = self.analysis._check_data_for_zero()
 
         self.assertEqual(ret_value, True)
 
@@ -1734,8 +1935,17 @@ class TestBitSizeAnalysis(unittest.TestCase):
 
             difference, verdict = \
                 self.analysis._bit_size_come_to_verdict(test[2], test[0])
-            self.assertEqual(difference, test[3])
+            self.assertEqual(test[3], difference)
             self.assertIn(test[4], verdict)
+
+        # Final test with no k-sizes in it
+        self.analysis._bit_size_bootstraping = {}
+        difference, verdict = \
+            self.analysis._bit_size_come_to_verdict(0, 1)
+        self.assertEqual(2, difference)
+        self.assertIn("Not enough", verdict)
+
+        self.analysis._bit_size_bootstraping = None
 
     @mock.patch("builtins.open")
     def test_bit_size_write_summary(self, open_mock):
@@ -1768,28 +1978,31 @@ class TestBitSizeAnalysis(unittest.TestCase):
         }
         self.analysis._bit_size_sign_test = {255: 0.3, 254: 0.7, 253: 0.4}
         self.analysis._bit_size_wilcoxon_test = {255: 0.2, 254: 0.8, 253: 0.6}
-        self.analysis._bit_size_data_used = 1000
+        self.analysis._total_bit_size_data = 100000
+        self.analysis._total_bit_size_data_used = 10000
 
         self.analysis._bit_size_write_summary("passed", 0.5)
 
         self.assertEqual(
-            _summary[0], "Skilling-Mack test p-value: 5.000000e-01"
+            _summary[2], "Skilling-Mack test p-value: 5.000000e-01"
         )
         self.assertEqual(
-            _summary[1],
+            _summary[3],
             "Sign test p-values (min, average, max): " +
             "3.00e-01, 4.67e-01, 7.00e-01"
         )
         self.assertEqual(
-            _summary[2],
+            _summary[4],
             "Wilcoxon test p-values (min, average, max): " +
             "2.00e-01, 5.33e-01, 8.00e-01"
         )
         self.assertEqual(
-            _summary[3],
-            "Used 1,000 data observations for results"
+            _summary[5],
+            "Used 10,000 out of 100,000 available " +
+            "data observations for results."
         )
-        self.assertEqual(_summary[4], "passed")
+        self.assertEqual(_summary[6], "passed")
+
 
     @mock.patch("tlsfuzzer.analysis.Analysis.calc_diff_conf_int")
     @mock.patch("builtins.print")
@@ -1797,52 +2010,46 @@ class TestBitSizeAnalysis(unittest.TestCase):
             calc_diff_conf_int_mock):
         k_sizes = [256, 255, 254, 253, 252]
         old_bit_recall_size = self.analysis.bit_recognition_size
-        self.analysis.verbose = True
 
-        calc_diff_conf_int_mock.return_value = {
-            'mean': (-5.0e-07, -9.9e-08, 2.5e-07),
-            'median': (-8.0e-08, -3.8e-08, 1.1e-08),
-            'trim_mean_05': (-1.6e-07, 1.5e-08, 2.1e-07),
-            'trim_mean_25': (-6.9e-08, -2.4e-08, 2.5e-08),
-            'trim_mean_45': (-7.9e-08, -3.5e-08, 1.3e-08),
-            'trimean': (-7.9e-08, -2.2e-08, 3.86e-08)
-        }
+        def custom_calc_conf_int(pair):
+            self.analysis._bit_size_data_used = 1000
+            if self._all_cis_zeros:
+                return {
+                    'mean': (0, 0, 0),
+                    'median': (0, 0, 0),
+                    'trim_mean_05': (0, 0, 0),
+                    'trim_mean_25': (0, 0, 0),
+                    'trim_mean_45': (0, 0, 0),
+                    'trimean': (0, 0, 0)
+                }
+            else:
+                return {
+                    'mean': (-5.0e-07, -9.9e-08, 2.5e-07),
+                    'median': (-8.0e-08, -3.8e-08, 1.1e-08),
+                    'trim_mean_05': (-1.6e-07, 1.5e-08, 2.1e-07),
+                    'trim_mean_25': (-6.9e-08, -2.4e-08, 2.5e-08),
+                    'trim_mean_45': (-7.9e-08, -3.5e-08, 1.3e-08),
+                    'trimean': (-7.9e-08, -2.2e-08, 3.86e-08)
+                }
 
-        # first test run
+        calc_diff_conf_int_mock.side_effect = custom_calc_conf_int
+
+        self._all_cis_zeros = True
         self.analysis._bit_size_data_limit = 10000
-        self.analysis._bit_size_data_used = 1000
         self.analysis.bit_recognition_size = 1
         self.analysis._figure_out_analysis_data_size(k_sizes)
-        self.assertEqual(self.analysis._bit_size_data_limit, 8281000)
+        print_mock.assert_called_once_with(
+            "[W] There is not enough data on recognition size to " +
+            "calculate desired sample size. Using all available samples."
+        )
 
-        # second test run
-        self.analysis._bit_size_data_limit = 10000
-        self.analysis._bit_size_data_used = 1000
-        self.analysis.bit_recognition_size = 2
-        self.analysis._figure_out_analysis_data_size(k_sizes)
-        self.assertEqual(self.analysis._bit_size_data_limit, 8281000)
-
-        # third test run
-        self.analysis._bit_size_data_limit = 10000
-        self.analysis._bit_size_data_used = 1000
-        self.analysis.bit_recognition_size = 3
-        self.analysis._figure_out_analysis_data_size(k_sizes)
-        self.assertEqual(self.analysis._bit_size_data_limit, 8281000)
-
-        # forth test run
-        self.analysis._bit_size_data_limit = 10000
-        self.analysis._bit_size_data_used = 1000
-        self.analysis.bit_recognition_size = 30
-        self.analysis._figure_out_analysis_data_size(k_sizes)
-        self.assertEqual(self.analysis._bit_size_data_limit, 8281000)
-
-        # forth test run
-        self.analysis.verbose = False
-        self.analysis._bit_size_data_limit = 10000
-        self.analysis._bit_size_data_used = 1000
-        self.analysis.bit_recognition_size = 4
-        self.analysis._figure_out_analysis_data_size(k_sizes)
-        self.assertEqual(self.analysis._bit_size_data_limit, 8281000)
+        self._all_cis_zeros = False
+        for size in [1, 2, 3, 30, 4]:
+            self.analysis.verbose = not (size == 30)
+            self.analysis._bit_size_data_limit = 10000
+            self.analysis.bit_recognition_size = size
+            self.analysis._figure_out_analysis_data_size(k_sizes)
+            self.assertEqual(self.analysis._bit_size_data_limit, 8281000)
 
         # restore of changed variables
         self._bit_size_data_limit = 10000
@@ -1870,7 +2077,7 @@ class TestHammingAnalysis(unittest.TestCase):
                         data.write("{0},{1},{2}\n".format(tuple_num, i, j))
 
             analysis = Analysis(
-                tmpdirname, verbose=False, draw_conf_interval_plot=False,
+                tmpdirname, verbose=True, draw_conf_interval_plot=False,
                 bit_size_analysis=True, run_wilcoxon_test=False,
                 run_t_test=False, run_sign_test=False, draw_ecdf_plot=False
             )
@@ -1883,7 +2090,8 @@ class TestHammingAnalysis(unittest.TestCase):
         self.assertEqual(ret, 0)
 
         self.assertIn(
-            mock.call('Sample large enough to detect 1 ns difference: True'),
+            mock.call(
+                '[i] Sample large enough to detect 1 ns difference: True'),
             mock_print.mock_calls
         )
         for i in mock_print.mock_calls:
@@ -1910,7 +2118,7 @@ class TestHammingAnalysis(unittest.TestCase):
                         data.write("{0},{1},{2}\n".format(tuple_num, i, j))
 
             analysis = Analysis(
-                tmpdirname, verbose=False, draw_conf_interval_plot=False,
+                tmpdirname, verbose=True, draw_conf_interval_plot=False,
                 bit_size_analysis=True, run_wilcoxon_test=False,
                 run_t_test=False, run_sign_test=False, draw_ecdf_plot=False
             )
@@ -1923,11 +2131,13 @@ class TestHammingAnalysis(unittest.TestCase):
         self.assertEqual(ret, 1)
 
         self.assertNotIn(
-            mock.call('Sample large enough to detect 1 ns difference: True'),
+            mock.call(
+                '[i] Sample large enough to detect 1 ns difference: True'),
             mock_print.mock_calls
         )
         self.assertNotIn(
-            mock.call('Sample large enough to detect 1 ns difference: False'),
+            mock.call(
+                '[i] Sample large enough to detect 1 ns difference: False'),
             mock_print.mock_calls
         )
         for i in mock_print.mock_calls:
@@ -1980,7 +2190,8 @@ class TestHammingAnalysis(unittest.TestCase):
         self.assertEqual(ret, 0)
 
         self.assertIn(
-            mock.call('Sample large enough to detect 1 ns difference: True'),
+            mock.call(
+                '[i] Sample large enough to detect 1 ns difference: True'),
             mock_print.mock_calls
         )
         for i in mock_print.mock_calls:
@@ -1988,3 +2199,29 @@ class TestHammingAnalysis(unittest.TestCase):
                 break
         else:
             self.assertFalse(True)
+
+    def test_hamming_analysis_not_verbose(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            with open(os.path.join(tmpdirname, "measurements.csv"), "w") \
+                    as data:
+                for tuple_num in range(100):
+                    groups = sorted(list(set(
+                        np.random.binomial(256, 0.5, 20)
+                    )))
+                    values = np.random.normal(1e-3, 1e-10, size=len(groups))
+
+                    for i, j in zip(groups, values):
+                        data.write("{0},{1},{2}\n".format(tuple_num, i, j))
+
+            analysis = Analysis(
+                tmpdirname, verbose=False, draw_conf_interval_plot=False,
+                bit_size_analysis=True, run_wilcoxon_test=False,
+                run_t_test=False, run_sign_test=True, draw_ecdf_plot=False
+            )
+
+            ret = analysis.analyse_hamming_weights()
+
+            self.assertLess(1e-6, analysis.skillings_mack_test(
+                os.path.join(tmpdirname, "measurements.bin")))
+
+        self.assertEqual(ret, 0)
