@@ -19,10 +19,11 @@ from threading import Event, Thread
 import shutil
 from itertools import chain
 from os.path import join
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 from itertools import combinations, repeat, chain
 import os
 import time
+import random
 
 import numpy as np
 from scipy import stats
@@ -33,15 +34,16 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.utils.progress_report import progress_report
-from tlsfuzzer.utils.stats import skillings_mack_test
+from tlsfuzzer.utils.stats import skillings_mack_test, _slices
 from tlsfuzzer.messages import div_ceil
+from tlslite.utils.cryptomath import bytesToNumber
 
 
 TestPair = namedtuple('TestPair', 'index1  index2')
 mpl.use('Agg')
 
 
-VERSION = 8
+VERSION = 9
 
 
 _diffs = None
@@ -250,18 +252,16 @@ class Analysis(object):
         self.skip_sanity = skip_sanity
 
         if bit_size_analysis and smart_bit_size_analysis:
-            self._bit_size_data_limit = 10000  # staring amount of samples
-            self._bit_size_data_used = None
-            self._total_bit_size_data = 0
-            self._total_bit_size_data_used = 0
+            self._bit_size_data_limit = 100000  # staring amount of samples
             self.bit_size_desired_ci = bit_size_desired_ci
             self.bit_recognition_size = \
                 bit_recognition_size if bit_recognition_size >= 0 else 1
         else:
             self._bit_size_data_limit = None
-            self._bit_size_data_used = None
-            self._total_bit_size_data = 0
-            self._total_bit_size_data_used = 0
+
+        self._k_sizes = None
+        self._bit_size_data_used = None
+        self._total_bit_size_data_used = 0
 
         if not bit_size_analysis:
             data = self.load_data()
@@ -378,20 +378,8 @@ class Analysis(object):
 
         data = pd.DataFrame(timing_bin, columns=columns, copy=False)
 
-        if self._bit_size_data_limit:
-            len_data = len(data)
-            if not self._bit_size_data_used:
-                self._bit_size_data_used = min(
-                    len_data, self._bit_size_data_limit
-                )
-            start = 0
-            data_diff = len_data - self._bit_size_data_limit
-            if data_diff > 0:
-                start = np.random.randint(0, data_diff)
-            data = data.iloc[start:start + self._bit_size_data_limit]
-        else:
-            if not self._bit_size_data_used:
-                self._bit_size_data_used = len(data)
+        if not self._bit_size_data_used:
+            self._bit_size_data_used = len(data)
 
         return data
 
@@ -1582,8 +1570,6 @@ class Analysis(object):
             row_written += len(chunk.index)
             del measurements_bin
 
-        self._total_bit_size_data = row_written
-
         with open(measurements_bin_shape_path, "w") as shape_f:
             shape_f.write("{0},3\n".format(row_written))
 
@@ -1723,6 +1709,8 @@ class Analysis(object):
         """Wrights summary to the report.txt"""
         all_sign_test_values = list(self._bit_size_sign_test.values())
         all_wilcoxon_values = list(self._bit_size_wilcoxon_test.values())
+        total_non_max_data = sum(self._k_sizes[i] for i in self._k_sizes
+                                 if i != max(self._k_sizes.keys()))
         with open(join(self.output, "analysis_results/report.txt"), "w") as fp:
             fp.write(
                 "tlsfuzzer analyse.py version {0} bit size analysis\n\n"
@@ -1743,12 +1731,13 @@ class Analysis(object):
                         np.average(all_wilcoxon_values),
                         max(all_wilcoxon_values),
                     ) +
-                "Used {0:,} out of {1:,} available data observations "
+                "Used {0:,} ({2:.2%}) out of {1:,} available data "
                     .format(
                         self._total_bit_size_data_used,
-                        self._total_bit_size_data
+                        total_non_max_data,
+                        self._total_bit_size_data_used / total_non_max_data
                     ) +
-                "for results.\n" +
+                "observations for results.\n" +
                 verdict + "\n\n" + ("-" * 88) + "\n" +
                 "| size | Sign test | Wilcoxon test " +
                 "|    {0}    |    {1}   |\n"
@@ -1794,6 +1783,55 @@ class Analysis(object):
 
             fp.write(("-" * 88) + "\n")
 
+    def _k_sizes_totals_worker(self, args):
+        name_bin, bounds = args
+        start, end = bounds
+        k_size_totals = defaultdict(int)
+
+        data = np.memmap(name_bin,
+                         dtype=[('tuple_num', np.dtype('i8')),
+                                ('k_size', np.dtype('i2')),
+                                ('value', np.dtype('f8'))],
+                         mode="r")
+
+        k_sizes = data['k_size']
+
+        for k_size in k_sizes[start:end]:
+            k_size_totals[k_size] += 1
+
+        return k_size_totals
+
+    def _k_sizes_totals(self, name_bin):
+        k_sizes_totals = defaultdict(int)
+        total_data = os.path.getsize(name_bin) // 18
+        chunk_size = min(1024*1024,
+                         max(10, total_data // (os.cpu_count() * 100)))
+
+        if self.verbose:
+            print('[i] Starting k-sizes counting')
+
+        with mp.Pool(self.workers) as p:
+            chunks = p.imap_unordered(
+                # slice the data so that every worker has at least good few
+                # dozen megabytes of data to work with
+                self._k_sizes_totals_worker,
+                ((name_bin, i) for i in _slices(total_data, chunk_size))
+            )
+
+            k_sizes_totals = defaultdict(int)
+            for subtotals in chunks:
+                for key in subtotals:
+                    k_sizes_totals[key] += subtotals[key]
+
+        k_sizes_totals = dict(sorted(k_sizes_totals.items(), reverse=True))
+        self._k_sizes = k_sizes_totals
+
+        if self.verbose:
+            print("[i] Max K size detected: {0}"
+                  .format(max(k_sizes_totals.keys())))
+            print("[i] Min K size detected: {0}"
+                  .format(min(k_sizes_totals.keys())))
+
     def generate_report(self, bit_size=False, hamming_weight=False):
         """
         Compiles a report consisting of statistical tests and plots.
@@ -1810,10 +1848,7 @@ class Analysis(object):
             name = join(self.output, self.measurements_filename)
             name_bin = self._remove_suffix(name, '.csv') + '.bin'
             self._long_format_to_binary(name, name_bin)
-            if (self._total_bit_size_data == 0
-                    and os.path.exists(name_bin + ".shape")):
-                with open(name_bin + ".shape") as fp:
-                    self._total_bit_size_data = int(fp.read().split(',')[0])
+            self._k_sizes_totals(name_bin)
 
             skillings_mack_pvalue = self.skillings_mack_test(name_bin)
             ret_val = self.analyze_bit_sizes()
@@ -1945,33 +1980,43 @@ class Analysis(object):
                 previous_row = rows.iat[-1]
                 previous_max_k_value = curr_maxk_vals.iat[-1]
 
-    @staticmethod
-    def _k_specific_writing_worker(k_folder_path, pipe, k_size, max_k_size):
+    def _k_specific_writing_worker(self, args):
+        k_folder_path, pipe, k_size, max_k_size, acceptance_percent = args
+        items_written = 0
+
         os.makedirs(k_folder_path)
 
         try:
-            with open(join(k_folder_path, "timing.csv"), 'wb') as f:
+            with open(join(k_folder_path, "timing.csv"), 'w') as f:
                 if k_size != max_k_size:
                     header = "{0},{1}\n".format(max_k_size, k_size)
                 else:
                     header = "{0},{0}-sanity\n".format(max_k_size)
-                f.write(header.encode('ascii'))
+                f.write(header)
 
                 while True:
                     subchunk = pipe.recv()
                     if subchunk is None:
                         break
                     subchunk = subchunk[['curr_maxk_val', 'value']]
-                    subchunk.to_csv(f, header=False, index=False)
+                    for item in subchunk.values:
+                        if random.random() <= acceptance_percent:
+                            f.write("{0},{1}\n".format(*item))
+                            items_written += 1
         finally:
             pipe.close()
+
+        return (k_size, items_written)
 
     def create_k_specific_dirs(self):
         """
         Creates a folder with timing.csv for each K bit-size so it can be
         analyzed one at a time.
         """
-        k_size_process_pipe = {}
+        k_size_process_pipes = {}
+        k_folder_paths = {}
+        acceptance_percentages = {}
+        max_k_size = max(self._k_sizes.keys())
 
         if self.verbose:
             print("Creating a dir for each bit size...")
@@ -1992,44 +2037,45 @@ class Analysis(object):
 
         measurement_iter = self._read_bit_size_measurement_file(status=status)
 
-        try:
-            for max_k_size, chunk in measurement_iter:
-                for k_size, subchunk in chunk.groupby("k_size"):
-                    if k_size not in k_size_process_pipe:
-                        pipe_recv, pipe_send = mp.Pipe(duplex=False)
-                        k_folder_path = join(
-                            self.output,
-                            "analysis_results/k-by-size/{0}".format(k_size)
-                        )
-                        p = mp.Process(target=self._k_specific_writing_worker,
-                                       args=(k_folder_path, pipe_recv,
-                                             k_size, max_k_size))
-                        p.start()
-                        k_size_process_pipe[k_size] = (p, pipe_send)
+        for k_size in self._k_sizes:
+            k_size_process_pipes[k_size] = mp.Pipe(duplex=False)
+            k_folder_paths[k_size] = join(
+                self.output, "analysis_results/k-by-size/{0}".format(k_size))
+            acceptance_percentages[k_size] = 1
+            if self._bit_size_data_limit:
+                acceptance_percentages[k_size] = (
+                    self._bit_size_data_limit / self._k_sizes[k_size])
 
-                    _, pipe = k_size_process_pipe[k_size]
-                    pipe.send(subchunk)
-        finally:
-            for process, pipe in k_size_process_pipe.values():
-                pipe.send(None)
-                pipe.close()
-                process.join()
+        with mp.Pool(len(self._k_sizes)) as p:
+            chunks = p.imap_unordered(
+                self._k_specific_writing_worker,
+                ((k_folder_paths[k_size], k_size_process_pipes[k_size][0],
+                  k_size, max_k_size, acceptance_percentages[k_size])
+                 for k_size in self._k_sizes.keys())
+            )
 
-            if status:
-                status[2].set()
-                progress.join()
-                print()
+            try:
+                for max_k_size, chunk in measurement_iter:
+                    for k_size, subchunk in chunk.groupby("k_size"):
+                        _, pipe = k_size_process_pipes[k_size]
+                        pipe.send(subchunk)
+            finally:
+                for _, pipe in k_size_process_pipes.values():
+                    pipe.send(None)
+                    pipe.close()
 
-        k_sizes = list(k_size_process_pipe.keys())
-        k_sizes = sorted(k_sizes, reverse=True)
+                tuples_written_in_timing_files = {}
+                for k_size, total in chunks:
+                    tuples_written_in_timing_files[k_size] = total
 
-        if self.verbose:
-            print("[i] Max K size detected: {0}".format(max_k_size))
-            print("[i] Min K size detected: {0}".format(k_sizes[-1]))
+                if status:
+                    status[2].set()
+                    progress.join()
+                    print()
 
-        return k_sizes
+        return tuples_written_in_timing_files
 
-    def conf_plot_for_all_k(self, k_sizes):
+    def conf_plot_for_all_k(self):
         """
         Creates a confidence interval plot that includes all the K bit-sizes
         analysed.
@@ -2043,7 +2089,7 @@ class Analysis(object):
             "trimean": {}
         }
 
-        for k_size in k_sizes:
+        for k_size in self._k_sizes:
             k_size_path = join(
                 self.output, "analysis_results/k-by-size/{0}".format(k_size)
             )
@@ -2119,46 +2165,141 @@ class Analysis(object):
 
         return ret_val
 
-    def _figure_out_analysis_data_size(self, k_sizes):
+    def _bit_size_smart_analysis_worker(self, args):
+        name_bin, bounds = args
+        start, end = bounds
+        max_k_size_value = -1
+        prev_tupple_id = -1
+        tuple_id = 0
+        i = start
+        chosen_tuples = []
+        max_k_size = max(self._k_sizes.keys())
+        total_second_k_size = self._k_sizes[max_k_size - 1]
+        acceptance_percent = self._bit_size_data_limit / total_second_k_size
+
+        data = np.memmap(name_bin,
+                         dtype=[('tuple_num', np.dtype('i8')),
+                                ('k_size', np.dtype('i2')),
+                                ('value', np.dtype('f8'))],
+                         mode="r")
+
+        tuple_ids = data['tuple_num']
+        k_sizes = data['k_size']
+        values = data['value']
+
+        print(k_sizes)
+
+        while k_sizes[i] != max_k_size:
+            i += 1
+
+        while i < end or prev_tupple_id == tuple_id:
+            random_number = random.random()
+            prev_tupple_id = tuple_id
+            try:
+                tuple_id = tuple_ids[i]
+                k_size = k_sizes[i]
+                value = values[i]
+            except IndexError:
+                break
+
+            if k_size == max_k_size:
+                max_k_size_value = value
+
+            if k_size == max_k_size - 1:
+                if random_number <= acceptance_percent:
+                    chosen_tuples.append((max_k_size_value, value))
+
+            i += 1
+
+        return end - start, chosen_tuples
+
+    def _figure_out_analysis_data_size(self):
         pair = TestPair(0, 1)
-        old_output = self.output
         old_vebose = self.verbose
         self.verbose = False
         max_limit = 0
+        total_data = sum(self._k_sizes[i] for i in self._k_sizes)
+        name_bin = join(self.output,
+                        self._remove_suffix(
+                            self.measurements_filename, '.csv'
+                        ) + '.bin')
+        old_output = self.output
+        self.output = join(old_output, "analysis_results/recon_data")
+        chunk_size = min(1024*1024,
+                         max(10, total_data // (os.cpu_count() * 100)))
 
-        if self.bit_recognition_size >= len(k_sizes):
-            self.bit_recognition_size = len(k_sizes) - 1
+        status = None
+        if old_vebose:
+            print('[i] Starting calculating needed amount of data')
+            try:
+                status = [0, total_data, Event()]
+                kwargs = {}
+                kwargs['unit'] = ' obs'
+                kwargs['delay'] = self.delay
+                kwargs['end'] = self.carriage_return
+                progress = Thread(target=progress_report, args=(status,),
+                                  kwargs=kwargs)
+                progress.start()
+            except FileNotFoundError:  # pragma: no cover
+                pass
 
-        for index in range(self.bit_recognition_size - 1, -1, -1):
-            k_size = k_sizes[index]
-            self.output = join(
-                old_output, "analysis_results/k-by-size/{0}".format(k_size))
+        os.makedirs(self.output, exist_ok=True)
 
-            recognition_results = self.calc_diff_conf_int(pair)
-            recognition_cis = [
-                recognition_results[method][2] - recognition_results[method][0]
-                for method in recognition_results
-            ]
-            non_zero_recognition_cis = [x for x in recognition_cis if x > 0]
+        try:
+            with mp.Pool(self.workers) as p:
+                chunks = p.imap_unordered(
+                    self._bit_size_smart_analysis_worker,
+                    ((name_bin, i) for i in _slices(total_data, chunk_size))
+                )
 
-            if len(non_zero_recognition_cis) == 0:
-                print("[W] There is not enough data on recognition size to " +
-                      "calculate desired sample size. " +
-                      "Using all available samples.")
-                self._bit_size_data_limit = None
-                self._bit_size_data_used = None
-                self.verbose = old_vebose
-                self.output = old_output
-                return
+                chosen_tuples = []
+                for subprocess_progress, subprocess_tuples in chunks:
+                    chosen_tuples.extend(subprocess_tuples)
+                    if status:
+                        status[0] += subprocess_progress
+        finally:
+            if status:
+                status[2].set()
+                progress.join()
+                print()
 
-            smaller_recognition_ci = min(
-                x for x in non_zero_recognition_cis if x > 0)
-            magnitude_diff = smaller_recognition_ci / self.bit_size_desired_ci
-            max_limit = max(max_limit, round(
-                (magnitude_diff ** 2) * self._bit_size_data_used))
+
+        if self.bit_recognition_size >= len(self._k_sizes):
+            self.bit_recognition_size = len(self._k_sizes) - 1
+
+        with open(join(self.output, "timing.csv"), 'w') as fp:
+            fp.write('256,255\n')
+
+            for item in chosen_tuples:
+                fp.write("{0},{1}\n".format(item[0], item[1]))
+
+        recognition_results = self.calc_diff_conf_int(pair)
+        recognition_cis = [
+            recognition_results[method][2] - recognition_results[method][0]
+            for method in recognition_results
+        ]
+        non_zero_recognition_cis = [x for x in recognition_cis if x > 0]
+
+        if len(non_zero_recognition_cis) == 0:
+            print("[W] There is not enough data on recognition size to " +
+                  "calculate desired sample size. " +
+                  "Using all available samples.")
+            self._bit_size_data_limit = None
             self._bit_size_data_used = None
+            self.verbose = old_vebose
+            self.output = old_output
+            return
 
-        self._bit_size_data_limit = max_limit
+        smaller_recognition_ci = min(
+            x for x in non_zero_recognition_cis if x > 0)
+        magnitude_diff = smaller_recognition_ci / self.bit_size_desired_ci
+        max_limit = max(max_limit, round(
+            (magnitude_diff ** 2) * self._bit_size_data_used))
+        self._bit_size_data_used = None
+
+        # We add 10% to the data limit to make sure that we have a smaller CI
+        # (aim for CI 5% smaller than requested)
+        self._bit_size_data_limit = round(max_limit * 1.1)
         self.verbose = old_vebose
         self.output = old_output
 
@@ -2194,6 +2335,8 @@ class Analysis(object):
             "sign_test", "paired_t_test", "wilcoxon_test", "bootstrap_test"
         ]
         ret_val = 0
+        total_non_max_data = sum(self._k_sizes[i] for i in self._k_sizes
+                                 if i != max(self._k_sizes.keys()))
 
         output_files = {}
 
@@ -2203,12 +2346,15 @@ class Analysis(object):
         if os.path.exists(join(self.output, "analysis_results")):
             shutil.rmtree(join(self.output, "analysis_results"))
 
-        k_sizes = self.create_k_specific_dirs()
-        alpha_with_correction = (self.alpha / len(k_sizes))
-        max_k_size = k_sizes[0]
+        if (
+            self._bit_size_data_limit and
+            total_non_max_data > self._bit_size_data_limit
+        ):
+            self._figure_out_analysis_data_size()
 
-        if self._bit_size_data_limit:
-            self._figure_out_analysis_data_size(k_sizes)
+        samples_in_timing_files = self.create_k_specific_dirs()
+        alpha_with_correction = (self.alpha / len(self._k_sizes))
+        max_k_size = max(self._k_sizes.keys())
 
         for test in tests_to_perfom:
             output_files[test] = open(
@@ -2216,18 +2362,14 @@ class Analysis(object):
                 'w', encoding="utf-8"
             )
 
-        for k_size in k_sizes:
+        for k_size in self._k_sizes:
             if self.verbose:
                 print('Running test for k size {0}...'.format(k_size))
 
             self.output = join(out_dir, "k-by-size/{0}".format(k_size))
             data = self.load_data()
             self.class_names = list(data)
-            samples = sum(
-                1 for _ in open(join(
-                    out_dir, "k-by-size/{0}/timing.csv".format(k_size)
-                ), 'r')
-            ) - 1
+            samples = samples_in_timing_files[k_size]
 
             # Sign test
             total = 0
@@ -2387,7 +2529,7 @@ class Analysis(object):
         if self.verbose:
             print("[i] Create conf value plot for all K sizes")
             start_time = time.time()
-        self.conf_plot_for_all_k(k_sizes)
+        self.conf_plot_for_all_k()
         if self.verbose:
             print("[i] Plot for all K sizes created in {:.3}s".format(
                 time.time()-start_time))
