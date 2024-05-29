@@ -10,6 +10,7 @@ try:
 except ImportError:
     import unittest.mock as mock
 
+import struct
 import sys
 import os
 import tempfile
@@ -342,13 +343,15 @@ class TestReport(unittest.TestCase):
 
         self.assertIn("Conf interval graph", str(exc.exception))
 
+    @mock.patch("tlsfuzzer.analysis.Analysis._k_sizes_totals")
     @mock.patch("tlsfuzzer.analysis.Analysis._long_format_to_binary")
     @mock.patch("tlsfuzzer.analysis.Analysis._bit_size_write_summary")
     @mock.patch("tlsfuzzer.analysis.Analysis._bit_size_come_to_verdict")
     @mock.patch("tlsfuzzer.analysis.Analysis.analyze_bit_sizes")
     @mock.patch("tlsfuzzer.analysis.Analysis.skillings_mack_test")
     def test_report_bit_size(self, mock_skilling_mack, mock_bit_sizes,
-            mock_verdict, mock_write_summary, mock_long_to_bin):
+            mock_verdict, mock_write_summary, mock_long_to_bin,
+            mock_k_sizes_totals):
         mock_verdict.return_value = (0, "test")
 
         analysis = Analysis("/tmp", bit_size_analysis=True)
@@ -361,18 +364,8 @@ class TestReport(unittest.TestCase):
         mock_bit_sizes.assert_called()
         mock_verdict.assert_called()
         mock_write_summary.assert_called()
+        mock_k_sizes_totals.assert_called()
         self.assertEqual(ret, 0)
-
-        with mock.patch("tlsfuzzer.analysis.os.path.exists") as mock_exists:
-            with mock.patch("__main__.__builtins__.open") as mock_open:
-                mock_open.side_effect = mock.mock_open(read_data="2000,2")
-                mock_exists.return_value = True
-                analysis._total_bit_size_data = 0
-
-                ret = analysis.generate_report(bit_size=True)
-
-                self.assertEqual(ret, 0)
-                self.assertEqual(analysis._total_bit_size_data, 2000)
 
     @mock.patch("tlsfuzzer.analysis.Analysis.analyse_hamming_weights")
     @mock.patch("__main__.__builtins__.open")
@@ -1406,8 +1399,16 @@ class TestBitSizeAnalysis(unittest.TestCase):
                           "1,254,104\n1,253,105"
             )(file_name, mode)
 
+        k_sizes =  {
+            256: 1,
+            255: 1,
+            254: 2,
+            253: 1
+        }
+
+        self.analysis._k_sizes = k_sizes
         open_mock.side_effect = file_selector
-        dir_creation_mock.return_value = [256, 255, 254, 253]
+        dir_creation_mock.return_value = k_sizes
         rel_t_test_mock.return_value = {(0, 1): 0.5}
         wilcoxon_test_mock.return_value = {(0, 1): 0.5}
 
@@ -1439,6 +1440,8 @@ class TestBitSizeAnalysis(unittest.TestCase):
         rel_t_test_mock.assert_called()
         wilcoxon_test_mock.assert_called()
         calc_values_mock.assert_called()
+
+        self.analysis._k_sizes = None
 
     @mock.patch("tlsfuzzer.analysis.Analysis._figure_out_analysis_data_size")
     @mock.patch("tlsfuzzer.analysis.Analysis._calc_exact_values")
@@ -1481,8 +1484,16 @@ class TestBitSizeAnalysis(unittest.TestCase):
                           "1,254,104\n1,253,105"
             )(file_name, mode)
 
+        k_sizes =  {
+            256: 1,
+            255: 1,
+            254: 2,
+            253: 1
+        }
+
+        self.analysis._k_sizes = k_sizes
         open_mock.side_effect = file_selector
-        dir_creation_mock.return_value = [256, 255, 254, 253]
+        dir_creation_mock.return_value = k_sizes
 
         class dotDict(dict):
             __getattr__ = dict.__getitem__
@@ -1509,6 +1520,8 @@ class TestBitSizeAnalysis(unittest.TestCase):
         rel_t_test_mock.assert_not_called()
         wilcoxon_test_mock.assert_not_called()
         calc_values_mock.assert_called()
+
+        self.analysis._k_sizes = None
 
     @mock.patch("tlsfuzzer.analysis.Analysis._figure_out_analysis_data_size")
     @mock.patch("tlsfuzzer.analysis.Analysis._calc_exact_values")
@@ -1557,8 +1570,16 @@ class TestBitSizeAnalysis(unittest.TestCase):
                           "1,254,104\n1,253,105"
             )(file_name, mode)
 
+        k_sizes =  {
+            256: 60,
+            255: 100,
+            254: 40,
+            253: 20
+        }
+
+        self.analysis._k_sizes = k_sizes
         open_mock.side_effect = file_selector
-        dir_creation_mock.return_value = [256, 255, 254, 253]
+        dir_creation_mock.return_value = k_sizes
         rel_t_test_mock.return_value = {(0, 1): 0.5}
         wilcoxon_test_mock.return_value = {(0, 1): 0.5}
 
@@ -1620,6 +1641,8 @@ class TestBitSizeAnalysis(unittest.TestCase):
             self.analysis._bit_size_data_used = old_bit_size_data_used
             self.analysis._bit_size_data_used = old_total_bit_size_data_used
 
+        self.analysis._k_sizes = None
+
     @mock.patch("tlsfuzzer.analysis.Analysis._figure_out_analysis_data_size")
     @mock.patch("tlsfuzzer.analysis.Analysis._calc_exact_values")
     @mock.patch("tlsfuzzer.analysis.Analysis.conf_plot_for_all_k")
@@ -1662,8 +1685,16 @@ class TestBitSizeAnalysis(unittest.TestCase):
                           "1,254,104\n1,253,105"
             )(file_name, mode)
 
+        k_sizes =  {
+            256: 1,
+            255: 1,
+            254: 2,
+            253: 1
+        }
+
+        self.analysis._k_sizes = k_sizes
         open_mock.side_effect = file_selector
-        dir_creation_mock.return_value = [256, 255, 254, 253]
+        dir_creation_mock.return_value = k_sizes
         rel_t_test_mock.return_value = {(0, 1): 0.5}
         wilcoxon_test_mock.return_value = {(0, 1): 0.5}
 
@@ -1702,6 +1733,8 @@ class TestBitSizeAnalysis(unittest.TestCase):
         wilcoxon_test_mock.assert_called()
         calc_values_mock.assert_called()
 
+        self.analysis._k_sizes = None
+
     @mock.patch("tlsfuzzer.analysis.FigureCanvas.print_figure")
     @mock.patch("builtins.open")
     def test_bit_size_measurement_analysis_conf_plot(self, open_mock,
@@ -1731,16 +1764,21 @@ class TestBitSizeAnalysis(unittest.TestCase):
 
         open_mock.side_effect = file_selector
 
-        self.analysis.conf_plot_for_all_k([256, 255, 254, 253])
+        self.analysis._k_sizes = {
+            256: 200,
+            255: 1000,
+            254: 500,
+            253: 250
+        }
+        self.analysis.conf_plot_for_all_k()
+        self.analysis._k_sizes = None
 
         print_figure_mock.assert_called()
 
-    @mock.patch("tlsfuzzer.analysis.Thread.start")
-    @mock.patch("tlsfuzzer.analysis.Thread.join")
     @mock.patch("tlsfuzzer.analysis.os.makedirs")
     @mock.patch("builtins.open")
     def test_bit_size_measurement_analysis_create_k_dirs(self, open_mock,
-        makedirs_mock, thread_start_mock, thread_join_mock):
+        makedirs_mock):
         self.k_by_size = defaultdict(list)
 
         def file_selector(*args, **kwargs):
@@ -1761,39 +1799,53 @@ class TestBitSizeAnalysis(unittest.TestCase):
                     )
                     return r
                 else:
-                    print(self.k_by_size[file_name])
-                    print()
                     return mock.mock_open(
                         read_data = "".join(self.k_by_size[file_name])
                     )(*args, **kwargs)
 
-            return mock.mock_open(
+            r = mock.mock_open(
                 read_data="0,256,1\n0,255,102\n0,254,103\n0,256,2\n" +
                           "1,256,3\n1,254,104\n1,253,105"
             )(*args, **kwargs)
+            r.tell.return_value = 1
+            return r
 
+        k_sizes = {
+            256: 1,
+            255: 1,
+            254: 2,
+            253: 1
+        }
+
+        self.analysis._k_sizes = k_sizes
         open_mock.side_effect = file_selector
+        open_mock.return_value.tell.return_value = 0
 
         ret_value = self.analysis.create_k_specific_dirs()
-        self.assertEqual(ret_value, [256, 255, 254, 253])
+        self.assertEqual(ret_value, k_sizes)
 
         self.k_by_size.clear()
         self.analysis.clock_frequency = 10000000
         ret_value = self.analysis.create_k_specific_dirs()
-        self.assertEqual(ret_value, [256, 255, 254, 253])
+        self.assertEqual(ret_value, k_sizes)
         self.analysis.clock_frequency = None
-
-        self.k_by_size.clear()
-        self.analysis.skip_sanity = True
-        ret_value = self.analysis.create_k_specific_dirs()
-        self.analysis.skip_sanity = False
-        self.assertEqual(ret_value, [255, 254, 253])
 
         with mock.patch("builtins.print"):
             self.k_by_size.clear()
             self.analysis.verbose = True
             ret_value = self.analysis.create_k_specific_dirs()
             self.analysis.verbose = False
+
+        self.k_by_size.clear()
+        sanity_k_sizes = k_sizes.copy()
+        del sanity_k_sizes[256]
+        self.analysis._k_sizes = sanity_k_sizes
+        self.analysis.skip_sanity = True
+        ret_value = self.analysis.create_k_specific_dirs()
+        self.analysis.skip_sanity = False
+        self.assertEqual(ret_value, sanity_k_sizes)
+
+        self.analysis._k_sizes = None
 
     @mock.patch("builtins.open")
     def test_check_data_for_zero_all_zeros(self, open_mock):
@@ -1958,6 +2010,13 @@ class TestBitSizeAnalysis(unittest.TestCase):
             )
             return r
 
+        self.analysis._k_sizes = {
+            256: 100,
+            255: 1000,
+            254: 500,
+            253: 500
+        }
+
         open_mock.side_effect = file_selector
 
         values_pos = [0,5, 1e-9]
@@ -1978,8 +2037,7 @@ class TestBitSizeAnalysis(unittest.TestCase):
         }
         self.analysis._bit_size_sign_test = {255: 0.3, 254: 0.7, 253: 0.4}
         self.analysis._bit_size_wilcoxon_test = {255: 0.2, 254: 0.8, 253: 0.6}
-        self.analysis._total_bit_size_data = 100000
-        self.analysis._total_bit_size_data_used = 10000
+        self.analysis._total_bit_size_data_used = 1500
 
         self.analysis._bit_size_write_summary("passed", 0.5)
 
@@ -1998,18 +2056,24 @@ class TestBitSizeAnalysis(unittest.TestCase):
         )
         self.assertEqual(
             _summary[5],
-            "Used 10,000 out of 100,000 available " +
+            "Used 1,500 (75.00%) out of 2,000 available " +
             "data observations for results."
         )
         self.assertEqual(_summary[6], "passed")
 
+        self.analysis._k_sizes = None
 
+    @mock.patch("tlsfuzzer.analysis.np.memmap")
     @mock.patch("tlsfuzzer.analysis.Analysis.calc_diff_conf_int")
     @mock.patch("builtins.print")
     def test_figure_out_analysis_data_size(self, print_mock,
-            calc_diff_conf_int_mock):
-        k_sizes = [256, 255, 254, 253, 252]
-        old_bit_recall_size = self.analysis.bit_recognition_size
+            calc_diff_conf_int_mock, mock_memmap):
+
+        mock_memmap.return_value = {
+            'tuple_num': [0, 0, 0, 0, 1, 1, 1],
+            'k_size': [256, 255, 254, 256, 256, 254, 253],
+            'value': [1, 102, 103, 2, 3, 104, 105]
+        }
 
         def custom_calc_conf_int(pair):
             self.analysis._bit_size_data_used = 1000
@@ -2034,10 +2098,18 @@ class TestBitSizeAnalysis(unittest.TestCase):
 
         calc_diff_conf_int_mock.side_effect = custom_calc_conf_int
 
+        self.analysis._k_sizes = {
+            256: 2,
+            255: 1,
+            254: 2,
+            253: 1
+        }
+        old_bit_recall_size = self.analysis.bit_recognition_size
+
         self._all_cis_zeros = True
         self.analysis._bit_size_data_limit = 10000
         self.analysis.bit_recognition_size = 1
-        self.analysis._figure_out_analysis_data_size(k_sizes)
+        self.analysis._figure_out_analysis_data_size()
         print_mock.assert_called_once_with(
             "[W] There is not enough data on recognition size to " +
             "calculate desired sample size. Using all available samples."
@@ -2048,15 +2120,99 @@ class TestBitSizeAnalysis(unittest.TestCase):
             self.analysis.verbose = not (size == 30)
             self.analysis._bit_size_data_limit = 10000
             self.analysis.bit_recognition_size = size
-            self.analysis._figure_out_analysis_data_size(k_sizes)
-            self.assertEqual(self.analysis._bit_size_data_limit, 8281000)
+            self.analysis._figure_out_analysis_data_size()
+            self.assertEqual(self.analysis._bit_size_data_limit, 9109100)
 
         # restore of changed variables
         self._bit_size_data_limit = 10000
         self.analysis.bit_recognition_size = old_bit_recall_size
+        self.analysis._k_sizes = None
 
         self.assertEqual(self.analysis.output, "/tmp")
 
+    @mock.patch("tlsfuzzer.analysis.os.path.getsize")
+    @mock.patch("tlsfuzzer.analysis.np.memmap")
+    def test_k_sizes_totals(self, mock_memmap, mock_getsize):
+        k_sizes = [256, 255, 254, 256, 256, 254, 253]
+        mock_memmap.return_value = {'k_size': k_sizes}
+        mock_getsize.return_value = len(k_sizes) * 18
+
+        self.analysis._k_sizes_totals("measurements.bin")
+
+        self.assertEqual(self.analysis._k_sizes, {
+            256: 3, 255: 1, 254: 2, 253: 1
+        })
+
+        with mock.patch("builtins.print") as mock_print:
+            self.analysis.verbose = True
+            self.analysis._k_sizes_totals("measurements.bin")
+            self.analysis.verbose = False
+            self.assertIn(
+                mock.call("[i] Max K size detected: 256"), mock_print.mock_calls
+            )
+            self.assertIn(
+                mock.call("[i] Min K size detected: 253"), mock_print.mock_calls
+            )
+
+        self.analysis._k_sizes = None
+
+    @mock.patch("tlsfuzzer.analysis.np.memmap")
+    @mock.patch("tlsfuzzer.analysis.os.makedirs")
+    def test_thread_workers(self, mock_makedirs, mock_memmap):
+
+        mock_memmap.return_value = {
+            'tuple_num': [0, 0, 0, 0, 1, 1, 1],
+            'k_size': [256, 255, 254, 256, 256, 254, 253],
+            'value': [1, 102, 103, 2, 3, 104, 105]
+        }
+
+        # Testing _k_sizes_totals_worker
+        args = ("measurements.bin", (1, 6))
+        results = self.analysis._k_sizes_totals_worker(args)
+        self.assertEqual(dict(results), { 256: 2, 255: 1, 254: 2 })
+
+        # Testing _bit_size_smart_analysis_worker
+        args = ("measurements.bin", (0, 20))
+        self.analysis._bit_size_data_limit = 3
+        self.analysis._k_sizes = { 256: 6, 255: 3, 254: 1, 253: 1}
+        results = self.analysis._bit_size_smart_analysis_worker(args)
+        self.assertGreater(len(results), 0)
+        self.analysis._bit_size_data_limit = None
+        self.analysis._k_sizes = None
+
+        # Testing _k_specific_writing_worker
+        def file_selector(*args, **kwargs):
+            return mock.mock_open()(*args, **kwargs)
+
+        class mock_pipe:
+            def __init__(self):
+                self.recv_counter = 0
+                self.values = []
+
+            def recv(self):
+                self.recv_counter += 1
+
+                if self.recv_counter == 1:
+                    self.values = [(1, 101), (2, 102), (3, 103)]
+                elif self.recv_counter == 2:
+                    self.values = [(4, 204), (5, 205), (6, 206)]
+                else:
+                    return None
+
+                return self
+
+            def __getitem__(self, pos):
+                return self
+
+            def close(self):
+                pass
+
+        with mock.patch("builtins.open") as mock_open:
+            mock_open.side_effect = file_selector
+            args = ("/tmp/", mock_pipe(), 255, 256, 1)
+            results = self.analysis._k_specific_writing_worker(args)
+            self.assertEqual(results[0], 255)
+            self.assertGreater(results[1], 0)
 
 @unittest.skipIf(failed_import,
                  "Could not import analysis. Skipping related tests.")
