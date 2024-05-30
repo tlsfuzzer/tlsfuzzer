@@ -19,9 +19,6 @@ jobs:
           - name: py2.7
             os: ubuntu-20.04
             python-version: 2.7
-          - name: py3.5
-            os: ubuntu-20.04
-            python-version: 3.5
           - name: py3.6
             os: ubuntu-20.04
             python-version: 3.6
@@ -52,10 +49,6 @@ jobs:
           - name: py2.7 with extract
             os: ubuntu-20.04
             python-version: 2.7
-            opt-deps: ['extract']
-          - name: py3.5 with extract
-            os: ubuntu-20.04
-            python-version: 3.5
             opt-deps: ['extract']
           - name: py3.6 with extract
             os: ubuntu-20.04
@@ -376,7 +369,7 @@ jobs:
           # as http.server uses `sys_version = "Python/" + sys.version.split()[0]`
           # https://github.com/python/cpython/blob/2c050e52f1ccf5db03819e4ed70690521d67e9fa/Lib/http/server.py#L253
           case $PYTHON_VERSION in
-            2.7 | 3.4 | 3.5 | 3.6 | 3.7 | 3.8 | 3.9 | 3.11 | 3.12 )
+            2.7 | 3.6 | 3.7 | 3.8 | 3.9 | 3.11 | 3.12 )
               export REPLY_SIZE=1850
               ;;
             3.10)
@@ -397,7 +390,7 @@ jobs:
           PYTHON_VERSION: ${{ matrix.python-version }}
         run: |
           opt=""
-          if ! [[ $PYTHON_VERSION == 2.6 || $PYTHON_VERSION == 2.7 || $PYTHON_VERSION == 3.3 || $PYTHON_VERSION == 3.4 || $PYTHON_VERSION == 3.5 ]]; then
+          if ! [[ $PYTHON_VERSION == 2.6 || $PYTHON_VERSION == 2.7 ]]; then
             opt="--compare-branch origin/master"
           fi
           pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" tlsfuzzer > pylint_report.txt || :
