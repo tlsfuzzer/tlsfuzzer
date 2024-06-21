@@ -30,7 +30,7 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
 from tlsfuzzer.helpers import key_share_gen, SIG_ALL, key_share_ext_gen
 
 
-version = 6
+version = 7
 
 
 def help_msg():
