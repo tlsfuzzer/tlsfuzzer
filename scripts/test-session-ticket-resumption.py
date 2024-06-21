@@ -30,7 +30,7 @@ from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension, \
         session_ticket_ext_gen
 
 
-version = 1
+version = 2
 
 
 def help_msg():
@@ -53,6 +53,7 @@ def help_msg():
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
     print(" --no-new-ticket-on-resumption Don't expect the server to issue a new ticket")
     print("                when resuming a session")
+    print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -65,10 +66,11 @@ def main():
     last_exp_tmp = None
     dhe = False
     ticket_on_resumption = True
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:d",
-                               ["help", "no-new-ticket-on-resumption"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dM",
+                               ["help", "no-new-ticket-on-resumption", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -87,6 +89,8 @@ def main():
             num_limit = int(arg)
         elif opt == '-d':
             dhe = True
+        elif opt == "-M" or opt == "--ems":
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -106,6 +110,8 @@ def main():
     node = conversation
     ext = {}
     ext[ExtensionType.session_ticket] = AutoEmptyExtension()
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
@@ -126,6 +132,8 @@ def main():
     ext = {}
     ext[ExtensionType.session_ticket] = None
     ext[ExtensionType.renegotiation_info] = None
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -151,6 +159,8 @@ def main():
     node = conversation
     ext = {}
     ext[ExtensionType.session_ticket] = AutoEmptyExtension()
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
@@ -171,6 +181,8 @@ def main():
     ext_srv = {}
     ext_srv[ExtensionType.session_ticket] = None
     ext_srv[ExtensionType.renegotiation_info] = None
+    if ems:
+        ext_srv[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext_srv,
                                             description="first"))
     node = node.add_child(ExpectCertificate())
@@ -204,6 +216,8 @@ def main():
     if ticket_on_resumption:
         ext_srv[ExtensionType.session_ticket] = None
     ext_srv[ExtensionType.renegotiation_info] = None
+    if ems:
+        ext_srv[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext_srv,
                                             force_resume=True,
                                             description="second"))
@@ -227,6 +241,8 @@ def main():
     node = conversation
     ext = {}
     ext[ExtensionType.session_ticket] = AutoEmptyExtension()
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
@@ -247,6 +263,8 @@ def main():
     ext_srv = {}
     ext_srv[ExtensionType.session_ticket] = None
     ext_srv[ExtensionType.renegotiation_info] = None
+    if ems:
+        ext_srv[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext_srv,
                                             description="first"))
     node = node.add_child(ExpectCertificate())
@@ -280,6 +298,8 @@ def main():
     ext_srv = {}
     if ticket_on_resumption:
         ext_srv[ExtensionType.session_ticket] = None
+    if ems:
+        ext_srv[ExtensionType.extended_master_secret] = None
     ext_srv[ExtensionType.renegotiation_info] = None
     node = node.add_child(ExpectServerHello(extensions=ext_srv,
                                             description="second"))
@@ -303,6 +323,8 @@ def main():
     node = conversation
     ext = {}
     ext[ExtensionType.session_ticket] = AutoEmptyExtension()
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
@@ -323,6 +345,8 @@ def main():
     ext_srv = {}
     ext_srv[ExtensionType.session_ticket] = None
     ext_srv[ExtensionType.renegotiation_info] = None
+    if ems:
+        ext_srv[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext_srv))
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -373,6 +397,8 @@ def main():
     node = conversation
     ext = {}
     ext[ExtensionType.session_ticket] = AutoEmptyExtension()
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
@@ -391,6 +417,8 @@ def main():
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     ext_srv = {}
+    if ems:
+        ext_srv[ExtensionType.extended_master_secret] = None
     ext_srv[ExtensionType.session_ticket] = None
     ext_srv[ExtensionType.renegotiation_info] = None
     node = node.add_child(ExpectServerHello(extensions=ext_srv))
