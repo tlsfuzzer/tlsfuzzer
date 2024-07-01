@@ -452,6 +452,23 @@ class Analysis(object):
         """Calculate ttest statistic, return p-value."""
         return stats.ttest_rel(data1, data2)[1]
 
+    @staticmethod
+    def _unpair_t_test(data1, data2):
+        """Calculate ttest statistic, return p-value."""
+        return stats.ttest_ind(data1, data2)[1]
+
+    def unpair_t_test(self):
+        """Cross-test all classes using the t-test for unpaired
+        samples."""
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Starting t-test for unpaired samples")
+        ret = self.mt_process(self._unpair_t_test)
+        if self.verbose:
+            print("[i] t-test for unpaired sample done in {:.3}s"
+                  .format(time.time()-start_time))
+        return ret
+
     def rel_t_test(self):
         """Cross-test all classes using the t-test for dependent, paired
         samples."""
@@ -1100,6 +1117,7 @@ class Analysis(object):
         sign_less_results = self.sign_test(alternative="less")
         sign_greater_results = self.sign_test(alternative="greater")
         ttest_results = self.rel_t_test()
+        unpair_ttest_results = self.unpair_t_test()
         desc_stats = self.desc_stats()
 
         report_filename = join(self.output, "report.csv")
@@ -1111,7 +1129,8 @@ class Analysis(object):
                              "Wilcoxon signed-rank test",
                              "Sign test", "Sign test less",
                              "Sign test greater",
-                             "paired t-test", "mean", "SD",
+                             "paired t-test", "unpaired t-test",
+                             "mean", "SD",
                              "median", "IQR", "MAD"])
             worst_pair = None
             worst_p = None
@@ -1146,6 +1165,8 @@ class Analysis(object):
                       .format(index2, sign_test_relation, index1))
                 print("Dependent t-test for paired samples {} vs {}: {:.3}"
                       .format(index1, index2, ttest_results[pair]))
+                print("Independent t-test for unpaired samples {} vs {}: {:.3}"
+                      .format(index2, index2, unpair_ttest_results[pair]))
                 print("{} vs {} stats: mean: {:.3}, SD: {:.3}, median: {:.3}, "
                       "IQR: {:.3}, MAD: {:.3}".format(
                           index1, index2, diff_stats["mean"], diff_stats["SD"],
@@ -1162,6 +1183,7 @@ class Analysis(object):
                 wilcox_p = wilcox_results[pair]
                 sign_p = sign_results[pair]
                 ttest_p = ttest_results[pair]
+                unpair_ttest_p = unpair_ttest_results[pair]
                 row = [self.class_names[index1],
                        self.class_names[index2],
                        box_write,
@@ -1170,6 +1192,7 @@ class Analysis(object):
                        sign_less_results[pair],
                        sign_greater_results[pair],
                        ttest_p,
+                       unpair_ttest_p,
                        diff_stats["mean"],
                        diff_stats["SD"],
                        diff_stats["median"],
