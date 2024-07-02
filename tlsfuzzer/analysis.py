@@ -469,6 +469,22 @@ class Analysis(object):
                   .format(time.time()-start_time))
         return ret
 
+    @staticmethod
+    def _ks_test(data1, data2):
+        """Calculate the KS-test statistic, return p-value."""
+        return stats.ks_2samp(data1, data2)[1]
+
+    def ks_test(self):
+        """Cross-test all classes using the Kolmogorov-Smirnov test."""
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Starting K-S test")
+        ret = self.mt_process(self._ks_test)
+        if self.verbose:
+            print("[i] K-S test done in {:.3}s"
+                  .format(time.time()-start_time))
+        return ret
+
     def rel_t_test(self):
         """Cross-test all classes using the t-test for dependent, paired
         samples."""
@@ -1118,6 +1134,7 @@ class Analysis(object):
         sign_greater_results = self.sign_test(alternative="greater")
         ttest_results = self.rel_t_test()
         unpair_ttest_results = self.unpair_t_test()
+        ks_test_results = self.ks_test()
         desc_stats = self.desc_stats()
 
         report_filename = join(self.output, "report.csv")
@@ -1130,6 +1147,7 @@ class Analysis(object):
                              "Sign test", "Sign test less",
                              "Sign test greater",
                              "paired t-test", "unpaired t-test",
+                             "Kolmogorov-Smirnov test",
                              "mean", "SD",
                              "median", "IQR", "MAD"])
             worst_pair = None
@@ -1166,7 +1184,9 @@ class Analysis(object):
                 print("Dependent t-test for paired samples {} vs {}: {:.3}"
                       .format(index1, index2, ttest_results[pair]))
                 print("Independent t-test for unpaired samples {} vs {}: {:.3}"
-                      .format(index2, index2, unpair_ttest_results[pair]))
+                      .format(index1, index2, unpair_ttest_results[pair]))
+                print("Kolmogorov-Smirnov test {} vs {}: {:.3}"
+                      .format(index1, index2, ks_test_results[pair]))
                 print("{} vs {} stats: mean: {:.3}, SD: {:.3}, median: {:.3}, "
                       "IQR: {:.3}, MAD: {:.3}".format(
                           index1, index2, diff_stats["mean"], diff_stats["SD"],
@@ -1184,6 +1204,7 @@ class Analysis(object):
                 sign_p = sign_results[pair]
                 ttest_p = ttest_results[pair]
                 unpair_ttest_p = unpair_ttest_results[pair]
+                ks_test_p = ks_test_results[pair]
                 row = [self.class_names[index1],
                        self.class_names[index2],
                        box_write,
@@ -1193,6 +1214,7 @@ class Analysis(object):
                        sign_greater_results[pair],
                        ttest_p,
                        unpair_ttest_p,
+                       ks_test_p,
                        diff_stats["mean"],
                        diff_stats["SD"],
                        diff_stats["median"],
