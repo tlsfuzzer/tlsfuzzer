@@ -59,9 +59,9 @@ def help_msg():
  --no-scatter-plot Don't create the scatter_plot.png file
  --no-conf-interval-plot Don't create the conf_interval_plot*.png files
  --no-wilcoxon-test Don't run the Wilcoxon signed rank test
-                for pairwise measurements
- --no-t-test    Don't run the paired sample t-test for pairwise measurements
- --no-sign-test [Hamming weight only] Don't run the sign test
+                   for pairwise measurements
+ --no-t-test       Don't run the paired sample t-test for pairwise measurements
+ --no-sign-test    [Hamming weight only] Don't run the sign test
  --multithreaded-graph Create graph and calculate statistical tests at the
                    same time. Note: this increases memory usage of analysis by
                    a factor of 8.
@@ -72,7 +72,7 @@ def help_msg():
                    similar.
  --alpha num       Acceptable probability of a false positive. Default: 1e-5.
  --verbose         Print the current task
- --summary-only Print only summary of the test, skip pairwise results
+ --summary-only    Print only summary of the test, skip pairwise results
  --workers num     Number of worker processes to use for paralelizable
                    computation. More workers will finish analysis faster, but
                    will require more memory to do so. By default: number of
