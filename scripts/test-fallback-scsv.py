@@ -22,10 +22,10 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
 from tlslite.extensions import SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import RSA_SIG_ALL
+from tlsfuzzer.helpers import RSA_SIG_ALL, protocol_name_to_tuple
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -46,6 +46,13 @@ def help_msg():
     print("                execution of preceding expected failure probe")
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" --tls-1.3      server does support TLS 1.3")
+    print(" --min-support val Minimum TLS version supported by server.")
+    print("                When set, the script will expect that ClientHello")
+    print("                messages with a version lower than the supported one")
+    print("                will receive the protocol_version alert instead of")
+    print("                inappropriate_fallback alert. Value is either a ")
+    print("                full name ('TLSv1.1') or just the version number")
+    print("                ('1.0')")
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
     print(" --help         this message")
 
@@ -59,9 +66,11 @@ def main():
     last_exp_tmp = None
     dhe = False
     tls13 = False
+    min_sup = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:x:X:d", ["help", "tls-1.3"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:x:X:d", ["help", "tls-1.3",
+                                                       "min-support="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -80,6 +89,8 @@ def main():
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-d':
             dhe = True
+        elif opt == '--min-support':
+            min_sup = protocol_name_to_tuple(arg)
         elif opt == '--tls-1.3':
             tls13 = True
         elif opt == '--help':
@@ -92,6 +103,12 @@ def main():
         run_only = set(args)
     else:
         run_only = None
+
+    if min_sup is None:
+        min_sup = (3, 0)
+
+    if min_sup > (3, 3):
+        raise ValueError("Test requires the server to support TLS 1.2 or lower")
 
     conversations = {}
 
@@ -158,23 +175,28 @@ def main():
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 2),
                                                extensions=ext))
     ext = {ExtensionType.renegotiation_info: None}
-    node = node.add_child(ExpectServerHello(version=(3, 2), extensions=ext))
-    node = node.add_child(ExpectCertificate())
-    if dhe:
-        node = node.add_child(ExpectServerKeyExchange())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
-    node = node.add_child(ExpectApplicationData())
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                         AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
+    if min_sup < (3, 3):
+        node = node.add_child(ExpectServerHello(version=(3, 2), extensions=ext))
+        node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        node = node.add_child(ExpectApplicationData())
+        node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                             AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert())
+        node.next_sibling = ExpectClose()
+    else:
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.protocol_version))
+        node.add_child(ExpectClose())
     conversations["sanity - TLSv1.1"] = conversation
 
     conversation = Connect(host, port)
@@ -283,23 +305,28 @@ def main():
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 2),
                                                extensions=ext))
     ext = {ExtensionType.renegotiation_info: None}
-    node = node.add_child(ExpectServerHello(version=(3, 2), extensions=ext))
-    node = node.add_child(ExpectCertificate())
-    if dhe:
-        node = node.add_child(ExpectServerKeyExchange())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
-    node = node.add_child(ExpectApplicationData())
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                         AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
+    if min_sup < (3, 3):
+        node = node.add_child(ExpectServerHello(version=(3, 2), extensions=ext))
+        node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        node = node.add_child(ExpectApplicationData())
+        node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                             AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert())
+        node.next_sibling = ExpectClose()
+    else:
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.protocol_version))
+        node.add_child(ExpectClose())
     conversations["record TLSv1.1 hello TLSv1.1"] = conversation
 
     conversation = Connect(host, port, version=(3, 4))
@@ -424,8 +451,12 @@ def main():
         ciphers.insert(place, CipherSuite.TLS_FALLBACK_SCSV)
         node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 2),
                                                    extensions=ext))
-        node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.inappropriate_fallback))
+        if min_sup < (3, 3):
+            node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                              AlertDescription.inappropriate_fallback))
+        else:
+            node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                              AlertDescription.protocol_version))
         node = node.add_child(ExpectClose())
         conversations["FALLBACK - hello TLSv1.1 - pos {0}".format(place)] = conversation
 
@@ -547,8 +578,12 @@ def main():
         ciphers.insert(place, CipherSuite.TLS_FALLBACK_SCSV)
         node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 2),
                                                    extensions=ext))
-        node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                          AlertDescription.inappropriate_fallback))
+        if min_sup < (3, 3):
+            node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                              AlertDescription.inappropriate_fallback))
+        else:
+            node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                              AlertDescription.protocol_version))
         node = node.add_child(ExpectClose())
         conversations["FALLBACK - record TLSv1.1 hello TLSv1.1 - pos {0}".format(place)] = conversation
 
