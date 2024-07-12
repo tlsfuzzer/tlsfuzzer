@@ -20,14 +20,14 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        GroupName, ExtensionType
+        GroupName, ExtensionType, SignatureScheme
 from tlslite.extensions import SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
 
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -369,6 +369,50 @@ def main():
     node.add_child(Close())
     conversations["without signature_algorithms and signature_algorithms_cert ext"] = conversation
 
+    # sig_algs with SHA-1 only
+    conversation = Connect(host, port)
+    node = conversation
+    ext = {}
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create([
+            SignatureScheme.rsa_pkcs1_sha1])
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    if dhe:
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+    # some servers incorrectly send reply in multiple records,
+    # leaking length of headers as a result,
+    # they also may or may not close the connection after sending data
+    # so just expect one record and then just close the connection
+    node = node.add_child(ExpectApplicationData())
+    node.add_child(Close())
+    conversations["rsa+sha1 in signature_algorithms ext"] = conversation
+
     # no sig_algs
     conversation = Connect(host, port)
     node = conversation
@@ -665,6 +709,91 @@ def main():
         node = node.add_child(ExpectApplicationData())
         node.add_child(Close())
     conversations["renegotiation without signature_algorithms and sig_algs_cert ext"] = conversation
+
+    # drop everything but sha-1 in sig_algs and sig_algs_cert on renegotiated handshake
+    conversation = Connect(host, port)
+    node = conversation
+    ext = {}
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(SIG_ALL)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    if dhe:
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ResetHandshakeHashes())
+    renego_exts = dict(ext)
+    # use None for autogeneration of the renegotiation_info with correct
+    # paylod
+    renego_exts[ExtensionType.renegotiation_info] = None
+    renego_exts[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create([SignatureScheme.rsa_pkcs1_sha1])
+    renego_exts[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(SIG_ALL)
+    renego_ciphers = list(ciphers)
+    renego_ciphers.remove(CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV)
+    node = node.add_child(ClientHelloGenerator(
+        renego_ciphers,
+        extensions=renego_exts,
+        session_id=bytearray(0)))
+    if no_renego:
+        node = node.add_child(ExpectAlert(AlertLevel.warning,
+                                          AlertDescription.no_renegotiation))
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        # some servers incorrectly send reply in multiple records,
+        # leaking length of headers as a result,
+        # they also may or may not close the connection after sending data
+        # so just expect one record and then just close the connection
+        node = node.add_child(ExpectApplicationData())
+        node.add_child(Close())
+    else:
+        srv_ext = {ExtensionType.renegotiation_info:None}
+        if ems:
+            srv_ext[ExtensionType.extended_master_secret] = None
+        node = node.add_child(ExpectServerHello(
+            extensions=srv_ext))
+        node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        # some servers incorrectly send reply in multiple records,
+        # leaking length of headers as a result,
+        # they also may or may not close the connection after sending data
+        # so just expect one record and then just close the connection
+        node = node.add_child(ExpectApplicationData())
+        node.add_child(Close())
+    conversations["renegotiation with only rsa+sha-1 in signature_algorithms ext"] = conversation
 
     # check if renegotiation with resumption with missing sig_algs works
     conversation = Connect(host, port)
