@@ -361,7 +361,8 @@
          {"name" : "test-unsupported-curve-fallback.py"},
          {"name" : "test-version-numbers.py"},
          {"name" : "test-x25519.py"},
-         {"name" : "test-zero-length-data.py"}
+         {"name" : "test-zero-length-data.py"},
+         {"name" : "test-tls13-certificate-compression-no-certreq.py"}
      ]
     },
     {"server_command": ["{python}", "-u", "{command}", "server",
@@ -442,6 +443,10 @@
          {"name" : "test-tls13-eddsa-in-certificate-verify.py",
           "arguments" : ["-k", "tests/serverEd448Key.pem",
                          "-c", "tests/serverEd448Cert.pem"]
+         },
+         {"name" : "test-tls13-certificate-compression-certreq.py",
+          "arguments" : ["--skip-bombs",
+                         "--random-fuzz-size", "5"]
          }
      ]
     },
