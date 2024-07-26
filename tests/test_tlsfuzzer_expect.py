@@ -32,7 +32,7 @@ from tlsfuzzer.expect import Expect, ExpectHandshake, ExpectServerHello, \
         srv_ext_handler_heartbeat, gen_srv_ext_handler_record_limit, \
         srv_ext_handler_status_request, ExpectHeartbeat, ExpectHelloRequest, \
         clnt_ext_handler_status_request, clnt_ext_handler_sig_algs, \
-        ExpectKeyUpdate
+        ExpectKeyUpdate, ExpectCompressedCertificate
 
 from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
@@ -40,19 +40,22 @@ from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         SSL2ErrorDescription, GroupName, CertificateStatusType, ECPointFormat,\
         SignatureScheme, TLS_1_3_HRR, HeartbeatMode, \
         TLS_1_1_DOWNGRADE_SENTINEL, TLS_1_2_DOWNGRADE_SENTINEL, \
-        HeartbeatMessageType, KeyUpdateMessageType
+        HeartbeatMessageType, KeyUpdateMessageType, \
+        CertificateCompressionAlgorithm
 from tlslite.messages import Message, ServerHello, CertificateRequest, \
         ClientHello, Certificate, ServerHello2, ServerFinished, \
         ServerKeyExchange, CertificateStatus, CertificateVerify, \
         Finished, EncryptedExtensions, NewSessionTicket, Heartbeat, \
-        KeyUpdate, HelloRequest, ServerHelloDone, NewSessionTicket1_0
+        KeyUpdate, HelloRequest, ServerHelloDone, NewSessionTicket1_0, \
+        CompressedCertificate
 from tlslite.extensions import SNIExtension, TLSExtension, \
         SupportedGroupsExtension, ALPNExtension, ECPointFormatsExtension, \
         NPNExtension, ServerKeyShareExtension, ClientKeyShareExtension, \
         SrvSupportedVersionsExtension, SupportedVersionsExtension, \
         HRRKeyShareExtension, CookieExtension, \
         SrvPreSharedKeyExtension, PskIdentity, PreSharedKeyExtension, \
-        HeartbeatExtension, StatusRequestExtension
+        HeartbeatExtension, StatusRequestExtension, \
+        CompressedCertificateExtension
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509certchain import X509CertChain, X509
 from tlslite.extensions import SNIExtension, SignatureAlgorithmsExtension
@@ -2666,7 +2669,7 @@ class TestExpectFinished(unittest.TestCase):
         # is called with them
         state = ConnectionState()
         msg = Message(ContentType.handshake,
-                      bytearray([HandshakeType.finished, 0, 0, 12]) + 
+                      bytearray([HandshakeType.finished, 0, 0, 12]) +
                       bytearray(b"\xa3;\x9c\xc9\'E\xbc\xf6\xc7\x96\xaf\x7f"))
 
         exp.process(state, msg)
@@ -4058,3 +4061,137 @@ class TestExpectHelloRequest(unittest.TestCase):
 
         with self.assertRaises(AssertionError):
             self.exp.process(None, hd)
+
+class TestExpectCompressedCertificate(unittest.TestCase):
+    def test___init__(self):
+        exp = ExpectCompressedCertificate()
+        self.assertIsNotNone(exp)
+        self.assertIsInstance(exp, ExpectCompressedCertificate)
+        self.assertTrue(exp.is_expect())
+        self.assertFalse(exp.is_generator())
+        self.assertFalse(exp.is_command())
+        self.assertEqual(exp.cert_type, CertificateType.x509)
+        self.assertIsNone(exp._old_cert)
+        self.assertIsNone(exp._old_cert_bytes)
+        self.assertIsNone(exp._compression_algo)
+
+    def test_compression_algo_in_init(self):
+        exp = ExpectCompressedCertificate(
+            compression_algo=CertificateCompressionAlgorithm.zlib)
+
+        self.assertEqual(
+            exp._compression_algo, CertificateCompressionAlgorithm.zlib)
+
+    def test_process_with_defaults(self):
+        exp = ExpectCompressedCertificate()
+
+        state = ConnectionState()
+        state.version = (3, 4)
+        client_hello = ClientHello()
+        client_hello.addExtension(CompressedCertificateExtension().create(
+            [CertificateCompressionAlgorithm.zlib]))
+        state.handshake_messages.append(client_hello)
+
+        cc = CompressedCertificate(CertificateType.x509).create(
+            CertificateCompressionAlgorithm.zlib,
+            X509CertChain([X509().parse(srv_raw_certificate)]))
+
+        exp.process(state, cc)
+
+    def test_process_with_certificate(self):
+        exp = ExpectCompressedCertificate()
+
+        cert = Certificate(CertificateType.x509).create(
+            X509CertChain([X509().parse(srv_raw_certificate)]))
+
+        with self.assertRaises(AssertionError):
+            exp.process(None, cert)
+
+    def test_process_with_wrong_message(self):
+        exp = ExpectCompressedCertificate()
+
+        hd = ServerHelloDone().create()
+
+        with self.assertRaises(AssertionError):
+            exp.process(None, hd)
+
+    def test_process_twice(self):
+        exp = ExpectCompressedCertificate()
+
+        state = ConnectionState()
+        state.version = (3, 4)
+        client_hello = ClientHello()
+        client_hello.addExtension(CompressedCertificateExtension().create(
+            [CertificateCompressionAlgorithm.zlib]))
+        state.handshake_messages.append(client_hello)
+
+        cc = CompressedCertificate(CertificateType.x509).create(
+            CertificateCompressionAlgorithm.zlib,
+            X509CertChain([X509().parse(srv_raw_certificate)]))
+
+        self.assertIsNone(exp._old_cert)
+        self.assertIsNone(exp._old_cert_bytes)
+
+        exp.process(state, cc)
+
+        self.assertIsNotNone(exp._old_cert)
+        self.assertIsNotNone(exp._old_cert_bytes)
+        previous_old_cert_bytes = exp._old_cert_bytes
+
+        exp.process(state, cc)
+
+        self.assertEqual(exp._old_cert_bytes, previous_old_cert_bytes)
+
+    def test_process_not_advertized(self):
+        exp = ExpectCompressedCertificate()
+
+        state = ConnectionState()
+        state.version = (3, 4)
+        client_hello = ClientHello()
+        client_hello.addExtension(CompressedCertificateExtension().create(
+            [CertificateCompressionAlgorithm.brotli]))
+        state.handshake_messages.append(client_hello)
+
+        cc = CompressedCertificate(CertificateType.x509).create(
+            CertificateCompressionAlgorithm.zlib,
+            X509CertChain([X509().parse(srv_raw_certificate)]))
+
+        with self.assertRaises(AssertionError):
+            exp.process(state, cc)
+
+    def test_process_with_compression_algorithm(self):
+        exp = ExpectCompressedCertificate(
+            compression_algo=CertificateCompressionAlgorithm.zlib)
+
+        state = ConnectionState()
+        state.version = (3, 4)
+        client_hello = ClientHello()
+        client_hello.addExtension(CompressedCertificateExtension().create(
+            [CertificateCompressionAlgorithm.zlib]))
+        state.handshake_messages.append(client_hello)
+
+        cc = CompressedCertificate(CertificateType.x509).create(
+            CertificateCompressionAlgorithm.zlib,
+            X509CertChain([X509().parse(srv_raw_certificate)]))
+
+        exp.process(state, cc)
+
+    def test_process_with_wrong_compression_algorithm(self):
+        exp = ExpectCompressedCertificate(
+            compression_algo=CertificateCompressionAlgorithm.brotli)
+
+        state = ConnectionState()
+        state.version = (3, 4)
+        client_hello = ClientHello()
+        client_hello.addExtension(CompressedCertificateExtension().create(
+            [CertificateCompressionAlgorithm.zlib]))
+        state.handshake_messages.append(client_hello)
+
+        cc = CompressedCertificate(CertificateType.x509).create(
+            CertificateCompressionAlgorithm.zlib,
+            X509CertChain([X509().parse(srv_raw_certificate)]))
+
+        with self.assertRaises(AssertionError) as e:
+            exp.process(state, cc)
+
+        self.assertIn("Compression algorithms doesn't much.", str(e.exception))

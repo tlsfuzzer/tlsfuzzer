@@ -128,7 +128,7 @@ class ConnectionState(object):
     def get_server_public_key(self):
         """Extract server public key from server Certificate message"""
         certificates = (msg for msg in self.handshake_messages if\
-                        isinstance(msg, Certificate))
+                        isinstance(msg, (Certificate)))
         cert_message = next(certificates)
         return cert_message.cert_chain.getEndEntityPublicKey()
 
