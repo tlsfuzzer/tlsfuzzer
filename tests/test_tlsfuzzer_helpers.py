@@ -351,13 +351,13 @@ class TestProtocolNameToTuple(unittest.TestCase):
 
 class TestExpectedExtParser(unittest.TestCase):
     def setUp(self):
-        self.exp = {'CH': [],
-                    'SH': [],
-                    'EE': [],
-                    'CT': [],
-                    'CR': [],
-                    'NST': [],
-                    'HRR': []}
+        self.exp = {'CH': None,
+                    'SH': None,
+                    'EE': None,
+                    'CT': None,
+                    'CR': None,
+                    'NST': None,
+                    'HRR': None}
 
     def test_empty(self):
         ret = expected_ext_parser("")

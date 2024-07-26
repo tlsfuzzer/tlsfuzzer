@@ -511,13 +511,13 @@ def expected_ext_parser(names):
     AttributeError. The supported message names are: CH, SH, EE, CT, CR, NST
     and HRR.
     """
-    ret = {'CH': [],
-           'SH': [],
-           'EE': [],
-           'CT': [],
-           'CR': [],
-           'NST': [],
-           'HRR': []}
+    ret = {'CH': None,
+           'SH': None,
+           'EE': None,
+           'CT': None,
+           'CR': None,
+           'NST': None,
+           'HRR': None}
 
     for ext_spec in names.split():
         params = ext_spec.split(':')
@@ -530,6 +530,8 @@ def expected_ext_parser(names):
                 raise ValueError("Error while parsing data for extension {0}: "
                                  "the '{1}' message name is unknown.".format(
                                      params[0], msg_id))
+            if ret[msg_id] is None:
+                ret[msg_id] = []
             ret[msg_id].append(ext_id)
 
     return ret

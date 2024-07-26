@@ -15,12 +15,13 @@ from tlslite.constants import ContentType, HandshakeType, CertificateType,\
         SSL2HandshakeType, CipherSuite, GroupName, AlertDescription, \
         SignatureScheme, TLS_1_3_HRR, HeartbeatMode, \
         TLS_1_1_DOWNGRADE_SENTINEL, TLS_1_2_DOWNGRADE_SENTINEL, \
-        HeartbeatMessageType, ClientCertificateType, CertificateStatusType
+        HeartbeatMessageType, ClientCertificateType, CertificateStatusType, \
+        CertificateCompressionAlgorithm
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
         ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus, \
         CertificateVerify, EncryptedExtensions, NewSessionTicket, Heartbeat,\
-        KeyUpdate, HelloRequest, NewSessionTicket1_0
+        KeyUpdate, HelloRequest, NewSessionTicket1_0, CompressedCertificate
 from tlslite.extensions import TLSExtension, ALPNExtension
 from tlslite.utils.codec import Parser, Writer
 from tlslite.utils.compat import b2a_hex
@@ -460,17 +461,13 @@ def clnt_ext_handler_status_request(state, extension):
     """
     Check status_request extension from initiating side.
 
-    To be used in ClientHello and CertificateRequest
+    To be used in CertificateRequest
     """
     del state  # kept for compatibility
-    if extension.status_type != CertificateStatusType.ocsp:
+    if extension.extData:
         raise AssertionError(
-            "Unexpected status_type in status_request extension: {0}"
-            .format(CertificateStatusType.toStr(extension.status_type)))
-    if extension.responder_id_list is None \
-            or extension.request_extensions is None:
-        raise AssertionError(
-            "Malformed status_request extension")
+            "Unexpected payload in status_request extension: {0}"
+            .format(extension.extData))
 
 
 def clnt_ext_handler_sig_algs(state, extension):
@@ -484,7 +481,6 @@ def clnt_ext_handler_sig_algs(state, extension):
         raise AssertionError(
             "Empty or malformed {0} extension"
             .format(ExtensionType.toStr(extension.extType)))
-
 
 _srv_ext_handler = \
         {ExtensionType.extended_master_secret: srv_ext_handler_ems,
@@ -1035,6 +1031,55 @@ class ExpectCertificate(ExpectHandshake):
         state.handshake_hashes.update(msg_bytes)
 
 
+class ExpectCompressedCertificate(ExpectHandshake):
+    def __init__(self, cert_type=CertificateType.x509, compression_algo=None):
+        super(ExpectCompressedCertificate, self).__init__(
+            ContentType.handshake,
+            HandshakeType.compressed_certificate
+        )
+        self.cert_type = cert_type
+        self._old_cert = None
+        self._old_cert_bytes = None
+        self._compression_algo = compression_algo
+
+    def process(self, state, msg):
+        """
+        :type state: `~ConnectionState`
+        """
+        assert msg.contentType == ContentType.handshake
+
+        msg_bytes = msg.write()
+        if self._old_cert_bytes is not None and \
+                msg_bytes == self._old_cert_bytes:
+            cert = self._old_cert
+        else:
+            parser = Parser(msg_bytes)
+            hs_type = parser.get(1)
+            assert hs_type == HandshakeType.compressed_certificate
+
+            cert = CompressedCertificate(self.cert_type, state.version)
+            cert.parse(parser)
+            self._old_cert_bytes = msg_bytes
+            self._old_cert = cert
+
+            if self._compression_algo is not None:
+                if cert.compression_algo != self._compression_algo:
+                    raise AssertionError(
+                        "Compression algorithms doesn't much. " +
+                        "Expected: {0}, Got: {1}".format(
+                            self._compression_algo, cert.compression_algo)
+                    )
+            else:
+                ch = state.get_last_message_of_type(ClientHello)
+                assert ch != None
+                ext = ch.getExtension(ExtensionType.compress_certificate)
+                assert ext != None
+                assert cert.compression_algo in ext.algorithms
+
+        state.handshake_messages.append(cert)
+        state.handshake_hashes.update(msg_bytes)
+
+
 class ExpectCertificateVerify(ExpectHandshake):
     """
     Processing TLS Handshake protocol Certificate Verify messages.
@@ -1349,7 +1394,8 @@ class ExpectCertificateRequest(_ExpectExtensionsMessage):
             corresponding client certificate type.
         :param extensions: dictionary with extensions that need to be included
             in the message. Set to ``None`` to accept any, set to empty dict to
-            expect no extensions. Usable in TLS 1.3 only.
+            expect no extensions. This has to be an exact match of the
+            extensions included in the message. Usable in TLS 1.3 only.
         """
         msg_type = HandshakeType.certificate_request
         super(ExpectCertificateRequest, self).__init__(ContentType.handshake,
