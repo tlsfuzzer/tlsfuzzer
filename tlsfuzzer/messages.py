@@ -9,14 +9,15 @@ from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         Finished, Alert, ApplicationData, Message, Certificate, \
         CertificateVerify, CertificateRequest, ClientMasterKey, \
         ClientFinished, ServerKeyExchange, ServerHello, Heartbeat, \
-        KeyUpdate
+        KeyUpdate, CompressedCertificate
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
         ExtensionType, CertificateType, HashAlgorithm, \
         SignatureAlgorithm, CipherSuite, SignatureScheme, TLS_1_3_HRR, \
-        HeartbeatMessageType
+        HeartbeatMessageType, CertificateCompressionAlgorithm
 import tlslite.utils.tlshashlib as hashlib
 from tlslite.extensions import TLSExtension, RenegotiationInfoExtension, \
-        ClientKeyShareExtension, StatusRequestExtension
+        ClientKeyShareExtension, StatusRequestExtension, \
+        CompressedCertificateExtension
 from tlslite.messagesocket import MessageSocket
 from tlslite.defragmenter import Defragmenter
 from tlslite.mathtls import calc_key, \
@@ -26,6 +27,7 @@ from tlslite.utils.codec import Writer
 from tlslite.utils.cryptomath import getRandomBytes, numBytes, \
     numberToByteArray, bytesToNumber, HKDF_expand_label, secureHMAC, \
     derive_secret
+from tlslite.utils.compression import compression_algo_impls
 from tlslite.keyexchange import KeyExchange
 from tlslite.bufferedsocket import BufferedSocket
 from tlslite.recordlayer import ConnectionState
@@ -971,6 +973,107 @@ class CertificateGenerator(HandshakeProtocolMessageGenerator):
             context = context.certificate_request_context
         cert = Certificate(self.cert_type, version=self.version)
         cert.create(self.certs, context=context)
+        if self.context:
+            self.context.append(cert)
+
+        self.msg = cert
+        return cert
+
+
+class CompressedCertificateGenerator(HandshakeProtocolMessageGenerator):
+    """Generator for TLS handshake protocol CompressedCertificate message."""
+
+    def __init__(self, certs=None, cert_type=None, version=None, context=None,
+                 algorithm=None,
+                 # overrides
+                 override_algorithm=None,
+                 override_uncompressed_length=None,
+                 override_compressed_certificate_message=None,
+                 override_not_advertized_algorithm=False):
+        """Set the compressed certificates to send to server."""
+        super(CompressedCertificateGenerator, self).__init__()
+
+        self.certs = certs
+        self.cert_type = cert_type
+        self.version = version
+        self.context = context
+        self.algorithm = algorithm
+
+        self.override_algorithm = override_algorithm
+        self.override_uncompressed_length = override_uncompressed_length
+        self.override_compressed_certificate_message = \
+            override_compressed_certificate_message
+        self.override_not_advertized_algorithm = \
+            override_not_advertized_algorithm
+
+    def generate(self, state):
+        """Create a Compressed Certificate message."""
+        if self.version is None:
+            self.version = state.version
+
+        if self.cert_type is None:
+            self.cert_type = CertificateType.x509
+
+        if self.algorithm is None:  # pick one from compress_certificate
+            # print(state.__dict__)
+            assert hasattr(state, 'compress_certificate')
+            algorithms = state.compress_certificate
+            if self.override_not_advertized_algorithm:
+                if (
+                    CertificateCompressionAlgorithm.brotli not in algorithms
+                    and compression_algo_impls["brotli_compress"]
+                ):
+                    self.algorithm = CertificateCompressionAlgorithm.brotli
+                elif (
+                    CertificateCompressionAlgorithm.zstd not in algorithms
+                    and compression_algo_impls["zstd_compress"]
+                ):
+                    self.algorithm = CertificateCompressionAlgorithm.zstd
+                elif CertificateCompressionAlgorithm.zlib not in algorithms:
+                    self.algorithm = CertificateCompressionAlgorithm.zlib
+                else:
+                    self.algorithm = CertificateCompressionAlgorithm.zlib
+                    if not self.override_algorithm:
+                        self.override_algorithm = 0
+            else:
+                if CertificateCompressionAlgorithm.zlib in algorithms:
+                    self.algorithm = CertificateCompressionAlgorithm.zlib
+                elif (
+                    CertificateCompressionAlgorithm.brotli in algorithms
+                    and compression_algo_impls["brotli_compress"]
+                ):
+                    self.algorithm = CertificateCompressionAlgorithm.brotli
+                elif (
+                    CertificateCompressionAlgorithm.zstd in algorithms
+                    and compression_algo_impls["zstd_compress"]
+                ):
+                    self.algorithm = CertificateCompressionAlgorithm.zstd
+                else:
+                    raise ValueError(
+                        "No matching algorithms in compress_certificate."
+                        "Algorithms: [{0}]".format(", ".join(
+                            CertificateCompressionAlgorithm.toStr(algo)
+                            for algo in algorithms
+                        ))
+                    )
+
+        context = b''
+        if self.context:
+            context = self.context[-1]
+            assert isinstance(context, CertificateRequest)
+            context = context.certificate_request_context
+
+        cert = CompressedCertificate(self.cert_type, version=self.version)
+        cert.create(self.algorithm, self.certs, context=context)
+
+        if self.override_algorithm is not None:
+            cert.compression_algo = self.override_algorithm
+        if self.override_compressed_certificate_message is not None:
+            cert._compressed_msg = \
+                self.override_compressed_certificate_message
+        if self.override_uncompressed_length is not None:
+            cert._uncompressed_msg_len = self.override_uncompressed_length
+
         if self.context:
             self.context.append(cert)
 
