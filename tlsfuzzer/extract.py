@@ -81,7 +81,7 @@ def help_msg():
     print("                The file must be in binary format.")
     print(" --sig-format [DER|RAW] Specifies the format of the signatures in")
     print("                the binary file, 'DER' or 'RAW'. Default DER.")
-    print(" --priv-key-ecdsa FILE Read the ecdsa private key from PEM file.")
+    print(" --priv-key-ec  FILE Read the ecdsa private key from PEM file.")
     print(" --clock-frequency freq Assume that the times in the file are not")
     print("                specified in seconds but rather in clock cycles of")
     print("                a clock running at frequency 'freq' specified in")
@@ -102,6 +102,7 @@ def help_msg():
     print("                will finish analysis faster, but will require")
     print("                more memory to do so. By default: number of")
     print("                threads available on the system (`os.cpu_count()`)")
+    print(" --ecdh         Do extraction for ECDH derive shared secret key.")
     print(" --verbose      Print's a more verbose output.")
     print(" --help         Display this message")
     print("")
@@ -141,6 +142,7 @@ def main():
     invert = True
     rsa_keys = None
     workers = None
+    ecdh = False
     verbose = False
 
     argv = sys.argv[1:]
@@ -154,9 +156,9 @@ def main():
                                 "no-quickack", "status-delay=",
                                 "status-newline", "raw-data=", "data-size=",
                                 "prehashed", "raw-sigs=", "sig-format=",
-                                "priv-key-ecdsa=", "clock-frequency=",
+                                "priv-key-ec=", "clock-frequency=",
                                 "hash-func=", "skip-invert", "workers=",
-                                "rsa-keys=", "verbose"])
+                                "rsa-keys=", "ecdh", "verbose"])
     for opt, arg in opts:
         if opt == '-l':
             logfile = arg
@@ -194,10 +196,10 @@ def main():
             sig_format = arg
         elif opt == "--rsa-keys":
             rsa_keys = arg
-        elif opt == "--priv-key-ecdsa":
+        elif opt == "--priv-key-ec":
             priv_key = arg
             if not key_type:
-                key_type = "ecdsa"
+                key_type = "ec"
             else:
                 raise ValueError(
                     "Can't specify more than one private key.")
@@ -211,6 +213,8 @@ def main():
             invert = False
         elif opt == "--workers":
             workers = int(arg)
+        elif opt == "--ecdh":
+            ecdh = True
         elif opt == "--help":
             help_msg()
             sys.exit(0)
@@ -243,11 +247,17 @@ def main():
     if capture and not all([logfile, output, ip_address, port]):
         raise ValueError("Some arguments are missing!")
 
-    if any([sigs, priv_key]) \
+    if ecdh \
+       and not all([sigs, priv_key, raw_times, data]):
+        raise ValueError(
+            "When doing ECDH secret extraction, times file, data file, "
+            "secrets file, and one private key are necessary.")
+
+    if not ecdh and any([sigs, priv_key]) \
        and not all([raw_times, data, data_size, sigs, priv_key]):
         raise ValueError(
-            "When doing signature extraction, times file, data file, \
-data size, signatures file and one private key are necessary.")
+            "When doing signature extraction, times file, data file, "
+            "data size, signatures file and one private key are necessary.")
 
     if hash_func_name == None:
         if prehashed:
@@ -277,20 +287,20 @@ data size, signatures file and one private key are necessary.")
     )
     extract.parse()
 
-    if all([raw_times, data, data_size, sigs, priv_key]):
+    if all([raw_times, data, sigs, priv_key]):
         files = {
-            "measurements.csv": "k-size",
+            "measurements.csv": "k-size" if not ecdh else "size",
             "measurements-hamming-weight.csv": "hamming-weight"
         }
 
-        if invert:
+        if invert and not ecdh:
             file_list = list(files.keys())
 
             for file in file_list:
                 invert_file_name = file.split(".")[0] + '-invert.csv'
                 files[invert_file_name] = "invert-" + files[file]
 
-        extract.process_and_create_multiple_csv_files(files)
+        extract.process_and_create_multiple_csv_files(files, ecdh=ecdh)
 
     if rsa_keys:
         extract.process_rsa_keys()
@@ -365,7 +375,6 @@ class Extract:
         self.data_size = data_size
         self.sigs = sigs
         self.r_or_s_size = None
-        self.key_type = key_type
         self.frequency = frequency
         self.measurements_csv = measurements_csv
         self.hash_func = hash_func  # None if data are already hashed
@@ -399,7 +408,7 @@ class Extract:
                 self._total_measurements = None
 
         self.priv_key = None
-        if key_type == "ecdsa":
+        if key_type == "ec":
             with open(priv_key, 'r') as f:
                 self.priv_key = ecdsa.SigningKey.from_pem(f.read())
             if sig_format == 'RAW':
@@ -1115,8 +1124,39 @@ class Extract:
         return k_wrap_iter
 
     def ecdsa_max_value(self):
-        """Returns the max K size depending on the ECDSA private key"""
+        """Returns the max K size in BITS depending on the ECDSA private key"""
         return ecdsa.util.bit_length(self.priv_key.curve.order)
+
+
+    def ecdh_iter(self, return_type="size"):
+        """
+        Iterator. Iterator to use for secret created by ECDH private keys.
+        """
+        secret_iter = self._get_data_from_binary_file(
+            self.sigs, self.ecdh_max_value(), convert_to_int=True)
+
+        if "invert" in return_type and self.verbose:
+            print("[w] Invert is not supported in ECDH. Skipping...")
+            return None
+
+        if "size" in return_type:
+            secret_wrap_iter = self._convert_to_bit_size(secret_iter)
+        elif "hamming-weight" in return_type:
+            secret_wrap_iter = self._convert_to_hamming_weight(secret_iter)
+        else:
+            raise ValueError(
+                "Iterator return must be k-size or hamming-weight"
+            )
+
+        return secret_wrap_iter
+
+    def ecdh_max_value(self):
+        """
+        Returns the max shared secret size in BYTES depending on the ECDH
+        private key.
+        """
+        return int(np.ceil(
+            ecdsa.util.bit_length(self.priv_key.curve.curve._CurveFp__p) / 8))
 
     def _create_and_write_line(self):
         """
@@ -1276,6 +1316,9 @@ class Extract:
         given files and creates a randomized measurement file with tuples
         associating the max values with non max values.
         """
+        if not all([values_iter, comparing_value]):
+            return
+
         self._measurements_fp = open(
             join(self.output, self.measurements_csv), "w"
         )
@@ -1419,6 +1462,9 @@ class Extract:
         given files and creates a file with tuples associating the Hamming
         weight of the nonces.
         """
+        if not values_iter:
+            return
+
         self._measurements_fp = open(
             join(self.output, self.measurements_csv), "w"
         )
@@ -1512,12 +1558,29 @@ class Extract:
         self._measurements_fp.close()
 
     def process_and_create_multiple_csv_files(self, files = {
-        "measurements.csv": "k-size"
-    }):
+        "measurements.csv": "k-size",
+    }, ecdh = False):
         original_measuremments_csv = self.measurements_csv
         skipped_h_weight_invert = False
         h_weight_invert_file = None
         h_weight_invert_mode = None
+
+        if ecdh:
+            self._total_measurements = int(
+                getsize(self.data) / ((2 * self.ecdh_max_value()) + 1))
+            for file in files:
+                self.measurements_csv = file
+
+                if "hamming-weight" in files[file]:
+                    self.process_measurements_and_create_hamming_csv_file(
+                        self.ecdh_iter(return_type=files[file])
+                    )
+                else:
+                    self.process_measurements_and_create_csv_file(
+                        self.ecdh_iter(return_type=files[file]),
+                        self.ecdh_max_value() * 8
+                    )
+            return
 
         if exists(join(self.output, "ecdsa-k-time-map.csv")):
             remove(join(self.output, "ecdsa-k-time-map.csv"))
