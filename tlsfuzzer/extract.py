@@ -74,13 +74,20 @@ def help_msg():
     print("                printing status line.")
     print(" --raw-data FILE Read the data used for signing from an external")
     print("                file. The file must be in binary format.")
-    print(" --data-size num The size of data used for each signature.")
+    print(" --data-size num The size of each data used for gathering.")
     print(" --prehashed    Specifies that the data on the file are already")
     print("                hashed. Canceled by hash-func option.")
     print(" --raw-sigs FILE Read the signatures from an external file.")
     print("                The file must be in binary format.")
     print(" --sig-format [DER|RAW] Specifies the format of the signatures in")
     print("                the binary file, 'DER' or 'RAW'. Default DER.")
+    print(" --raw-values FILE Read the values from an external file.")
+    print("                The file must be in binary format.")
+    print(" --value-size num Override the size of each value. By default the")
+    print("                script will try to calculate it.")
+    print(" --value-endianness endian What endianness to use for the")
+    print("                interpretation of the values, 'little' or 'big',")
+    print("                with little being the default")
     print(" --priv-key-ecdsa FILE Read the ecdsa private key from PEM file.")
     print(" --clock-frequency freq Assume that the times in the file are not")
     print("                specified in seconds but rather in clock cycles of")
@@ -102,6 +109,9 @@ def help_msg():
     print("                will finish analysis faster, but will require")
     print("                more memory to do so. By default: number of")
     print("                threads available on the system (`os.cpu_count()`)")
+    print(" --max-bit-size num Override the max bit size used in the creation")
+    print("                of the tuples. By default the script will try to")
+    print("                calculate it. Used only in the bit size extraction")
     print(" --verbose      Print's a more verbose output.")
     print(" --help         Display this message")
     print("")
@@ -113,6 +123,8 @@ def help_msg():
     print("file, and one private key are necessary.")
     print("For ECDSA signatures, the hash function used for the extraction of")
     print("K depends on the private key's curve size.")
+    print("When doing ecdh secret extraction, data file, data size, values")
+    print("file, and one private key are necessary.")
 
 
 def main():
@@ -134,6 +146,9 @@ def main():
     prehashed = False
     sigs = None
     sig_format = "DER"
+    values = None
+    value_size = None
+    value_endianness = 'little'
     priv_key = None
     key_type = None
     freq = None
@@ -141,6 +156,7 @@ def main():
     invert = True
     rsa_keys = None
     workers = None
+    max_bit_size = None
     verbose = False
 
     argv = sys.argv[1:]
@@ -154,9 +170,11 @@ def main():
                                 "no-quickack", "status-delay=",
                                 "status-newline", "raw-data=", "data-size=",
                                 "prehashed", "raw-sigs=", "sig-format=",
-                                "priv-key-ecdsa=", "clock-frequency=",
-                                "hash-func=", "skip-invert", "workers=",
-                                "rsa-keys=", "verbose"])
+                                "raw-values=", "value-size=",
+                                "value-endianness=", "priv-key-ecdsa=",
+                                "clock-frequency=", "hash-func=",
+                                "skip-invert", "workers=", "rsa-keys=",
+                                "max-bit-size=", "verbose"])
     for opt, arg in opts:
         if opt == '-l':
             logfile = arg
@@ -192,12 +210,18 @@ def main():
             sigs = arg
         elif opt == "--sig-format":
             sig_format = arg
+        elif opt == "--raw-values":
+            values = arg
+        elif opt == "--value-size":
+            value_size = int(arg)
+        elif opt == "--value-endianness":
+            value_endianness = arg
         elif opt == "--rsa-keys":
             rsa_keys = arg
         elif opt == "--priv-key-ecdsa":
             priv_key = arg
             if not key_type:
-                key_type = "ecdsa"
+                key_type = "ec"
             else:
                 raise ValueError(
                     "Can't specify more than one private key.")
@@ -211,6 +235,8 @@ def main():
             invert = False
         elif opt == "--workers":
             workers = int(arg)
+        elif opt == "--max-bit-size":
+            max_bit_size = int(arg)
         elif opt == "--help":
             help_msg()
             sys.exit(0)
@@ -235,19 +261,23 @@ def main():
         raise ValueError(
             "Only 'little' and 'big' endianess supported")
 
-    if not all([any([logfile, sigs, rsa_keys]), output]):
+    if not all([any([logfile, sigs, rsa_keys, values]), output]):
         raise ValueError(
-            "Specifying either logfile, rsa keys, or raw sigs and output "
-            "is mandatory")
+            "Specifying either logfile, rsa keys, raw sigs or raw values "
+            "and output is mandatory")
 
     if capture and not all([logfile, output, ip_address, port]):
         raise ValueError("Some arguments are missing!")
 
-    if any([sigs, priv_key]) \
-       and not all([raw_times, data, data_size, sigs, priv_key]):
+    if sigs and not all([raw_times, data, data_size, sigs, priv_key]):
         raise ValueError(
-            "When doing signature extraction, times file, data file, \
-data size, signatures file and one private key are necessary.")
+            "When doing signature extraction, times file, data file, "
+            "data size, signatures file and one private key are necessary.")
+
+    if values and not all([values, priv_key, raw_times, data]):
+        raise ValueError(
+            "When doing ECDH secret extraction, times file, data file, "
+            "secrets file, and one private key are necessary.")
 
     if hash_func_name == None:
         if prehashed:
@@ -273,24 +303,26 @@ data size, signatures file and one private key are necessary.")
         data=data, data_size=data_size, sigs=sigs, priv_key=priv_key,
         key_type=key_type, frequency=freq, hash_func=hash_func,
         workers=workers, verbose=verbose, rsa_keys=rsa_keys,
-        sig_format=sig_format
+        sig_format=sig_format, values=values, value_size=value_size,
+        value_endianness=value_endianness, max_bit_size=max_bit_size
     )
     extract.parse()
 
-    if all([raw_times, data, data_size, sigs, priv_key]):
+    if any([sigs, values]) and all([raw_times, data, priv_key]):
         files = {
-            "measurements.csv": "k-size",
+            "measurements.csv": "k-size" if not values else "size",
             "measurements-hamming-weight.csv": "hamming-weight"
         }
 
-        if invert:
+        if invert and not values:
             file_list = list(files.keys())
 
             for file in file_list:
                 invert_file_name = file.split(".")[0] + '-invert.csv'
                 files[invert_file_name] = "invert-" + files[file]
 
-        extract.process_and_create_multiple_csv_files(files)
+        extract.process_and_create_multiple_csv_files(
+            files, ecdh=(values is not None))
 
     if rsa_keys:
         extract.process_rsa_keys()
@@ -307,7 +339,9 @@ class Extract:
                  carriage_return=None, data=None, data_size=None, sigs=None,
                  priv_key=None, key_type=None, frequency=None,
                  hash_func=hashlib.sha256, workers=None, verbose=False,
-                 fin_as_resp=False, rsa_keys=None, sig_format="DER"):
+                 fin_as_resp=False, rsa_keys=None, sig_format="DER",
+                 values=None, value_size=None, value_endianness="little",
+                 max_bit_size=None):
         """
         Initialises instance and sets up class name generator from log.
 
@@ -317,12 +351,19 @@ class Extract:
         :param str ip_address: TLS server ip address
         :param int port: TLS server port
         :param str data: Name of file with data used for signing
-        :param int data_size: Size of data used for each signature
-        :param str sigs: Signature filename
+        :param int data_size: Size of each data used for gathering
+        :param str sigs: Name of file with the signatures
+        :param str sig_format: The format the signatures have, DER and RAW
+            formats are supported
+        :param str values: Name of file with the values
+        :param int values_size: Size of each valuesinterpretations
+        :param int values_endianness: endianess for the interpretation of the
+            values
         :param str priv_key: Private key filename
-        :param str key_type: The type of the private key
-        :param int binary: number of bytes per timing from raw times file
-        :param str endian: endianess of the read numbers
+        :param str key_type: The type of the private key, for now only "ec" is
+            supported
+        :param int binary: Number of bytes per timing from raw times file
+        :param str endian: Endianess of the read numbers
         :param bool no_quickack: If True, don't expect QUICKACK to be in use
         :param float delay: How often to print the status line.
         :param str carriage_return: What chacarter to use as status line end.
@@ -330,7 +371,7 @@ class Extract:
             the message in bit size analysis. None for prehashed data.
         :param int workers: The amount of parallel workers to be used.
         :param bool verbose: Prints a more verbose output
-        :param bool fin_as_resp: consider the server FIN packet to be the
+        :param bool fin_as_resp: Consider the server FIN packet to be the
             response to previous client query
         """
         self.capture = capture
@@ -365,7 +406,6 @@ class Extract:
         self.data_size = data_size
         self.sigs = sigs
         self.r_or_s_size = None
-        self.key_type = key_type
         self.frequency = frequency
         self.measurements_csv = measurements_csv
         self.hash_func = hash_func  # None if data are already hashed
@@ -385,6 +425,10 @@ class Extract:
         self._fin_as_resp = fin_as_resp
         self.rsa_keys = rsa_keys
         self._temp_HWI_name = None
+        self.values = values
+        self.value_size = value_size
+        self.value_endianness = value_endianness
+        self.max_bit_size = max_bit_size
 
         if sig_format not in ["DER", "RAW"]:
             raise ValueError(
@@ -399,7 +443,7 @@ class Extract:
                 self._total_measurements = None
 
         self.priv_key = None
-        if key_type == "ecdsa":
+        if key_type == "ec":
             with open(priv_key, 'r') as f:
                 self.priv_key = ecdsa.SigningKey.from_pem(f.read())
             if sig_format == 'RAW':
@@ -853,17 +897,20 @@ class Extract:
             writer.writerow(columns)
 
     def _get_data_from_binary_file(
-            self, filename, data_size, convert_to_int=False
+            self, filename, data_size, convert_to_int=False, endian=None
         ):
         """
         Iterator. Reading raw bytes of data_size from a binary file. Can also
         convert the data to int.
         """
+        if not endian:
+            endian = self.endian
+
         with open(filename, "rb") as data_fp:
             data = data_fp.read(data_size)
             while data:
                 if convert_to_int:
-                    data = bytesToNumber(data, endian=self.endian)
+                    data = bytesToNumber(data, endian=endian)
                 yield data
                 data = data_fp.read(data_size)
 
@@ -1115,8 +1162,40 @@ class Extract:
         return k_wrap_iter
 
     def ecdsa_max_value(self):
-        """Returns the max K size depending on the ECDSA private key"""
+        """Returns the max K size in BITS depending on the ECDSA private key"""
         return ecdsa.util.bit_length(self.priv_key.curve.order)
+
+    def ecdh_iter(self, return_type="size"):
+        """
+        Iterator. Iterator to use for secret created by ECDH private keys.
+        """
+        secret_iter = self._get_data_from_binary_file(
+            self.values,
+            self.value_size if self.value_size else self.ecdh_max_value(),
+            convert_to_int=True, endian=self.value_endianness)
+
+        if "invert" in return_type and self.verbose:
+            print("[w] Invert is not supported in ECDH. Skipping...")
+            return None
+
+        if "size" in return_type:
+            secret_wrap_iter = self._convert_to_bit_size(secret_iter)
+        elif "hamming-weight" in return_type:
+            secret_wrap_iter = self._convert_to_hamming_weight(secret_iter)
+        else:
+            raise ValueError(
+                "Iterator return must be k-size or hamming-weight"
+            )
+
+        return secret_wrap_iter
+
+    def ecdh_max_value(self):
+        """
+        Returns the max shared secret size in BYTES depending on the ECDH
+        private key.
+        """
+        return int(
+            (ecdsa.util.bit_length(self.priv_key.curve.curve.p()) + 7) / 8)
 
     def _create_and_write_line(self):
         """
@@ -1276,6 +1355,9 @@ class Extract:
         given files and creates a randomized measurement file with tuples
         associating the max values with non max values.
         """
+        if not all([values_iter, comparing_value]):
+            return
+
         self._measurements_fp = open(
             join(self.output, self.measurements_csv), "w"
         )
@@ -1291,7 +1373,8 @@ class Extract:
         self._measurements_dropped = 0
         self._selections = defaultdict(lambda: defaultdict(lambda: 0))
         self._row = 0
-        self._max_value = comparing_value
+        self._max_value = \
+            self.max_bit_size if self.max_bit_size else comparing_value
 
         time_iter = self._get_time_from_file()
 
@@ -1391,7 +1474,7 @@ class Extract:
             print(
                 '[i] Biggest tuple size in file: {0}\n'
                     .format(self._max_tuple_size) +
-                '[i] Written rows: {0:,}'.format(self._row)
+                '[i] Written rows: {0:,}'.format(max(0, self._row))
             )
 
         self._measurements_fp.close()
@@ -1419,6 +1502,9 @@ class Extract:
         given files and creates a file with tuples associating the Hamming
         weight of the nonces.
         """
+        if not values_iter:
+            return
+
         self._measurements_fp = open(
             join(self.output, self.measurements_csv), "w"
         )
@@ -1512,12 +1598,29 @@ class Extract:
         self._measurements_fp.close()
 
     def process_and_create_multiple_csv_files(self, files = {
-        "measurements.csv": "k-size"
-    }):
+        "measurements.csv": "k-size",
+    }, ecdh = False):
         original_measuremments_csv = self.measurements_csv
         skipped_h_weight_invert = False
         h_weight_invert_file = None
         h_weight_invert_mode = None
+
+        if ecdh:
+            self._total_measurements = int(
+                getsize(self.data) / ((2 * self.ecdh_max_value()) + 1))
+            for file in files:
+                self.measurements_csv = file
+
+                if "hamming-weight" in files[file]:
+                    self.process_measurements_and_create_hamming_csv_file(
+                        self.ecdh_iter(return_type=files[file])
+                    )
+                else:
+                    self.process_measurements_and_create_csv_file(
+                        self.ecdh_iter(return_type=files[file]),
+                        self.ecdh_max_value() * 8
+                    )
+            return
 
         if exists(join(self.output, "ecdsa-k-time-map.csv")):
             remove(join(self.output, "ecdsa-k-time-map.csv"))
