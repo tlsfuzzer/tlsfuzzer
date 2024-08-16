@@ -268,7 +268,8 @@ class TestCommandLine(unittest.TestCase):
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
                     workers=None, verbose=False, rsa_keys=None,
-                    sig_format="DER")
+                    sig_format="DER", values=None, value_size=None,
+                    value_endianness="little", max_bit_size=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -306,7 +307,8 @@ class TestCommandLine(unittest.TestCase):
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
                     workers=None, verbose=False, rsa_keys=None,
-                    sig_format="DER")
+                    sig_format="DER", values=None, value_size=None,
+                    value_endianness="little", max_bit_size=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -343,7 +345,8 @@ class TestCommandLine(unittest.TestCase):
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
                     workers=None, verbose=False, rsa_keys=None,
-                    sig_format="DER")
+                    sig_format="DER", values=None, value_size=None,
+                    value_endianness="little", max_bit_size=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -377,7 +380,8 @@ class TestCommandLine(unittest.TestCase):
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
                     workers=None, verbose=False, rsa_keys=None,
-                    sig_format="DER")
+                    sig_format="DER", values=None, value_size=None,
+                    value_endianness="little", max_bit_size=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -412,7 +416,8 @@ class TestCommandLine(unittest.TestCase):
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
                     workers=None, verbose=False, rsa_keys=None,
-                    sig_format="DER")
+                    sig_format="DER", values=None, value_size=None,
+                    value_endianness="little", max_bit_size=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch('tlsfuzzer.extract.Log')
@@ -517,7 +522,8 @@ class TestCommandLine(unittest.TestCase):
                     data=None, data_size=None, sigs=None, priv_key=None,
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
                     workers=None, verbose=False, rsa_keys=None,
-                    sig_format="DER")
+                    sig_format="DER", values=None, value_size=None,
+                    value_endianness="little", max_bit_size=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch('__main__.__builtins__.print')
@@ -589,7 +595,9 @@ class TestCommandLine(unittest.TestCase):
                     data=None, data_size=None, sigs=None,
                     priv_key=None, key_type=None, frequency=None,
                     hash_func=hashlib.sha256, workers=None, verbose=False,
-                    rsa_keys=priv_key, sig_format="DER")
+                    rsa_keys=priv_key, sig_format="DER", values=None,
+                    value_size=None, value_endianness="little",
+                    max_bit_size=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -628,9 +636,11 @@ class TestCommandLine(unittest.TestCase):
                     raw_times, None, binary=None, endian="little",
                     no_quickack=False, delay=None, carriage_return=None,
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
-                    priv_key=priv_key, key_type="ecdsa", frequency=None,
+                    priv_key=priv_key, key_type="ec", frequency=None,
                     hash_func=hashlib.sha256, workers=None, verbose=False,
-                    rsa_keys=None, sig_format="DER")
+                    rsa_keys=None, sig_format="DER", values=None,
+                    value_size=None, value_endianness="little",
+                    max_bit_size=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -669,9 +679,11 @@ class TestCommandLine(unittest.TestCase):
                     raw_times, None, binary=None, endian="little",
                     no_quickack=False, delay=None, carriage_return=None,
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
-                    priv_key=priv_key, key_type="ecdsa", frequency=None,
+                    priv_key=priv_key, key_type="ec", frequency=None,
                     hash_func=hashlib.sha256, workers=None, verbose=True,
-                    rsa_keys=None, sig_format="DER")
+                    rsa_keys=None, sig_format="DER", values=None,
+                    value_size=None, value_endianness="little",
+                    max_bit_size=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -711,10 +723,11 @@ class TestCommandLine(unittest.TestCase):
                     raw_times, None, binary=None, endian="little",
                     no_quickack=False, delay=None, carriage_return=None,
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
-                    priv_key=priv_key, key_type="ecdsa",
+                    priv_key=priv_key, key_type="ec",
                     frequency=frequency * 1e6, hash_func=hashlib.sha256,
                     workers=None, verbose=False, rsa_keys=None,
-                    sig_format="DER")
+                    sig_format="DER", values=None, value_size=None,
+                    value_endianness="little", max_bit_size=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -754,10 +767,11 @@ class TestCommandLine(unittest.TestCase):
                     raw_times, None, binary=None, endian="little",
                     no_quickack=False, delay=None, carriage_return=None,
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
-                    priv_key=priv_key, key_type="ecdsa",
+                    priv_key=priv_key, key_type="ec",
                     frequency=None, hash_func=hashlib.sha384,
                     workers=None, verbose=False, rsa_keys=None,
-                    sig_format="DER")
+                    sig_format="DER", values=None, value_size=None,
+                    value_endianness="little", max_bit_size=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -796,10 +810,11 @@ class TestCommandLine(unittest.TestCase):
                     raw_times, None, binary=None, endian="little",
                     no_quickack=False, delay=None, carriage_return=None,
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
-                    priv_key=priv_key, key_type="ecdsa",
+                    priv_key=priv_key, key_type="ec",
                     frequency=None, hash_func=None,
                     workers=None, verbose=False, rsa_keys=None,
-                    sig_format="DER")
+                    sig_format="DER", values=None, value_size=None,
+                    value_endianness="little", max_bit_size=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -839,10 +854,11 @@ class TestCommandLine(unittest.TestCase):
                     raw_times, None, binary=None, endian="little",
                     no_quickack=False, delay=None, carriage_return=None,
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
-                    priv_key=priv_key, key_type="ecdsa",
+                    priv_key=priv_key, key_type="ec",
                     frequency=None, hash_func=hashlib.sha256,
                     workers=workers, verbose=False, rsa_keys=None,
-                    sig_format="DER")
+                    sig_format="DER", values=None, value_size=None,
+                    value_endianness="little", max_bit_size=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -881,10 +897,11 @@ class TestCommandLine(unittest.TestCase):
                     raw_times, None, binary=None, endian="little",
                     no_quickack=False, delay=None, carriage_return=None,
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
-                    priv_key=priv_key, key_type="ecdsa",
+                    priv_key=priv_key, key_type="ec",
                     frequency=None, hash_func=hashlib.sha256,
                     workers=None, verbose=False, rsa_keys=None,
-                    sig_format="DER")
+                    sig_format="DER", values=None, value_size=None,
+                    value_endianness="little", max_bit_size=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -927,10 +944,11 @@ class TestCommandLine(unittest.TestCase):
                     raw_times, None, binary=None, endian="little",
                     no_quickack=False, delay=None, carriage_return=None,
                     data=raw_data, data_size=data_size, sigs=raw_sigs,
-                    priv_key=priv_key, key_type="ecdsa",
+                    priv_key=priv_key, key_type="ec",
                     frequency=None, hash_func=hashlib.sha256,
                     workers=None, verbose=False, rsa_keys=None,
-                    sig_format="RAW")
+                    sig_format="RAW", values=None, value_size=None,
+                    value_endianness="little", max_bit_size=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -973,8 +991,23 @@ class TestCommandLine(unittest.TestCase):
             with self.assertRaises(ValueError) as e:
                 main()
 
-            self.assertIn("When doing signature extraction,",
-                            str(e.exception))
+            self.assertIn(
+                "When doing signature extraction,",
+                str(e.exception))
+
+    def test_specify_ecdh_but_not_priv_key(self):
+        args = [
+            "extract.py", "-o", "/tmp", "--raw-data", "/tmp/data",
+            "--data-size", "32", "--raw-values", "/tmp/values",
+            "--raw-times", "/tmp/times"
+            ]
+        with mock.patch("sys.argv", args):
+            with self.assertRaises(ValueError) as e:
+                main()
+
+            self.assertIn(
+                "When doing ECDH secret extraction,",
+                str(e.exception))
 
     def test_unsupported_hash_func(self):
         args = [
@@ -989,6 +1022,96 @@ class TestCommandLine(unittest.TestCase):
 
             self.assertIn("Hash function not_a_hash is not supported.",
                             str(e.exception))
+
+    @mock.patch('tlsfuzzer.extract.Log')
+    @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
+    @mock.patch('tlsfuzzer.extract.Extract._write_csv')
+    @mock.patch(
+        'tlsfuzzer.extract.Extract.process_and_create_multiple_csv_files'
+    )
+    @mock.patch('tlsfuzzer.extract.Extract.parse')
+    def test_ecdh(self, mock_parse, mock_process, mock_write,
+                              mock_write_pkt, mock_log):
+        output = "/tmp"
+        raw_data = "/tmp/data"
+        data_size = 32
+        raw_values = "/tmp/values"
+        value_size = 64
+        value_endianness = "big"
+        raw_times = "/tmp/times"
+        priv_key = "/tmp/key"
+        args = ["extract.py",
+                "-o", output,
+                "--raw-data", raw_data,
+                "--data-size", data_size,
+                "--raw-values", raw_values,
+                "--value-size", value_size,
+                "--value-endianness", value_endianness,
+                "--raw-times", raw_times,
+                "--priv-key-ecdsa", priv_key]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
+            with mock.patch("sys.argv", args):
+                main()
+                mock_init.assert_called_once_with(
+                    mock.ANY, None, output, None, None,
+                    raw_times, None, binary=None, endian="little",
+                    no_quickack=False, delay=None, carriage_return=None,
+                    data=raw_data, data_size=data_size, sigs=None,
+                    priv_key=priv_key, key_type="ec",
+                    frequency=None, hash_func=hashlib.sha256,
+                    workers=None, verbose=False, rsa_keys=None,
+                    sig_format="DER", values=raw_values, value_size=value_size,
+                    value_endianness=value_endianness, max_bit_size=None)
+                mock_write.assert_not_called()
+                mock_write_pkt.assert_not_called()
+                mock_log.assert_not_called()
+                mock_process.assert_called_once()
+
+    @mock.patch('tlsfuzzer.extract.Log')
+    @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
+    @mock.patch('tlsfuzzer.extract.Extract._write_csv')
+    @mock.patch(
+        'tlsfuzzer.extract.Extract.process_and_create_multiple_csv_files'
+    )
+    @mock.patch('tlsfuzzer.extract.Extract.parse')
+    def test_max_bit_size(self, mock_parse, mock_process, mock_write,
+                              mock_write_pkt, mock_log):
+        output = "/tmp"
+        raw_data = "/tmp/data"
+        data_size = 32
+        raw_sigs = "/tmp/sigs"
+        raw_times = "/tmp/times"
+        priv_key = "/tmp/key"
+        max_bit_size = 100
+        args = ["extract.py",
+                "-o", output,
+                "--raw-data", raw_data,
+                "--data-size", data_size,
+                "--raw-sigs", raw_sigs,
+                "--raw-times", raw_times,
+                "--priv-key-ecdsa", priv_key,
+                "--max-bit-size", max_bit_size]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
+            with mock.patch("sys.argv", args):
+                main()
+                mock_init.assert_called_once_with(
+                    mock.ANY, None, output, None, None,
+                    raw_times, None, binary=None, endian="little",
+                    no_quickack=False, delay=None, carriage_return=None,
+                    data=raw_data, data_size=data_size, sigs=raw_sigs,
+                    priv_key=priv_key, key_type="ec",
+                    frequency=None, hash_func=hashlib.sha256,
+                    workers=None, verbose=False, rsa_keys=None,
+                    sig_format="DER", values=None, value_size=None,
+                    value_endianness="little", max_bit_size=max_bit_size)
+                mock_write.assert_not_called()
+                mock_write_pkt.assert_not_called()
+                mock_log.assert_not_called()
+                mock_process.assert_called_once()
 
 @unittest.skipIf(failed_import,
                  "Could not import extraction. Skipping related tests.")
@@ -1438,6 +1561,7 @@ class TestMeasurementCreation(unittest.TestCase):
         self.k_time_map = []
 
         common_dir = "measurements_test_files"
+
         out_dir = join(dirname(abspath(__file__)), common_dir)
         raw_times = join(dirname(abspath(__file__)),
                          common_dir, "times.bin")
@@ -1451,7 +1575,23 @@ class TestMeasurementCreation(unittest.TestCase):
         self.extract = Extract(
             output=out_dir, raw_times=raw_times, binary=8,
             sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
-            key_type="ecdsa"
+            key_type="ec"
+        )
+
+        out_dir = join(dirname(abspath(__file__)), common_dir)
+        raw_times = join(dirname(abspath(__file__)),
+                         common_dir, "times_ecdh.bin")
+        raw_values = join(dirname(abspath(__file__)),
+                         common_dir, "secrets_ecdh.bin")
+        raw_data = join(dirname(abspath(__file__)),
+                         common_dir, "data_ecdh.bin")
+        priv_key = join(dirname(abspath(__file__)),
+                         common_dir, "priv_key_ecdh.pem")
+
+        self.extract_ecdh = Extract(
+            output=out_dir, raw_times=raw_times, binary=8,
+            values=raw_values, data=raw_data, priv_key=priv_key,
+            key_type="ec", verbose=True
         )
 
     def custom_generator(self, data):
@@ -1546,7 +1686,7 @@ class TestMeasurementCreation(unittest.TestCase):
         extract = Extract(
             output=out_dir, raw_times=raw_times, binary=8,
             sigs=raw_sigs, data=raw_data, data_size=32, priv_key=priv_key,
-            key_type="ecdsa", hash_func=None, sig_format="RAW"
+            key_type="ec", hash_func=None, sig_format="RAW"
         )
 
         self.times_used_write = 0
@@ -1925,6 +2065,75 @@ class TestMeasurementCreation(unittest.TestCase):
         self.times_used_write = 0
         self.times_used_write_on_hamming = 0
         self.extract.verbose = False
+
+    @mock.patch('__main__.__builtins__.print')
+    @mock.patch('__main__.__builtins__.open')
+    def test_multiple_measurement_creation_with_ecdh(
+            self, mock_file, mock_print):
+        mock_file.side_effect = self.file_emulator
+        self.times_used_write = 0
+
+        self.extract_ecdh.process_and_create_multiple_csv_files({
+            "measurements.csv": "size"
+        }, ecdh=True)
+
+        mock_print.assert_called()
+        self.assertGreater(
+            self.times_used_write, 0,
+            "At least one measurement should have been written."
+        )
+
+        self.times_used_write = 0
+
+    @mock.patch('__main__.__builtins__.print')
+    @mock.patch('__main__.__builtins__.open')
+    def test_multiple_measurement_creation_hamming_weight_with_ecdh(
+            self,mock_file, mock_print):
+        mock_file.side_effect = self.file_emulator
+        self.times_used_write_on_hamming = 0
+
+        self.extract_ecdh.process_and_create_multiple_csv_files({
+            "measurements-hamming.csv": "hamming-weight"
+        }, ecdh=True)
+
+        mock_print.assert_called()
+        self.assertGreater(
+            self.times_used_write_on_hamming, 0,
+            "At least one measurement should have been written."
+        )
+
+        self.times_used_write_on_hamming = 0
+
+    @mock.patch('__main__.__builtins__.print')
+    @mock.patch('__main__.__builtins__.open')
+    def test_measurement_creation_unknown_with_ecdh(
+            self,mock_file, mock_print):
+        mock_file.side_effect = self.file_emulator
+
+        with self.assertRaises(ValueError) as e:
+            self.extract_ecdh.process_measurements_and_create_csv_file(
+                self.extract.ecdh_iter(return_type="wrong"),
+                self.extract.ecdh_max_value()
+            )
+
+        self.assertIn("Iterator return must be k-size or hamming-weight",
+                      str(e.exception))
+
+    @mock.patch('__main__.__builtins__.print')
+    @mock.patch('__main__.__builtins__.open')
+    def test_measurement_creation_invert_with_ecdh(
+            self,mock_file, mock_print):
+        mock_file.side_effect = self.file_emulator
+
+        self.extract_ecdh.process_and_create_multiple_csv_files({
+            "measurements-hamming.csv": "size-invert"
+        }, ecdh=True)
+
+        mock_print.assert_called()
+        self.assertIn(
+            mock.call("[w] Invert is not supported in ECDH. Skipping..."),
+            mock_print.mock_calls
+        )
 
     def test_k_extractions(self):
         k_value = self.extract._ecdsa_calculate_k((

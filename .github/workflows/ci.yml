@@ -369,11 +369,11 @@ jobs:
           # as http.server uses `sys_version = "Python/" + sys.version.split()[0]`
           # https://github.com/python/cpython/blob/2c050e52f1ccf5db03819e4ed70690521d67e9fa/Lib/http/server.py#L253
           case $PYTHON_VERSION in
-            2.7 | 3.6 | 3.7 | 3.8 | 3.9 | 3.11 | 3.12 )
+            2.7 | 3.6 | 3.7 | 3.8 | 3.9 | 3.12 )
               export REPLY_SIZE=1850
               ;;
-            3.10)
-              export REPLY_SIZE=1851  # Server: SimpleHTTP/0.6 Python/3.10.10
+            3.10 | 3.11)
+              export REPLY_SIZE=1851  # Server: SimpleHTTP/0.6 Python/3.10.10 and SimpleHTTP/0.6 Python/3.11.10
               ;;
             nightly)
               export REPLY_SIZE=1852  # Server: SimpleHTTP/0.6 Python/3.10.0a0
