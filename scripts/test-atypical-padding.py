@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2015-2019
+# Author: Hubert Kario, (c) 2015-2024
 # Released under Gnu GPL v2.0, see LICENSE file for details
 """Example MAC value fuzzer"""
 
@@ -28,7 +28,7 @@ from tlslite.extensions import SupportedGroupsExtension, \
 from tlslite.utils.compat import compatAscii2Bytes
 
 
-version = 6
+version = 7
 
 
 def help_msg():
@@ -52,6 +52,7 @@ def help_msg():
     print(" --echo-headers expect the server to echo the headers (so its reply")
     print("                will be split over two ApplicationData records, not")
     print("                one for the tests with 2**14 byte payload)")
+    print(" -M | --ems     Advertise support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -77,9 +78,10 @@ def main():
     last_exp_tmp = None
     dhe = False
     echo = False
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:d", ["help", "echo-headers"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dM", ["help", "echo-headers", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -103,6 +105,8 @@ def main():
             sys.exit(0)
         elif opt == '--echo-headers':
             echo = True
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -115,16 +119,19 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     if dhe:
-        ext = {}
         add_dhe_extensions(ext)
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     else:
-        ext = None
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if not ext:
+        ext = None
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
@@ -148,16 +155,19 @@ def main():
     # check if SHA256 ciphers work
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     if dhe:
-        ext = {}
         add_dhe_extensions(ext)
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     else:
-        ext = None
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA256,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if not ext:
+        ext = None
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
@@ -183,6 +193,8 @@ def main():
     node = conversation
     ext = {}
     add_dhe_extensions(ext)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -208,6 +220,8 @@ def main():
     conversation = Connect(host, port)
     node = conversation
     ext = {ExtensionType.encrypt_then_mac: AutoEmptyExtension()}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     if dhe:
         add_dhe_extensions(ext)
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
@@ -219,6 +233,8 @@ def main():
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     extensions = {ExtensionType.encrypt_then_mac:None,
                   ExtensionType.renegotiation_info:None}
+    if ems:
+        extensions[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=extensions))
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -241,16 +257,19 @@ def main():
     # maximum size of padding
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     if dhe:
-        ext = {}
         add_dhe_extensions(ext)
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     else:
-        ext = None
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if not ext:
+        ext = None
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
@@ -283,16 +302,19 @@ def main():
     # maximum size of padding with SHA256
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     if dhe:
-        ext = {}
         add_dhe_extensions(ext)
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     else:
-        ext = None
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA256,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if not ext:
+        ext = None
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
@@ -334,6 +356,8 @@ def main():
         SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -364,16 +388,19 @@ def main():
     # longest possible padding with max size Application data
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     if dhe:
-        ext = {}
         add_dhe_extensions(ext)
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     else:
-        ext = None
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if not ext:
+        ext = None
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
@@ -411,6 +438,8 @@ def main():
     conversation = Connect(host, port)
     node = conversation
     ext = {ExtensionType.encrypt_then_mac: AutoEmptyExtension()}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     if dhe:
         add_dhe_extensions(ext)
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
@@ -422,6 +451,8 @@ def main():
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     extensions = {ExtensionType.encrypt_then_mac:None,
                   ExtensionType.renegotiation_info:None}
+    if ems:
+        extensions[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=extensions))
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -458,16 +489,19 @@ def main():
     # longest possible padding with max size Application data with SHA256
     conversation = Connect(host, port)
     node = conversation
+    ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     if dhe:
-        ext = {}
         add_dhe_extensions(ext)
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     else:
-        ext = None
         ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA256,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    if not ext:
+        ext = None
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
@@ -505,6 +539,8 @@ def main():
     node = conversation
     ext = {}
     add_dhe_extensions(ext)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = None
     ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
