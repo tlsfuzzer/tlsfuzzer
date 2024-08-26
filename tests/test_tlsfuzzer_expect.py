@@ -3287,8 +3287,7 @@ class TestExpectServerKeyExchange(unittest.TestCase):
         server_hello.server_version = (3, 3)
         server_hello.random = bytearray(32)
         state.server_random = server_hello.random
-        # server hello is not necessary for the test to work
-        #state.handshake_messages.append(server_hello)
+        state.handshake_messages.append(server_hello)
         state.handshake_messages.append(cert)
         srv_key_exchange = ECDHE_RSAKeyExchange(
                 CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
