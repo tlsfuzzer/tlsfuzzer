@@ -635,7 +635,9 @@
          {"name": "test-lengths.py",
           "arguments": ["-p", "4434", "-n", "500"]},
          {"name": "test-tls13-lengths.py",
-          "arguments": ["-p", "4434", "-n", "200"]}
+          "arguments": ["-p", "4434", "-n", "200"]},
+         {"name": "test-point-extension.py",
+          "arguments": ["--compressed-f"]}
      ]
     },
     {"server_command": ["{python}", "-u", "{command}", "server",

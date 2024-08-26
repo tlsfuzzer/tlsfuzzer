@@ -16,23 +16,25 @@ from tlslite.constants import ContentType, HandshakeType, CertificateType,\
         SignatureScheme, TLS_1_3_HRR, HeartbeatMode, \
         TLS_1_1_DOWNGRADE_SENTINEL, TLS_1_2_DOWNGRADE_SENTINEL, \
         HeartbeatMessageType, ClientCertificateType, CertificateStatusType, \
-        CertificateCompressionAlgorithm
+        CertificateCompressionAlgorithm, \
+        ECPointFormat
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
         ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus, \
         CertificateVerify, EncryptedExtensions, NewSessionTicket, Heartbeat,\
         KeyUpdate, HelloRequest, NewSessionTicket1_0, CompressedCertificate
-from tlslite.extensions import TLSExtension, ALPNExtension
+from tlslite.extensions import TLSExtension, ALPNExtension,\
+        ECPointFormatsExtension
 from tlslite.utils.codec import Parser, Writer
 from tlslite.utils.compat import b2a_hex
 from tlslite.utils.cryptomath import secureHMAC, derive_secret, \
         HKDF_expand_label
 from tlslite.mathtls import RFC7919_GROUPS, FFDHE_PARAMETERS, calc_key
 from tlslite.keyexchange import KeyExchange, DHE_RSAKeyExchange, \
-        ECDHE_RSAKeyExchange
+        ECDHE_RSAKeyExchange, AECDHKeyExchange
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
-from tlslite.errors import TLSDecryptionFailed
+from tlslite.errors import TLSDecryptionFailed, TLSIllegalParameterException
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.handshakehelpers import HandshakeHelpers
 from .handshake_helpers import calc_pending_states, kex_for_group, \
@@ -1279,13 +1281,13 @@ class ExpectServerKeyExchange(ExpectHandshake):
         server_random = state.server_random
         public_key = state.get_server_public_key()
         server_hello = state.get_last_message_of_type(ServerHello)
+        client_hello = state.get_last_message_of_type(ClientHello)
         if server_hello is None:
             server_hello = ServerHello
             server_hello.server_version = state.version
         if valid_sig_algs is None:
             # if the value was unset in script, get the advertised value from
             # Client Hello
-            client_hello = state.get_last_message_of_type(ClientHello)
             if client_hello is not None:
                 sig_algs_ext = client_hello.getExtension(ExtensionType.
                                                          signature_algorithms)
@@ -1297,7 +1299,26 @@ class ExpectServerKeyExchange(ExpectHandshake):
                 if self.cipher_suite in CipherSuite.ecdheEcdsaSuites:
                     valid_sig_algs = [(HashAlgorithm.sha1,
                                        SignatureAlgorithm.ecdsa)]
+        if self.cipher_suite in CipherSuite.ecdhAllSuites and \
+            self.valid_groups in [GroupName.secp256r1, GroupName.ffdhe2048]:
+            if server_key_exchange.ecdh_Ys[0] == 4:
+                server_key_exchange_ext = ECPointFormat.uncompressed
+            elif server_key_exchange.ecdh_Ys[0] == 2 or \
+                    server_key_exchange.ecdh_Ys[0] == 3:
+                server_key_exchange_ext = ECPointFormat.ansiX962_compressed_prime
+            else:
+                server_key_exchange_ext = None
 
+            if client_hello is not None:
+                ext_c = client_hello.getExtension(
+                    ExtensionType.ec_point_formats)
+                if ext_c is not None:
+                    if server_key_exchange_ext not in ext_c.formats:
+                        raise TLSIllegalParameterException(
+                                "The point extension of the public key "
+                                    "in server key exchange was not "
+                                        "advertised in client hello."
+                                        )
         try:
             KeyExchange.verifyServerKeyExchange(server_key_exchange,
                                                 public_key,
@@ -1335,7 +1356,7 @@ class ExpectServerKeyExchange(ExpectHandshake):
                     valid_groups = GroupName.allEC
             state.key_exchange = \
                 ECDHE_RSAKeyExchange(self.cipher_suite,
-                                     clientHello=None,
+                                     clientHello=client_hello,
                                      serverHello=server_hello,
                                      privateKey=None,
                                      acceptedCurves=valid_groups)
