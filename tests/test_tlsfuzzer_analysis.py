@@ -924,7 +924,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
-                        None, None, None, False, True, 1e-09, 4,
+                        None, None, None, False, True, 1e-09,
                         'measurements.csv', False, True, True, True, True,
                         True, True, True)
 
@@ -940,7 +940,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
-                        None, None, None, False, True, 1e-09, 4,
+                        None, None, None, False, True, 1e-09,
                         'measurements.csv', False, True, True, True, True,
                         True, True, False)
 
@@ -956,7 +956,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, False, False, False, False, False, None, None,
-                        None, None, None, False, True, 1e-09, 4,
+                        None, None, None, False, True, 1e-09,
                         'measurements.csv', False, False, False, True, False,
                         False, False, False)
 
@@ -972,7 +972,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
-                        None, None, None, False, True, 1e-09, 4,
+                        None, None, None, False, True, 1e-09,
                         'measurements.csv', False, True, True, True, True,
                         False, True, True)
 
@@ -988,7 +988,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
-                        None, None, None, False, True, 1e-09, 4,
+                        None, None, None, False, True, 1e-09,
                         'measurements.csv', False, True, True, True, True,
                         True, False, True)
 
@@ -1005,7 +1005,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
-                        None, 3.5, '\n', False, True, 1e-09, 4,
+                        None, 3.5, '\n', False, True, 1e-09,
                         'measurements.csv', False, True, True, True,
                         True, True, True, True)
 
@@ -1021,7 +1021,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
-                        200, None, None, False, True, 1e-09, 4,
+                        200, None, None, False, True, 1e-09,
                         'measurements.csv', False, True, True, True,
                         True, True, True, True)
 
@@ -1037,7 +1037,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, True, None, None,
-                        None, None, None, False, True, 1e-09, 4,
+                        None, None, None, False, True, 1e-09,
                         'measurements.csv', False, True, True, True,
                         True, True, True, True)
 
@@ -1053,7 +1053,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, True, False, None, None,
-                        None, None, None, False, True, 1e-09, 4,
+                        None, None, None, False, True, 1e-09,
                         'measurements.csv', False, True, True, True,
                         True, True, True, True)
 
@@ -1071,7 +1071,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, False, False, False, False, False, None, None,
-                        None, None, None, False, True, 1e-09, 4,
+                        None, None, None, False, True, 1e-09,
                         'measurements.csv', False, True, True, True,
                         False, True, True, True)
 
@@ -1087,7 +1087,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, 10*1e6, None,
-                        None, None, None, False, True, 1e-09, 4,
+                        None, None, None, False, True, 1e-09,
                         'measurements.csv', False, True, True, True,
                         True, True, True, True)
 
@@ -1103,7 +1103,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, 1e-3,
-                        None, None, None, False, True, 1e-09, 4,
+                        None, None, None, False, True, 1e-09,
                         'measurements.csv', False, True, True, True,
                         True, True, True, True)
 
@@ -1121,7 +1121,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
-                        None, None, None, True, True, 1e-09, 4,
+                        None, None, None, True, True, 1e-09,
                         'measurements.csv', False, True, True, True,
                         True, True, True, True)
 
@@ -1139,7 +1139,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
-                        None, None, None, True, True, 1e-09, 4,
+                        None, None, None, True, True, 1e-09,
                         'measurements.csv', True, True, True, True,
                         True, True, True, True)
 
@@ -1159,7 +1159,7 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
-                        None, None, None, True, True, 1e-09, 4,
+                        None, None, None, True, True, 1e-09,
                         measurements_filename, False, True, True, True,
                         True, True, True, True)
 
@@ -1178,17 +1178,15 @@ class TestCommandLine(unittest.TestCase):
                     mock_report.assert_called_once()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
-                        None, None, None, True, False, 1e-09, 4,
+                        None, None, None, True, False, 1e-09,
                         'measurements.csv', False, True, True, True,
                         True, True, True, True)
 
     def test_call_with_parametrized_smart_analysis(self):
         output = "/tmp"
         bit_size_desire_ci = 5
-        bit_recognition_size = 2
         args = ["analysis.py", "-o", output, "--bit-size",
-                "--bit-size-desired-ci", bit_size_desire_ci,
-                "--bit-recognition-size", bit_recognition_size,]
+                "--bit-size-desired-ci", bit_size_desire_ci]
         mock_init = mock.Mock()
         mock_init.return_value = None
         with mock.patch(
@@ -1201,9 +1199,8 @@ class TestCommandLine(unittest.TestCase):
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
                         None, None, None, True, True,
-                        bit_size_desire_ci * 1e-9, bit_recognition_size,
-                        'measurements.csv', False, True, True, True,
-                        True, True, True, True)
+                        bit_size_desire_ci * 1e-9, 'measurements.csv', False,
+                        True, True, True, True, True, True, True)
 
     def test_call_with_Hamming_weight(self):
         output = "/tmp"
@@ -1218,7 +1215,7 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
-                        None, None, None, True, True, 1e-9, 4,
+                        None, None, None, True, True, 1e-9,
                         'measurements.csv', False, True, True, True,
                         True, True, True, True)
                     mock_report.assert_called_once_with(
@@ -1238,7 +1235,7 @@ class TestCommandLine(unittest.TestCase):
                     main()
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
-                        None, None, None, True, True, 1e-9, 4,
+                        None, None, None, True, True, 1e-9,
                         'measurements.csv', False, False, False, False,
                         True, True, True, True)
                     mock_report.assert_called_once_with(
@@ -2213,11 +2210,9 @@ class TestBitSizeAnalysis(unittest.TestCase):
             254: 2,
             253: 1
         }
-        old_bit_recall_size = self.analysis.bit_recognition_size
 
         self._all_cis_zeros = True
         self.analysis._bit_size_data_limit = 10000
-        self.analysis.bit_recognition_size = 1
         self.analysis._figure_out_analysis_data_size()
         print_mock.assert_called_once_with(
             "[W] There is not enough data on recognition size to " +
@@ -2225,16 +2220,13 @@ class TestBitSizeAnalysis(unittest.TestCase):
         )
 
         self._all_cis_zeros = False
-        for size in [1, 2, 3, 30, 4]:
-            self.analysis.verbose = not (size == 30)
-            self.analysis._bit_size_data_limit = 10000
-            self.analysis.bit_recognition_size = size
-            self.analysis._figure_out_analysis_data_size()
-            self.assertEqual(self.analysis._bit_size_data_limit, 9109100)
+        self.analysis.verbose = True
+        self.analysis._bit_size_data_limit = 10000
+        self.analysis._figure_out_analysis_data_size()
+        self.assertEqual(self.analysis._bit_size_data_limit, 9109100)
 
         # restore of changed variables
         self._bit_size_data_limit = 10000
-        self.analysis.bit_recognition_size = old_bit_recall_size
         self.analysis._k_sizes = None
 
         self.assertEqual(self.analysis.output, "/tmp")

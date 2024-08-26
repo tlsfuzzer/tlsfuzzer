@@ -102,10 +102,6 @@ def help_msg():
  --bit-size-desired-ci num The desired amount of ns (or lower) that the CIs
                    should have after the analysis up to recognition size
                    option. Used only with smart analysis. Default 1 ns.
- --bit-recognition-size num The <num> biggest bit size will be used to
-                   determine how many samples will be used to get the desired
-                   CI from the analysis. Used only with smart analysis.
-                   Default is 4.
  --measurements    Specifies the measurements file name that should be
                    analyzed.
                    The file must be present in the output dir. This flag only
@@ -137,7 +133,6 @@ def main():
     bit_size_analysis = False
     smart_analysis = True
     bit_size_desired_ci = 1e-9
-    bit_recognition_size = 4
     measurements_filename = "measurements.csv"
     skip_sanity = False
     hamming_weight_analysis = False
@@ -162,7 +157,6 @@ def main():
                                 "bit-size",
                                 "no-smart-analysis",
                                 "bit-size-desired-ci=",
-                                "bit-recognition-size=",
                                 "measurements=",
                                 "skip-sanity",
                                 "Hamming-weight",
@@ -226,8 +220,6 @@ def main():
             smart_analysis = False
         elif opt == "--bit-size-desired-ci":
             bit_size_desired_ci = float(arg) * 1e-9
-        elif opt == "--bit-recognition-size":
-            bit_recognition_size = int(arg)
         elif opt == "--measurements":
             measurements_filename = arg
         elif opt == "--skip-sanity":
@@ -239,9 +231,9 @@ def main():
                             workers, delay, carriage_return,
                             bit_size_analysis or hamming_weight_analysis,
                             smart_analysis, bit_size_desired_ci,
-                            bit_recognition_size, measurements_filename,
-                            skip_sanity, wilcoxon_test, t_test, sign_test,
-                            box_plot, box_test, le_sign_test, sample_stats)
+                            measurements_filename, skip_sanity, wilcoxon_test,
+                            t_test, sign_test, box_plot, box_test,
+                            le_sign_test, sample_stats)
 
         ret = analysis.generate_report(
             bit_size=bit_size_analysis,
@@ -261,7 +253,7 @@ class Analysis(object):
                  verbose=False, clock_frequency=None, alpha=None,
                  workers=None, delay=None, carriage_return=None,
                  bit_size_analysis=False, smart_bit_size_analysis=True,
-                 bit_size_desired_ci=1e-9, bit_recognition_size=4,
+                 bit_size_desired_ci=1e-9,
                  measurements_filename="measurements.csv", skip_sanity=False,
                  run_wilcoxon_test=True, run_t_test=True, run_sign_test=True,
                  draw_box_plot=True, run_box_test=True, run_le_sign_test=True,
@@ -294,8 +286,6 @@ class Analysis(object):
         if bit_size_analysis and smart_bit_size_analysis:
             self._bit_size_data_limit = 100000  # staring amount of samples
             self.bit_size_desired_ci = bit_size_desired_ci
-            self.bit_recognition_size = \
-                bit_recognition_size if bit_recognition_size >= 0 else 1
         else:
             self._bit_size_data_limit = None
 
@@ -2343,10 +2333,6 @@ class Analysis(object):
                 progress.join()
                 print()
 
-
-        if self.bit_recognition_size >= len(self._k_sizes):
-            self.bit_recognition_size = len(self._k_sizes) - 1
-
         with open(join(self.output, "timing.csv"), 'w') as fp:
             fp.write('max,max-1\n')
 
@@ -2384,20 +2370,10 @@ class Analysis(object):
         self.output = old_output
 
         if self.verbose:
-            if self.bit_recognition_size == 1:
-                size_text = "1st"
-            elif self.bit_recognition_size == 2:
-                size_text = "2nd"
-            elif self.bit_recognition_size == 3:
-                size_text = "3rd"
-            else:
-                size_text = "{0}th".format(self.bit_recognition_size)
-
             print(
-                "[i] Calculated that {0:,} samples are needed for "
-                    .format(self._bit_size_data_limit) +
-                "{0:.3}s CI in the {1} larger bit size."
-                    .format(self.bit_size_desired_ci, size_text)
+                "[i] Calculated that {0:,} samples are needed for {1:.3}s CI."
+                    .format(
+                        self._bit_size_data_limit, self.bit_size_desired_ci)
             )
 
     def analyze_bit_sizes(self):
