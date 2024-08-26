@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2015
+# Author: Hubert Kario, (c) 2015, 2024
 # Released under Gnu GPL v2.0, see LICENSE file for details
 """Example MAC value fuzzer"""
 
@@ -16,13 +16,18 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         fuzz_mac, AlertGenerator, fuzz_padding
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectClose, ExpectApplicationData
+        ExpectAlert, ExpectClose, ExpectApplicationData, \
+        ExpectServerKeyExchange
 
-from tlslite.constants import CipherSuite, AlertLevel, AlertDescription
+from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
+        GroupName, ExtensionType
+from tlslite.extensions import SupportedGroupsExtension, \
+        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
+from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
 
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -42,6 +47,11 @@ def help_msg():
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
     print("                (excluding \"sanity\" tests)")
+    print(" -d             negotiate (EC)DHE instead of RSA key exchange, send")
+    print("                additional extensions, usually used for (EC)DHE ciphers")
+    print(" -C ciph        Use specified ciphersuite. Either numerical value or")
+    print("                IETF name.")
+    print(" -M | --ems     Advertise support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -53,9 +63,12 @@ def main():
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
+    dhe = False
+    ciphers = None
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:M", ["help", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -72,6 +85,18 @@ def main():
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '-d':
+            dhe = True
+        elif opt == '-C':
+            if arg[:2] == '0x':
+                ciphers = [int(arg, 16)]
+            else:
+                try:
+                    ciphers = [getattr(CipherSuite, arg)]
+                except AttributeError:
+                    ciphers = [int(arg)]
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -83,15 +108,53 @@ def main():
     else:
         run_only = None
 
+    if ciphers:
+        if not dhe:
+            # by default send minimal set of extensions, but allow user
+            # to override it
+            dhe = ciphers[0] in CipherSuite.ecdhAllSuites or \
+                    ciphers[0] in CipherSuite.dhAllSuites
+        if ciphers[0] in CipherSuite.shaSuites:
+            mac_len = 20
+        elif ciphers[0] in CipherSuite.sha256Suites:
+            mac_len = 32
+        elif ciphers[0] in CipherSuite.sha384Suites:
+            mac_len = 48
+        else:
+            raise ValueError("Test needs a ciphersuite that uses an HMAC")
+    else:
+        if dhe:
+            ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+        else:
+            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+        mac_len = 20
+    ciphers += [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+
     conversations = {}
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers))
+    ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    if dhe:
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(SIG_ALL)
+    if not ext:
+        ext = None
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -110,26 +173,50 @@ def main():
 
     conversations["sanity"] = conversation
 
-    for pos, val in [
-                     (-1, 0x01),
-                     (-1, 0xff),
-                     (-2, 0x01),
-                     (-2, 0xff),
-                     (-6, 0x01),
-                     (-6, 0xff),
-                     (-12, 0x01),
-                     (-12, 0xff),
-                     (-20, 0x01),
-                     (-20, 0xff),
-                     # SHA-1 HMAC has just 20 bytes
-                     ]:
+    fuzzes = [
+       (-1, 0x01),
+       (-1, 0xff),
+       (-2, 0x01),
+       (-2, 0xff),
+       (-6, 0x01),
+       (-6, 0xff),
+       (-12, 0x01),
+       (-12, 0xff),
+       (-20, 0x01),
+       (-20, 0xff),
+       # SHA-1 HMAC has just 20 bytes
+    ]
+    if mac_len > 20:
+        fuzzes += [
+            (-21, 0x01),
+            (-21, 0xff),
+            (-24, 0x01),
+            (-24, 0xff),
+            (-31, 0x01),
+            (-31, 0xff),
+            (-32, 0x01),
+            (-32, 0xff),
+        ]
+    if mac_len > 32:
+        fuzzes += [
+            (-33, 0x01),
+            (-33, 0xff),
+            (-38, 0x01),
+            (-38, 0xff),
+            (-40, 0x01),
+            (-40, 0xff),
+            (-48, 0x01),
+            (-48, 0xff),
+        ]
+
+    for pos, val in fuzzes:
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        node = node.add_child(ClientHelloGenerator(ciphers))
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(ClientKeyExchangeGenerator())
         node = node.add_child(ChangeCipherSpecGenerator())
@@ -148,19 +235,22 @@ def main():
 
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        node = node.add_child(ClientHelloGenerator(ciphers))
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(ClientKeyExchangeGenerator())
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectFinished())
-        app_data = b"GET / HTTP/1.0\r\nX-Fo: 0\r\n\r\n"
-        assert (len(app_data) + 20 + 1) % 16 == 0
+        app_data = b"GET / HTTP/1.0\r\nX-Fo: 0"
+        if mac_len in (32, 48):
+            app_data += b"0" * 4
+        app_data += b"\r\n\r\n"
+        assert (len(app_data) + mac_len + 1) % 16 == 0, len(app_data)
         node = node.add_child(fuzz_mac(ApplicationDataGenerator(app_data),
                                        xors={pos:val}))
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
@@ -173,22 +263,24 @@ def main():
 
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        node = node.add_child(ClientHelloGenerator(ciphers))
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(ClientKeyExchangeGenerator())
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectFinished())
-        text = b"GET / HTTP/1.0\nX-bad: aaaa\n\n"
-        hmac_tag_length = 20
+        text = b"GET / HTTP/1.0\nX-bad: aaaa"
+        if mac_len in (32, 48):
+            text += b"a" * 4
+        text += b"\n\n"
         block_size = 16
         # make sure that padding has full blocks to work with
-        assert (len(text) + hmac_tag_length) % block_size == 0
+        assert (len(text) + mac_len) % block_size == 0, len(text)
         node = node.add_child(fuzz_mac(fuzz_padding(ApplicationDataGenerator(text),
                                                     min_length=255),
                                        xors={pos:val}))
