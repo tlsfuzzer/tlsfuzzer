@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2015-2019
+# Author: Hubert Kario, (c) 2015-2019,2024
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 from __future__ import print_function
@@ -16,14 +16,18 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         TCPBufferingEnable, TCPBufferingDisable, TCPBufferingFlush
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose, ExpectNoMessage
-from tlsfuzzer.utils.lists import natural_sort_keys
+        ExpectAlert, ExpectApplicationData, ExpectClose, ExpectNoMessage, \
+        ExpectServerKeyExchange
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType
+        GroupName, ExtensionType
+from tlslite.extensions import SupportedGroupsExtension, \
+        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
+from tlsfuzzer.utils.lists import natural_sort_keys
+from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -43,6 +47,11 @@ def help_msg():
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
     print("                (\"sanity\" tests are always executed)")
+    print(" -d             negotiate ECDHE instead of RSA key exchange, send")
+    print("                additional extensions, used for ECDHE ciphers")
+    print(" -C ciph        Use specified ciphersuite. Either numerical value or")
+    print("                IETF name.")
+    print(" -M | --ems     Advertise support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -58,9 +67,12 @@ def main():
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
+    dhe = False
+    ciphers = None
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:M", ["help", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -77,6 +89,18 @@ def main():
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '-d':
+            dhe = True
+        elif opt == '-C':
+            if arg[:2] == '0x':
+                ciphers = [int(arg, 16)]
+            else:
+                try:
+                    ciphers = [getattr(CipherSuite, arg)]
+                except AttributeError:
+                    ciphers = [int(arg)]
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -88,16 +112,39 @@ def main():
     else:
         run_only = None
 
+    if ciphers:
+        if not dhe:
+            # by default send minimal set of extensions, but allow user
+            # to override it
+            dhe = ciphers[0] in CipherSuite.ecdhAllSuites or \
+                    ciphers[0] in CipherSuite.dhAllSuites
+    else:
+        if dhe:
+            ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA]
+        else:
+            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     conversations = {}
 
     # sanity check
     conversation = Connect(host, port)
     node = conversation
     ext = {ExtensionType.renegotiation_info: None}
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    if dhe:
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -105,7 +152,7 @@ def main():
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
     node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\n\n")))
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -116,7 +163,6 @@ def main():
     # test if server doesn't interpret extensions past extensions length
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(pad_handshake(ClientHelloGenerator(ciphers,
                                                extensions={}),
                                         # empty renegotiation info
@@ -129,48 +175,51 @@ def main():
 
     conversations["extension past extensions"] = conversation
 
+    ext_len = (
+        2 + # overall length
+        2 + 2 + 1 # renegotiation_info
+    )
+    if ems:
+        ext_len += 2 + 2 # extended_master_secret
+    if dhe:
+        ext_len += (
+            2 + 2 +
+            2 + 2 * len(ext[ExtensionType.supported_groups].groups) +
+            2 + 2 +
+            2 + 2 * len(ext[ExtensionType.signature_algorithms].sigalgs) +
+            2 + 2 +
+            2 + 2 * len(ext[ExtensionType.signature_algorithms_cert].sigalgs)
+        )
 
-    for name, pad_len, pad_byte in [
-                                ("small pad", 1, 0),
-                                ("small pad", 2, 0),
-                                ("small pad", 3, 0),
-                                ("small pad", 1, 0xff),
-                                ("small pad", 2, 0xff),
-                                ("small pad", 3, 0xff),
-                                ("medium pad", 256, 0),
-                                ("large pad", 4096, 0),
-                                ("big pad", 2**16, 0),
-                                ("huge pad", 2**17+512, 0),
-                                ("max pad", 2**24-1-48, 0),
-                                ("small truncate", -1, 0),
-                                ("small truncate", -2, 0),
-                                ("small truncate", -3, 0),
-                                ("small truncate", -4, 0),
-                                ("small truncate", -5, 0),
-                                ("small truncate", -6, 0),
-                                # 7 bytes truncates whole 'extensions' creating
-                                # a valid message
-                                #("small truncate", -7, 0),
-                                ("hello truncate", -8, 0),
-                                ("hello truncate", -9, 0),
-                                ("hello truncate", -10, 0),
-                                ("hello truncate", -11, 0),
-                                ("hello truncate", -12, 0),
-                                ("hello truncate", -13, 0),
-                                ("hello truncate", -32, 0),
-                                ("hello truncate", -39, 0),
-                                # truncate so that only one byte...
-                                ("hello truncate", -47, 0),
-                                # ...or no message remains
-                                ("full message truncate", -48, 0)
-                                ]:
+    tests = [
+        ("small pad", 1, 0),
+        ("small pad", 2, 0),
+        ("small pad", 3, 0),
+        ("small pad", 1, 0xff),
+        ("small pad", 2, 0xff),
+        ("small pad", 3, 0xff),
+        ("medium pad", 256, 0),
+        ("large pad", 4096, 0),
+        ("big pad", 2**16, 0),
+        ("huge pad", 2**17+512, 0),
+        ("max pad", 2**24-1-41-ext_len, 0),
+    ]
+    for i in range(-1, -ext_len, -1):
+        tests.append(("small truncate", i, 0))
+    # if we truncate ext_len bytes then it creates a valid message
+    # without extensions
+    for i in [1, 2, 3, 4, 5, 6, 25, 32, 40]:
+        tests.append(("hello truncate", -(ext_len + i), 0))
+    # truncate so that no message remains
+    tests.append(("full message truncate", -(ext_len + 41), 0))
+
+    for name, pad_len, pad_byte in tests:
 
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
 
         msg = pad_handshake(ClientHelloGenerator(ciphers,
-                                                 extensions={ExtensionType.renegotiation_info: None}),
+                                                 extensions=ext),
                             pad_len, pad_byte)
         fragments = []
         node = node.add_child(split_message(msg, fragments, 2**14))
