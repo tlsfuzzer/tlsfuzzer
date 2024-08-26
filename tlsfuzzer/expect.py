@@ -1367,9 +1367,16 @@ class ExpectCertificateRequest(_ExpectExtensionsMessage):
     def _sanity_check_cert_types(cert_request):
         """Verify that the CertificateRequest is self-consistent."""
         for sig_alg in cert_request.supported_signature_algs:
-            if sig_alg[1] in (SignatureAlgorithm.ecdsa,
-                              SignatureAlgorithm.ed25519,
-                              SignatureAlgorithm.ed448):
+            if sig_alg in (SignatureScheme.ecdsa_brainpoolP256r1tls13_sha256,
+                           SignatureScheme.ecdsa_brainpoolP384r1tls13_sha384,
+                           SignatureScheme.ecdsa_brainpoolP512r1tls13_sha512):
+                raise AssertionError(
+                    "TLS 1.3 specific signature scheme in an earlier protocol "
+                    "version: {0}".format(sig_alg))
+
+            if sig_alg[1] == SignatureAlgorithm.ecdsa or \
+                sig_alg in (SignatureScheme.ed25519,
+                            SignatureScheme.ed448):
                 key_type = "ECDSA"
                 cert_type = "ecdsa_sign"
             elif sig_alg[1] == SignatureAlgorithm.rsa:
