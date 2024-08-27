@@ -650,5 +650,17 @@
                         "-k", "tests/clientDSAKey.pem",
                         "-c", "tests/clientDSACert.pem"]}
      ]
+    },
+    {"server_command": ["{python}", "-u", "{command}", "server",
+                "-k", "tests/serverX509Key.pem",
+                "-c", "tests/serverX509Cert.pem",
+                "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "tests" : [
+         {"name": "test-point-extension.py",
+          "arguments": ["-d"]}
+     ]
     }
 ]

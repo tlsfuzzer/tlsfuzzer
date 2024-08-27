@@ -30,7 +30,7 @@ from tlslite.utils.cryptomath import secureHMAC, derive_secret, \
         HKDF_expand_label
 from tlslite.mathtls import RFC7919_GROUPS, FFDHE_PARAMETERS, calc_key
 from tlslite.keyexchange import KeyExchange, DHE_RSAKeyExchange, \
-        ECDHE_RSAKeyExchange
+        ECDHE_RSAKeyExchange, AECDHKeyExchange
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 from tlslite.errors import TLSDecryptionFailed, TLSIllegalParameterException
@@ -1284,13 +1284,13 @@ class ExpectServerKeyExchange(ExpectHandshake):
         server_random = state.server_random
         public_key = state.get_server_public_key()
         server_hello = state.get_last_message_of_type(ServerHello)
+        client_hello = state.get_last_message_of_type(ClientHello)
         if server_hello is None:
             server_hello = ServerHello
             server_hello.server_version = state.version
         if valid_sig_algs is None:
             # if the value was unset in script, get the advertised value from
             # Client Hello
-            client_hello = state.get_last_message_of_type(ClientHello)
             if client_hello is not None:
                 sig_algs_ext = client_hello.getExtension(ExtensionType.
                                                          signature_algorithms)
@@ -1302,42 +1302,36 @@ class ExpectServerKeyExchange(ExpectHandshake):
                 if self.cipher_suite in CipherSuite.ecdheEcdsaSuites:
                     valid_sig_algs = [(HashAlgorithm.sha1,
                                        SignatureAlgorithm.ecdsa)]
-
-        if self.point_ext is None:
-            ext_negotiated = ECPointFormat.uncompressed
-            if client_hello is not None and server_hello is not None:
-                ext_s = server_hello.getExtension(ExtensionType.ec_point_formats)
-                ext_c = client_hello.getExtension(ExtensionType.ec_point_formats)
-                if ext_c and ext_s:
-                    try:
-                        ext_supported = [
-                            i for i in ext_c.formats if i in ext_s.formats
-                            ]
-                        ext_negotiated = ext_supported[0]
-                    except IndexError:
-                        raise TLSIllegalParameterException("No common EC point format")
-            if server_key_exchange.ecdh_Ys[0] == 4:
-                if ext_negotiated != ECPointFormat.uncompressed:
-                    raise AssertionError("Wrong point extension. \
-                                        Expected uncompressed.")
-            elif server_key_exchange.ecdh_Ys[0] == 2 or \
-                server_key_exchange.ecdh_Ys[0] == 3:
-                if ext_negotiated != ECPointFormat.ansiX962_compressed_prime:
-                    raise AssertionError("Wrong point extension. \
-                                        Expected compressed.")
-        else:
+        if isinstance(server_key_exchange, AECDHKeyExchange):
+            if not self.point_ext:
+                self.point_ext = ECPointFormat.uncompressed
+                server_hello = state.get_last_message_of_type(ServerHello)
+                if client_hello is not None and server_hello is not None:
+                    ext_s = server_hello.getExtension(
+                        ExtensionType.ec_point_formats)
+                    ext_c = client_hello.getExtension(
+                        ExtensionType.ec_point_formats)
+                    if ext_c and ext_s:
+                        try:
+                            ext_supported = [
+                                i for i in ext_c.formats if i in ext_s.formats
+                                ]
+                            self.point_ext = ext_supported[0]
+                        except IndexError:
+                            raise TLSIllegalParameterException(
+                                "No common EC point format")
             if self.point_ext == ECPointFormat.uncompressed:
                 if server_key_exchange.ecdh_Ys[0] != 4:
                     raise AssertionError("Wrong point extension. \
-                                        Expected uncompressed.")
+                                         Expected uncompressed.")
             elif self.point_ext == ECPointFormat.ansiX962_compressed_prime:
                 if server_key_exchange.ecdh_Ys[0] != 2 and \
                     server_key_exchange.ecdh_Ys[0] != 3:
                     raise AssertionError("Wrong point extension. \
                                         Expected compressed.")
             else:
-                raise TLSIllegalParameterException("Unsupported EC point format.")
-
+                raise TLSIllegalParameterException(
+                    "Unsupported EC point format.")
 
         try:
             KeyExchange.verifyServerKeyExchange(server_key_exchange,

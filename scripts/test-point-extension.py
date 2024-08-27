@@ -84,7 +84,7 @@ def main():
     port = 4433
     num_limit = None
     run_exclude = set()
-    expected_failures = {"ECDHE uncompressed point extension missing":"Unexpected closure from peer"}
+    expected_failures = {}
     last_exp_tmp = None
     dhe = False
     ciphers = None
@@ -286,6 +286,7 @@ def main():
             SignatureAlgorithmsExtension().create(SIG_ALL)
         ext[ExtensionType.signature_algorithms_cert] = \
             SignatureAlgorithmsCertExtension().create(SIG_ALL)
+        # the server does not support ansiX962_compressed_char2
         ext[ExtensionType.ec_point_formats] = \
             ECPointFormatsExtension().create([ECPointFormat.ansiX962_compressed_char2, \
                                               ECPointFormat.uncompressed])
@@ -339,13 +340,68 @@ def main():
     server_ext[ExtensionType.ec_point_formats] = \
             ECPointFormatsExtension().create([ECPointFormat.ansiX962_compressed_prime,
                                                ECPointFormat.uncompressed])
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                       AlertDescription.illegal_parameter))
+    node.next_sibling = ExpectClose()
+    node.add_child(Close())
+
+    conversations["ECDHE uncompressed point extension missing"] = conversation
+
+    conversation = Connect(host, port)
+    node = conversation
+    ext = {}
+    if dhe:
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(SIG_ALL)
+        ext[ExtensionType.ec_point_formats] = \
+            ECPointFormatsExtension().create([])
+    node = node.add_child(ClientHelloGenerator(
+        ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
+        extensions=ext))
+    server_ext={}
+    server_ext[ExtensionType.ec_point_formats] = \
+            ECPointFormatsExtension().create([ECPointFormat.ansiX962_compressed_prime,
+                                               ECPointFormat.uncompressed])
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                       AlertDescription.illegal_parameter))
+    node.next_sibling = ExpectClose()
+    node.add_child(Close())
+
+    conversations["ECDHE client sends empty ec point extension format"] = conversation
+
+    conversation = Connect(host, port)
+    node = conversation
+    ext = {}
+    if dhe:
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(
+        ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
+        extensions=ext))
+    server_ext={}
+    # when the client does not send the ec point format extension,
+    # the server will not send them in the server hello as well.
+    # therefore the uncompressed will be used.
     renego_ext = RenegotiationInfoExtension().create(b'')
     server_ext[ExtensionType.renegotiation_info] = renego_ext
     node = node.add_child(ExpectServerHello(
         extensions=server_ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
-        node = node.add_child(ExpectServerKeyExchange(point_ext=ECPointFormat.uncompressed))
+        node = node.add_child(
+            ExpectServerKeyExchange(point_ext=ECPointFormat.uncompressed))
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -358,7 +414,51 @@ def main():
     node.next_sibling = ExpectClose()
     node.add_child(Close())
 
-    conversations["ECDHE uncompressed point extension missing"] = conversation
+    conversations["ECDHE client does not send the ec point extensions"] = conversation
+
+    conversation = Connect(host, port)
+    node = conversation
+    ext = {}
+    if dhe:
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(SIG_ALL)
+        ext[ExtensionType.ec_point_formats] = \
+            ECPointFormatsExtension().create([ECPointFormat.ansiX962_compressed_prime,
+                                              ECPointFormat.uncompressed])
+    node = node.add_child(ClientHelloGenerator(
+        ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
+        extensions=ext))
+    server_ext={}
+    server_ext[ExtensionType.ec_point_formats] = \
+            ECPointFormatsExtension().create([ECPointFormat.ansiX962_compressed_prime,
+                                               ECPointFormat.uncompressed])
+    renego_ext = RenegotiationInfoExtension().create(b'')
+    server_ext[ExtensionType.renegotiation_info] = renego_ext
+    node = node.add_child(ExpectServerHello(
+        extensions=server_ext))
+    node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(
+            ExpectServerKeyExchange(point_ext=ECPointFormat.ansiX962_compressed_prime))
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+    node.add_child(Close())
+
+    conversations["ECDHE renegotiation attempt of ec point extension"] = conversation
 
     # run the conversation
     good = 0
@@ -421,6 +521,9 @@ def main():
             else:
                 bad += 1
                 failed.append(c_name)
+
+    print("Test to verify that server's ec point extension\n")
+    print("negotiation in TLS 1.2 is according the to the guidlines.")
 
     print("Test end")
     print(20 * '=')
