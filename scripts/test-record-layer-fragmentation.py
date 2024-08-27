@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2015
+# Author: Hubert Kario, (c) 2015, 2024
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 from __future__ import print_function
@@ -16,15 +16,18 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ResetHandshakeHashes, SetMaxRecordSize
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose
+        ExpectAlert, ExpectApplicationData, ExpectClose, \
+        ExpectServerKeyExchange
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType
-from tlslite.extensions import TLSExtension
+        GroupName, ExtensionType
+from tlslite.extensions import TLSExtension, SupportedGroupsExtension, \
+        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
+from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
 
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -44,6 +47,11 @@ def help_msg():
     print(" -X message     expect the `message` substring in exception raised during")
     print("                execution of preceding expected failure probe")
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
+    print(" -d             negotiate (EC)DHE instead of RSA key exchange, send")
+    print("                additional extensions, usually used for (EC)DHE ciphers")
+    print(" -C ciph        Use specified ciphersuite. Either numerical value or")
+    print("                IETF name.")
+    print(" -M | --ems     Advertise support for Extended Master Secret")
     print(" --help         this message")
 
 def main():
@@ -58,9 +66,12 @@ def main():
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
+    dhe = False
+    ciphers = None
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:x:X:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:M", ["help", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -77,6 +88,18 @@ def main():
             if not last_exp_tmp:
                 raise ValueError("-x has to be specified before -X")
             expected_failures[last_exp_tmp] = str(arg)
+        elif opt == '-d':
+            dhe = True
+        elif opt == '-C':
+            if arg[:2] == '0x':
+                ciphers = [int(arg, 16)]
+            else:
+                try:
+                    ciphers = [getattr(CipherSuite, arg)]
+                except AttributeError:
+                    ciphers = [int(arg)]
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -88,24 +111,56 @@ def main():
     else:
         run_only = None
 
+    if ciphers:
+        if not dhe:
+            # by default send minimal set of extensions, but allow user
+            # to override it
+            dhe = ciphers[0] in CipherSuite.ecdhAllSuites or \
+                    ciphers[0] in CipherSuite.dhAllSuites
+    else:
+        if dhe:
+            ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+        else:
+            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    ciphers += [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+
+
     conversations = {}
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {21: TLSExtension().create(21, bytearray(10))}
+    ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    if dhe:
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(SIG_ALL)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(SIG_ALL)
+    ext[21] = TLSExtension().create(21, bytearray(10))
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext))
-    node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+    srv_ext = {ExtensionType.renegotiation_info: None}
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
+    node = node.add_child(ExpectServerHello(extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectFinished())
-    node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
     node = node.add_child(ExpectApplicationData())
     node = node.add_child(AlertGenerator(AlertLevel.warning,
                                          AlertDescription.close_notify))
@@ -121,6 +176,17 @@ def main():
     #
     # note: None for record_len will cause the limit to be set to protocol
     # maximum - 2**14
+    max_len = 2**16-5
+    if ems:
+        # 2 bytes for the ext ID and 2 bytes for ext length
+        max_len -= 4
+    if dhe:
+        # 4 bytes for ID and overall length, 2 for length and 2 for each group
+        max_len -= 4 + 2 + 2 * len(ext[ExtensionType.supported_groups].groups)
+        max_len -= 4 + 2 + \
+                2 * len(ext[ExtensionType.signature_algorithms].sigalgs)
+        max_len -= 4 + 2 + \
+                2 * len(ext[ExtensionType.signature_algorithms_cert].sigalgs)
 
     for name, ext_len, record_len in [
                                 ("small hello", 20, None),
@@ -135,7 +201,7 @@ def main():
                                 ("big, needs fragmentation", 2**14-49, None),
                                 ("big, needs fragmentation", 2**14-48, None),
                                 ("big, needs fragmentation", 2**15, None),
-                                ("maximum size", 2**16-5, None),
+                                ("maximum size", max_len, None),
                                 ("small, reasonable fragmentation", 20, 1024),
                                 ("medium, reasonable fragmentation", 1024, 1024),
                                 ("big, reasonable fragmentation", 2**12, 1024),
@@ -149,20 +215,22 @@ def main():
         conversation = Connect(host, port)
         node = conversation
         node = node.add_child(SetMaxRecordSize(record_len))
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        ext = {21: TLSExtension().create(21, bytearray(ext_len))}
+        new_ext = dict(ext)
+        new_ext[21] = TLSExtension().create(21, bytearray(ext_len))
         node = node.add_child(ClientHelloGenerator(ciphers,
-                                                   extensions=ext))
-        node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+                                                   extensions=new_ext))
+        node = node.add_child(ExpectServerHello(extensions=srv_ext))
         node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
         node = node.add_child(ExpectServerHelloDone())
         node = node.add_child(ClientKeyExchangeGenerator())
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectFinished())
-        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\n\n")))
+        node = node.add_child(ApplicationDataGenerator(bytearray(
+            b"GET / HTTP/1.0\r\n\r\n")))
         node = node.add_child(ExpectApplicationData())
         # XXX RFCs do NOT consider Alerts special with regards to fragmentation
         node = node.add_child(SetMaxRecordSize(2))
@@ -182,10 +250,10 @@ def main():
     conversation = Connect(host, port)
     node = conversation
     node = node.add_child(SetMaxRecordSize(2**16-1))
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    new_ext = dict(ext)
+    new_ext[21] = padding_extension
     node = node.add_child(ClientHelloGenerator(ciphers,
-                                               extensions={21: padding_extension}))
+                                               extensions=new_ext))
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
 
