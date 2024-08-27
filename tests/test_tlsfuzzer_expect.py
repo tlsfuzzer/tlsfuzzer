@@ -2666,7 +2666,7 @@ class TestExpectFinished(unittest.TestCase):
         # is called with them
         state = ConnectionState()
         msg = Message(ContentType.handshake,
-                      bytearray([HandshakeType.finished, 0, 0, 12]) + 
+                      bytearray([HandshakeType.finished, 0, 0, 12]) +
                       bytearray(b"\xa3;\x9c\xc9\'E\xbc\xf6\xc7\x96\xaf\x7f"))
 
         exp.process(state, msg)
@@ -3292,8 +3292,7 @@ class TestExpectServerKeyExchange(unittest.TestCase):
         server_hello.server_version = (3, 3)
         server_hello.random = bytearray(32)
         state.server_random = server_hello.random
-        # server hello is not necessary for the test to work
-        #state.handshake_messages.append(server_hello)
+        state.handshake_messages.append(server_hello)
         state.handshake_messages.append(cert)
         srv_key_exchange = ECDHE_RSAKeyExchange(
                 CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
