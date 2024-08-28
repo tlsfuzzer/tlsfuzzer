@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2015
+# Author: Hubert Kario, (c) 2015, 2024
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 """Test for DHE_RSA key exchange error handling"""
@@ -16,7 +16,7 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
         truncate_handshake, TCPBufferingEnable, TCPBufferingDisable, \
-        TCPBufferingFlush, pad_handshake
+        TCPBufferingFlush, pad_handshake, fuzz_message
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectServerKeyExchange, \
@@ -30,7 +30,7 @@ from tlslite.extensions import SignatureAlgorithmsExtension, \
 from tlsfuzzer.helpers import RSA_SIG_ALL, AutoEmptyExtension
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -209,6 +209,46 @@ def main():
 
         conversations["invalid dh_Yc value - {0}".format(i)] = conversation
 
+    conversation = Connect(host, port)
+    node = conversation
+    ext = {}
+    ext[ExtensionType.renegotiation_info] = None
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(RSA_SIG_ALL)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    ciphers = [CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    node = node.add_child(ClientHelloGenerator(ciphers,
+                                               extensions=ext))
+    srv_ext = {ExtensionType.renegotiation_info:None}
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
+    node = node.add_child(ExpectServerHello(extensions=srv_ext))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(
+        truncate_handshake(
+            fuzz_message(
+                ClientKeyExchangeGenerator(dh_Yc=0),
+                substitutions={-1: 0}
+            ),
+            1
+        )
+    )
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.decode_error))
+    node = node.add_child(ExpectClose())
+
+    conversations["invalid dh_Yc value - missing"] = conversation
+
     # share equal to p
     conversation = Connect(host, port)
     node = conversation
@@ -332,7 +372,7 @@ def main():
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(TCPBufferingEnable())
     node = node.add_child(pad_handshake(ClientKeyExchangeGenerator(),
-                                             1))
+                                        1))
     node = node.add_child(ChangeCipherSpecGenerator())
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
