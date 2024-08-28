@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2016
+# Author: Hubert Kario, (c) 2016,2024
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 """Check handling of malformed ECDHE_RSA client key exchange messages"""
@@ -25,11 +25,13 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         ExtensionType, GroupName, ECPointFormat
 from tlslite.extensions import SupportedGroupsExtension, \
-        ECPointFormatsExtension
+        ECPointFormatsExtension, SignatureAlgorithmsExtension, \
+        SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
+from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
 
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -49,6 +51,9 @@ def help_msg():
     print(" -X message     expect the `message` substring in exception raised during")
     print("                execution of preceding expected failure probe")
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
+    print(" -C ciph        Use specified ciphersuite. Either numerical value or")
+    print("                IETF name.")
+    print(" -M | --ems     Advertise support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -60,9 +65,11 @@ def main():
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
+    ciphers = None
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:x:X:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:x:X:C:M", ["help", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -79,6 +86,16 @@ def main():
             if not last_exp_tmp:
                 raise ValueError("-x has to be specified before -X")
             expected_failures[last_exp_tmp] = str(arg)
+        elif opt == '-C':
+            if arg[:2] == '0x':
+                ciphers = [int(arg, 16)]
+            else:
+                try:
+                    ciphers = [getattr(CipherSuite, arg)]
+                except AttributeError:
+                    ciphers = [int(arg)]
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -90,21 +107,27 @@ def main():
     else:
         run_only = None
 
+    if not ciphers:
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA]
+
     conversations = {}
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA]
     ext = {ExtensionType.renegotiation_info: None,
            ExtensionType.supported_groups: SupportedGroupsExtension().
            create([GroupName.secp256r1]),
            ExtensionType.ec_point_formats: ECPointFormatsExtension().
            create([ECPointFormat.uncompressed])}
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(SIG_ALL)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(SIG_ALL)
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext))
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.ec_point_formats: None}
-    node = node.add_child(ExpectServerHello(extensions=ext))
+    srv_ext = {ExtensionType.renegotiation_info: None,
+               ExtensionType.ec_point_formats: None}
+    node = node.add_child(ExpectServerHello(extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
@@ -126,17 +149,9 @@ def main():
     # invalid ecdh_Yc value
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA]
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.supported_groups: SupportedGroupsExtension().
-           create([GroupName.secp256r1]),
-           ExtensionType.ec_point_formats: ECPointFormatsExtension().
-           create([ECPointFormat.uncompressed])}
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext))
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.ec_point_formats: None}
-    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectServerHello(extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
@@ -158,17 +173,9 @@ def main():
     # invalid ecdh_Yc value
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA]
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.supported_groups: SupportedGroupsExtension().
-           create([GroupName.secp256r1]),
-           ExtensionType.ec_point_formats: ECPointFormatsExtension().
-           create([ECPointFormat.uncompressed])}
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext))
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.ec_point_formats: None}
-    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectServerHello(extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
@@ -192,17 +199,9 @@ def main():
     # invalid ecdh_Yc value
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA]
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.supported_groups: SupportedGroupsExtension().
-           create([GroupName.secp256r1]),
-           ExtensionType.ec_point_formats: ECPointFormatsExtension().
-           create([ECPointFormat.uncompressed])}
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext))
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.ec_point_formats: None}
-    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectServerHello(extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
@@ -224,17 +223,9 @@ def main():
     # invalid ecdh_Yc value
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA]
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.supported_groups: SupportedGroupsExtension().
-           create([GroupName.secp256r1]),
-           ExtensionType.ec_point_formats: ECPointFormatsExtension().
-           create([ECPointFormat.uncompressed])}
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext))
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.ec_point_formats: None}
-    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectServerHello(extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
@@ -256,17 +247,9 @@ def main():
     # truncated Client Key Exchange
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA]
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.supported_groups: SupportedGroupsExtension().
-           create([GroupName.secp256r1]),
-           ExtensionType.ec_point_formats: ECPointFormatsExtension().
-           create([ECPointFormat.uncompressed])}
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext))
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.ec_point_formats: None}
-    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectServerHello(extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
@@ -288,17 +271,9 @@ def main():
     # padded Client Key Exchange
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA]
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.supported_groups: SupportedGroupsExtension().
-           create([GroupName.secp256r1]),
-           ExtensionType.ec_point_formats: ECPointFormatsExtension().
-           create([ECPointFormat.uncompressed])}
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext))
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.ec_point_formats: None}
-    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectServerHello(extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
