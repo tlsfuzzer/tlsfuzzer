@@ -28,7 +28,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -117,11 +117,12 @@ def main():
                     ciphers[0] in CipherSuite.dhAllSuites
     else:
         if dhe:
-            ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-                       CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                       CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+            ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+                       CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+                       CipherSuite.TLS_DHE_RSA_WITH_AES_128_GCM_SHA256]
         else:
-            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_GCM_SHA256]
+    ciphers += [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
 
     conversations = {}
 
@@ -139,13 +140,6 @@ def main():
             SignatureAlgorithmsExtension().create(SIG_ALL)
         ext[ExtensionType.signature_algorithms_cert] = \
             SignatureAlgorithmsCertExtension().create(SIG_ALL)
-        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_GCM_SHA256,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    else:
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_GCM_SHA256,
-            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     if not ext:
         ext = None
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -177,27 +171,6 @@ def main():
     for pos, val in fuzzes:
         conversation = Connect(host, port)
         node = conversation
-        ext = {}
-        if ems:
-            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
-        if dhe:
-            groups = [GroupName.secp256r1,
-                      GroupName.ffdhe2048]
-            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-                .create(groups)
-            ext[ExtensionType.signature_algorithms] = \
-                SignatureAlgorithmsExtension().create(SIG_ALL)
-            ext[ExtensionType.signature_algorithms_cert] = \
-                SignatureAlgorithmsCertExtension().create(SIG_ALL)
-            ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-                       CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-                       CipherSuite.TLS_DHE_RSA_WITH_AES_128_GCM_SHA256,
-                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        else:
-            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_GCM_SHA256,
-                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        if not ext:
-            ext = None
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectCertificate())
