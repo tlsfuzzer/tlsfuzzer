@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2016
+# Author: Hubert Kario, (c) 2016, 2024
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 from __future__ import print_function
@@ -15,14 +15,18 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         fuzz_message
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectApplicationData, ExpectClose
+        ExpectAlert, ExpectApplicationData, ExpectClose, \
+        ExpectServerKeyExchange
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType
+        GroupName, ExtensionType, SignatureAlgorithm, HashAlgorithm
+from tlslite.extensions import SupportedGroupsExtension, \
+        SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
+from tlsfuzzer.helpers import AutoEmptyExtension
 
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -42,6 +46,11 @@ def help_msg():
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" -n num         run 'num' or all(if 0) tests instead of default(500)")
     print("                (excluding \"sanity\" tests)")
+    print(" -d             negotiate ECDHE-RSA instead of RSA key exchange, send")
+    print("                additional extensions")
+    print(" -C ciph        Use specified ciphersuite. Either numerical value or")
+    print("                IETF name.")
+    print(" -M | --ems     Advertise support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -52,9 +61,12 @@ def main():
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
+    dhe = False
+    ciphers = None
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:M", ["help", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -71,6 +83,18 @@ def main():
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '-d':
+            dhe = True
+        elif opt == '-C':
+            if arg[:2] == '0x':
+                ciphers = [int(arg, 16)]
+            else:
+                try:
+                    ciphers = [getattr(CipherSuite, arg)]
+                except AttributeError:
+                    ciphers = [int(arg)]
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -82,15 +106,60 @@ def main():
     else:
         run_only = None
 
+    if ciphers:
+        if not dhe:
+            # by default send minimal set of extensions, but allow user
+            # to override it
+            dhe = ciphers[0] in CipherSuite.ecdhAllSuites or \
+                    ciphers[0] in CipherSuite.dhAllSuites
+    else:
+        if dhe:
+            ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA]
+        else:
+            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+
     conversations = {}
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3)))
-    node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+    ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    if dhe:
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        # because we're fuzzing, we need consistent lengths, so
+        # hardcode values
+        sig_algs = [
+            (x, y) for x in
+            [HashAlgorithm.sha1,
+             HashAlgorithm.sha256,
+             HashAlgorithm.sha384,
+             HashAlgorithm.sha512]
+            for y in
+            [SignatureAlgorithm.ecdsa,
+             SignatureAlgorithm.rsa]
+        ]
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(sig_algs)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(sig_algs)
+    ext_renego_info = dict(ext)
+    if not ext:
+        ext = None
+    ext_renego_info[ExtensionType.renegotiation_info] = None
+    node = node.add_child(ClientHelloGenerator(
+        ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
+        version=(3, 3), extensions=ext))
+    srv_ext = {ExtensionType.renegotiation_info:None}
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
+    node = node.add_child(ExpectServerHello(extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -108,12 +177,15 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    ext = {ExtensionType.renegotiation_info: None}
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
-                                               extensions=ext))
-    node = node.add_child(ExpectServerHello(extensions={ExtensionType.renegotiation_info:None}))
+                                               extensions=ext_renego_info))
+    srv_ext = {ExtensionType.renegotiation_info:None}
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
+    node = node.add_child(ExpectServerHello(extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -133,36 +205,35 @@ def main():
     for i in range(1, 0x100):
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        hello_gen = ClientHelloGenerator(ciphers, version=(3, 3))
+        hello_gen = ClientHelloGenerator(
+            ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
+            version=(3, 3),
+            extensions=ext)
         node = node.add_child(fuzz_message(hello_gen, xors={0: i}))
         node = node.add_child(ExpectAlert(level=AlertLevel.fatal,
                                           description=AlertDescription.unexpected_message))
         node = node.add_child(ExpectClose())
         conversations["Client Hello type fuzz to {0}".format(1 ^ i)] = conversation
 
-
     # test invalid sizes for session ID length
-    for i in range(1, 0x100):
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        hello_gen = ClientHelloGenerator(ciphers, version=(3, 3))
-        node = node.add_child(fuzz_message(hello_gen, substitutions={38: i}))
-        node = node.add_child(ExpectAlert(level=AlertLevel.fatal,
-                                          description=AlertDescription.decode_error))
-        node = node.add_child(ExpectClose())
-        conversations["session ID len fuzz to {0}".format(i)] = conversation
+    if not ext:
+        for i in range(1, 0x100):
+            conversation = Connect(host, port)
+            node = conversation
+            hello_gen = ClientHelloGenerator(
+                ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
+                version=(3, 3), extensions=ext)
+            node = node.add_child(fuzz_message(hello_gen, substitutions={38: i}))
+            node = node.add_child(ExpectAlert(level=AlertLevel.fatal,
+                                              description=AlertDescription.decode_error))
+            node = node.add_child(ExpectClose())
+            conversations["session ID len fuzz to {0}".format(i)] = conversation
 
     for i in range(1, 0x100):
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-        ext = {ExtensionType.renegotiation_info: None}
         hello_gen = ClientHelloGenerator(ciphers, version=(3, 3),
-                                         extensions=ext)
+                                         extensions=ext_renego_info)
         node = node.add_child(fuzz_message(hello_gen, substitutions={38: i}))
         node = node.add_child(ExpectAlert(level=AlertLevel.fatal,
                                           description=AlertDescription.decode_error))
@@ -171,38 +242,42 @@ def main():
 
 
     # test invalid sizes for cipher suites length
-    for i in range(1, 0x100):
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        hello_gen = ClientHelloGenerator(ciphers, version=(3, 3))
-        node = node.add_child(fuzz_message(hello_gen, xors={40: i}))
-        node = node.add_child(ExpectAlert(level=AlertLevel.fatal,
-                                          description=AlertDescription.decode_error))
-        node = node.add_child(ExpectClose())
-        conversations["cipher suites len fuzz to {0}".format(4 ^ i)] = conversation
-
-    for i in (1, 2, 4, 8, 16, 128, 254, 255):
-        for j in range(0, 0x100):
+    if not ext:
+        for i in range(1, 0x100):
             conversation = Connect(host, port)
             node = conversation
-            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-            hello_gen = ClientHelloGenerator(ciphers, version=(3, 3))
-            node = node.add_child(fuzz_message(hello_gen, substitutions={39: i, 40: j}))
+            hello_gen = ClientHelloGenerator(
+                ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
+                version=(3, 3), extensions=ext)
+            node = node.add_child(fuzz_message(hello_gen, xors={40: i}))
             node = node.add_child(ExpectAlert(level=AlertLevel.fatal,
                                               description=AlertDescription.decode_error))
             node = node.add_child(ExpectClose())
-            conversations["cipher suites len fuzz to {0}".format((i<<8) + j)] = conversation
+            conversations["cipher suites len fuzz to {0}".format(4 ^ i)] = conversation
+
+        for i in (1, 2, 4, 8, 16, 128, 254, 255):
+            for j in range(0, 0x100):
+                conversation = Connect(host, port)
+                node = conversation
+                hello_gen = ClientHelloGenerator(
+                    ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
+                    version=(3, 3), extensions=ext)
+                node = node.add_child(fuzz_message(hello_gen, substitutions={39: i, 40: j}))
+                node = node.add_child(ExpectAlert(level=AlertLevel.fatal,
+                                                  description=AlertDescription.decode_error))
+                node = node.add_child(ExpectClose())
+                conversations["cipher suites len fuzz to {0}".format((i<<8) + j)] = conversation
 
     for i in range(1, 0x100):
+        # create valid extension-less ClientHellos
+        if dhe and not ems and i == 56:
+            continue
+        if dhe and ems and i == 60:
+            continue
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-        ext = {ExtensionType.renegotiation_info: None}
         hello_gen = ClientHelloGenerator(ciphers, version=(3, 3),
-                                         extensions=ext)
+                                         extensions=ext_renego_info)
         node = node.add_child(fuzz_message(hello_gen, xors={40: i}))
         node = node.add_child(ExpectAlert(level=AlertLevel.fatal,
                                           description=AlertDescription.decode_error))
@@ -213,10 +288,8 @@ def main():
         for j in range(0, 0x100):
             conversation = Connect(host, port)
             node = conversation
-            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-            ext = {ExtensionType.renegotiation_info: None}
             hello_gen = ClientHelloGenerator(ciphers, version=(3, 3),
-                                             extensions=ext)
+                                             extensions=ext_renego_info)
             node = node.add_child(fuzz_message(hello_gen, substitutions={39: i, 40: j}))
             node = node.add_child(ExpectAlert(level=AlertLevel.fatal,
                                               description=AlertDescription.decode_error))
@@ -224,27 +297,32 @@ def main():
             conversations["cipher suites len fuzz to {0} w/ext".format((i<<8) + j)] = conversation
 
     # test invalid sizes for compression methods
-    for i in range(1, 0x100):
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        hello_gen = ClientHelloGenerator(ciphers, version=(3, 3))
-        node = node.add_child(fuzz_message(hello_gen, xors={45: i}))
-        node = node.add_child(ExpectAlert(level=AlertLevel.fatal,
-                                          description=AlertDescription.decode_error))
-        node = node.add_child(ExpectClose())
-        conversations["compression methods len fuzz to {0}".format(1 ^ i)] = conversation
+    if not ext:
+        for i in range(1, 0x100):
+            conversation = Connect(host, port)
+            node = conversation
+            hello_gen = ClientHelloGenerator(
+                ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
+                version=(3, 3), extensions=ext)
+            node = node.add_child(fuzz_message(hello_gen, xors={45: i}))
+            node = node.add_child(ExpectAlert(level=AlertLevel.fatal,
+                                              description=AlertDescription.decode_error))
+            node = node.add_child(ExpectClose())
+            conversations["compression methods len fuzz to {0}".format(1 ^ i)] = conversation
 
     for i in range(1, 0x100):
-        if 1 ^ i == 8:  # this length creates a valid extension-less hello
+        if not dhe and not ems and 1 ^ i == 8:  # this length creates a valid extension-less hello
+            continue
+        if dhe and not ems and 1 ^ i == 62:
+            continue
+        if dhe and ems and 1 ^ i == 66:
+            continue
+        if not dhe and ems and 1 ^ i == 12:
             continue
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-        ext = {ExtensionType.renegotiation_info: None}
         hello_gen = ClientHelloGenerator(ciphers, version=(3, 3),
-                                         extensions=ext)
+                                         extensions=ext_renego_info)
         node = node.add_child(fuzz_message(hello_gen, xors={43: i}))
         node = node.add_child(ExpectAlert(level=AlertLevel.fatal,
                                           description=AlertDescription.decode_error))
@@ -255,10 +333,8 @@ def main():
     for i in range(1, 0x100):
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-        ext = {ExtensionType.renegotiation_info: None}
         hello_gen = ClientHelloGenerator(ciphers, version=(3, 3),
-                                         extensions=ext)
+                                         extensions=ext_renego_info)
         node = node.add_child(fuzz_message(hello_gen, xors={46: i}))
         node = node.add_child(ExpectAlert(level=AlertLevel.fatal,
                                           description=AlertDescription.decode_error))
@@ -269,10 +345,8 @@ def main():
         for j in range(0, 0x100):
             conversation = Connect(host, port)
             node = conversation
-            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-            ext = {ExtensionType.renegotiation_info: None}
             hello_gen = ClientHelloGenerator(ciphers, version=(3, 3),
-                                             extensions=ext)
+                                             extensions=ext_renego_info)
             node = node.add_child(fuzz_message(hello_gen, substitutions={45: i, 46: j}))
             node = node.add_child(ExpectAlert(level=AlertLevel.fatal,
                                               description=AlertDescription.decode_error))
@@ -286,6 +360,8 @@ def main():
     xpass = 0
     failed = []
     xpassed = []
+    if not num_limit:
+        num_limit = len(conversations)
 
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throughout
@@ -332,10 +408,10 @@ def main():
                     print("OK-expected failure\n")
         else:
             if res:
-                good+=1
-                print("OK")
+                good += 1
+                print("OK\n")
             else:
-                bad+=1
+                bad += 1
                 failed.append(c_name)
 
     print("Test end")
