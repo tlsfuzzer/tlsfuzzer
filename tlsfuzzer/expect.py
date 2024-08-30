@@ -15,7 +15,8 @@ from tlslite.constants import ContentType, HandshakeType, CertificateType,\
         SSL2HandshakeType, CipherSuite, GroupName, AlertDescription, \
         SignatureScheme, TLS_1_3_HRR, HeartbeatMode, \
         TLS_1_1_DOWNGRADE_SENTINEL, TLS_1_2_DOWNGRADE_SENTINEL, \
-        HeartbeatMessageType, ClientCertificateType, CertificateStatusType
+        HeartbeatMessageType, ClientCertificateType, CertificateStatusType, \
+        ECPointFormat
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
         ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus, \
@@ -28,10 +29,10 @@ from tlslite.utils.cryptomath import secureHMAC, derive_secret, \
         HKDF_expand_label
 from tlslite.mathtls import RFC7919_GROUPS, FFDHE_PARAMETERS, calc_key
 from tlslite.keyexchange import KeyExchange, DHE_RSAKeyExchange, \
-        ECDHE_RSAKeyExchange
+        ECDHE_RSAKeyExchange, AECDHKeyExchange
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
-from tlslite.errors import TLSDecryptionFailed
+from tlslite.errors import TLSDecryptionFailed, TLSIllegalParameterException
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.handshakehelpers import HandshakeHelpers
 from .handshake_helpers import calc_pending_states, kex_for_group, \
@@ -1164,7 +1165,7 @@ class ExpectServerKeyExchange(ExpectHandshake):
     """Processing TLS Handshake protocol Server Key Exchange message"""
 
     def __init__(self, version=None, cipher_suite=None, valid_sig_algs=None,
-                 valid_groups=None, valid_params=None):
+                 valid_groups=None, valid_params=None, point_ext=None):
         """
         Expect ServerKeyExchange message from server.
 
@@ -1178,6 +1179,9 @@ class ExpectServerKeyExchange(ExpectHandshake):
             is the expected generator and the second is the prime used for the
             DH calculation. Applicable only to ciphersuites that use FFDHE
             key exchange.
+
+        :param ECPointFormat point_ext: type of expected point extension for
+            the public key.
         """
         msg_type = HandshakeType.server_key_exchange
         super(ExpectServerKeyExchange, self).__init__(ContentType.handshake,
@@ -1187,6 +1191,7 @@ class ExpectServerKeyExchange(ExpectHandshake):
         self.valid_sig_algs = valid_sig_algs
         self.valid_groups = valid_groups
         self.valid_params = valid_params
+        self.point_ext = point_ext
         if self.valid_groups and self.valid_params:
             raise ValueError("valid_groups and valid_params are exclusive")
 
@@ -1233,13 +1238,13 @@ class ExpectServerKeyExchange(ExpectHandshake):
         server_random = state.server_random
         public_key = state.get_server_public_key()
         server_hello = state.get_last_message_of_type(ServerHello)
+        client_hello = state.get_last_message_of_type(ClientHello)
         if server_hello is None:
             server_hello = ServerHello
             server_hello.server_version = state.version
         if valid_sig_algs is None:
             # if the value was unset in script, get the advertised value from
             # Client Hello
-            client_hello = state.get_last_message_of_type(ClientHello)
             if client_hello is not None:
                 sig_algs_ext = client_hello.getExtension(ExtensionType.
                                                          signature_algorithms)
@@ -1251,6 +1256,36 @@ class ExpectServerKeyExchange(ExpectHandshake):
                 if self.cipher_suite in CipherSuite.ecdheEcdsaSuites:
                     valid_sig_algs = [(HashAlgorithm.sha1,
                                        SignatureAlgorithm.ecdsa)]
+        if isinstance(server_key_exchange, AECDHKeyExchange):
+            if not self.point_ext:
+                self.point_ext = ECPointFormat.uncompressed
+                server_hello = state.get_last_message_of_type(ServerHello)
+                if client_hello is not None and server_hello is not None:
+                    ext_s = server_hello.getExtension(
+                        ExtensionType.ec_point_formats)
+                    ext_c = client_hello.getExtension(
+                        ExtensionType.ec_point_formats)
+                    if ext_c and ext_s:
+                        try:
+                            ext_supported = [
+                                i for i in ext_c.formats if i in ext_s.formats
+                                ]
+                            self.point_ext = ext_supported[0]
+                        except IndexError:
+                            raise TLSIllegalParameterException(
+                                "No common EC point format")
+            if self.point_ext == ECPointFormat.uncompressed:
+                if server_key_exchange.ecdh_Ys[0] != 4:
+                    raise AssertionError("Wrong point extension. \
+                                         Expected uncompressed.")
+            elif self.point_ext == ECPointFormat.ansiX962_compressed_prime:
+                if server_key_exchange.ecdh_Ys[0] != 2 and \
+                    server_key_exchange.ecdh_Ys[0] != 3:
+                    raise AssertionError("Wrong point extension. \
+                                        Expected compressed.")
+            else:
+                raise TLSIllegalParameterException(
+                    "Unsupported EC point format.")
 
         try:
             KeyExchange.verifyServerKeyExchange(server_key_exchange,
@@ -1289,7 +1324,7 @@ class ExpectServerKeyExchange(ExpectHandshake):
                     valid_groups = GroupName.allEC
             state.key_exchange = \
                 ECDHE_RSAKeyExchange(self.cipher_suite,
-                                     clientHello=None,
+                                     clientHello=client_hello,
                                      serverHello=server_hello,
                                      privateKey=None,
                                      acceptedCurves=valid_groups)
