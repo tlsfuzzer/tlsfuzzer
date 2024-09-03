@@ -310,6 +310,7 @@
                          "--exc", "11",
                          "--exc", "12",
                          "--exc", "23",
+                         "--exc", "27",
                          "--exc", "13172"],
           "comment" : "several tls12 extensions must be excluded, tlslite-ng issue #314"},
          {"name" : "test-tls13-large-number-of-extensions.py",
@@ -361,7 +362,8 @@
          {"name" : "test-unsupported-curve-fallback.py"},
          {"name" : "test-version-numbers.py"},
          {"name" : "test-x25519.py"},
-         {"name" : "test-zero-length-data.py"}
+         {"name" : "test-zero-length-data.py"},
+         {"name" : "test-tls13-certificate-compression.py"}
      ]
     },
     {"server_command": ["{python}", "-u", "{command}", "server",
@@ -421,10 +423,11 @@
          {"name" : "test-rsa-sigs-on-certificate-verify.py"},
          {"name" : "test-rsa-sigs-on-certificate-verify.py",
           "arguments" : ["-d"]},
-         {"name" : "test-tls13-certificate-request.py"},
+         {"name" : "test-tls13-certificate-request.py",
+          "arguments" : ["-E", "compress_certificate:CR key_share:SH supported_versions:SH"]},
          {"name" : "test-tls13-certificate-request.py",
           "comment": "Test with additional extensions",
-          "arguments" : ["-E", "status_request:CH:CT key_share:SH supported_versions:SH"]
+          "arguments" : ["-E", "compress_certificate:CR status_request:CH:CT key_share:SH supported_versions:SH"]
           },
          {"name" : "test-tls13-certificate-verify.py",
           "arguments" : ["-k", "tests/clientRSAPSSKey.pem",
@@ -442,6 +445,13 @@
          {"name" : "test-tls13-eddsa-in-certificate-verify.py",
           "arguments" : ["-k", "tests/serverEd448Key.pem",
                          "-c", "tests/serverEd448Cert.pem"]
+         },
+         {"name" : "test-tls13-client-certificate-compression.py",
+          "arguments" : ["-k", "tests/clientX509Key.pem",
+                         "-c", "tests/clientX509Cert.pem",
+                         "--skip-bombs",
+                         "--random-fuzz-size", "0",
+                         "--algorithms", "zlib"]
          }
      ]
     },
