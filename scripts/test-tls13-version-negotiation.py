@@ -1,5 +1,6 @@
-# Copyright (C) 2018 Red Hat, Inc.
+# Copyright (C) 2018,2024 Red Hat, Inc.
 # Author: Nikos Mavrogiannopoulos
+# Author: Alicja Kario
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 from __future__ import print_function
@@ -26,10 +27,11 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
-from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL, key_share_ext_gen
+from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL, key_share_ext_gen, \
+        AutoEmptyExtension
 
 
-version = 6
+version = 7
 
 
 def help_msg():
@@ -41,7 +43,6 @@ def help_msg():
     print("                names and not all of them, e.g \"sanity\"")
     print(" -e probe-name  exclude the probe from the list of the ones run")
     print("                may be specified multiple times")
-    print(" -d             negotiate (EC)DHE instead of RSA key exchange")
     print(" -x probe-name  expect the probe to fail. When such probe passes despite being marked like this")
     print("                it will be reported in the test summary and the whole script will fail.")
     print("                May be specified multiple times.")
@@ -50,6 +51,10 @@ def help_msg():
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" -n num         run 'num' or all(if 0) tests instead of default(200)")
     print("                (excluding \"sanity\" tests)")
+    print(" -d             negotiate (EC)DHE instead of RSA key exchange")
+    print(" -C ciph        Use specified ciphersuite for TLS 1.2 connections.")
+    print("                Either numerical value or IETF name.")
+    print(" -M | --ems     Advertise support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -61,9 +66,11 @@ def main():
     expected_failures = {}
     last_exp_tmp = None
     dhe = False
+    tls12_ciphers = None
+    ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:c:d", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:M", ["help", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -71,8 +78,6 @@ def main():
             port = int(arg)
         elif opt == '-e':
             run_exclude.add(arg)
-        elif opt == '-d':
-            dhe = True
         elif opt == '-x':
             expected_failures[arg] = None
             last_exp_tmp = str(arg)
@@ -82,6 +87,18 @@ def main():
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '-d':
+            dhe = True
+        elif opt == '-C':
+            if arg[:2] == '0x':
+                tls12_ciphers = [int(arg, 16)]
+            else:
+                try:
+                    tls12_ciphers = [getattr(CipherSuite, arg)]
+                except AttributeError:
+                    tls12_ciphers = [int(arg)]
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -92,6 +109,21 @@ def main():
         run_only = set(args)
     else:
         run_only = None
+
+    if tls12_ciphers:
+        if not dhe:
+            # by default send minimal set of extensions, but allow user
+            # to override it
+            dhe = tls12_ciphers[0] in CipherSuite.ecdhAllSuites or \
+                    tls12_ciphers[0] in CipherSuite.dhAllSuites
+    else:
+        if dhe:
+            tls12_ciphers = [
+                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+            ]
+        else:
+            tls12_ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
 
     conversations = {}
 
@@ -115,6 +147,8 @@ def main():
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -159,6 +193,8 @@ def main():
             .create(sig_algs)
         ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
             .create(RSA_SIG_ALL)
+        if ems:
+            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectChangeCipherSpec())
@@ -203,6 +239,8 @@ def main():
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal, AlertDescription.protocol_version))
     conversations["tls 1.8 only"] = conversation
@@ -214,7 +252,8 @@ def main():
               GroupName.ffdhe2048]
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256]
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {}
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
@@ -222,23 +261,22 @@ def main():
         SignatureAlgorithmsExtension().create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-    if dhe:
-        ciphers.extend([CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                        CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV])
-    else:
-        ciphers.extend([CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV])
+    ciphers.extend(tls12_ciphers)
     key_shares = []
     for group in groups:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
     ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
         .create([(3, 9), (3, 3)])
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     # verify that there is no supported versions in server hello
+    srv_ext = {ExtensionType.renegotiation_info:None}
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(version = (3, 3),
-                          extensions={ExtensionType.renegotiation_info:None}))
+                          extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
         node = node.add_child(ExpectServerKeyExchange())
@@ -264,7 +302,8 @@ def main():
               GroupName.ffdhe2048]
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256]
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {}
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
@@ -272,23 +311,22 @@ def main():
         SignatureAlgorithmsExtension().create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-    if dhe:
-        ciphers.extend([CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                        CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV])
-    else:
-        ciphers.extend([CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV])
+    ciphers.extend(tls12_ciphers)
     key_shares = []
     for group in groups:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
     ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
         .create([(3, 9), (3, 2)])
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     # verify that there is no supported versions in server hello
+    srv_ext = {ExtensionType.renegotiation_info:None}
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(version = (3, 2),
-                          extensions={ExtensionType.renegotiation_info:None}))
+                          extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
         node = node.add_child(ExpectServerKeyExchange())
@@ -314,7 +352,8 @@ def main():
               GroupName.ffdhe2048]
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256]
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256]
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {}
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
@@ -322,22 +361,21 @@ def main():
         SignatureAlgorithmsExtension().create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-    if dhe:
-        ciphers.extend([CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                        CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV])
-    else:
-        ciphers.extend([CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV])
+    ciphers.extend(tls12_ciphers)
     key_shares = []
     for group in groups:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 4), extensions=ext))
     # negotiate TLS 1.2; it is valid for an implementation to abort handshake
     # but we don't cover it
+    srv_ext = {ExtensionType.renegotiation_info:None}
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(version = (3, 3),
-                          extensions={ExtensionType.renegotiation_info:None}))
+                          extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
         node = node.add_child(ExpectServerKeyExchange())
@@ -362,7 +400,8 @@ def main():
     node = conversation
     groups = [GroupName.secp256r1,
               GroupName.ffdhe2048]
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256]
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {}
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
@@ -370,22 +409,21 @@ def main():
         SignatureAlgorithmsExtension().create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-    if dhe:
-        ciphers.extend([CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                        CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV])
-    else:
-        ciphers.extend([CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV])
+    ciphers.extend(tls12_ciphers)
     key_shares = []
     for group in groups:
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 9), extensions=ext))
     # negotiate TLS 1.2; it is valid for an implementation to abort handshake
     # but we don't cover it
+    srv_ext = {ExtensionType.renegotiation_info:None}
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(version = (3, 3),
-                          extensions={ExtensionType.renegotiation_info:None}))
+                          extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     if dhe:
         node = node.add_child(ExpectServerKeyExchange())
@@ -408,9 +446,8 @@ def main():
     conversation = Connect(host, port)
     node = conversation
     ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_RSA_WITH_RC4_128_SHA,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ciphers.extend(tls12_ciphers)
     ext = {}
     groups = [GroupName.secp256r1]
     key_shares = []
@@ -427,6 +464,8 @@ def main():
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal, AlertDescription.protocol_version))
     conversations["SSL 3.0 in supported version"] = conversation
@@ -450,7 +489,8 @@ def main():
                   GroupName.ffdhe2048]
         sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                     SignatureScheme.rsa_pss_pss_sha256]
-        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256]
+        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {}
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
@@ -458,20 +498,19 @@ def main():
             SignatureAlgorithmsExtension().create(sig_algs)
         ext[ExtensionType.signature_algorithms_cert] = \
             SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)
-        if dhe:
-            ciphers.extend([CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                            CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV])
-        else:
-            ciphers.extend([CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV])
+        ciphers.extend(tls12_ciphers)
         ext[ExtensionType.key_share] = key_share_ext_gen(groups)
         ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
             .create([(127, l_ver), (3, 3)])
+        if ems:
+            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
         # verify that there is no supported versions in server hello
+        srv_ext = {ExtensionType.renegotiation_info:None}
+        if ems:
+            srv_ext[ExtensionType.extended_master_secret] = None
         node = node.add_child(ExpectServerHello(version=(3, 3),
-                              extensions={ExtensionType.renegotiation_info:None}))
+                              extensions=srv_ext))
         node = node.add_child(ExpectCertificate())
         if dhe:
             node = node.add_child(ExpectServerKeyExchange())
