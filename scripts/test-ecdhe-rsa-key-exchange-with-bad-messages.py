@@ -31,7 +31,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -123,10 +123,14 @@ def main():
         SignatureAlgorithmsExtension().create(SIG_ALL)
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(SIG_ALL)
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     node = node.add_child(ClientHelloGenerator(ciphers,
                                                extensions=ext))
     srv_ext = {ExtensionType.renegotiation_info: None,
                ExtensionType.ec_point_formats: None}
+    if ems:
+        srv_ext[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=srv_ext))
     node = node.add_child(ExpectCertificate())
     node = node.add_child(ExpectServerKeyExchange())
