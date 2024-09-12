@@ -1202,11 +1202,22 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             # in TLS 1.2 we can mix and match hashes and curves
             return next((i for i in accept_sig_algs
                          if i in ECDSA_SIG_ALL), ECDSA_SIG_ALL[0])
-        # but in TLS 1.3 we need to select a hash that matches our key
-        hash_name = curve_name_to_hash_tls13(key.curve_name)
-        # while it may select one that wasn't advertised by server,
-        # this is better last resort than sending a sha1+rsa sigalg
-        return (getattr(HashAlgorithm, hash_name), SignatureAlgorithm.ecdsa)
+        assert version == (3, 4)
+        if "NIST" in key.curve_name:
+            # but in TLS 1.3 we need to select a hash that matches our key
+            hash_name = curve_name_to_hash_tls13(key.curve_name)
+            # while it may select one that wasn't advertised by server,
+            # this is better last resort than sending a sha1+rsa sigalg
+            return (
+                getattr(HashAlgorithm, hash_name),
+                SignatureAlgorithm.ecdsa
+            )
+        if key.curve_name == "BRAINPOOLP256r1":
+            return SignatureScheme.ecdsa_brainpoolP256r1tls13_sha256
+        if key.curve_name == "BRAINPOOLP384r1":
+            return SignatureScheme.ecdsa_brainpoolP384r1tls13_sha384
+        assert key.curve_name == "BRAINPOOLP512r1"
+        return SignatureScheme.ecdsa_brainpoolP512r1tls13_sha512
 
     @staticmethod
     def _sig_alg_for_dsa_key(accept_sig_algs, version, key):
@@ -1334,7 +1345,18 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         if self.sig_alg:
             # while the argument is called mgf1_hash in ecdsa
             # signatures it's used for the derivation of the nonce
-            self.mgf1_hash = HashAlgorithm.toStr(self.sig_alg[0])
+            if self.sig_alg == \
+                    SignatureScheme.ecdsa_brainpoolP256r1tls13_sha256:
+                self.mgf1_hash = "sha256"
+            elif self.sig_alg == \
+                    SignatureScheme.ecdsa_brainpoolP384r1tls13_sha384:
+                self.mgf1_hash = "sha384"
+            elif self.sig_alg == \
+                    SignatureScheme.ecdsa_brainpoolP512r1tls13_sha512:
+                self.mgf1_hash = "sha512"
+            else:
+                assert self.sig_alg[1] == SignatureAlgorithm.ecdsa
+                self.mgf1_hash = HashAlgorithm.toStr(self.sig_alg[0])
         else:
             # in TLS 1.1 and earlier we do simple sha1 signatures
             self.mgf1_hash = "sha1"
@@ -1421,7 +1443,6 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                                         status.server_random,
                                         status.prf_name,
                                         key_type=self.private_key.key_type)
-
         if signature_type == "eddsa":
             self.mgf1_hash = "intrinsic"
             self.rsa_pss_salt_len = None
