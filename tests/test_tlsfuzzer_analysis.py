@@ -80,8 +80,8 @@ class TestReport(unittest.TestCase):
         #mock_box.assert_called_once()
         #mock_scatter.assert_called_once()
         # we're writing to report.csv, legend.csv,
-        # sample_stats.csv, and report.txt
-        self.assertEqual(mock_open.call_count, 4)
+        # and report.txt
+        self.assertEqual(mock_open.call_count, 3)
         self.assertEqual(ret, 0)
 
     @mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary")
@@ -111,9 +111,38 @@ class TestReport(unittest.TestCase):
         #mock_box.assert_called_once()
         #mock_scatter.assert_called_once()
         # we're writing to report.csv, legend.csv,
-        # sample_stats.csv, and report.txt
-        self.assertEqual(mock_open.call_count, 4)
+        # report.txt
+        self.assertEqual(mock_open.call_count, 3)
         self.assertEqual(ret, 0)
+
+    @mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary")
+    @mock.patch("__main__.__builtins__.open", new_callable=mock.mock_open)
+    @mock.patch("builtins.print")
+    @mock.patch("tlsfuzzer.analysis.Analysis.load_data")
+    @mock.patch("tlsfuzzer.analysis.Analysis.graph_worst_pair")
+    @mock.patch("tlsfuzzer.analysis.Analysis.conf_interval_plot")
+    @mock.patch("tlsfuzzer.analysis.Analysis.diff_scatter_plot")
+    @mock.patch("tlsfuzzer.analysis.Analysis.scatter_plot")
+    @mock.patch("tlsfuzzer.analysis.Analysis.box_plot")
+    @mock.patch("tlsfuzzer.analysis.Analysis.diff_ecdf_plot")
+    @mock.patch("tlsfuzzer.analysis.Analysis.ecdf_plot")
+    def test_write_sample_stats(
+        self, mock_ecdf, mock_diff_ecdf, mock_box, mock_scatter,
+        mock_diff_scatter, mock_conf_int, mock_graph_worst_pair,
+        mock_load_data, mock_print, mock_open, mock_convert_to_binary,
+    ):
+        mock_load_data.return_value = self.timings
+
+        analysis = Analysis("/tmp", verbose=True)
+        ret = analysis._write_sample_stats()
+
+        mock_load_data.assert_called()
+        #mock_ecdf.assert_called_once()
+        #mock_box.assert_called_once()
+        #mock_scatter.assert_called_once()
+        # we're writing to sample_stats.csv
+        self.assertEqual(mock_open.call_count, 1)
+        self.assertIsNone(ret)
 
     @mock.patch("builtins.print")
     @mock.patch("__main__.__builtins__.open", new_callable=mock.mock_open)
@@ -143,8 +172,8 @@ class TestReport(unittest.TestCase):
         #mock_box.assert_called_once()
         #mock_scatter.assert_called_once()
         # we're writing to report.csv, legend.csv,
-        # sample_stats.csv, and report.txt
-        self.assertEqual(mock_open.call_count, 4)
+        # and report.txt
+        self.assertEqual(mock_open.call_count, 3)
         self.assertEqual(ret, 1)
 
     @mock.patch("tlsfuzzer.analysis.Analysis._convert_to_binary")
@@ -896,7 +925,72 @@ class TestCommandLine(unittest.TestCase):
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
                         None, None, None, False, True, 1e-09, 4,
-                        'measurements.csv', False, True, True, True)
+                        'measurements.csv', False, True, True, True, True,
+                        True, True, True)
+
+    def test_call_with_no_sample_stats(self):
+        output = "/tmp"
+        args = ["analysis.py", "-o", output, "--no-sample-stats"]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.analysis.Analysis.generate_report') as mock_report:
+            with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
+                with mock.patch("sys.argv", args):
+                    main()
+                    mock_report.assert_called_once()
+                    mock_init.assert_called_once_with(
+                        output, True, True, True, False, False, None, None,
+                        None, None, None, False, True, 1e-09, 4,
+                        'measurements.csv', False, True, True, True, True,
+                        True, True, False)
+
+    def test_minimal_analysis(self):
+        output = "/tmp"
+        args = ["analysis.py", "-o", output, "--minimal-analysis"]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.analysis.Analysis.generate_report') as mock_report:
+            with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
+                with mock.patch("sys.argv", args):
+                    main()
+                    mock_report.assert_called_once()
+                    mock_init.assert_called_once_with(
+                        output, False, False, False, False, False, None, None,
+                        None, None, None, False, True, 1e-09, 4,
+                        'measurements.csv', False, False, False, True, False,
+                        False, False, False)
+
+    def test_call_with_no_box_test(self):
+        output = "/tmp"
+        args = ["analysis.py", "-o", output, "--no-box-test"]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.analysis.Analysis.generate_report') as mock_report:
+            with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
+                with mock.patch("sys.argv", args):
+                    main()
+                    mock_report.assert_called_once()
+                    mock_init.assert_called_once_with(
+                        output, True, True, True, False, False, None, None,
+                        None, None, None, False, True, 1e-09, 4,
+                        'measurements.csv', False, True, True, True, True,
+                        False, True, True)
+
+    def test_call_with_no_le_sign_test(self):
+        output = "/tmp"
+        args = ["analysis.py", "-o", output, "--no-le-sign-test"]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.analysis.Analysis.generate_report') as mock_report:
+            with mock.patch('tlsfuzzer.analysis.Analysis.__init__', mock_init):
+                with mock.patch("sys.argv", args):
+                    main()
+                    mock_report.assert_called_once()
+                    mock_init.assert_called_once_with(
+                        output, True, True, True, False, False, None, None,
+                        None, None, None, False, True, 1e-09, 4,
+                        'measurements.csv', False, True, True, True, True,
+                        True, False, True)
 
     def test_call_with_delay_and_CR(self):
         output = "/tmp"
@@ -912,7 +1006,8 @@ class TestCommandLine(unittest.TestCase):
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
                         None, 3.5, '\n', False, True, 1e-09, 4,
-                        'measurements.csv', False, True, True, True)
+                        'measurements.csv', False, True, True, True,
+                        True, True, True, True)
 
     def test_call_with_workers(self):
         output = "/tmp"
@@ -927,7 +1022,8 @@ class TestCommandLine(unittest.TestCase):
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
                         200, None, None, False, True, 1e-09, 4,
-                        'measurements.csv', False, True, True, True)
+                        'measurements.csv', False, True, True, True,
+                        True, True, True, True)
 
     def test_call_with_verbose(self):
         output = "/tmp"
@@ -942,7 +1038,8 @@ class TestCommandLine(unittest.TestCase):
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, True, None, None,
                         None, None, None, False, True, 1e-09, 4,
-                        'measurements.csv', False, True, True, True)
+                        'measurements.csv', False, True, True, True,
+                        True, True, True, True)
 
     def test_call_with_multithreaded_plots(self):
         output = "/tmp"
@@ -957,12 +1054,14 @@ class TestCommandLine(unittest.TestCase):
                     mock_init.assert_called_once_with(
                         output, True, True, True, True, False, None, None,
                         None, None, None, False, True, 1e-09, 4,
-                        'measurements.csv', False, True, True, True)
+                        'measurements.csv', False, True, True, True,
+                        True, True, True, True)
 
     def test_call_with_no_plots(self):
         output = "/tmp"
         args = ["analysis.py", "-o", output, "--no-ecdf-plot",
-                "--no-scatter-plot", "--no-conf-interval-plot"]
+                "--no-scatter-plot", "--no-conf-interval-plot",
+                "--no-box-plot"]
         mock_init = mock.Mock()
         mock_init.return_value = None
         with mock.patch('tlsfuzzer.analysis.Analysis.generate_report') as mock_report:
@@ -973,7 +1072,8 @@ class TestCommandLine(unittest.TestCase):
                     mock_init.assert_called_once_with(
                         output, False, False, False, False, False, None, None,
                         None, None, None, False, True, 1e-09, 4,
-                        'measurements.csv', False, True, True, True)
+                        'measurements.csv', False, True, True, True,
+                        False, True, True, True)
 
     def test_call_with_frequency(self):
         output = "/tmp"
@@ -988,7 +1088,8 @@ class TestCommandLine(unittest.TestCase):
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, 10*1e6, None,
                         None, None, None, False, True, 1e-09, 4,
-                        'measurements.csv', False, True, True, True)
+                        'measurements.csv', False, True, True, True,
+                        True, True, True, True)
 
     def test_call_with_alpha(self):
         output = "/tmp"
@@ -1003,7 +1104,8 @@ class TestCommandLine(unittest.TestCase):
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, 1e-3,
                         None, None, None, False, True, 1e-09, 4,
-                        'measurements.csv', False, True, True, True)
+                        'measurements.csv', False, True, True, True,
+                        True, True, True, True)
 
     def test_call_with_bit_size_measurements(self):
         output = "/tmp"
@@ -1020,7 +1122,8 @@ class TestCommandLine(unittest.TestCase):
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
                         None, None, None, True, True, 1e-09, 4,
-                        'measurements.csv', False, True, True, True)
+                        'measurements.csv', False, True, True, True,
+                        True, True, True, True)
 
     def test_call_with_skip_sanity(self):
         output = "/tmp"
@@ -1037,7 +1140,8 @@ class TestCommandLine(unittest.TestCase):
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
                         None, None, None, True, True, 1e-09, 4,
-                        'measurements.csv', True, True, True, True)
+                        'measurements.csv', True, True, True, True,
+                        True, True, True, True)
 
     def test_call_with_custom_measurements_filename(self):
         output = "/tmp"
@@ -1056,7 +1160,8 @@ class TestCommandLine(unittest.TestCase):
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
                         None, None, None, True, True, 1e-09, 4,
-                        measurements_filename, False, True, True, True)
+                        measurements_filename, False, True, True, True,
+                        True, True, True, True)
 
     def test_call_with_no_smart_analysis(self):
         output = "/tmp"
@@ -1074,7 +1179,8 @@ class TestCommandLine(unittest.TestCase):
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
                         None, None, None, True, False, 1e-09, 4,
-                        'measurements.csv', False, True, True, True)
+                        'measurements.csv', False, True, True, True,
+                        True, True, True, True)
 
     def test_call_with_parametrized_smart_analysis(self):
         output = "/tmp"
@@ -1096,7 +1202,8 @@ class TestCommandLine(unittest.TestCase):
                         output, True, True, True, False, False, None, None,
                         None, None, None, True, True,
                         bit_size_desire_ci * 1e-9, bit_recognition_size,
-                        'measurements.csv', False, True, True, True)
+                        'measurements.csv', False, True, True, True,
+                        True, True, True, True)
 
     def test_call_with_Hamming_weight(self):
         output = "/tmp"
@@ -1112,7 +1219,8 @@ class TestCommandLine(unittest.TestCase):
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
                         None, None, None, True, True, 1e-9, 4,
-                        'measurements.csv', False, True, True, True)
+                        'measurements.csv', False, True, True, True,
+                        True, True, True, True)
                     mock_report.assert_called_once_with(
                         bit_size=False, hamming_weight=True)
 
@@ -1131,7 +1239,8 @@ class TestCommandLine(unittest.TestCase):
                     mock_init.assert_called_once_with(
                         output, True, True, True, False, False, None, None,
                         None, None, None, True, True, 1e-9, 4,
-                        'measurements.csv', False, False, False, False)
+                        'measurements.csv', False, False, False, False,
+                        True, True, True, True)
                     mock_report.assert_called_once_with(
                         bit_size=False, hamming_weight=True)
 
