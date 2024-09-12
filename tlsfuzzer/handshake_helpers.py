@@ -34,6 +34,12 @@ def curve_name_to_hash_tls13(curve_name):
         return "sha384"
     if curve_name == "NIST521p":
         return "sha512"
+    if curve_name == "BRAINPOOLP256r1":
+        return "sha256"
+    if curve_name == "BRAINPOOLP384r1":
+        return "sha384"
+    if curve_name == "BRAINPOOLP512r1":
+        return "sha512"
     raise ValueError("Curve {0} is not allowed in TLS 1.3 "
                      "(wrong name? please use python-ecdsa names)"
                      .format(curve_name))
