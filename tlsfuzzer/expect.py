@@ -1154,17 +1154,38 @@ class ExpectCertificateVerify(ExpectHandshake):
             else:
                 assert key_type == "ecdsa"
                 curve_name = state.get_server_public_key().curve_name
-                assert curve_name in ("NIST256p", "NIST384p", "NIST521p")
+                assert curve_name in (
+                    "NIST256p", "NIST384p", "NIST521p",
+                    "BRAINPOOLP256r1", "BRAINPOOLP384r1", "BRAINPOOLP512r1"
+                )
                 sigalg = cert_v.signatureAlgorithm
                 assert sigalg in ECDSA_SIG_TLS1_3_ALL
-                hash_name = curve_name_to_hash_tls13(curve_name)
-                # in TLS 1.3 the hash is bound to key curve
-                if sigalg != (getattr(HashAlgorithm, hash_name),
-                              SignatureAlgorithm.ecdsa):
-                    raise AssertionError(
-                        "Invalid signature type for {1} key, "
-                        "received: {0}"
-                        .format(SignatureScheme.toStr(sigalg), curve_name))
+                if "NIST" in curve_name:
+                    hash_name = curve_name_to_hash_tls13(curve_name)
+                    # in TLS 1.3 the hash is bound to key curve
+                    if sigalg != (getattr(HashAlgorithm, hash_name),
+                                  SignatureAlgorithm.ecdsa):
+                        raise AssertionError(
+                            "Invalid signature type for {1} key, "
+                            "received: {0}"
+                            .format(SignatureScheme.toStr(sigalg), curve_name))
+                else:
+                    # but for Brainpool it's simpler to just explicitly list
+                    if curve_name == "BRAINPOOLP256r1":
+                        exp_sig_alg = \
+                            SignatureScheme.ecdsa_brainpoolP256r1tls13_sha256
+                    elif curve_name == "BRAINPOOLP384r1":
+                        exp_sig_alg = \
+                            SignatureScheme.ecdsa_brainpoolP384r1tls13_sha384
+                    else:
+                        assert curve_name == "BRAINPOOLP512r1"
+                        exp_sig_alg = \
+                            SignatureScheme.ecdsa_brainpoolP512r1tls13_sha512
+                    if sigalg != exp_sig_alg:
+                        raise AssertionError(
+                            "Invalid signature type for {1} key, "
+                            "received: {0}"
+                            .format(SignatureScheme.toStr(sigalg), curve_name))
 
         salg = cert_v.signatureAlgorithm
 
@@ -1174,6 +1195,13 @@ class ExpectCertificateVerify(ExpectHandshake):
             salt_len = None
         elif salg[1] == SignatureAlgorithm.ecdsa:
             hash_name = HashAlgorithm.toStr(salg[0])
+            padding = None
+            salt_len = None
+        elif salg in (SignatureScheme.ecdsa_brainpoolP256r1tls13_sha256,
+                      SignatureScheme.ecdsa_brainpoolP384r1tls13_sha384,
+                      SignatureScheme.ecdsa_brainpoolP512r1tls13_sha512):
+            scheme = SignatureScheme.toRepr(salg)
+            hash_name = SignatureScheme.getHash(scheme)
             padding = None
             salt_len = None
         else:
