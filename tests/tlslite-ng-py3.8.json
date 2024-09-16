@@ -693,5 +693,43 @@
           "arguments": ["-x", "ed25519 only",
                         "-X", "handshake_failure"]}
      ]
+    },
+    {"server_command": ["{python}", "-u", "{command}", "server",
+                "-k", "tests/serverBrainpoolP256r1ECKey.pem",
+                "-c", "tests/serverBrainpoolP256r1ECCert.pem",
+                "--groups",
+                "brainpoolP256r1tls13,brainpoolP384r1tls13,brainpoolP512r1tls13,x25519",
+                "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "tests" : [
+         {"name": "test-tls13-ecdhe-brainpool-curves.py"}
+     ]
+    },
+    {"server_command": ["{python}", "-u", "{command}", "server",
+                "--reqcert",
+                "-k", "tests/serverBrainpoolP256r1ECKey.pem",
+                "-c", "tests/serverBrainpoolP256r1ECCert.pem",
+                "--groups",
+                "brainpoolP256r1tls13,brainpoolP384r1tls13,brainpoolP512r1tls13,x25519",
+                "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "tests" : [
+         {"name": "test-tls13-ecdsa-brainpool-in-certificate-verify.py",
+          "arguments": ["-n", "0",
+                        "-k", "tests/serverBrainpoolP256r1ECKey.pem",
+                        "-c", "tests/serverBrainpoolP256r1ECCert.pem"]},
+         {"name": "test-tls13-ecdsa-brainpool-in-certificate-verify.py",
+          "arguments": ["-n", "0",
+                        "-k", "tests/serverBrainpoolP384r1ECKey.pem",
+                        "-c", "tests/serverBrainpoolP384r1ECCert.pem"]},
+         {"name": "test-tls13-ecdsa-brainpool-in-certificate-verify.py",
+          "arguments": ["-n", "0",
+                        "-k", "tests/serverBrainpoolP512r1ECKey.pem",
+                        "-c", "tests/serverBrainpoolP512r1ECCert.pem"]}
+     ]
     }
 ]
