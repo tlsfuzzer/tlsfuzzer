@@ -39,7 +39,10 @@ extensions.
 
 
 ECDSA_SIG_ALL = [(getattr(HashAlgorithm, x), SignatureAlgorithm.ecdsa) for x in
-                 ["sha512", "sha384", "sha256", "sha224", "sha1"]]
+                 ["sha512", "sha384", "sha256", "sha224", "sha1"]] + \
+                [SignatureScheme.ecdsa_brainpoolP256r1tls13_sha256,
+                 SignatureScheme.ecdsa_brainpoolP384r1tls13_sha384,
+                 SignatureScheme.ecdsa_brainpoolP512r1tls13_sha512]
 """List of all ECDSA signature algorithms supported by tlsfuzzer,
 as used in ``signature_algorithms`` or ``signature_algorithms_cert``
 extensions.
@@ -67,7 +70,10 @@ made with rsaEncryption (PKCS#1) key."""
 
 ECDSA_SIG_TLS1_3_ALL = [SignatureScheme.ecdsa_secp521r1_sha512,
                         SignatureScheme.ecdsa_secp384r1_sha384,
-                        SignatureScheme.ecdsa_secp256r1_sha256]
+                        SignatureScheme.ecdsa_secp256r1_sha256,
+                        SignatureScheme.ecdsa_brainpoolP256r1tls13_sha256,
+                        SignatureScheme.ecdsa_brainpoolP384r1tls13_sha384,
+                        SignatureScheme.ecdsa_brainpoolP512r1tls13_sha512]
 """
 List of all ECDSA signature algorithms that can be used in TLS 1.3.
 
