@@ -3,7 +3,8 @@
 """Methods for dealing with TLS Handshake protocol"""
 
 
-from tlslite.keyexchange import FFDHKeyExchange, ECDHKeyExchange
+from tlslite.keyexchange import FFDHKeyExchange, ECDHKeyExchange, \
+        KEMKeyExchange
 from tlslite.constants import GroupName
 
 
@@ -20,6 +21,8 @@ def kex_for_group(group, version=(3, 4)):
     """Get a KeyExchange object for a given group and protocol version."""
     if group in GroupName.allFF:
         return FFDHKeyExchange(group, version)
+    if group in GroupName.allKEM:
+        return KEMKeyExchange(group, version)
     return ECDHKeyExchange(group, version)
 
 
