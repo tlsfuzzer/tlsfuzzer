@@ -87,7 +87,7 @@ def help_msg():
     print("                script will try to calculate it.")
     print(" --value-endianness endian What endianness to use for the")
     print("                interpretation of the values, 'little' or 'big',")
-    print("                with little being the default")
+    print("                with big being the default")
     print(" --priv-key-ecdsa FILE Read the ecdsa private key from PEM file.")
     print(" --clock-frequency freq Assume that the times in the file are not")
     print("                specified in seconds but rather in clock cycles of")
@@ -148,7 +148,7 @@ def main():
     sig_format = "DER"
     values = None
     value_size = None
-    value_endianness = 'little'
+    value_endianness = 'big'
     priv_key = None
     key_type = None
     freq = None
@@ -1189,13 +1189,16 @@ class Extract:
 
         return secret_wrap_iter
 
-    def ecdh_max_value(self):
+    def ecdh_max_value(self, bits=False):
         """
         Returns the max shared secret size in BYTES depending on the ECDH
         private key.
         """
-        return int(
-            (ecdsa.util.bit_length(self.priv_key.curve.curve.p()) + 7) / 8)
+        if bits:
+            return ecdsa.util.bit_length(self.priv_key.curve.curve.p())
+        else:
+            return int(
+                (ecdsa.util.bit_length(self.priv_key.curve.curve.p()) + 7) / 8)
 
     def _create_and_write_line(self):
         """
@@ -1618,7 +1621,7 @@ class Extract:
                 else:
                     self.process_measurements_and_create_csv_file(
                         self.ecdh_iter(return_type=files[file]),
-                        self.ecdh_max_value() * 8
+                        self.ecdh_max_value(bits=True)
                     )
             return
 
