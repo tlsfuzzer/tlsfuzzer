@@ -29,7 +29,7 @@ from tlsfuzzer.helpers import key_share_gen, SIG_ALL
 from tlslite.utils.compat import ML_KEM_AVAILABLE
 
 
-version = 1
+version = 2
 
 
 def help_msg():
@@ -117,25 +117,26 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    ext = {}
+    default_ext = {}
     groups = GroupName.allKEM
     key_shares = []
     for group in groups:
         key_shares.append(key_share_gen(group))
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    default_ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    default_ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
         .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    default_ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256,
                 SignatureScheme.ecdsa_secp256r1_sha256,
                 SignatureScheme.ed25519,
                 SignatureScheme.ed448]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    default_ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    default_ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(SIG_ALL)
+    ext = dict(default_ext)
     node = node.add_child(ClientHelloGenerator(
         ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
         extensions=ext))
@@ -165,25 +166,14 @@ def main():
     for group in GroupName.allKEM:
         conversation = Connect(host, port)
         node = conversation
-        ext = {}
+        ext = dict(default_ext)
         groups = [group]
         key_shares = []
         for group in groups:
             key_shares.append(key_share_gen(group))
         ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-            .create([TLS_1_3_DRAFT, (3, 3)])
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
-        sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                    SignatureScheme.rsa_pss_pss_sha256,
-                    SignatureScheme.ecdsa_secp256r1_sha256,
-                    SignatureScheme.ed25519,
-                    SignatureScheme.ed448]
-        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-            .create(sig_algs)
-        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-            .create(SIG_ALL)
         node = node.add_child(ClientHelloGenerator(
             ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
             extensions=ext))
@@ -219,7 +209,7 @@ def main():
         if group in kems:
             conversation = Connect(host, port)
             node = conversation
-            ext = {}
+            ext = dict(default_ext)
             groups = [group]
             key_shares = [key_share_gen(group)]
             if group == GroupName.x25519mlkem768:
@@ -230,19 +220,8 @@ def main():
                 assert group == GroupName.secp384r1mlkem1024
                 key_shares[0].key_exchange[2] ^= 0xff
             ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-            ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-                .create([TLS_1_3_DRAFT, (3, 3)])
             ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
                 .create(groups)
-            sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                        SignatureScheme.rsa_pss_pss_sha256,
-                        SignatureScheme.ecdsa_secp256r1_sha256,
-                        SignatureScheme.ed25519,
-                        SignatureScheme.ed448]
-            ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-                .create(sig_algs)
-            ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-                .create(SIG_ALL)
             node = node.add_child(ClientHelloGenerator(
                 ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
                 extensions=ext))
@@ -255,7 +234,7 @@ def main():
 
             conversation = Connect(host, port)
             node = conversation
-            ext = {}
+            ext = dict(default_ext)
             groups = [group]
             key_shares = [key_share_gen(group)]
             if group == GroupName.x25519mlkem768:
@@ -291,24 +270,13 @@ def main():
 
             conversation = Connect(host, port)
             node = conversation
-            ext = {}
+            ext = dict(default_ext)
             groups = [group]
             key_shares = [key_share_gen(group)]
             del key_shares[0].key_exchange[-1]
             ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-            ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-                .create([TLS_1_3_DRAFT, (3, 3)])
             ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
                 .create(groups)
-            sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                        SignatureScheme.rsa_pss_pss_sha256,
-                        SignatureScheme.ecdsa_secp256r1_sha256,
-                        SignatureScheme.ed25519,
-                        SignatureScheme.ed448]
-            ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-                .create(sig_algs)
-            ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-                .create(SIG_ALL)
             node = node.add_child(ClientHelloGenerator(
                 ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
                 extensions=ext))
@@ -321,24 +289,13 @@ def main():
 
             conversation = Connect(host, port)
             node = conversation
-            ext = {}
+            ext = dict(default_ext)
             groups = [group]
             key_shares = [key_share_gen(group)]
             key_shares[0].key_exchange += bytearray([0x02])
             ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-            ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-                .create([TLS_1_3_DRAFT, (3, 3)])
             ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
                 .create(groups)
-            sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                        SignatureScheme.rsa_pss_pss_sha256,
-                        SignatureScheme.ecdsa_secp256r1_sha256,
-                        SignatureScheme.ed25519,
-                        SignatureScheme.ed448]
-            ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-                .create(sig_algs)
-            ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-                .create(SIG_ALL)
             node = node.add_child(ClientHelloGenerator(
                 ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
                 extensions=ext))
@@ -348,6 +305,31 @@ def main():
             node = node.add_child(ExpectClose())
 
             conversations["{0}: padded key share".format(GroupName.toStr(group))] = conversation
+
+            # for NIST curves we do have option to send sort-of valid
+            # key shares, but prohibited by the standard
+            if group in (GroupName.secp256r1mlkem768,
+                         GroupName.secp384r1mlkem1024):
+                for point_format in ["compressed", "hybrid", "raw"]:
+                    conversation = Connect(host, port)
+                    node = conversation
+                    ext = dict(default_ext)
+                    groups = [group]
+                    key_shares = [key_share_gen(group, point_format=point_format)]
+                    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+                    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                        .create(groups)
+                    node = node.add_child(ClientHelloGenerator(
+                        ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
+                        extensions=ext))
+                    node = node.add_child(ExpectAlert(
+                        AlertLevel.fatal,
+                        AlertDescription.illegal_parameter))
+                    node = node.add_child(ExpectClose())
+
+                    conversations["{0}: invalid ECDH point format: {1}".format(
+                        GroupName.toStr(group), point_format)] = conversation
+
 
     # run the conversation
     good = 0
