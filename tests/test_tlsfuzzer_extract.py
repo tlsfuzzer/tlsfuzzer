@@ -269,7 +269,7 @@ class TestCommandLine(unittest.TestCase):
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
-                    value_endianness="little", max_bit_size=None)
+                    value_endianness="big", max_bit_size=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -308,7 +308,7 @@ class TestCommandLine(unittest.TestCase):
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
-                    value_endianness="little", max_bit_size=None)
+                    value_endianness="big", max_bit_size=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -346,7 +346,7 @@ class TestCommandLine(unittest.TestCase):
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
-                    value_endianness="little", max_bit_size=None)
+                    value_endianness="big", max_bit_size=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -381,7 +381,7 @@ class TestCommandLine(unittest.TestCase):
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
-                    value_endianness="little", max_bit_size=None)
+                    value_endianness="big", max_bit_size=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -417,7 +417,7 @@ class TestCommandLine(unittest.TestCase):
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
-                    value_endianness="little", max_bit_size=None)
+                    value_endianness="big", max_bit_size=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch('tlsfuzzer.extract.Log')
@@ -523,7 +523,7 @@ class TestCommandLine(unittest.TestCase):
                     key_type=None, frequency=None, hash_func=hashlib.sha256,
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
-                    value_endianness="little", max_bit_size=None)
+                    value_endianness="big", max_bit_size=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch('__main__.__builtins__.print')
@@ -596,7 +596,7 @@ class TestCommandLine(unittest.TestCase):
                     priv_key=None, key_type=None, frequency=None,
                     hash_func=hashlib.sha256, workers=None, verbose=False,
                     rsa_keys=priv_key, sig_format="DER", values=None,
-                    value_size=None, value_endianness="little",
+                    value_size=None, value_endianness="big",
                     max_bit_size=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
@@ -639,7 +639,7 @@ class TestCommandLine(unittest.TestCase):
                     priv_key=priv_key, key_type="ec", frequency=None,
                     hash_func=hashlib.sha256, workers=None, verbose=False,
                     rsa_keys=None, sig_format="DER", values=None,
-                    value_size=None, value_endianness="little",
+                    value_size=None, value_endianness="big",
                     max_bit_size=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
@@ -682,7 +682,7 @@ class TestCommandLine(unittest.TestCase):
                     priv_key=priv_key, key_type="ec", frequency=None,
                     hash_func=hashlib.sha256, workers=None, verbose=True,
                     rsa_keys=None, sig_format="DER", values=None,
-                    value_size=None, value_endianness="little",
+                    value_size=None, value_endianness="big",
                     max_bit_size=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
@@ -727,7 +727,7 @@ class TestCommandLine(unittest.TestCase):
                     frequency=frequency * 1e6, hash_func=hashlib.sha256,
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
-                    value_endianness="little", max_bit_size=None)
+                    value_endianness="big", max_bit_size=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -771,7 +771,7 @@ class TestCommandLine(unittest.TestCase):
                     frequency=None, hash_func=hashlib.sha384,
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
-                    value_endianness="little", max_bit_size=None)
+                    value_endianness="big", max_bit_size=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -814,7 +814,7 @@ class TestCommandLine(unittest.TestCase):
                     frequency=None, hash_func=None,
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
-                    value_endianness="little", max_bit_size=None)
+                    value_endianness="big", max_bit_size=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -858,7 +858,7 @@ class TestCommandLine(unittest.TestCase):
                     frequency=None, hash_func=hashlib.sha256,
                     workers=workers, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
-                    value_endianness="little", max_bit_size=None)
+                    value_endianness="big", max_bit_size=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -901,7 +901,7 @@ class TestCommandLine(unittest.TestCase):
                     frequency=None, hash_func=hashlib.sha256,
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
-                    value_endianness="little", max_bit_size=None)
+                    value_endianness="big", max_bit_size=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -948,7 +948,7 @@ class TestCommandLine(unittest.TestCase):
                     frequency=None, hash_func=hashlib.sha256,
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="RAW", values=None, value_size=None,
-                    value_endianness="little", max_bit_size=None)
+                    value_endianness="big", max_bit_size=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -1037,7 +1037,7 @@ class TestCommandLine(unittest.TestCase):
         data_size = 32
         raw_values = "/tmp/values"
         value_size = 64
-        value_endianness = "big"
+        value_endianness = "little"
         raw_times = "/tmp/times"
         priv_key = "/tmp/key"
         args = ["extract.py",
@@ -1107,7 +1107,7 @@ class TestCommandLine(unittest.TestCase):
                     frequency=None, hash_func=hashlib.sha256,
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
-                    value_endianness="little", max_bit_size=max_bit_size)
+                    value_endianness="big", max_bit_size=max_bit_size)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
