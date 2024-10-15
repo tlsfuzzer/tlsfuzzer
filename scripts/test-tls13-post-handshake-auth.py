@@ -5,17 +5,16 @@ from __future__ import print_function
 import traceback
 import sys
 import getopt
-from itertools import chain, islice
+from itertools import chain
 from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
         CertificateVerifyGenerator, CertificateGenerator, KeyUpdateGenerator, \
         ClearContext
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
-        ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
+        ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
         ExpectEncryptedExtensions, ExpectCertificateVerify, \
         ExpectNewSessionTicket, ExpectCertificateRequest, ExpectKeyUpdate
@@ -23,9 +22,8 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme, \
         KeyUpdateMessageType
-from tlslite.keyexchange import ECDHKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
+from tlslite.extensions import ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL, AutoEmptyExtension
@@ -72,6 +70,63 @@ def help_msg():
     print("                authentication\" test case.")
     print(" --help         this message")
 
+def build_conn_graph(host, port, auto_empty_extension, application_data_generator, pha_as_reply, pha_query, min_tickets, expect_new_session_ticket_description):
+    """ Reuse the same block as a function, to simplify code """
+    conversation = Connect(host, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+
+    if auto_empty_extension:
+        ext[ExtensionType.post_handshake_auth] = AutoEmptyExtension()
+
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(FinishedGenerator())
+
+    if application_data_generator:
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+
+    if pha_as_reply:
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(pha_query)))
+
+    for _ in range(min_tickets):
+        node = node.add_child(ExpectNewSessionTicket(description="counted"))
+
+    # This message is optional and may show up 0 to many times
+    if expect_new_session_ticket_description is not None:
+        cycle = ExpectNewSessionTicket(description=expect_new_session_ticket_description)
+    else:
+        cycle = ExpectNewSessionTicket()
+
+    node = node.add_child(cycle)
+    node.add_child(cycle)
+
+
+
+    return (conversation, node)
 
 def main():
     host = "localhost"
@@ -141,44 +196,11 @@ def main():
 
     conversations = {}
 
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    for group in groups:
-        key_shares.append(key_share_gen(group))
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
-
-    for _ in range(min_tickets):
-        node = node.add_child(ExpectNewSessionTicket(description="counted"))
-
-    # This message is optional and may show up 0 to many times
-    cycle = ExpectNewSessionTicket()
-    node = node.add_child(cycle)
-    node.add_child(cycle)
+    (conversation, node) = build_conn_graph(host, port, auto_empty_extension=False,
+                                            application_data_generator=True,
+                                            pha_as_reply=False, pha_query=None,
+                                            min_tickets=min_tickets,
+                                            expect_new_session_ticket_description=None)
 
     node.next_sibling = ExpectApplicationData()
     node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
@@ -189,46 +211,11 @@ def main():
     conversations["sanity"] = conversation
 
     # test post-handshake authentication
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    for group in groups:
-        key_shares.append(key_share_gen(group))
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    ext[ExtensionType.post_handshake_auth] = AutoEmptyExtension()
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
-    if pha_as_reply:
-        node = node.add_child(ApplicationDataGenerator(
-            bytearray(pha_query)))
-
-    for _ in range(min_tickets):
-        node = node.add_child(ExpectNewSessionTicket(description="counted"))
-
-    # This message is optional and may show up 0 to many times
-    cycle = ExpectNewSessionTicket(description="first set")
-    node = node.add_child(cycle)
-    node.add_child(cycle)
+    (conversation, node) = build_conn_graph(host, port, auto_empty_extension=True,
+                                            application_data_generator=False,
+                                            pha_as_reply=pha_as_reply, pha_query=pha_query,
+                                            min_tickets=min_tickets,
+                                            expect_new_session_ticket_description="first set")
 
     context = []
     node.next_sibling = ExpectCertificateRequest(context=context)
@@ -257,46 +244,11 @@ def main():
         conversations["sanity"] = conversation
 
     # test post-handshake authentication with KeyUpdate
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    for group in groups:
-        key_shares.append(key_share_gen(group))
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    ext[ExtensionType.post_handshake_auth] = AutoEmptyExtension()
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
-    if pha_as_reply:
-        node = node.add_child(ApplicationDataGenerator(
-            bytearray(pha_query)))
-
-    for _ in range(min_tickets):
-        node = node.add_child(ExpectNewSessionTicket(description="counted"))
-
-    # This message is optional and may show up 0 to many times
-    cycle = ExpectNewSessionTicket(description="first set")
-    node = node.add_child(cycle)
-    node.add_child(cycle)
+    (conversation, node) = build_conn_graph(host, port, auto_empty_extension=True,
+                                            application_data_generator=False,
+                                            pha_as_reply=pha_as_reply, pha_query=pha_query,
+                                            min_tickets=min_tickets,
+                                            expect_new_session_ticket_description="first set")
 
     context = []
     node.next_sibling = ExpectCertificateRequest(context=context)
@@ -335,46 +287,11 @@ def main():
     conversations["post-handshake authentication with KeyUpdate"] = conversation
 
     # test post-handshake with client not providing a certificate
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    for group in groups:
-        key_shares.append(key_share_gen(group))
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    ext[ExtensionType.post_handshake_auth] = AutoEmptyExtension()
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
-    if pha_as_reply:
-        node = node.add_child(ApplicationDataGenerator(
-            bytearray(pha_query)))
-
-    for _ in range(min_tickets):
-        node = node.add_child(ExpectNewSessionTicket(description="counted"))
-
-    # This message is optional and may show up 0 to many times
-    cycle = ExpectNewSessionTicket(description="first set")
-    node = node.add_child(cycle)
-    node.add_child(cycle)
+    (conversation, node) = build_conn_graph(host, port, auto_empty_extension=True,
+                                            application_data_generator=False,
+                                            pha_as_reply=pha_as_reply, pha_query=pha_query,
+                                            min_tickets=min_tickets,
+                                            expect_new_session_ticket_description="first set")
 
     context = []
     node.next_sibling = ExpectCertificateRequest(context=context)
@@ -405,51 +322,17 @@ def main():
     conversations["post-handshake authentication with no client cert"] = conversation
 
     # malformed signatures in post-handshake authentication
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    for group in groups:
-        key_shares.append(key_share_gen(group))
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    ext[ExtensionType.post_handshake_auth] = AutoEmptyExtension()
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
-    if pha_as_reply:
-        node = node.add_child(ApplicationDataGenerator(
-            bytearray(pha_query)))
-
-    for _ in range(min_tickets):
-        node = node.add_child(ExpectNewSessionTicket(description="counted"))
-
-    # This message is optional and may show up 0 to many times
-    cycle = ExpectNewSessionTicket()
-    node = node.add_child(cycle)
-    node.add_child(cycle)
+    (conversation, node) = build_conn_graph(host, port, auto_empty_extension=True,
+                                            application_data_generator=False,
+                                            pha_as_reply=pha_as_reply, pha_query=pha_query,
+                                            min_tickets=min_tickets,
+                                            expect_new_session_ticket_description=None)
 
     context = []
     node.next_sibling = ExpectCertificateRequest(context=context)
     node = node.next_sibling.add_child(CertificateGenerator(X509CertChain([cert]), context=context))
-    node = node.add_child(CertificateVerifyGenerator(private_key, padding_xors={-1: 0xff}, context=context))
+    node = node.add_child(CertificateVerifyGenerator(private_key,
+                                                     padding_xors={-1: 0xff}, context=context))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decrypt_error))
     node.add_child(ExpectClose())
