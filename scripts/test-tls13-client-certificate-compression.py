@@ -41,7 +41,7 @@ from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 
 
-version = 1
+version = 2
 
 KNOWN_ALGORITHMS = ('zlib', 'brotli', 'zstd')
 KNOWN_ALGORITHM_CODES = set([
@@ -477,6 +477,62 @@ def main():
     node.next_sibling = ExpectClose()
     conversations["Send empty certificate"] = conversation
 
+    # Empty compressed message
+    conversation = Connect(host, port)
+    node = conversation
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = \
+        ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.ecdsa_secp256r1_sha256,
+                SignatureScheme.ed25519,
+                SignatureScheme.ed448]
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(SIG_ALL)
+    compression_algs = [algorithm]
+    ext[ExtensionType.compress_certificate] = \
+        CompressedCertificateExtension().create(compression_algs)
+    ext = dict_update_non_present(ext, ext_spec['CH'])
+    node = node.add_child(ClientHelloGenerator(
+        ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
+        extensions=ext))
+    ext = dict_update_non_present(None, ext_spec['SH'])
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificateRequest())
+    node = node.add_child(ExpectCompressedCertificate(
+        compression_algo=algorithm))
+    node.next_sibling = ExpectCertificate()
+    sibling_node = node.next_sibling
+    node = node.add_child(ExpectCertificateVerify())
+    sibling_node.add_child(node)
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(CompressedCertificateGenerator(
+        certs=X509CertChain([cert]),
+        algorithm=CertificateCompressionAlgorithm.zlib,
+        compressed_certificate_message=bytearray(0),
+        # Change the decompressed size to max sp the implementation
+        # will allocate the maximum size possible. If the big data
+        # comes we will see if there will be a leak or it will break.
+        uncompressed_message_size=2**12 - 1))
+    node = node.add_child(CertificateVerifyGenerator(private_key))
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                        AlertDescription.decode_error))
+    node.next_sibling = ExpectClose()
+    conversations["Empty compressed message"] = conversation
+
     # messing with uncompressed_size
     for name, size in [
         ('wrong', 10), ('zero', 0), ('max', 2**24 - 1)
@@ -792,7 +848,7 @@ def main():
                 # Change the decompressed size to max sp the implementation
                 # will allocate the maximum size possible. If the big data
                 # comes we will see if there will be a leak or it will break.
-                uncompressed_message_size=2**24 - 1))
+                uncompressed_message_size=2**12 - 1))
             node = node.add_child(CertificateVerifyGenerator(private_key))
             node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                               AlertDescription.bad_certificate))
@@ -889,7 +945,7 @@ def main():
         max_size = 2**24 - 1 - 2 - 3 - 3
         if fuzzing_sample_size > 2:
             sizes = sample(range(1, max_size), fuzzing_sample_size - 2)
-        sizes.append(0)
+        sizes.append(1)
         sizes.append(max_size)
 
     for size in sizes:
@@ -941,7 +997,7 @@ def main():
             # Change the decompressed size to max sp the implementation
             # will allocate the maximum size possible. If the big data
             # comes we will see if there will be a leak or it will break.
-            uncompressed_message_size=2**24 - 1))
+            uncompressed_message_size=2**12 - 1))
         node = node.add_child(CertificateVerifyGenerator(private_key))
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                           AlertDescription.bad_certificate))
