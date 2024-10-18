@@ -34,5 +34,5 @@ test: docs
 	diff-cover --compare-branch origin/master --fail-under=90 coverage.xml
 
 test-scripts:
-	"$(PYTHON)" tests/verify-scripts-json.py tests/tlslite-ng.json tests/tlslite-ng-random-subset.json
+	"$(PYTHON)" tests/verify-scripts-json.py tests/tlslite-ng.json tests/tlslite-ng-random-subset.json tests/tlslite-ng-py3.8.json tests/tlslite-ng-random-subset-py3.8.json
 	"$(PYTHON)" tests/scripts_retention.py tests/tlslite-ng.json ../tlslite-ng/scripts/tls.py $(EXPECTED_SIZE)
