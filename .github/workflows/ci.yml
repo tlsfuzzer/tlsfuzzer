@@ -245,6 +245,12 @@ jobs:
       # - name: Install M2Crypto (py2.6)
       #   if: ${{ matrix.container }}
       #   run: yum install -y m2crypto
+      - name: Install kyber-py on py3.9 and later
+        if: ${{ !matrix.container && matrix.python-version != '2.6' && matrix.python-version != '2.7' && matrix.python-version != '3.6' && matrix.python-version != '3.7' && matrix.python-version != '3.8' }}
+        run: |
+          wget https://github.com/GiacomoPope/kyber-py/archive/refs/tags/v1.0.zip
+          mv v1.0.zip kyber_py-1.0.zip
+          pip install kyber_py-1.0.zip
       - name: Install build dependencies (2.6)
         if: ${{ matrix.python-version == '2.6' }}
         run: |
@@ -314,9 +320,9 @@ jobs:
       - name: Install dependencies (2.6)
         if: ${{ matrix.python-version == '2.6' }}
         run: |
-          wget https://files.pythonhosted.org/packages/5d/6a/7820cbbb9ffd8d6e348726e1ac30687353a026bf3410f00c48f63bc1aea6/tlslite-ng-0.8.0b4.tar.gz
+          wget https://files.pythonhosted.org/packages/04/d5/24677435948000c1d0d964076b51090685b8f89505b2d3340e0cc4b04cba/tlslite-ng-0.8.0b5.tar.gz
           wget https://files.pythonhosted.org/packages/b4/4c/f8b4ed6c61dff52294f98aaf99053dd979c1b4233d953f371afb0a2977a1/ecdsa-0.18.0b2-py2.py3-none-any.whl
-          pip install tlslite-ng-0.8.0b4.tar.gz ecdsa-0.18.0b2-py2.py3-none-any.whl
+          pip install tlslite-ng-0.8.0b5.tar.gz ecdsa-0.18.0b2-py2.py3-none-any.whl
       - name: Install dependencies
         if: ${{ matrix.python-version != '2.6' }}
         run: pip install -r requirements.txt
@@ -359,7 +365,7 @@ jobs:
             coveralls
           fi
       - name: Ensure that json files include all test scripts
-        run: python tests/verify-scripts-json.py tests/tlslite-ng-random-subset.json tests/tlslite-ng.json
+        run: python tests/verify-scripts-json.py tests/tlslite-ng-random-subset.json tests/tlslite-ng.json tests/tlslite-ng-py3.8.json tests/tlslite-ng-random-subset-py3.8.json
       - name: Verify that all scripts pass against tlslite-ng
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -382,7 +388,16 @@ jobs:
               export REPLY_SIZE=1849  # Server: SimpleHTTP/0.6 Python/3.8.6
               ;;
           esac
-          python tests/scripts_retention.py tests/tlslite-ng-random-subset.json `which tls.py` $REPLY_SIZE
+          # kyber-py library supports only python 3.9 and later
+          case $PYTHON_VERSION in
+            2.6 | 2.7 | 3.6 | 3.7 | 3.8 )
+              export TEST_FILE=tests/tlslite-ng-random-subset-py3.8.json
+              ;;
+            *)
+              export TEST_FILE=tests/tlslite-ng-random-subset.json
+              ;;
+          esac
+          python tests/scripts_retention.py $TEST_FILE `which tls.py` $REPLY_SIZE
       - name: Linter
         # pylint doesn't work on 2.6: https://bitbucket.org/logilab/pylint/issue/390/py26-compatiblity-broken
         if: ${{ matrix.python-version != 2.6 }}

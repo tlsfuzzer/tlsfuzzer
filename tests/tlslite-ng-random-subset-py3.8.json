@@ -319,6 +319,8 @@
           "comment" : "just checks if the --separate option works"},
          {"name" : "test-tls13-legacy-version.py"},
          {"name" : "test-tls13-mlkem.py",
+          "comment": "kyber-py can't be installed on py3.8 and earlier",
+          "exp_pass" : false,
           "arguments" : ["--cookie"]},
          {"name" : "test-tls13-multiple-ccs-messages.py",
           "arguments" : ["-x", "second CCS before client finished",
