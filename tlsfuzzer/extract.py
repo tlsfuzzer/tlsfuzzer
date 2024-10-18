@@ -30,6 +30,7 @@ from tlsfuzzer.utils.statics import WARM_UP
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.utils.progress_report import progress_report
+from tlsfuzzer.utils.compat import bit_count
 from tlslite.utils.cryptomath import bytesToNumber, numberToByteArray
 from tlslite.utils.python_key import Python_Key
 
@@ -1734,7 +1735,7 @@ class Extract:
                 key = self._read_private_key(rsa_keys)
                 if key:
                     # extract Hamming weights of the private key parameters
-                    values.append(dict((i, getattr(key, i).bit_count())
+                    values.append(dict((i, bit_count(getattr(key, i)))
                                        for i in
                                        value_names))
                     times.append(next(times_iterator))
