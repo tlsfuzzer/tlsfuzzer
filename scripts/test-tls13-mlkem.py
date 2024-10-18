@@ -211,7 +211,7 @@ def main():
 
             node = node.add_child(ExpectAlert())
             node.next_sibling = ExpectClose()
-        conversations["connection with {0}".format(GroupName.toStr(group))] = conversation
+        conversations["{0}: basic connection".format(GroupName.toStr(group))] = conversation
 
         if group in kems:
             conversation = Connect(host, port)
@@ -260,7 +260,7 @@ def main():
 
             node = node.add_child(ExpectAlert())
             node.next_sibling = ExpectClose()
-            conversations["connection with {0} with HRR".format(GroupName.toStr(group))] = conversation
+            conversations["{0}: basic connection with HRR".format(GroupName.toStr(group))] = conversation
 
             conversation = Connect(host, port)
             node = conversation
