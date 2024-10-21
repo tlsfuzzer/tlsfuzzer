@@ -183,8 +183,11 @@ epub_exclude_files = ['search.html']
 # -- Options for intersphinx extension ---------------------------------------
 
 # Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {'https://docs.python.org/': None,
-                       'https://tlslite-ng.readthedocs.io/en/latest/': None}
+intersphinx_mapping = {
+    'python': ('https://docs.python.org/', None),
+    'tlslite-ng': ('https://tlslite-ng.readthedocs.io/en/latest/', None),
+    'ecdsa': ('https://ecdsa.readthedocs.io/en/latest/', None),
+}
 
 # -- Options for autodoc extension -------------------------------------------
 autodoc_default_options = {
