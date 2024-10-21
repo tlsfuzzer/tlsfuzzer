@@ -248,8 +248,7 @@ jobs:
       - name: Install kyber-py on py3.9 and later
         if: ${{ !matrix.container && matrix.python-version != '2.6' && matrix.python-version != '2.7' && matrix.python-version != '3.6' && matrix.python-version != '3.7' && matrix.python-version != '3.8' }}
         run: |
-          wget https://github.com/GiacomoPope/kyber-py/archive/refs/tags/v1.0.zip
-          mv v1.0.zip kyber_py-1.0.zip
+          wget https://github.com/GiacomoPope/kyber-py/archive/refs/tags/v1.0.zip -O kyber_py-1.0.zip
           pip install kyber_py-1.0.zip
       - name: Install build dependencies (2.6)
         if: ${{ matrix.python-version == '2.6' }}
