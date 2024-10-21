@@ -33,7 +33,7 @@ from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 
 
-version = 11
+version = 12
 
 
 def help_msg():
@@ -160,6 +160,16 @@ def main():
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         groups = [GroupName.secp256r1,
+                  GroupName.secp384r1,
+                  GroupName.secp521r1,
+                  GroupName.x25519,
+                  GroupName.x448,
+                  GroupName.brainpoolP256r1,
+                  GroupName.brainpoolP384r1,
+                  GroupName.brainpoolP512r1,
+                  GroupName.brainpoolP256r1tls13,
+                  GroupName.brainpoolP384r1tls13,
+                  GroupName.brainpoolP512r1tls13,
                   GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
@@ -215,8 +225,6 @@ def main():
             ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                        CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                        CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-            groups = [GroupName.secp256r1,
-                      GroupName.ffdhe2048]
             ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
                 .create(groups)
         else:
@@ -271,8 +279,6 @@ def main():
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        groups = [GroupName.secp256r1,
-                  GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
     else:
@@ -326,8 +332,6 @@ def main():
         ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        groups = [GroupName.secp256r1,
-                  GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
     else:
