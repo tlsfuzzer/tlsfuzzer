@@ -234,7 +234,7 @@ def key_share_ext_gen(groups):
     return _key_share_ext_gen
 
 
-def key_share_gen(group, version=(3, 4)):
+def key_share_gen(group, version=(3, 4), point_format="uncompressed"):
     """
     Create a random key share for a group of a given id.
 
@@ -243,11 +243,17 @@ def key_share_gen(group, version=(3, 4)):
     :type version: tuple
     :param version: TLS protocol version as a tuple, as encoded on the
         wire
+    :param str point_format: point format for the ECDH key shares,
+        applicable to NIST curves only. Note: only "uncompressed" is
+        actually valid in TLS 1.3. Can be also "compressed", "hybrid", and
+        "raw".
     :rtype: `tlslite.extensions.KeyShareEntry`
     """
     kex = kex_for_group(group, version)
     private = kex.get_random_private_key()
-    share = bytearray(kex.calc_public_value(private))
+    share = bytearray(kex.calc_public_value(
+        private,
+        point_format=point_format))
     return KeyShareEntry().create(group, share, private)
 
 
