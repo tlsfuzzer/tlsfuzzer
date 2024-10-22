@@ -57,6 +57,7 @@ def help_msg():
     print("                'x25519mlkem768,secp256r1mlkem768,secp384r1mlkem1024' by default")
     print(" --cookie       expect the server to send \"cookie\" extension in")
     print("                Hello Retry Request message")
+    print(" --no-fuzz      Do not generate many ciphertexts with malformed PQC shares")
     print(" --help         this message")
 
 
@@ -69,13 +70,14 @@ def main():
     last_exp_tmp = None
     ciphers = None
     cookie = False
+    fuzz = True
     kems = [GroupName.secp256r1mlkem768,
             GroupName.x25519mlkem768,
             GroupName.secp384r1mlkem1024]
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "h:p:e:x:X:n:C:",
-                               ["help", "kems=", "cookie"])
+                               ["help", "kems=", "cookie", "no-fuzz"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -104,6 +106,8 @@ def main():
             kems = [getattr(GroupName, i) for i in arg.split(",")]
         elif opt == "--cookie":
             cookie = True
+        elif opt == "--no-fuzz":
+            fuzz = False
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -304,6 +308,9 @@ def main():
                 # length of the secp384r1 key share
                 pqc_start = 97
                 pqc_length = 384 * 4
+
+            if not fuzz:
+                pqc_length = 6
 
             clean_key_share = key_share_gen(group)
             for i in range(0, pqc_length):
