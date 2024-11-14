@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2017,2019
+# Author: Alicja Kario, (c) 2017,2019,2024
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 from __future__ import print_function
@@ -25,7 +25,7 @@ from tlsfuzzer.helpers import SIG_ALL
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -45,6 +45,12 @@ def help_msg():
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
     print("                (\"sanity\" tests are always executed)")
+    print(" -C ciph        Use specified ciphersuite. Either numerical value or")
+    print("                IETF name.")
+    print(" -g kex         Key exchange groups to advertise in the supported_groups")
+    print("                extension, separated by colons. By default:")
+    print("                \"secp256r1:secp384r1:secp521r1\"")
+    print(" -M | --ems     Advertise support for Extended Master Secret")
     print(" --help         this message")
 
 
@@ -55,9 +61,12 @@ def main():
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
+    ciphers = None
+    ems = False
+    groups = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:C:Mg:", ["help", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -74,6 +83,19 @@ def main():
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '-C':
+            if arg[:2] == '0x':
+                ciphers = [int(arg, 16)]
+            else:
+                try:
+                    ciphers = [getattr(CipherSuite, arg)]
+                except AttributeError:
+                    ciphers = [int(arg)]
+        elif opt == '-g':
+            vals = arg.split(":")
+            groups = [getattr(GroupName, i) for i in vals]
+        elif opt == '-M' or opt == '--ems':
+            ems = True
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -85,11 +107,26 @@ def main():
     else:
         run_only = None
 
+    # double check that provided cipher is valid for ECDSA
+    if ciphers:
+        if ciphers[0] not in CipherSuite.ecdheEcdsaSuites:
+            raise ValueError("Ciphersuite not defined for ECDHE-ECDSA key exchange")
+    else:
+        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA]
+    ciphers += [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+
+    if groups is None:
+        groups = [GroupName.secp256r1,
+                  GroupName.secp384r1,
+                  GroupName.secp521r1]
+
     conversations = {}
 
     conversation = Connect(host, port)
     node = conversation
     ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     sigalgs = [(HashAlgorithm.sha1, SignatureAlgorithm.ecdsa),
                (HashAlgorithm.sha224, SignatureAlgorithm.ecdsa),
                (HashAlgorithm.sha256, SignatureAlgorithm.ecdsa),
@@ -99,13 +136,8 @@ def main():
             SignatureAlgorithmsExtension().create(sigalgs)
     ext[ExtensionType.signature_algorithms_cert] = \
             SignatureAlgorithmsCertExtension().create(SIG_ALL)
-    curves = [GroupName.secp256r1,
-              GroupName.secp384r1,
-              GroupName.secp521r1]
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(curves)
-    ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+            SupportedGroupsExtension().create(groups)
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                extensions=ext))
     node = node.add_child(ExpectServerHello())
@@ -130,6 +162,8 @@ def main():
     conversation = Connect(host, port)
     node = conversation
     ext = {}
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     sigalgs = [(HashAlgorithm.sha512, SignatureAlgorithm.ecdsa),
                (HashAlgorithm.sha384, SignatureAlgorithm.ecdsa),
                (HashAlgorithm.sha256, SignatureAlgorithm.ecdsa),
@@ -139,13 +173,8 @@ def main():
             SignatureAlgorithmsExtension().create(sigalgs)
     ext[ExtensionType.signature_algorithms_cert] = \
             SignatureAlgorithmsCertExtension().create(SIG_ALL)
-    curves = [GroupName.secp256r1,
-              GroupName.secp384r1,
-              GroupName.secp521r1]
     ext[ExtensionType.supported_groups] = \
-            SupportedGroupsExtension().create(curves)
-    ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+            SupportedGroupsExtension().create(groups)
     node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                extensions=ext))
     node = node.add_child(ExpectServerHello())
@@ -171,18 +200,15 @@ def main():
         conversation = Connect(host, port)
         node = conversation
         ext = {}
+        if ems:
+            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
         sigalgs = [(getattr(HashAlgorithm, h_alg), SignatureAlgorithm.ecdsa)]
         ext[ExtensionType.signature_algorithms] = \
                 SignatureAlgorithmsExtension().create(sigalgs)
         ext[ExtensionType.signature_algorithms_cert] = \
                 SignatureAlgorithmsCertExtension().create(SIG_ALL)
-        curves = [GroupName.secp256r1,
-                  GroupName.secp384r1,
-                  GroupName.secp521r1]
         ext[ExtensionType.supported_groups] = \
-                SupportedGroupsExtension().create(curves)
-        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+                SupportedGroupsExtension().create(groups)
         node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
                                                    extensions=ext))
         node = node.add_child(ExpectServerHello())

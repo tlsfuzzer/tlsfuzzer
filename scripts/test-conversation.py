@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2015-2022
+# Author: Alicja Kario, (c) 2015-2024
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 from __future__ import print_function
@@ -26,7 +26,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
 
 
-version = 9
+version = 10
 
 
 def help_msg():
@@ -50,6 +50,9 @@ def help_msg():
     print("                additional extensions, usually used for (EC)DHE ciphers")
     print(" -C ciph        Use specified ciphersuite. Either numerical value or")
     print("                IETF name.")
+    print(" -g kex         Key exchange groups to advertise in the supported_groups")
+    print("                extension, separated by colons. By default:")
+    print("                \"secp256r1:ffdhe2048\"")
     print(" -M | --ems     Advertise support for Extended Master Secret")
     print(" --help         this message")
     # already used single-letter options:
@@ -87,9 +90,10 @@ def main():
     dhe = False
     ciphers = None
     ems = False
+    groups = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:M", ["help", "ems"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:Mg:", ["help", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -116,6 +120,9 @@ def main():
                     ciphers = [getattr(CipherSuite, arg)]
                 except AttributeError:
                     ciphers = [int(arg)]
+        elif opt == '-g':
+            vals = arg.split(":")
+            groups = [getattr(GroupName, i) for i in vals]
         elif opt == '-M' or opt == '--ems':
             ems = True
         elif opt == '--help':
@@ -143,6 +150,9 @@ def main():
         else:
             ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
 
+    if groups is None:
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
 
     conversations = {}
 
@@ -152,8 +162,6 @@ def main():
     if ems:
         ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
-        groups = [GroupName.secp256r1,
-                  GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
         ext[ExtensionType.signature_algorithms] = \

@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2016
+# Author: Alicja Kario, (c) 2016,2024
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 from __future__ import print_function
@@ -30,7 +30,7 @@ from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 7
+version = 8
 
 
 def help_msg():
@@ -55,6 +55,9 @@ def help_msg():
     print(" --no-sha1      expect conversations with explicit/implicit sha1")
     print("                to fail")
     print(" --ecdsa        Use ecdsa sigalgs instead of rsa.")
+    print(" -g kex         Key exchange groups to advertise in the supported_groups")
+    print("                extension, separated by colons. By default:")
+    print("                \"secp256r1\"")
     print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
 
@@ -71,11 +74,12 @@ def main():
     expected_signature = SignatureAlgorithm.rsa
     expected_sig_list = RSA_SIG_ALL
     ems = False
+    groups = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:n:x:X:M", ["help", "alert=",
-                                                       "no-sha1", "ecdsa",
-                                                       "ems"])
+    opts, args = getopt.getopt(argv, "h:p:e:n:x:X:Mg:", ["help", "alert=",
+                                                         "no-sha1", "ecdsa",
+                                                         "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -99,6 +103,9 @@ def main():
         elif opt == '--ecdsa':
             expected_signature = SignatureAlgorithm.ecdsa
             expected_sig_list = ECDSA_SIG_ALL
+        elif opt == '-g':
+            vals = arg.split(":")
+            groups = [getattr(GroupName, i) for i in vals]
         elif opt == '-M' or opt == '--ems':
             ems = True
         elif opt == '--help':
@@ -112,12 +119,14 @@ def main():
     else:
         run_only = None
 
+    if groups is None:
+        groups = [GroupName.secp256r1]
+
     conversations = {}
 
     conversation = Connect(host, port)
     node = conversation
     ext = {}
-    groups = [GroupName.secp256r1]
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     ext[ExtensionType.signature_algorithms] = \
@@ -151,7 +160,6 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    groups = [GroupName.secp256r1]
     ext = {}
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
@@ -192,7 +200,6 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    groups = [GroupName.secp256r1]
     ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
@@ -234,7 +241,6 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    groups = [GroupName.secp256r1]
     ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
@@ -271,7 +277,6 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    groups = [GroupName.secp256r1]
     ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
@@ -309,7 +314,6 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    groups = [GroupName.secp256r1]
     ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
@@ -347,7 +351,6 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    groups = [GroupName.secp256r1]
     ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
@@ -386,7 +389,6 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    groups = [GroupName.secp256r1]
     ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
@@ -424,7 +426,6 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    groups = [GroupName.secp256r1]
     ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
@@ -461,7 +462,6 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    groups = [GroupName.secp256r1]
     ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
@@ -495,7 +495,6 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    groups = [GroupName.secp256r1]
     ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
@@ -532,7 +531,6 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    groups = [GroupName.secp256r1]
     ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
@@ -572,7 +570,6 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    groups = [GroupName.secp256r1]
     ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
@@ -617,7 +614,6 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    groups = [GroupName.secp256r1]
     ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
@@ -646,7 +642,6 @@ def main():
     for n in [215, 2355, 8132, 23754, 32757]:
         conversation = Connect(host, port)
         node = conversation
-        groups = [GroupName.secp256r1]
         ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
@@ -693,7 +688,6 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    groups = [GroupName.secp256r1]
     ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
@@ -756,7 +750,6 @@ def main():
     for i in range(1, 0x100):
         conversation = Connect(host, port)
         node = conversation
-        groups = [GroupName.secp256r1]
         ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                    CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
