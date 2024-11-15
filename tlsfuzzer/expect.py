@@ -1297,6 +1297,9 @@ class ExpectServerKeyExchange(ExpectHandshake):
                 if self.cipher_suite in CipherSuite.ecdheEcdsaSuites:
                     valid_sig_algs = [(HashAlgorithm.sha1,
                                        SignatureAlgorithm.ecdsa)]
+                if self.cipher_suite in CipherSuite.dheDsaSuites:
+                    valid_sig_algs = [(HashAlgorithm.sha1,
+                                       SignatureAlgorithm.dsa)]
 
         try:
             KeyExchange.verifyServerKeyExchange(server_key_exchange,

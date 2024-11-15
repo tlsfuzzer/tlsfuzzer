@@ -639,6 +639,17 @@
      ]
     },
     {"server_command": ["{python}", "-u", "{command}", "server",
+                "-k", "tests/serverDSAKey.pem",
+                "-c", "tests/serverDSACert.pem",
+                "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "tests" : [
+         {"name": "test-dsa-sig-flexibility.py"}
+     ]
+    },
+    {"server_command": ["{python}", "-u", "{command}", "server",
                 "--reqcert",
                 "-k", "tests/serverDSAKey.pem",
                 "-c", "tests/serverDSACert.pem",
