@@ -1,0 +1,38 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "version": 1,
+  "metadata": {
+    "authors": [
+      {
+        "name": "@VCS_SBOM_AUTHORS@"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "application",
+      "bom-ref": "pkg:github/tlsfuzzer/tlsfuzzer@@VCS_TAG@",
+      "cpe": "cpe:2.3:a:tlsfuzzer:tlsfuzzer:@VCS_TAG@:*:*:*:*:*:*:*",
+      "name": "tlsfuzzer",
+      "version": "@VCS_VERSION@",
+      "description": "Test suite for SSLv2, SSLv3, TLS 1.0, TLS 1.1, TLS 1.2, and TLS 1.3 implementations",
+      "supplier": {
+        "name": "tlsfuzzer developers"
+      },
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-2.0"
+          }
+        }
+      ],
+      "externalReferences": [
+        {
+          "type": "vcs",
+          "url": "https://github.com/tlsfuzzer/tlsfuzzer"
+        }
+      ]
+    }
+  ]
+}
