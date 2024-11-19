@@ -429,27 +429,35 @@
          {"name" : "test-rsa-sigs-on-certificate-verify.py",
           "arguments" : ["-d"]},
          {"name" : "test-tls13-certificate-request.py",
-          "arguments" : ["-E", "compress_certificate:CR key_share:SH supported_versions:SH"]},
+          "arguments" : ["-E", "compress_certificate:CR key_share:SH supported_versions:SH",
+                         "-s", "ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]},
          {"name" : "test-tls13-certificate-request.py",
           "comment": "Test with additional extensions",
-          "arguments" : ["-E", "compress_certificate:CR status_request:CH:CT key_share:SH supported_versions:SH"]
+          "arguments" : ["-E", "compress_certificate:CR status_request:CH:CT key_share:SH supported_versions:SH",
+                         "-s", "ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
           },
          {"name" : "test-tls13-certificate-verify.py",
           "arguments" : ["-k", "tests/clientRSAPSSKey.pem",
-                         "-c", "tests/clientRSAPSSCert.pem"]
+                         "-c", "tests/clientRSAPSSCert.pem",
+                         "-s", "ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
           },
-         {"name" : "test-tls13-certificate-verify.py"},
+         {"name" : "test-tls13-certificate-verify.py",
+          "arguments" : ["-s", "ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
+         },
          {"name" : "test-tls13-ecdsa-in-certificate-verify.py",
           "arguments" : ["-k", "tests/serverECKey.pem",
-                         "-c", "tests/serverECCert.pem"]
+                         "-c", "tests/serverECCert.pem",
+                         "-s", "ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
           },
          {"name" : "test-tls13-eddsa-in-certificate-verify.py",
           "arguments" : ["-k", "tests/serverEd25519Key.pem",
-                         "-c", "tests/serverEd25519Cert.pem"]
+                         "-c", "tests/serverEd25519Cert.pem",
+                         "-s", "ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
           },
          {"name" : "test-tls13-eddsa-in-certificate-verify.py",
           "arguments" : ["-k", "tests/serverEd448Key.pem",
-                         "-c", "tests/serverEd448Cert.pem"]
+                         "-c", "tests/serverEd448Cert.pem",
+                         "-s", "ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
          },
          {"name" : "test-tls13-client-certificate-compression.py",
           "arguments" : ["-k", "tests/clientX509Key.pem",
