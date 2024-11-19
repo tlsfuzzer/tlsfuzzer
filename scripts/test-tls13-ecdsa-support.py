@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2019
+# Author: Alicja Kario, (c) 2019,2024
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 from __future__ import print_function
@@ -27,7 +27,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -47,6 +47,9 @@ def help_msg():
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
     print("                (\"sanity\" tests are always executed)")
+    print(" -g kex         Key exchange groups to advertise in the supported_groups")
+    print("                extension, separated by colons. By default:")
+    print("                \"secp256r1\"")
     print(" --help         this message")
 
 
@@ -57,9 +60,10 @@ def main():
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
+    groups = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:g:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -76,6 +80,9 @@ def main():
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '-g':
+            vals = arg.split(":")
+            groups = [getattr(GroupName, i) for i in vals]
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -87,6 +94,9 @@ def main():
     else:
         run_only = None
 
+    if groups is None:
+        groups = [GroupName.secp256r1]
+
     conversations = {}
 
     conversation = Connect(host, port)
@@ -94,7 +104,6 @@ def main():
     ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {}
-    groups = [GroupName.secp256r1]
     key_shares = []
     for group in groups:
         key_shares.append(key_share_gen(group))
@@ -106,7 +115,11 @@ def main():
     sig_algs = [SignatureScheme.ecdsa_secp521r1_sha512,
                 SignatureScheme.ecdsa_secp384r1_sha384,
                 SignatureScheme.ecdsa_secp256r1_sha256,
-                (HashAlgorithm.sha1, SignatureAlgorithm.ecdsa)]
+                (HashAlgorithm.sha224, SignatureAlgorithm.ecdsa),
+                (HashAlgorithm.sha1, SignatureAlgorithm.ecdsa),
+                SignatureScheme.ecdsa_brainpoolP256r1tls13_sha256,
+                SignatureScheme.ecdsa_brainpoolP384r1tls13_sha384,
+                SignatureScheme.ecdsa_brainpoolP512r1tls13_sha512]
     ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
@@ -141,7 +154,6 @@ def main():
         ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {}
-        groups = [GroupName.secp256r1]
         key_shares = []
         for group in groups:
             key_shares.append(key_share_gen(group))
@@ -155,7 +167,8 @@ def main():
         ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
             .create(sig_algs + RSA_SIG_ALL)
         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-        if sigalg == (HashAlgorithm.sha1, SignatureAlgorithm.ecdsa):
+        if sigalg in [(HashAlgorithm.sha1, SignatureAlgorithm.ecdsa),
+                      (HashAlgorithm.sha224, SignatureAlgorithm.ecdsa)]:
             node = node.add_child(ExpectAlert(
                 AlertLevel.fatal,
                 AlertDescription.handshake_failure))
@@ -250,10 +263,12 @@ def main():
 
     print("Basic ECDSA cert test with TLS 1.3 server")
     print("Check if communication with typical group and cipher works with")
-    print("the TLS 1.3 server that has ECDSA certificate.\n")
-    print("Test expects the server to have installed three certificates:")
-    print("with P-256, P-384 and P-521 curve. Also SHA1+ECDSA is verified")
-    print("to not work.\n")
+    print("the TLS 1.3 server that has ECDSA certificate with NIST curves")
+    print("or Brainpool curves\n")
+    print("Test expects the server to have installed six certificates:")
+    print("with P-256, P-384, P-521, brainpoolP256r1, brainpoolP384r1, and")
+    print("brainpoolP512r1 curve. Also SHA1+ECDSA and SHA224+ECDSA")
+    print("is verified to not work.\n")
 
     print("Test end")
     print(20 * '=')
