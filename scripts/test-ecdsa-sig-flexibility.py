@@ -20,12 +20,13 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
 from tlslite.extensions import SignatureAlgorithmsExtension, \
         SupportedGroupsExtension, SignatureAlgorithmsCertExtension
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        HashAlgorithm, SignatureAlgorithm, ExtensionType, GroupName
+        HashAlgorithm, SignatureAlgorithm, ExtensionType, GroupName, \
+        TLS_1_3_BRAINPOOL_SIG_SCHEMES, SignatureScheme
 from tlsfuzzer.helpers import SIG_ALL
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 6
+version = 7
 
 
 def help_msg():
@@ -228,6 +229,26 @@ def main():
         node = node.add_child(ExpectAlert())
         node.next_sibling = ExpectClose()
         conversations["connect with {0}+ecdsa only".format(h_alg)] = conversation
+
+    for sig_scheme in TLS_1_3_BRAINPOOL_SIG_SCHEMES:
+        conversation = Connect(host, port)
+        node = conversation
+        ext = {}
+        if ems:
+            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+        sigalgs = [sig_scheme]
+        ext[ExtensionType.signature_algorithms] = \
+                SignatureAlgorithmsExtension().create(sigalgs)
+        ext[ExtensionType.signature_algorithms_cert] = \
+                SignatureAlgorithmsCertExtension().create(SIG_ALL)
+        ext[ExtensionType.supported_groups] = \
+                SupportedGroupsExtension().create(groups)
+        node = node.add_child(ClientHelloGenerator(ciphers, version=(3, 3),
+                                                   extensions=ext))
+        node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                          AlertDescription.handshake_failure))
+        node.add_child(ExpectClose())
+        conversations["connect with {0} only".format(SignatureScheme.toStr(sig_scheme))] = conversation
 
     # run the conversation
     good = 0
