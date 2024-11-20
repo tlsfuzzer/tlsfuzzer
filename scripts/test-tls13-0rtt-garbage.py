@@ -10,7 +10,7 @@ from random import sample
 
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
-        ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
+        ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
         SetRecordVersion, TCPBufferingEnable, TCPBufferingDisable, \
         TCPBufferingFlush, ch_cookie_handler, split_message, \
@@ -26,7 +26,7 @@ from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme, \
         PskKeyExchangeMode, ContentType
 from tlslite.utils.cryptomath import getRandomNumber, getRandomBytes
-from tlslite.keyexchange import ECDHKeyExchange
+
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
@@ -64,6 +64,46 @@ def help_msg():
     print(" -M | --ems     Enable Extended Master Secret for TLS 1.2 connections")
     print(" --help         this message")
 
+def build_conn_graph(host, port):
+    """ Build a connection map from the provided values """
+    conversation = Connect(host, port)
+    node = conversation
+
+    ext = OrderedDict()
+    groups = [GroupName.secp256r1]
+
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256]
+    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+        .create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+        .create(RSA_SIG_ALL)
+    ext[ExtensionType.early_data] = \
+        TLSExtension(extType=ExtensionType.early_data)
+    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
+    iden = PskIdentity().create(getRandomBytes(320),
+                                getRandomNumber(2**30, 2**32))
+    bind = getRandomBytes(32)
+    ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
+        [iden], [bind])
+    node = node.add_child(TCPBufferingEnable())
+
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(SetRecordVersion((3, 3)))
+
+    return (conversation, node)
 
 def main():
     host = "localhost"
@@ -120,10 +160,10 @@ def main():
     # sanity check
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
+
+    ext = OrderedDict()
     groups = [GroupName.secp256r1]
+
     key_shares = []
     for group in groups:
         key_shares.append(key_share_gen(group))
@@ -138,6 +178,10 @@ def main():
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
+
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -165,10 +209,10 @@ def main():
     # sanity check with PSK binders
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+
     ext = OrderedDict()
     groups = [GroupName.secp256r1]
+
     key_shares = []
     for group in groups:
         key_shares.append(key_share_gen(group))
@@ -189,6 +233,10 @@ def main():
     bind = getRandomBytes(32)
     ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
         [iden], [bind])
+
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -216,10 +264,10 @@ def main():
     # fake 0-RTT resumption with HRR and early data after second client hello
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+
     ext = OrderedDict()
     groups = [0x1300, GroupName.secp256r1]
+
     key_shares = [KeyShareEntry().create(0x1300, bytearray(b'\xab'*32))]
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
     ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
@@ -242,6 +290,10 @@ def main():
     ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
         [iden], [bind])
     node = node.add_child(TCPBufferingEnable())
+
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(SetRecordVersion((3, 3)))
     node = node.add_child(ApplicationDataGenerator(getRandomBytes(num_bytes)))
@@ -301,10 +353,10 @@ def main():
     # fake 0-RTT resumption with HRR
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+
     ext = OrderedDict()
     groups = [0x1300, GroupName.secp256r1]
+
     key_shares = [KeyShareEntry().create(0x1300, bytearray(b'\xab'*32))]
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
     ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
@@ -327,6 +379,10 @@ def main():
     ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
         [iden], [bind])
     node = node.add_child(TCPBufferingEnable())
+
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(SetRecordVersion((3, 3)))
     node = node.add_child(ApplicationDataGenerator(getRandomBytes(num_bytes)))
@@ -386,38 +442,8 @@ def main():
     conversations["handshake with invalid 0-RTT and HRR"] = conversation
 
     # fake 0-RTT resumption with fragmented early data
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = OrderedDict()
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    for group in groups:
-        key_shares.append(key_share_gen(group))
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    ext[ExtensionType.early_data] = \
-        TLSExtension(extType=ExtensionType.early_data)
-    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
-        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
-    iden = PskIdentity().create(getRandomBytes(320),
-                                getRandomNumber(2**30, 2**32))
-    bind = getRandomBytes(32)
-    ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
-        [iden], [bind])
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(SetRecordVersion((3, 3)))
+    (conversation, node) = build_conn_graph(host, port)
+
     node = node.add_child(ApplicationDataGenerator(
         getRandomBytes(num_bytes // 2)))
     node = node.add_child(ApplicationDataGenerator(
@@ -449,38 +475,8 @@ def main():
         = conversation
 
     # fake 0-RTT and early data spliced into the Finished message
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = OrderedDict()
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    for group in groups:
-        key_shares.append(key_share_gen(group))
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    ext[ExtensionType.early_data] = \
-        TLSExtension(extType=ExtensionType.early_data)
-    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
-        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
-    iden = PskIdentity().create(getRandomBytes(320),
-                                getRandomNumber(2**30, 2**32))
-    bind = getRandomBytes(32)
-    ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
-        [iden], [bind])
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(SetRecordVersion((3, 3)))
+    (conversation, node) = build_conn_graph(host, port)
+
     node = node.add_child(ApplicationDataGenerator(getRandomBytes(num_bytes)))
     node = node.add_child(TCPBufferingDisable())
     node = node.add_child(TCPBufferingFlush())
@@ -512,38 +508,8 @@ def main():
         = conversation
 
     # fake 0-RTT resumption and CCS between fake early data
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = OrderedDict()
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    for group in groups:
-        key_shares.append(key_share_gen(group))
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    ext[ExtensionType.early_data] = \
-        TLSExtension(extType=ExtensionType.early_data)
-    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
-        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
-    iden = PskIdentity().create(getRandomBytes(320),
-                                getRandomNumber(2**30, 2**32))
-    bind = getRandomBytes(32)
-    ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
-        [iden], [bind])
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(SetRecordVersion((3, 3)))
+    (conversation, node) = build_conn_graph(host, port)
+
     node = node.add_child(
         ApplicationDataGenerator(getRandomBytes(num_bytes//2)))
     node = node.add_child(ChangeCipherSpecGenerator(fake=True))
@@ -576,38 +542,8 @@ def main():
         = conversation
 
     # fake 0-RTT resumption and CCS
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = OrderedDict()
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    for group in groups:
-        key_shares.append(key_share_gen(group))
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    ext[ExtensionType.early_data] = \
-        TLSExtension(extType=ExtensionType.early_data)
-    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
-        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
-    iden = PskIdentity().create(getRandomBytes(320),
-                                getRandomNumber(2**30, 2**32))
-    bind = getRandomBytes(32)
-    ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
-        [iden], [bind])
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(SetRecordVersion((3, 3)))
+    (conversation, node) = build_conn_graph(host, port)
+
     node = node.add_child(ChangeCipherSpecGenerator(fake=True))
     node = node.add_child(ApplicationDataGenerator(getRandomBytes(num_bytes)))
     node = node.add_child(TCPBufferingDisable())
@@ -638,18 +574,10 @@ def main():
     # fake 0-RTT resumption with unknown version
     conversation = Connect(host, port)
     node = conversation
+
     ext = OrderedDict()
-    groups = [GroupName.secp256r1,
-              GroupName.ffdhe2048]
-    if dhe:
-        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    else:
-        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                   CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    groups = [GroupName.secp256r1, GroupName.ffdhe2048]
+
     key_shares = []
     for group in groups:
         key_shares.append(key_share_gen(group))
@@ -676,6 +604,17 @@ def main():
     ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
         [iden], [bind])
     node = node.add_child(TCPBufferingEnable())
+
+    if dhe:
+        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                   CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(SetRecordVersion((3, 3)))
     node = node.add_child(ApplicationDataGenerator(getRandomBytes(num_bytes)))
@@ -696,38 +635,8 @@ def main():
     conversations["handshake with invalid 0-RTT and unknown version (downgrade to TLS 1.2)"] = conversation
 
     # fake 0-RTT resumption
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = OrderedDict()
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    for group in groups:
-        key_shares.append(key_share_gen(group))
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    ext[ExtensionType.early_data] = \
-        TLSExtension(extType=ExtensionType.early_data)
-    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
-        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
-    iden = PskIdentity().create(getRandomBytes(320),
-                                getRandomNumber(2**30, 2**32))
-    bind = getRandomBytes(32)
-    ext[ExtensionType.pre_shared_key] = PreSharedKeyExtension().create(
-        [iden], [bind])
-    node = node.add_child(TCPBufferingEnable())
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(SetRecordVersion((3, 3)))
+    (conversation, node) = build_conn_graph(host, port)
+
     node = node.add_child(ApplicationDataGenerator(getRandomBytes(num_bytes)))
     node = node.add_child(TCPBufferingDisable())
     node = node.add_child(TCPBufferingFlush())
