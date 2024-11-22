@@ -199,9 +199,6 @@ jobs:
           export PYTHONPATH=`echo /usr/share/python-wheels/pip-*py2*.whl`
           sudo --preserve-env=PYTHONPATH python -m pip install --upgrade pip setuptools wheel
           sudo chown -R $USER /usr/local/lib/python2.7
-          # workaround https://bugs.launchpad.net/ubuntu/+source/python2.7/+bug/2089136
-          wget https://bugs.launchpad.net/ubuntu/+source/python2.7/+bug/2089136/+attachment/5838791/+files/tarfile.py
-          sudo mv tarfile.py /usr/lib/python2.7/tarfile.py
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
       - name: Display installed python package versions
