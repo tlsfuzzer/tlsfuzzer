@@ -49,11 +49,10 @@ def help_msg():
     print("                (\"sanity\" tests are always executed)")
     print(" -C ciph        Use specified ciphersuite. Either numerical value or")
     print("                IETF name.")
-    print("                Ordered according to the preferences. Either int or ECPointFormat.")
     print(" -M | --ems     Advertise support for Extended Master Secret")
+    print(" --ec-point-f   Defines the ECPointFormats the server supports, in a specific order.")
+    print("                Usage: --ec-point-f <int>:<int>:...")
     print(" --help         this message")
-    print(" --compressed_f Supported point format extensions for server.")
-    print(" ecc-point-frmt The default value is all. Can be used multiple times.")
     # already used single-letter options:
     # -m test-large-hello.py - min extension number for fuzz testing
     # -s signature algorithms sent by server
@@ -91,7 +90,7 @@ def main():
     ecc_point_frmt = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:M", ["help", "ems", "compressed_f"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dC:M", ["help", "ems", "ec-point-f="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -116,11 +115,8 @@ def main():
                     ciphers = [getattr(CipherSuite, arg)]
                 except AttributeError:
                     ciphers = [int(arg)]
-        elif opt == '--compressed_f':
-            # by default expect the server to send in server hello
-            # uncompressed encoding.
-            # But it can be configurated.
-            ecc_point_frmt = ['uncompressed', 'compressed']
+        elif opt == '--ec-point-f':
+            ecc_point_frmt = [int(item) for item in arg.split(':')]
         elif opt == '-M' or opt == '--ems':
             ems = True
         elif opt == '--help':
@@ -137,14 +133,14 @@ def main():
         ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
                     CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
                     CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+    if not ecc_point_frmt:
+        ecc_point_frmt = [ECPointFormat.uncompressed]
 
     conversations = {}
 
     conversation = Connect(host, port)
     node = conversation
     ext = {}
-    if not ecc_point_frmt:
-        ecc_point_frmt = ['uncompressed']
     if ems:
         ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     groups = [GroupName.secp256r1,
@@ -191,6 +187,45 @@ def main():
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(SIG_ALL)
     ext[ExtensionType.ec_point_formats] = \
+        ECPointFormatsExtension().create([ECPointFormat.uncompressed])
+    node = node.add_child(ClientHelloGenerator(
+        ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
+        extensions=ext))
+    extensions = {ExtensionType.ec_point_formats: ECPointFormatsExtension().create(ecc_point_frmt),
+                  ExtensionType.renegotiation_info: None}
+    node = node.add_child(ExpectServerHello(extensions=extensions))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(ClientKeyExchangeGenerator())
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(ApplicationDataGenerator(
+        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+    node = node.add_child(ExpectApplicationData())
+    node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                         AlertDescription.close_notify))
+    node = node.add_child(ExpectAlert())
+    node.next_sibling = ExpectClose()
+
+    conversations["Check if {0} encoding(s) is/are present in server hello"
+                  .format([ECPointFormat.toRepr(rep)
+                          for rep in ecc_point_frmt])] = conversation
+
+    conversation = Connect(host, port)
+    node = conversation
+    ext = {}
+
+    groups = [GroupName.secp256r1]
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(SIG_ALL)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(SIG_ALL)
+    ext[ExtensionType.ec_point_formats] = \
         ECPointFormatsExtension().create([])
     node = node.add_child(ClientHelloGenerator(
         ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
@@ -213,14 +248,11 @@ def main():
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(SIG_ALL)
     ext[ExtensionType.ec_point_formats] = \
-        ECPointFormatsExtension().create([ECPointFormat.ansiX962_compressed_prime])
+        ECPointFormatsExtension().create(
+            [ECPointFormat.ansiX962_compressed_prime])
     node = node.add_child(ClientHelloGenerator(
         ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
         extensions=ext))
-    node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                       AlertDescription.illegal_parameter))
-    node.next_sibling = ExpectServerHello()
-    node = node.next_sibling.add_child(ExpectCertificate())
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                        AlertDescription.illegal_parameter))
     node = node.add_child(ExpectClose())
@@ -228,11 +260,12 @@ def main():
     conversations["Uncompressed code point missing in ec_point_formats"] = conversation
 
     for encoding in ecc_point_frmt:
-        point_fmt = [ECPointFormat.uncompressed]
-        if encoding == 'compressed':
-            point_fmt = [ECPointFormat.ansiX962_compressed_prime,
-                ECPointFormat.ansiX962_compressed_char2,
-                ECPointFormat.uncompressed]
+        if encoding == ECPointFormat.uncompressed:
+            point_fmt = [ECPointFormat.uncompressed]
+            encoding = 'uncompressed'
+        else:
+            point_fmt = [encoding, ECPointFormat.uncompressed]
+            encoding = 'compressed'
         conversation = Connect(host, port)
         node = conversation
         ext = {}
@@ -291,7 +324,7 @@ def main():
 
         conversations["Client public key encoded with {0} encoding".format(encoding)] = conversation
 
-    if 'compressed' not in ecc_point_frmt:
+    if ecc_point_frmt == [ECPointFormat.uncompressed]:
         conversation = Connect(host, port)
         node = conversation
         ext = {}
@@ -318,7 +351,8 @@ def main():
         node = node.add_child(ExpectAlert(AlertLevel.fatal, AlertDescription.illegal_parameter))
         node = node.add_child(ExpectClose())
 
-        conversations["ECDHE compressed encoding from the client, if server does not support -> reject"] = conversation
+        conversations["ECDHE compressed encoding from the client, if server does not support "
+                    "compressed format, it should send the alert"] = conversation
 
 
 
