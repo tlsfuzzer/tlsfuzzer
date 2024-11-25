@@ -100,7 +100,7 @@ def main():
                   ClientCertificateType.ecdsa_sign]
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:s:k:c:T:dM", ["help", "ems"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:s:k:c:T:dMn:", ["help", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             hostname = arg
