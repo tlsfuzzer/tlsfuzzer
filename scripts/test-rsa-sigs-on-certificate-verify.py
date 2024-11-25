@@ -74,7 +74,7 @@ def main():
     ems = False
 
     argv = sys.argv[1:]
-    opts, argv = getopt.getopt(argv, "h:p:e:x:X:k:c:dM", ["help", "ems"])
+    opts, argv = getopt.getopt(argv, "h:p:e:x:X:k:c:dMn:", ["help", "ems"])
 
     for opt, arg in opts:
         if opt == '-k':
