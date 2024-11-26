@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2019
+# Author: Alicja Kario, (c) 2019, 2024
 # Released under Gnu GPL v2.0, see LICENSE file for details
 """Test for ECDSA support in Certificate Verify"""
 
@@ -33,7 +33,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import RSA_SIG_ALL, ECDSA_SIG_ALL
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -55,6 +55,9 @@ def help_msg():
     print("                (excluding \"sanity\" tests)")
     print(" -k file.pem    file with private key for client")
     print(" -c file.pem    file with certificate for client")
+    print(" -g kex         Key exchange groups to advertise in the supported_groups")
+    print("                extension, separated by colons. By default:")
+    print("                \"secp256r1:secp384r1:secp521r1\"")
     print(" --help         this message")
 
 
@@ -68,9 +71,10 @@ def main():
     last_exp_tmp = None
     private_key = None
     cert = None
+    groups = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:k:c:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:k:c:g:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -87,6 +91,9 @@ def main():
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '-g':
+            vals = arg.split(":")
+            groups = [getattr(GroupName, i) for i in vals]
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -114,6 +121,11 @@ def main():
     else:
         run_only = None
 
+    if groups is None:
+        groups = [GroupName.secp256r1,
+                  GroupName.secp384r1,
+                  GroupName.secp521r1]
+
     conversations = {}
 
     # sanity check for Client Certificates
@@ -127,8 +139,7 @@ def main():
            ExtensionType.signature_algorithms_cert :
            SignatureAlgorithmsCertExtension().create(ECDSA_SIG_ALL + RSA_SIG_ALL),
            ExtensionType.supported_groups :
-           SupportedGroupsExtension().create([
-               GroupName.secp256r1, GroupName.secp384r1, GroupName.secp521r1]),
+           SupportedGroupsExtension().create(groups),
            ExtensionType.ec_point_formats :
            ECPointFormatsExtension().create([ECPointFormat.uncompressed])}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -164,8 +175,7 @@ def main():
            ExtensionType.signature_algorithms_cert :
            SignatureAlgorithmsCertExtension().create(ECDSA_SIG_ALL + RSA_SIG_ALL),
            ExtensionType.supported_groups :
-           SupportedGroupsExtension().create([
-               GroupName.secp256r1, GroupName.secp384r1, GroupName.secp521r1]),
+           SupportedGroupsExtension().create(groups),
            ExtensionType.ec_point_formats :
            ECPointFormatsExtension().create([ECPointFormat.uncompressed])}
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
@@ -207,9 +217,7 @@ def main():
                    SignatureAlgorithmsCertExtension().create(ECDSA_SIG_ALL +
                                                              RSA_SIG_ALL),
                    ExtensionType.supported_groups :
-                   SupportedGroupsExtension().create([
-                       GroupName.secp256r1, GroupName.secp384r1,
-                       GroupName.secp521r1]),
+                   SupportedGroupsExtension().create(groups),
                    ExtensionType.ec_point_formats :
                    ECPointFormatsExtension().create([
                        ECPointFormat.uncompressed])}
