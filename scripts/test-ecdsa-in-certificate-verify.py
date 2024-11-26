@@ -25,7 +25,7 @@ from tlslite.extensions import SignatureAlgorithmsExtension, \
         ECPointFormatsExtension
 from tlslite.constants import CipherSuite, AlertDescription, \
         HashAlgorithm, SignatureAlgorithm, ExtensionType, GroupName, \
-        ECPointFormat, AlertLevel, AlertDescription
+        ECPointFormat, AlertLevel, AlertDescription, SignatureScheme
 from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
@@ -33,7 +33,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import RSA_SIG_ALL, ECDSA_SIG_ALL
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -249,8 +249,8 @@ def main():
                 node = node.add_child(TCPBufferingEnable())
                 node = node.add_child(CertificateVerifyGenerator(
                     private_key,
-                    msg_alg=alg,
-                    sig_alg=real_alg))
+                    msg_alg=real_alg,
+                    sig_alg=alg))
                 node = node.add_child(ChangeCipherSpecGenerator())
                 node = node.add_child(FinishedGenerator())
                 node = node.add_child(TCPBufferingDisable())
@@ -262,6 +262,60 @@ def main():
                 conversations["make {0}+ecdsa signature, advertise it as "
                               "{1}+ecdsa in CertificateVerify"
                               .format(h_alg, real_h_alg)] = conversation
+
+    for advertised_scheme, real_scheme in [
+            (SignatureScheme.ecdsa_brainpoolP256r1tls13_sha256, SignatureScheme.ecdsa_secp256r1_sha256),
+            (SignatureScheme.ecdsa_brainpoolP384r1tls13_sha384, SignatureScheme.ecdsa_secp384r1_sha384),
+            (SignatureScheme.ecdsa_brainpoolP512r1tls13_sha512, SignatureScheme.ecdsa_secp521r1_sha512),
+            ]:
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        ext = {ExtensionType.signature_algorithms :
+               SignatureAlgorithmsExtension().create(ECDSA_SIG_ALL +
+                                                     RSA_SIG_ALL),
+               ExtensionType.signature_algorithms_cert :
+               SignatureAlgorithmsCertExtension().create(ECDSA_SIG_ALL +
+                                                         RSA_SIG_ALL),
+               ExtensionType.supported_groups :
+               SupportedGroupsExtension().create([
+                   GroupName.secp256r1, GroupName.secp384r1,
+                   GroupName.secp521r1, GroupName.brainpoolP256r1,
+                   GroupName.brainpoolP384r1, GroupName.brainpoolP512r1,
+                   GroupName.brainpoolP256r1tls13,
+                   GroupName.brainpoolP384r1tls13,
+                   GroupName.brainpoolP512r1tls13]),
+               ExtensionType.ec_point_formats :
+               ECPointFormatsExtension().create([
+                   ECPointFormat.uncompressed])}
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions=ext))
+        node = node.add_child(ExpectServerHello(version=(3, 3)))
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerKeyExchange())
+        node = node.add_child(ExpectCertificateRequest())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(CertificateGenerator(X509CertChain([cert])))
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(TCPBufferingEnable())
+        node = node.add_child(CertificateVerifyGenerator(
+            private_key,
+            msg_alg=advertised_scheme,
+            sig_alg=real_scheme))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
+        node = node.add_child(ExpectAlert(
+            AlertLevel.fatal,
+            AlertDescription.illegal_parameter))
+        node = node.add_child(ExpectClose())
+        conversations["make {0} signature, advertise it as "
+                      "{1} in CertificateVerify"
+                      .format(SignatureScheme.toStr(real_scheme),
+                              SignatureScheme.toStr(advertised_scheme))] = conversation
 
     # run the conversation
     good = 0
