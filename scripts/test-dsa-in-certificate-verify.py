@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2023
+# Author: Alicja Kario, (c) 2023, 2024
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 from __future__ import print_function
@@ -31,7 +31,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
 
 
-version = 2
+version = 3
 
 
 def help_msg():
@@ -249,6 +249,52 @@ def main():
     node = node.add_child(ExpectAlert())
     node.add_child(ExpectClose())
     conversations["md5+dsa forced"] = conversation
+
+    for h_alg in ["sha1", "sha224", "sha256", "sha384", "sha512"]:
+        conversation = Connect(host, port)
+        node = conversation
+        ext = {}
+        if ems:
+            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+        if dhe:
+            groups = [GroupName.secp256r1,
+                      GroupName.ffdhe2048]
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                .create(groups)
+            ext[ExtensionType.signature_algorithms] = \
+                SignatureAlgorithmsExtension().create(SIG_ALL)
+            ext[ExtensionType.signature_algorithms_cert] = \
+                SignatureAlgorithmsCertExtension().create(SIG_ALL)
+        if not ext:
+            ext = None
+        node = node.add_child(ClientHelloGenerator(
+            ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
+            extensions=ext))
+        node = node.add_child(ExpectServerHello())
+        node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
+        node = node.add_child(ExpectCertificateRequest())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(CertificateGenerator(X509CertChain([cert])))
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(CertificateVerifyGenerator(
+            private_key,
+            msg_alg=(getattr(HashAlgorithm, h_alg),
+                     SignatureAlgorithm.dsa)))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        node = node.add_child(ExpectApplicationData())
+        node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                             AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert())
+        node.next_sibling = ExpectClose()
+        conversations["sign with {0}+dsa".format(h_alg)] = conversation
+
 
     # run the conversation
     good = 0
