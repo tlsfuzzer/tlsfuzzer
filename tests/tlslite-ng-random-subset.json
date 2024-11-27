@@ -624,7 +624,12 @@
           "comments": "use ECDSA signatures instead of RSA",
           "arguments": ["--ecdsa"]},
          {"name": "test-tls13-conversation.py"},
-         {"name": "test-tls13-ecdsa-support.py"},
+         {"name": "test-tls13-ecdsa-support.py",
+          "comment": "the server doesn't have Brainpool certs enabled",
+          "arguments": ["-x", "Test with ecdsa_brainpoolP256r1tls13_sha256", "-X", "handshake_failure",
+                        "-x", "Test with ecdsa_brainpoolP384r1tls13_sha384", "-X", "handshake_failure",
+                        "-x", "Test with ecdsa_brainpoolP512r1tls13_sha512", "-X", "handshake_failure"]
+         },
          {"name" : "test-tls13-minerva.py",
           "arguments": ["--curve", "P-256"]}
      ]
