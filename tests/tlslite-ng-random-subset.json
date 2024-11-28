@@ -427,27 +427,35 @@
          {"name" : "test-rsa-sigs-on-certificate-verify.py",
           "arguments" : ["-d"]},
          {"name" : "test-tls13-certificate-request.py",
-          "arguments" : ["-E", "compress_certificate:CR key_share:SH supported_versions:SH"]},
+          "arguments" : ["-E", "compress_certificate:CR key_share:SH supported_versions:SH",
+                         "-s", "ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]},
          {"name" : "test-tls13-certificate-request.py",
           "comment": "Test with additional extensions",
-          "arguments" : ["-E", "compress_certificate:CR status_request:CH:CT key_share:SH supported_versions:SH"]
+          "arguments" : ["-E", "compress_certificate:CR status_request:CH:CT key_share:SH supported_versions:SH",
+                         "-s", "ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
           },
          {"name" : "test-tls13-certificate-verify.py",
           "arguments" : ["-k", "tests/clientRSAPSSKey.pem",
-                         "-c", "tests/clientRSAPSSCert.pem"]
+                         "-c", "tests/clientRSAPSSCert.pem",
+                         "-s", "ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
           },
-         {"name" : "test-tls13-certificate-verify.py"},
+         {"name" : "test-tls13-certificate-verify.py",
+          "arguments" : ["-s", "ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
+         },
          {"name" : "test-tls13-ecdsa-in-certificate-verify.py",
           "arguments" : ["-k", "tests/serverECKey.pem",
-                         "-c", "tests/serverECCert.pem"]
+                         "-c", "tests/serverECCert.pem",
+                         "-s", "ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
           },
          {"name" : "test-tls13-eddsa-in-certificate-verify.py",
           "arguments" : ["-k", "tests/serverEd25519Key.pem",
-                         "-c", "tests/serverEd25519Cert.pem"]
+                         "-c", "tests/serverEd25519Cert.pem",
+                         "-s", "ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
           },
          {"name" : "test-tls13-eddsa-in-certificate-verify.py",
           "arguments" : ["-k", "tests/serverEd448Key.pem",
-                         "-c", "tests/serverEd448Cert.pem"]
+                         "-c", "tests/serverEd448Cert.pem",
+                         "-s", "ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
          },
          {"name" : "test-tls13-client-certificate-compression.py",
           "arguments" : ["-k", "tests/clientX509Key.pem",
@@ -616,7 +624,12 @@
           "comments": "use ECDSA signatures instead of RSA",
           "arguments": ["--ecdsa"]},
          {"name": "test-tls13-conversation.py"},
-         {"name": "test-tls13-ecdsa-support.py"},
+         {"name": "test-tls13-ecdsa-support.py",
+          "comment": "the server doesn't have Brainpool certs enabled",
+          "arguments": ["-x", "Test with ecdsa_brainpoolP256r1tls13_sha256", "-X", "handshake_failure",
+                        "-x", "Test with ecdsa_brainpoolP384r1tls13_sha384", "-X", "handshake_failure",
+                        "-x", "Test with ecdsa_brainpoolP512r1tls13_sha512", "-X", "handshake_failure"]
+         },
          {"name" : "test-tls13-minerva.py",
           "arguments": ["--curve", "P-256"]}
      ]
@@ -686,6 +699,44 @@
          {"name": "test-tls13-eddsa.py",
           "arguments": ["-x", "ed25519 only",
                         "-X", "handshake_failure"]}
+     ]
+    },
+    {"server_command": ["{python}", "-u", "{command}", "server",
+                "-k", "tests/serverBrainpoolP256r1ECKey.pem",
+                "-c", "tests/serverBrainpoolP256r1ECCert.pem",
+                "--groups",
+                "brainpoolP256r1tls13,brainpoolP384r1tls13,brainpoolP512r1tls13,x25519",
+                "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "tests" : [
+         {"name": "test-tls13-ecdhe-brainpool-curves.py"}
+     ]
+    },
+    {"server_command": ["{python}", "-u", "{command}", "server",
+                "--reqcert",
+                "-k", "tests/serverBrainpoolP256r1ECKey.pem",
+                "-c", "tests/serverBrainpoolP256r1ECCert.pem",
+                "--groups",
+                "brainpoolP256r1tls13,brainpoolP384r1tls13,brainpoolP512r1tls13,x25519",
+                "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "tests" : [
+         {"name": "test-tls13-ecdsa-brainpool-in-certificate-verify.py",
+          "arguments": ["-n", "0",
+                        "-k", "tests/serverBrainpoolP256r1ECKey.pem",
+                        "-c", "tests/serverBrainpoolP256r1ECCert.pem"]},
+         {"name": "test-tls13-ecdsa-brainpool-in-certificate-verify.py",
+          "arguments": ["-n", "0",
+                        "-k", "tests/serverBrainpoolP384r1ECKey.pem",
+                        "-c", "tests/serverBrainpoolP384r1ECCert.pem"]},
+         {"name": "test-tls13-ecdsa-brainpool-in-certificate-verify.py",
+          "arguments": ["-n", "0",
+                        "-k", "tests/serverBrainpoolP512r1ECKey.pem",
+                        "-c", "tests/serverBrainpoolP512r1ECCert.pem"]}
      ]
     }
 ]

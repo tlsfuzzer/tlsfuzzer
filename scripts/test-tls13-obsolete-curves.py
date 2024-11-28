@@ -1,4 +1,5 @@
 # Author: Alexander Sosedkin, (c) 2019
+# Author: Alicja Kario, (c) 2024
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 from __future__ import print_function
@@ -30,7 +31,7 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
 from tlsfuzzer.helpers import key_share_gen, SIG_ALL, key_share_ext_gen
 
 
-version = 7
+version = 8
 
 
 def help_msg():
@@ -68,7 +69,7 @@ def negative_test(host, port, additional_extensions, expected_alert):
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {}
     ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
+        .create([TLS_1_3_DRAFT])
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256,
                 SignatureScheme.ecdsa_secp256r1_sha256]
@@ -90,7 +91,7 @@ def positive_test(host, port, additional_extensions):
                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {}
     ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
+        .create([TLS_1_3_DRAFT])
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
                 SignatureScheme.rsa_pss_pss_sha256,
                 SignatureScheme.ecdsa_secp256r1_sha256]
@@ -186,7 +187,7 @@ def main():
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
     ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
+        .create([TLS_1_3_DRAFT])
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
@@ -230,7 +231,7 @@ def main():
     key_shares = []
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
     ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
+        .create([TLS_1_3_DRAFT])
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
@@ -257,7 +258,7 @@ def main():
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
     ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
+        .create([TLS_1_3_DRAFT])
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
@@ -307,7 +308,7 @@ def main():
         key_shares.append(key_share_gen(group))
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
     ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
+        .create([TLS_1_3_DRAFT])
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(both_groups)
     sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
@@ -339,7 +340,7 @@ def main():
             key_shares.append(key_share_gen(group))
         ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
         ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-            .create([TLS_1_3_DRAFT, (3, 3)])
+            .create([TLS_1_3_DRAFT])
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(both_groups)
         sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,

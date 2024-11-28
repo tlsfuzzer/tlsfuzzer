@@ -50,6 +50,9 @@ def help_msg():
     print("                (\"sanity\" tests are always executed)")
     print(" -C ciph        Use specified ciphersuite. Either numerical value or")
     print("                IETF name.")
+    print(" -g kex         Key exchange groups to advertise in the supported_groups")
+    print("                extension, separated by colons. By default:")
+    print("                \"secp256r1\"")
     print(" --help         this message")
 
 
@@ -61,9 +64,10 @@ def main():
     expected_failures = {}
     last_exp_tmp = None
     ciphers = None
+    groups = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:C:", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:C:g:", ["help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -88,6 +92,9 @@ def main():
                     ciphers = [getattr(CipherSuite, arg)]
                 except AttributeError:
                     ciphers = [int(arg)]
+        elif opt == '-g':
+            vals = arg.split(":")
+            groups = [getattr(GroupName, i) for i in vals]
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -101,13 +108,14 @@ def main():
 
     if not ciphers:
         ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256]
+    if groups is None:
+        groups = [GroupName.secp256r1]
 
     conversations = {}
 
     conversation = Connect(host, port)
     node = conversation
     ext = {}
-    groups = [GroupName.secp256r1]
     key_shares = []
     for group in groups:
         key_shares.append(key_share_gen(group))
