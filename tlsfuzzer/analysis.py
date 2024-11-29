@@ -526,10 +526,20 @@ class Analysis(object):
         comb = list(combinations(list(range(len(self.class_names))), 2))
         job_size = max(len(comb) // os.cpu_count(), 1)
         with mp.Pool(self.workers) as pool:
-            pvals = list(pool.imap_unordered(
+            workers = set(pool._pool)
+            pvals = []
+
+            for i in pool.imap_unordered(
                 self._mt_process_runner,
                 zip(comb, repeat(sum_func), repeat(args)),
-                job_size))
+                job_size
+            ):
+                pvals.append(i)
+
+                workers.update(pool._pool)
+                if any(not p.is_alive() for p in workers):
+                    raise RuntimeError("One of workers killed")
+
         results = dict(pvals)
         return results
 
@@ -924,6 +934,8 @@ class Analysis(object):
 
         with mp.Pool(self.workers, initializer=self._import_diffs,
                      initargs=(_diffs,)) as pool:
+            workers = set(pool._pool)
+
             cent_tend = pool.imap_unordered(
                 self._cent_tend_of_random_sample,
                 chain(repeat(job_size, reps // job_size), [reps % job_size]))
@@ -938,6 +950,11 @@ class Analysis(object):
                 chunk = list(map(list, zip(*values)))
                 for key, i in zip(keys, range(len(keys))):
                     ret[key].extend(chunk[i])
+
+                workers.update(pool._pool)
+                if any(not p.is_alive() for p in workers):
+                    raise RuntimeError("One of workers killed")
+
         _diffs = None
         return ret
 
@@ -1880,8 +1897,10 @@ class Analysis(object):
         if self.verbose:
             print('[i] Starting k-sizes counting')
 
-        with mp.Pool(self.workers) as p:
-            chunks = p.imap_unordered(
+        with mp.Pool(self.workers) as pool:
+            workers = set(pool._pool)
+
+            chunks = pool.imap_unordered(
                 # slice the data so that every worker has at least good few
                 # dozen megabytes of data to work with
                 self._k_sizes_totals_worker,
@@ -1892,6 +1911,10 @@ class Analysis(object):
             for subtotals in chunks:
                 for key in subtotals:
                     k_sizes_totals[key] += subtotals[key]
+
+                workers.update(pool._pool)
+                if any(not p.is_alive() for p in workers):
+                    raise RuntimeError("One of workers killed")
 
         k_sizes_totals = dict(sorted(k_sizes_totals.items(), reverse=True))
         self._k_sizes = k_sizes_totals
@@ -2316,8 +2339,10 @@ class Analysis(object):
         os.makedirs(self.output, exist_ok=True)
 
         try:
-            with mp.Pool(self.workers) as p:
-                chunks = p.imap_unordered(
+            with mp.Pool(self.workers) as pool:
+                workers = set(pool._pool)
+
+                chunks = pool.imap_unordered(
                     self._bit_size_smart_analysis_worker,
                     ((name_bin, i) for i in _slices(total_data, chunk_size))
                 )
@@ -2325,8 +2350,13 @@ class Analysis(object):
                 chosen_tuples = []
                 for subprocess_progress, subprocess_tuples in chunks:
                     chosen_tuples.extend(subprocess_tuples)
+
                     if status:
                         status[0] += subprocess_progress
+
+                    workers.update(pool._pool)
+                    if any(not p.is_alive() for p in workers):
+                        raise RuntimeError("One of workers killed")
         finally:
             if status:
                 status[2].set()
