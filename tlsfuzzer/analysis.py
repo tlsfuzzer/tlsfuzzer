@@ -311,6 +311,13 @@ class Analysis(object):
                 "trimean": "Trimean"
             }
 
+    @staticmethod
+    def _check_if_workers_are_alive(workers):
+        for p in workers:
+            if not p.is_alive():
+                raise RuntimeError(
+                    "One of the workers was killed: {0}".format(p))
+
     def _convert_to_binary(self):
         timing_bin_path = join(self.output, "timing.bin")
         timing_csv_path = join(self.output, "timing.csv")
@@ -526,10 +533,25 @@ class Analysis(object):
         comb = list(combinations(list(range(len(self.class_names))), 2))
         job_size = max(len(comb) // os.cpu_count(), 1)
         with mp.Pool(self.workers) as pool:
-            pvals = list(pool.imap_unordered(
+            # while it's accessing a protected member of a python class,
+            # it's a). been there for a long time (at least 2.7) and
+            # b). it's because of a bug in multiprocessing module itself:
+            # https://github.com/python/cpython/issues/96062
+            # pylint: disable=protected-access
+            workers = set(pool._pool)
+            pvals = []
+
+            for i in pool.imap_unordered(
                 self._mt_process_runner,
                 zip(comb, repeat(sum_func), repeat(args)),
-                job_size))
+                job_size
+            ):
+                pvals.append(i)
+
+                workers.update(pool._pool)
+                self._check_if_workers_are_alive(workers)
+            # pylint: enable=protected-access
+
         results = dict(pvals)
         return results
 
@@ -924,6 +946,13 @@ class Analysis(object):
 
         with mp.Pool(self.workers, initializer=self._import_diffs,
                      initargs=(_diffs,)) as pool:
+            # while it's accessing a protected member of a python class,
+            # it's a). been there for a long time (at least 2.7) and
+            # b). it's because of a bug in multiprocessing module itself:
+            # https://github.com/python/cpython/issues/96062
+            # pylint: disable=protected-access
+            workers = set(pool._pool)
+
             cent_tend = pool.imap_unordered(
                 self._cent_tend_of_random_sample,
                 chain(repeat(job_size, reps // job_size), [reps % job_size]))
@@ -938,6 +967,11 @@ class Analysis(object):
                 chunk = list(map(list, zip(*values)))
                 for key, i in zip(keys, range(len(keys))):
                     ret[key].extend(chunk[i])
+
+                workers.update(pool._pool)
+                self._check_if_workers_are_alive(workers)
+            # pylint: enable=protected-access
+
         _diffs = None
         return ret
 
@@ -1880,8 +1914,15 @@ class Analysis(object):
         if self.verbose:
             print('[i] Starting k-sizes counting')
 
-        with mp.Pool(self.workers) as p:
-            chunks = p.imap_unordered(
+        with mp.Pool(self.workers) as pool:
+            # while it's accessing a protected member of a python class,
+            # it's a). been there for a long time (at least 2.7) and
+            # b). it's because of a bug in multiprocessing module itself:
+            # https://github.com/python/cpython/issues/96062
+            # pylint: disable=protected-access
+            workers = set(pool._pool)
+
+            chunks = pool.imap_unordered(
                 # slice the data so that every worker has at least good few
                 # dozen megabytes of data to work with
                 self._k_sizes_totals_worker,
@@ -1892,6 +1933,10 @@ class Analysis(object):
             for subtotals in chunks:
                 for key in subtotals:
                     k_sizes_totals[key] += subtotals[key]
+
+                workers.update(pool._pool)
+                self._check_if_workers_are_alive(workers)
+            # pylint: enable=protected-access
 
         k_sizes_totals = dict(sorted(k_sizes_totals.items(), reverse=True))
         self._k_sizes = k_sizes_totals
@@ -2316,8 +2361,15 @@ class Analysis(object):
         os.makedirs(self.output, exist_ok=True)
 
         try:
-            with mp.Pool(self.workers) as p:
-                chunks = p.imap_unordered(
+            with mp.Pool(self.workers) as pool:
+                # while it's accessing a protected member of a python class,
+                # it's a). been there for a long time (at least 2.7) and
+                # b). it's because of a bug in multiprocessing module itself:
+                # https://github.com/python/cpython/issues/96062
+                # pylint: disable=protected-access
+                workers = set(pool._pool)
+
+                chunks = pool.imap_unordered(
                     self._bit_size_smart_analysis_worker,
                     ((name_bin, i) for i in _slices(total_data, chunk_size))
                 )
@@ -2325,8 +2377,13 @@ class Analysis(object):
                 chosen_tuples = []
                 for subprocess_progress, subprocess_tuples in chunks:
                     chosen_tuples.extend(subprocess_tuples)
+
                     if status:
                         status[0] += subprocess_progress
+
+                    workers.update(pool._pool)
+                    self._check_if_workers_are_alive(workers)
+                # pylint: enable=protected-access
         finally:
             if status:
                 status[2].set()
