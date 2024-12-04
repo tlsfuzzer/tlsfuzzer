@@ -544,7 +544,10 @@
          {"name" : "test-fallback-scsv.py",
           "arguments" : ["-d"]
          },
-         {"name" : "test-tls13-non-support.py"}
+         {"name" : "test-tls13-non-support.py"},
+         {"name" : "test-point-extension.py",
+          "arguments" : ["--ec-point-f", "1:0"]
+         }
      ]
     },
     {"server_command": ["{python}", "-u", "{command}", "server",
