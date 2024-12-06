@@ -766,6 +766,61 @@ def main():
         conversations["unsupported algorithm, {0}".format(algo)] = \
             conversation
 
+    # Check that several Compressed Certificate Message are rejected
+    conversation = Connect(host, port)
+    algorithm=list(compression_algorithms.values())[0]
+    node = conversation
+    ext = {}
+    groups = [GroupName.secp256r1]
+    key_shares = []
+    for group in groups:
+        key_shares.append(key_share_gen(group))
+    ext[ExtensionType.key_share] = \
+        ClientKeyShareExtension().create(key_shares)
+    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+        .create([TLS_1_3_DRAFT, (3, 3)])
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                SignatureScheme.rsa_pss_pss_sha256,
+                SignatureScheme.ecdsa_secp256r1_sha256,
+                SignatureScheme.ed25519,
+                SignatureScheme.ed448]
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(SIG_ALL)
+    compression_algs = [algorithm]
+    ext[ExtensionType.compress_certificate] = \
+        CompressedCertificateExtension().create(compression_algs)
+    ext = dict_update_non_present(ext, ext_spec['CH'])
+    cr_ext = {
+        ExtensionType.compress_certificate:
+            CompressedCertificateExtension().create(
+                server_supported_compression_algorithms),
+        ExtensionType.signature_algorithms: None
+    }
+    cr_ext = dict_update_non_present(cr_ext, ext_spec['CR'])
+    node = node.add_child(ClientHelloGenerator(
+        ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
+        extensions=ext))
+    ext = dict_update_non_present(None, ext_spec['SH'])
+    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificateRequest(extensions=cr_ext))
+    node = node.add_child(ExpectCompressedCertificate(
+        compression_algo=algorithm))
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    cert_chain = X509CertChain([cert])
+    node = node.add_child(CompressedCertificateGenerator(cert_chain))
+    node = node.add_child(CompressedCertificateGenerator(cert_chain))  # again
+    node = node.add_child(ExpectAlert(AlertLevel.fatal,
+                                      AlertDescription.unexpected_message))
+    node.next_sibling = ExpectClose()
+    conversations["Multiple Compressed Certificate Messages"] = conversation
+
     # Send compression bombs
     if run_bombs:
         print("Log: Preparing compression bombs, this might take a while...")
