@@ -16,17 +16,19 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ResetHandshakeHashes, ResetRenegotiationInfo
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
-        ExpectAlert, ExpectClose, ExpectApplicationData
+        ExpectAlert, ExpectClose, ExpectApplicationData, \
+        ExpectServerKeyExchange
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        ExtensionType, HashAlgorithm, SignatureAlgorithm, NameType
+        ExtensionType, HashAlgorithm, SignatureAlgorithm, GroupName
 from tlslite.extensions import TLSExtension, SignatureAlgorithmsExtension, \
-        SNIExtension, SignatureAlgorithmsCertExtension
+        SNIExtension, SignatureAlgorithmsCertExtension, \
+        SupportedGroupsExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import RSA_SIG_ALL, AutoEmptyExtension
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -48,6 +50,8 @@ def help_msg():
     print("                (excluding \"sanity\" tests)")
     print(" --sni hostname name of host used in SNI extension, \"localhost4\"")
     print("                by default")
+    print(" -d             negotiate (EC)DHE instead of RSA key exchange, send")
+    print("                additional extensions, usually used for (EC)DHE ciphers")
     print(" -M | --ems     Enable support for Extended Master Secret")
     print(" --help         this message")
 
@@ -60,10 +64,11 @@ def main():
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
+    dhe = False
     ems = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:M", ["help", "sni=", "ems"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dM", ["help", "sni=", "ems"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -80,6 +85,8 @@ def main():
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '-d':
+            dhe = True
         elif opt == '-M' or opt == '--ems':
             ems = True
         elif opt == '--help':
@@ -100,8 +107,6 @@ def main():
     # sanity check without SNI
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {ExtensionType.signature_algorithms :
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
@@ -111,9 +116,23 @@ def main():
            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     if ems:
         ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    if dhe:
+        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -132,8 +151,6 @@ def main():
     # sanity check SNI
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {ExtensionType.signature_algorithms :
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
@@ -143,11 +160,25 @@ def main():
            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     if ems:
         ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    if dhe:
+        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     sni = SNIExtension().create(bytearray(hostname, 'utf-8'))
     ext[ExtensionType.server_name] = sni
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello(version=(3, 3)))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -166,8 +197,6 @@ def main():
     # sanity check bad SNI
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {ExtensionType.signature_algorithms :
            SignatureAlgorithmsExtension().create([
              (getattr(HashAlgorithm, x),
@@ -177,6 +206,18 @@ def main():
            SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
     if ems:
         ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    if dhe:
+        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     sni = SNIExtension().create(bytearray(hostname, 'utf-8') +
                                 bytearray(b'\x00'))
     ext[ExtensionType.server_name] = sni
@@ -189,19 +230,30 @@ def main():
     # session resume with malformed SNI
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     ext = {ExtensionType.renegotiation_info : None,
            ExtensionType.server_name : SNIExtension().create(
                                        bytearray(hostname, 'utf-8'))
           }
     if ems:
         ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    if dhe:
+        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         session_id=bytearray(32),
         extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -237,19 +289,30 @@ def main():
     # session resume with malformed SNI
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     ext = {ExtensionType.renegotiation_info : None,
            ExtensionType.server_name : SNIExtension().create(
                                        bytearray(hostname, 'utf-8'))
           }
     if ems:
         ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    if dhe:
+        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA]
+        groups = [GroupName.secp256r1,
+                  GroupName.ffdhe2048]
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+    else:
+        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
     node = node.add_child(ClientHelloGenerator(
         ciphers,
         session_id=bytearray(32),
         extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
@@ -284,6 +347,8 @@ def main():
         extensions=srv_ext,
         resume=False))
     node = node.add_child(ExpectCertificate())
+    if dhe:
+        node = node.add_child(ExpectServerKeyExchange())
     node = node.add_child(ExpectServerHelloDone())
     node = node.add_child(ClientKeyExchangeGenerator())
     node = node.add_child(ChangeCipherSpecGenerator())
