@@ -13,7 +13,7 @@ from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
         ExtensionType, CertificateType, HashAlgorithm, \
         SignatureAlgorithm, CipherSuite, SignatureScheme, TLS_1_3_HRR, \
-        HeartbeatMessageType, CertificateCompressionAlgorithm
+        HeartbeatMessageType, CertificateCompressionAlgorithm, GroupName
 import tlslite.utils.tlshashlib as hashlib
 from tlslite.extensions import TLSExtension, RenegotiationInfoExtension, \
         ClientKeyShareExtension, StatusRequestExtension
@@ -36,7 +36,8 @@ from .handshake_helpers import calc_pending_states, curve_name_to_hash_tls13
 from .tree import TreeNode
 import socket
 from functools import partial
-
+from ecdsa import VerifyingKey
+from tlslite.utils import ecc
 
 class Command(TreeNode):
     """Command objects."""
@@ -768,6 +769,8 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
     :ivar int encrypted_premaster_length: The length of data to read, in bytes
     :ivar bool random_premaster: whether to use a random premaster value
        or the static default (48 zero bytes)
+    :ivar str ec_point_encoding: the encoding of the
+       ECC point in the key share extension
     """
 
     def __init__(self, cipher=None, version=None, client_version=None,
@@ -778,7 +781,7 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
                  padding_byte=None, reuse_encrypted_premaster=False,
                  encrypted_premaster_file=None,
                  encrypted_premaster_length=None,
-                 random_premaster=False):
+                 random_premaster=False, ec_point_encoding=None,):
         """Set settings of the Client Key Exchange to be sent."""
         super(ClientKeyExchangeGenerator, self).__init__()
         self.cipher = cipher
@@ -801,6 +804,7 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
         self.encrypted_premaster_file = encrypted_premaster_file
         self.encrypted_premaster_length = encrypted_premaster_length
         self.random_premaster = random_premaster
+        self.ec_point_encoding = ec_point_encoding
 
         if encrypted_premaster_file and not encrypted_premaster_length:
             raise ValueError("Must specify the length of data to read from"
@@ -877,6 +881,14 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
                                         self.version).createECDH(self.ecdh_Yc)
             else:
                 cke = status.key_exchange.makeClientKeyExchange()
+            if self.ec_point_encoding is not None:
+                ske = status.get_last_message_of_type(ServerKeyExchange)
+                curve_name = GroupName.toRepr(ske.named_curve)
+                curve = ecc.getCurveByName(curve_name)
+                client_public_key = cke.ecdh_Yc
+                verify_key = VerifyingKey.from_string(client_public_key, curve)
+                new_public_key = verify_key.to_string(encoding=self.ec_point_encoding)
+                cke.ecdh_Yc = new_public_key
             status.key['ClientKeyExchange.ecdh_Yc'] = cke.ecdh_Yc
         else:
             raise AssertionError("Unknown cipher/key exchange type")
