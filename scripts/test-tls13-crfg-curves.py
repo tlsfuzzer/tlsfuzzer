@@ -154,7 +154,8 @@ def main():
             ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
                     CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
             ext = {}
-            ext[ExtensionType.ec_point_formats] = ECPointFormatsExtension().create([compression_format])
+            ext[ExtensionType.ec_point_formats] = ECPointFormatsExtension().create([compression_format,
+                                                                                    ECPointFormat.uncompressed])
             groups = [test_group]
             key_shares = []
             for group in groups:

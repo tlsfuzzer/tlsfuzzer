@@ -483,7 +483,10 @@
          {"name" : "test-ecdhe-rsa-key-share-random.py",
           "arguments" : ["--repeat=2"]},
          {"name" : "test-serverhello-random.py"},
-         {"name" : "test-SSLv3-padding.py"}
+         {"name" : "test-SSLv3-padding.py"},
+         {"name" : "test-point-extension.py",
+          "arguments" : ["--ec-point-f", "1:0"]
+         }
      ]
     },
     {"server_command": ["{python}", "-u", "{command}", "server",
