@@ -20,8 +20,8 @@ sys.path.insert(0, os.path.abspath('../../'))
 # -- Project information -----------------------------------------------------
 
 project = u'tlsfuzzer'
-copyright = u'2023, Red Hat'
-author = u'Hubert Kario'
+copyright = u'2025, Red Hat'
+author = u'Alicja Kario'
 
 # The short X.Y version
 version = u''
@@ -183,8 +183,10 @@ epub_exclude_files = ['search.html']
 # -- Options for intersphinx extension ---------------------------------------
 
 # Example configuration for intersphinx: refer to the Python standard library.
-intersphinx_mapping = {'https://docs.python.org/': None,
-                       'https://tlslite-ng.readthedocs.io/en/latest/': None}
+intersphinx_mapping = {
+    'python' : ('https://docs.python.org/', None),
+    'tlslite' : ('https://tlslite-ng.readthedocs.io/en/latest/', None),
+}
 
 # -- Options for autodoc extension -------------------------------------------
 autodoc_default_options = {
