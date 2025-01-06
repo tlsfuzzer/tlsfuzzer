@@ -1,4 +1,4 @@
-[![Build Status](https://github.com/tlsfuzzer/tlsfuzzer/workflows/GitHub%20CI/badge.svg?branch=master)](https://github.com/tlsfuzzer/tlsfuzzer/actions?query=workflow%3A%22GitHub+CI%22+branch%3Amaster)
+[![GitHub CI](https://github.com/tlsfuzzer/tlsfuzzer/actions/workflows/ci.yml/badge.svg)](https://github.com/tlsfuzzer/tlsfuzzer/actions/workflows/ci.yml)
 [![Read the Docs](https://img.shields.io/readthedocs/tlsfuzzer)](https://tlsfuzzer.readthedocs.io/en/latest/)
 [![Coverage Status](https://coveralls.io/repos/tlsfuzzer/tlsfuzzer/badge.svg?branch=master)](https://coveralls.io/r/tlsfuzzer/tlsfuzzer?branch=master)
 [![Code Climate](https://codeclimate.com/github/tlsfuzzer/tlsfuzzer/badges/gpa.svg)](https://codeclimate.com/github/tlsfuzzer/tlsfuzzer)
