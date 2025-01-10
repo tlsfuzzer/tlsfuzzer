@@ -252,7 +252,15 @@ class MarvinCiphertextGenerator(object):
 
         # very short PKCS padding
         subs = dict(enumerate([0] * 41 + [2]))
-        ciphertext = self._generate_ciphertext_with_fuzz(subs)
+        if numBytes(self.pub_key.n) - 42 < self.pms_len:
+            # we need to change the padding bytes to get short padding,
+            # thus we need to have enough padding; in case there's not
+            # enough, just don't encrypt anything; this is about the
+            # length of the returned synthethic message anyway...
+            pms = b""
+        else:
+            pms = None
+        ciphertext = self._generate_ciphertext_with_fuzz(subs, pms=pms)
         ret["very short PKCS#1 padding (40 bytes short)"] = ciphertext
 
         # too long PKCS padding
