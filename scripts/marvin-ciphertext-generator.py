@@ -14,7 +14,7 @@ from tlsfuzzer.utils.log import Log
 from tlsfuzzer.utils.rsa import MarvinCiphertextGenerator
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -42,6 +42,8 @@ def help_msg():
     print("                probes while large values risk false positives caused")
     print("                by ciphertext value. Set to 0 to never regenerate.")
     print("                Default 1")
+    print(" --separate-files Write the different ciphertexts to individual files")
+    print("                Most useful together with `--repeat 1`")
     print(" --status-delay num How long to wait between status line updates.")
     print("                In seconds. Default: 2.0")
     print(" --status-newline Use newline for separating lines in the status messages")
@@ -57,6 +59,7 @@ def main():
     srv_cert = None
     pms_tls_version = None
     probe_reuse = 1
+    separate_files = False
     status_delay = 2.0
     carriage_return = None
 
@@ -70,6 +73,7 @@ def main():
                                 "srv-cert=",
                                 "pms-tls-version=",
                                 "probe-reuse=",
+                                "separate-files",
                                 "status-newline",
                                 "status-delay="])
     for opt, arg in opts:
@@ -97,6 +101,8 @@ def main():
             pms_tls_version = divmod(int_ver, 256)
         elif opt == "--probe-reuse":
             probe_reuse = int(arg)
+        elif opt == "--separate-files":
+            separate_files = True
         elif opt == "--status-newline":
             carriage_return = '\n'
         elif opt == "--status-delay":
@@ -178,6 +184,13 @@ def main():
 
                 res = ciphertexts[g_name]
                 assert len(res) == exp_key_size, len(res)
+
+                if separate_files:
+                    with open(
+                        os.path.join(outdir, g_name + ".bin"),
+                        "ab"
+                    ) as probe_file:
+                        probe_file.write(res)
 
                 pms_file.write(res)
         finally:
