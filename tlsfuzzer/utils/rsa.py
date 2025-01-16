@@ -6,7 +6,7 @@
 from tlsfuzzer.messages import fuzz_pkcs1_padding
 from tlslite.utils.cryptomath import secureHMAC, numberToByteArray, numBytes,\
         getRandomBytes, numBits
-from tlslite.utils.compat import int_to_bytes
+from tlslite.utils.compat import int_to_bytes, bytes_to_int
 
 
 def _dec_prf(key, label, out_len):
@@ -28,6 +28,28 @@ def _dec_prf(key, label, out_len):
     return out[:out_len//8]
 
 
+def _calc_lengths(kdk, max_sep_offset):
+    length_randoms = _dec_prf(kdk, b"length", 128 * 2 * 8)
+
+    lengths = []
+    length_rand_iter = iter(length_randoms)
+    length_mask = (1 << numBits(max_sep_offset)) - 1
+    for high, low in zip(length_rand_iter, length_rand_iter):
+        len_candidate = (high << 8) + low
+        len_candidate &= length_mask
+
+        lengths.append(len_candidate)
+    return lengths
+
+
+def _calc_kdk(priv_key, ciphertext):
+    if not hasattr(priv_key, '_key_hash') or not priv_key._key_hash:
+        priv_key._key_hash = secureHash(
+            numberToByteArray(priv_key.d, numBytes(priv_key.n)), "sha256")
+
+    return secureHMAC(priv_key._key_hash, ciphertext, "sha256")
+
+
 def synthetic_plaintext_generator(priv_key, ciphertext):
     """Generate a synthethic plaintext.
 
@@ -41,25 +63,16 @@ def synthetic_plaintext_generator(priv_key, ciphertext):
 
     max_sep_offset = n_len - 10
 
-    if not hasattr(priv_key, '_key_hash') or not priv_key._key_hash:
-        priv_key._key_hash = secureHash(
-            numberToByteArray(priv_key.d, n_len), "sha256")
-
-    kdk = secureHMAC(priv_key._key_hash, ciphertext, "sha256")
-
-    length_randoms = _dec_prf(kdk, b"length", 128 * 2 * 8)
+    kdk = _calc_kdk(priv_key, ciphertext)
 
     message_random = _dec_prf(kdk, b"message", n_len * 8)
 
-    synth_length = 0
-    length_rand_iter = iter(length_randoms)
-    length_mask = (1 << numBits(max_sep_offset)) - 1
-    for high, low in zip(length_rand_iter, length_rand_iter):
-        len_candidate = (high << 8) + low
-        len_candidate &= length_mask
+    lengths = _calc_lengths(kdk, max_sep_offset)
 
-        if len_candidate < max_sep_offset:
-            synth_length = len_candidate
+    synth_length = 0
+    for length in lengths:
+        if length < max_sep_offset:
+            synth_length = length
 
     synth_msg_start = n_len - synth_length
 
@@ -328,5 +341,34 @@ class MarvinCiphertextGenerator(object):
 
         assert rand_pms == self.priv_key.decrypt(ciphertext)
         ret["well formed with empty synthethic PMS"] = ciphertext
+
+        while True:
+            ciphertext = getRandomBytes(numBytes(self.pub_key.n))
+            ciphertext = int_to_bytes(
+                bytes_to_int(ciphertext, "big") % self.pub_key.n,
+                numBytes(self.pub_key.n)
+            )
+            if ciphertext[0] == 0:
+                # don't want fake side-channel signal from ciphertext to
+                # int conversion
+                continue
+
+            kdk = _calc_kdk(self.priv_key, ciphertext)
+            max_sep_offset = numBytes(self.priv_key.n) - 10
+            lengths = _calc_lengths(kdk, max_sep_offset)
+            if lengths[-1] < max_sep_offset or lengths[-2] != self.pms_len:
+                continue
+
+            dec = self.priv_key._raw_private_key_op_bytes(ciphertext)
+            if dec[0] == 0 or dec[1] == 2:
+                continue
+
+            dec = self.priv_key.decrypt(ciphertext)
+
+            assert len(dec) != lengths[-1] and len(dec) == lengths[-2]
+
+            break
+
+        ret["random plaintext second to last length"] = ciphertext
 
         return ret
