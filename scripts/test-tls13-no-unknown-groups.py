@@ -32,7 +32,7 @@ from tlsfuzzer.helpers import key_share_gen, SIG_ALL
 from tlslite.utils.compat import ML_KEM_AVAILABLE
 
 
-version = 1
+version = 2
 
 
 def help_msg():
@@ -56,8 +56,8 @@ def help_msg():
     print("                IETF name.")
     print(" --groups list  Comma separated list of groups that the server is expected to support")
     print("                'secp256r1,secp384r1,x25519,x25519mlkem768,secp256r1mlkem768,")
-    print("                secp384r1mlkem1024' by default. Values can be specified as names,")
-    print("                hexadecimal numbers (with 0x prefix) or integers")
+    print("                secp384r1mlkem1024' by default (no ML-KEM when kyber-py library is missing).")
+    print("                Values can be specified as names, hexadecimal numbers (with 0x prefix) or integers")
     print("                NOTE: first value must be the group that's expected to be selected")
     print("                when all of those groups are advertised.")
     print(" --cookie       expect the server to send \"cookie\" extension in")
@@ -74,12 +74,17 @@ def main():
     last_exp_tmp = None
     ciphers = None
     cookie = False
-    groups = [GroupName.secp256r1,
-              GroupName.secp384r1,
-              GroupName.x25519,
-              GroupName.secp256r1mlkem768,
-              GroupName.x25519mlkem768,
-              GroupName.secp384r1mlkem1024]
+    if ML_KEM_AVAILABLE:
+        groups = [GroupName.secp256r1,
+                  GroupName.secp384r1,
+                  GroupName.x25519,
+                  GroupName.secp256r1mlkem768,
+                  GroupName.x25519mlkem768,
+                  GroupName.secp384r1mlkem1024]
+    else:
+        groups = [GroupName.secp256r1,
+                  GroupName.secp384r1,
+                  GroupName.x25519]
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "h:p:e:x:X:n:C:",
@@ -139,9 +144,6 @@ def main():
 
     if len(groups) != len(set(groups)):
         raise ValueError("List of groups can't include duplicate entries")
-
-    if not ML_KEM_AVAILABLE:
-        raise ValueError("kyber-py library missing!")
 
     conversations = {}
 
