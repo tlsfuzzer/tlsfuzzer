@@ -30,6 +30,7 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
         HRRKeyShareExtension
 from tlsfuzzer.helpers import key_share_gen, SIG_ALL
 from tlslite.utils.compat import ML_KEM_AVAILABLE
+from tlsfuzzer.utils.ordered_dict import OrderedDict
 
 
 version = 2
@@ -149,7 +150,7 @@ def main():
 
     conversation = Connect(host, port)
     node = conversation
-    default_ext = {}
+    default_ext = OrderedDict()
     default_ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
         .create([TLS_1_3_DRAFT, (3, 3)])
     default_ext[ExtensionType.key_share] = ClientKeyShareExtension().create([])
@@ -164,11 +165,11 @@ def main():
         .create(sig_algs)
     default_ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(SIG_ALL)
-    ext = dict(default_ext)
+    ext = OrderedDict(default_ext)
     node = node.add_child(ClientHelloGenerator(
         ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
         extensions=ext))
-    ext = dict()
+    ext = OrderedDict()
     ext[ExtensionType.key_share] = HRRKeyShareExtension().create(groups[0])
     ext[ExtensionType.supported_versions] = None
     if cookie:
@@ -177,7 +178,7 @@ def main():
     node = node.add_child(ExpectChangeCipherSpec())
 
     key_shares = []
-    ext = dict(default_ext)
+    ext = OrderedDict(default_ext)
     key_shares = [key_share_gen(groups[0])]
     ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
     if cookie:
@@ -211,7 +212,7 @@ def main():
     # verify that long list of groups is recognised correctly
     conversation = Connect(host, port)
     node = conversation
-    ext = dict(default_ext)
+    ext = OrderedDict(default_ext)
     unknown = list(range(1, 1 + 256))
     max_unknown = max(unknown)
     groups_set = set(groups)
@@ -230,7 +231,7 @@ def main():
     node = node.add_child(ClientHelloGenerator(
         ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
         extensions=ext))
-    ext = dict()
+    ext = OrderedDict()
     ext[ExtensionType.key_share] = HRRKeyShareExtension().create(groups[0])
     ext[ExtensionType.supported_versions] = None
     if cookie:
@@ -239,7 +240,7 @@ def main():
     node = node.add_child(ExpectChangeCipherSpec())
 
     key_shares = []
-    ext = dict(default_ext)
+    ext = OrderedDict(default_ext)
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(unknown + groups[:1] )
     key_shares = [key_share_gen(groups[0])]
@@ -276,7 +277,7 @@ def main():
     # verify that long list of groups is recognised correctly
     conversation = Connect(host, port)
     node = conversation
-    ext = dict(default_ext)
+    ext = OrderedDict(default_ext)
 
     ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
         .create(unknown)
@@ -305,7 +306,7 @@ def main():
 
         conversation = Connect(host, port)
         node = conversation
-        ext = dict(default_ext)
+        ext = OrderedDict(default_ext)
 
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(unknown)
