@@ -337,7 +337,7 @@
           "comment" : "kyber-py can't be installed on py3.8 and earlier",
           "arguments" : ["--cookie",
                          "--groups",
-                         "x25519,secp256r1,secp384r1,secp521r1,x448,brainpoolP256r1tls13,brainpoolP384r1tls13,brainpoolP512r1tls13,ffdhe2048,ffdhe3072,ffdhe4096,ffdhe6144,ffdhe8192"]},
+                         "secp256r1,secp384r1,secp521r1,x25519,x448,brainpoolP256r1tls13,brainpoolP384r1tls13,brainpoolP512r1tls13,ffdhe2048,ffdhe3072,ffdhe4096,ffdhe6144,ffdhe8192"]},
          {"name" : "test-tls13-nociphers.py"},
          {"name" : "test-tls13-obsolete-curves.py",
           "arguments" : ["--cookie"]},
