@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2021-2022
+# Author: Alicja Kario, (c) 2021-2025
 # Released under Gnu GPL v2.0, see LICENSE file for details
 """Bleichenbacher attack test for servers employing the Marvin workaround."""
 from __future__ import print_function
@@ -36,7 +36,7 @@ from tlsfuzzer.utils.log import Log
 from tlsfuzzer.utils.rsa import MarvinCiphertextGenerator
 
 
-version = 6
+version = 7
 
 
 def help_msg():
