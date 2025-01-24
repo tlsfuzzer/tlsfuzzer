@@ -252,6 +252,12 @@ class MarvinCiphertextGenerator(object):
                     a[0] == self._pub_key_n_bytes[0] and \
                     a[1] >= self._pub_key_n_bytes[1]:
                 continue
+            # don't make it start with a valid type 2 padding
+            # while it's semi-unlikely with modulus bit size that's a
+            # multiple of 8, a modulus size of 2049 bits make it quite
+            # probable, so reject those
+            if a[0] == 0 and a[1] == 2:
+                continue
             break
         subs[0] = a[0]
         subs[1] = a[1]
