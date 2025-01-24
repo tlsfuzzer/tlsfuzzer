@@ -1,1 +1,1 @@
-tlslite-ng==0.8.1
+tlslite-ng==0.8.2
