@@ -41,7 +41,7 @@ from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 
 
-version = 3
+version = 4
 
 KNOWN_ALGORITHMS = ('zlib', 'brotli', 'zstd')
 KNOWN_ALGORITHM_CODES = set([
@@ -113,7 +113,10 @@ def help_msg():
     print("                          run. Default 20. If 0 is provided,")
     print("                          fuzzing will be skipped. Overridden by")
     print("                          --full-fuzzing.")
-    print(" --help                   this message")
+    print(" --fuzz-package-limit num Limit the max package size of the")
+    print("                          fuzzing. Number must be larger that 9.")
+    print("                          Default 16,777,216.")
+    print(" --help                   Prints this message")
 
 
 def main():
@@ -133,11 +136,12 @@ def main():
     bomb_size_MB = 100
     full_fuzzing = False
     fuzzing_sample_size = 20
+    fuzzing_packet_limit = 2**24
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "h:p:e:x:X:n:C:k:c:E:", [
         "algorithms=", "skip-bombs", "bomb-size=", "full-fuzzing",
-        "random-fuzz-size=", "help"])
+        "random-fuzz-size=", "fuzz-package-limit=", "help"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -185,6 +189,8 @@ def main():
             full_fuzzing = True
         elif opt == '--random-fuzz-size':
             fuzzing_sample_size = int(arg)
+        elif opt == '--fuzz-package-limit':
+            fuzzing_packet_limit = int(arg)
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -199,6 +205,11 @@ def main():
     if not private_key or not cert:
         raise ValueError(
             "Client private key and certificate must be specified.")
+
+    if fuzzing_packet_limit < 9 + fuzzing_sample_size:
+        raise ValueError(
+            "Fuzzing packet limit must be over 9 and have enough margin "
+            "to create all the element in the sample size.")
 
     if not ciphers:
         ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256]
@@ -993,11 +1004,11 @@ def main():
     algorithm=list(compression_algorithms.values())[0]
     sizes = []
     if full_fuzzing:
-        sizes = range(0, 2**24)
+        sizes = range(0, fuzzing_packet_limit)
     elif fuzzing_sample_size > 0:
         # Handshake message can be up to 2**24 - 1 size so due to other
         # fields in the message we can generate up to the max_size amount
-        max_size = 2**24 - 1 - 2 - 3 - 3
+        max_size = fuzzing_packet_limit - 1 - 2 - 3 - 3
         if fuzzing_sample_size > 2:
             sizes = sample(range(1, max_size), fuzzing_sample_size - 2)
         sizes.append(1)
