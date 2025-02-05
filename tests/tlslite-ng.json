@@ -74,6 +74,7 @@
          {"name" : "test-cve-2016-2107.py"},
          {"name" : "test-cve-2016-6309.py"},
          {"name" : "test-cve-2016-7054.py"},
+         {"name" : "test-cve-2004-0079.py"},
          {"name" : "test-dhe-key-share-random.py",
           "arguments" : ["-e", "Protocol (3, 0)",
                          "-e", "Protocol (3, 0) in SSLv2 compatible ClientHello"],
