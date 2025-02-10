@@ -83,7 +83,7 @@ def help_msg():
                    computation. More workers will finish analysis faster, but
                    will require more memory to do so. By default: number of
                    threads available on the system (`os.cpu_count()`).
- --status-delay    num How often to print the status line for long-running
+ --status-delay num How often to print the status line for long-running
                    tasks in seconds.
  --status-newline  Use newline for printing status line, not carriage return,
                    works better with output redirection to file.
