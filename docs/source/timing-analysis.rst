@@ -404,13 +404,14 @@ the ``--prehashed`` flag:
 
    Different key sizes would require different ``--data-size`` value. The flag
    represents the number of bytes to read in each iteration from the data.bin
-   file. Since we are using sha-256 hashing algorithm, we pass 32 bytes to the
+   file. Since in this example we are using data from signatures that used
+   the sha-256 hashing algorithm, we pass 32 bytes to the
    flag as this is the length of the output of the algorithm.
 
 This will create a ``measurements.csv`` file with the measurements in the long
-format. This files can be combined as described later.
+format.
 Finally for analysis we just need to specify the dir that has the
-``measurements.csv`` file on it and the ``--bit-size`` flag:
+``measurements.csv`` file in it and the ``--bit-size`` flag:
 
 .. code:: bash
 
@@ -456,6 +457,81 @@ file:
 
    PYTHONPATH=. python tlsfuzzer/analysis.py -o "/tmp/results"
 
+Generic data analysis
+-----------------------
+
+The basic input format (the ``timing.csv`` file) is intended for data
+from so-called
+`complete block design
+<https://en.wikipedia.org/wiki/Blocking_(statistics)>`_.
+That is, from a series of
+tests, where the system under test is fed data of specific classes, but
+in a way that the tests from specific classes
+are executed in random order.
+
+For example, in RSA decryption test case, the classes could have been
+"decrypts to a message of 32 bytes", "decrypts to a message of 16 bytes",
+and "causes decryption error". Then the csv file would have three columns
+with values that represent processing times (in seconds) of those ciphertexts.
+
+But the classes can be of any arbitrary tests that we expect the same
+timing behaviour of.
+
+You run analysis of such a file by using the basic command:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/analysis.py -o "/path/to/dir/"
+
+ECDSA signature analysis
+------------------------
+TODO
+
+
+ECDH key agreement analysis
+---------------------------
+TODO
+
+RSA key-based analysis
+----------------------
+It is possible to analyse RSA private key operations (be it signing
+or decryption) with respect to the leakage of individual elements of
+the private key (private exponent, primes, etc.).
+
+For that, the test harness needs to perform a single operation with a
+random, unique key, and save the time of the operation to a file.
+
+For extraction, we can then use the following command:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/extract.py -o "/output/dir" --rsa-keys keys.pem --raw-times times.csv
+
+where ``keys.pem`` is a file with concatenated PKCS#8 PEM encoded keys
+and ``times.csv`` is a csv file with one column, with values representing
+the processing times for every key in turn.
+
+That will create 6 files, one for each of the parameters of the private key:
+``measurements-d.csv``,  ``measurements-dP.csv``,  ``measurements-dQ.csv``,
+``measurements-p.csv``,  ``measurements-q.csv``, and ``measurements-qInv.csv``.
+
+Create a new directory for the ``analysis.py`` script to work in, copy one
+of those files there, and rename it to ``measurements.csv``.
+
+Then you can run the analysis like so:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/analysis.py -o "/dir/with/measurements" --Hamming-weight
+
+Repeat for every file.
+
+.. tip::
+
+   Executing the analysis script with
+   ``--minimal-analysis --no-wilcoxon-test --no-le-sign-test --no-sign-test``
+   options will make it run much faster while still providing the most
+   important output: the Skillings-Mack test value.
 
 Combining results from multiple runs
 ------------------------------------
@@ -490,8 +566,8 @@ Or passing the filelist through STDIN.
    PYTHONPATH=. python tlsfuzzer/combine.py -o out-dir \
    -i -
 
-The ``combine.py`` script also include the ``--long-format`` option for csv
-files that have a long format. The script is expecting a csv file, in which
+The ``combine.py`` script also includes the ``--long-format`` option for csv
+files that are in the long format. The script is expecting a csv file, in which
 each row will have 3 values in the format "row id,column id,value".
 
 For example if we have the data:
