@@ -3,7 +3,10 @@
 # Author: Hubert Kario
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
-from distutils.core import setup
+try:
+    from setuptools import setup
+except ImportError:
+    from distutils.core import setup
 
 setup(name="tlsfuzzer",
       version="0.0.1",
