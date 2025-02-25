@@ -78,7 +78,7 @@ Then you can run one of the tests in
 directory, like so:
 
 ```
-PYTHONPATH=. python scripts/test-invalid-compression-methods.py
+scripts/test-invalid-compression-methods.py
 ```
 
 If test has additional requirements, it will output them to console. No errors
