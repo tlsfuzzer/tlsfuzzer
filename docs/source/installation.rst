@@ -26,7 +26,7 @@ To install the latest version tested use ``pip``:
 
 ::
 
-    pip install -r requirements.txt
+    pip install . -c requirements.txt
 
 
 Using source directly

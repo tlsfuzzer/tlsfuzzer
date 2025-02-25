@@ -12,4 +12,5 @@ setup(name="tlsfuzzer",
       url="https://github.com/tlsfuzzer/tlsfuzzer",
       description="TLS test suite and fuzzer.",
       license="GPLv2",
+      install_requires=["ecdsa >= 0.15", "tlslite-ng >= 0.8.2"],
       packages=["tlsfuzzer", "tlsfuzzer.utils"])
