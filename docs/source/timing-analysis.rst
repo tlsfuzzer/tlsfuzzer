@@ -433,7 +433,7 @@ The ``extract.py`` can also process data collected by some external source
 (be it packet capture closer to server under test or an internal probe
 inside the server).
 
-The provided csv file must have a header and one column. While the file
+The provided CSV file must have a header and one column. While the file
 can contain additional data points at the beginning, the very last
 data point must correspond to the last connection made by tlsfuzzer.
 
@@ -471,7 +471,7 @@ are executed in random order.
 
 For example, in RSA decryption test case, the classes could have been
 "decrypts to a message of 32 bytes", "decrypts to a message of 16 bytes",
-and "causes decryption error". Then the csv file would have three columns
+and "causes decryption error". Then the CSV file would have three columns
 with values that represent processing times (in seconds) of those ciphertexts.
 
 But the classes can be of any arbitrary tests that we expect the same
@@ -508,7 +508,7 @@ For extraction, we can then use the following command:
    PYTHONPATH=. python tlsfuzzer/extract.py -o "/output/dir" --rsa-keys keys.pem --raw-times times.csv
 
 where ``keys.pem`` is a file with concatenated PKCS#8 PEM encoded keys
-and ``times.csv`` is a csv file with one column, with values representing
+and ``times.csv`` is a CSV file with one column, with values representing
 the processing times for every key in turn.
 
 That will create 6 files, one for each of the parameters of the private key:
@@ -566,8 +566,8 @@ Or passing the filelist through STDIN.
    PYTHONPATH=. python tlsfuzzer/combine.py -o out-dir \
    -i -
 
-The ``combine.py`` script also includes the ``--long-format`` option for csv
-files that are in the long format. The script is expecting a csv file, in which
+The ``combine.py`` script also includes the ``--long-format`` option for CSV
+files that are in the long format. The script is expecting a CSV file, in which
 each row will have 3 values in the format "row id,column id,value".
 
 For example if we have the data:
@@ -579,7 +579,7 @@ Row1             1        2        3
 Row2             4        5        6
 ================ ======== ======== ========
 
-The csv file should be formated as:
+The CSV file should be formated as:
 
 .. code::
 
@@ -826,5 +826,5 @@ from the ``TiminingRunner`` instance in order to launch tcpdump and begin
 iterating over the tests. Provided you were able to install the timing
 dependencies, this will also launch extraction that will process the packet
 capture, and output the timing information associated with the test class into
-a csv file, and analysis that will generate a report with statistical test
+a CSV file, and analysis that will generate a report with statistical test
 results and supporting plots.
