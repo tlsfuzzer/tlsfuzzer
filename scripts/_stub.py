@@ -1,5 +1,9 @@
 #! /usr/bin/env python
-"""An entry-point stub for invoking apps from symlinked scripts."""
+"""
+An entry-point stub for invoking apps from symlinked scripts.
+
+look in the ``tlsfuzzer/_apps/`` directory for the actual test script
+"""
 
 import sys
 from os import path
