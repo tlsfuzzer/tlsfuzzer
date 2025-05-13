@@ -29,12 +29,13 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectEncryptedExtensions, ExpectCertificateVerify, \
         ExpectNewSessionTicket, srv_ext_handler_supp_vers, \
         gen_srv_ext_handler_psk, srv_ext_handler_key_share, \
-        ExpectServerHelloDone
+        ExpectServerHelloDone, ExpectServerKeyExchange
 from tlsfuzzer.helpers import key_share_gen, psk_session_ext_gen, \
-        psk_ext_updater, RSA_SIG_ALL, AutoEmptyExtension
+        psk_ext_updater, RSA_SIG_ALL, SIG_ALL, AutoEmptyExtension, \
+        cipher_suite_to_id
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -55,6 +56,19 @@ def help_msg():
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
     print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
     print("                (excluding \"sanity\" tests)")
+    print(" -M | --ems     Advertise support for Extended Master Secret")
+    print(" --tls1.2-cipher ciph Use specified ciphersuite for TLSv1.2.")
+    print("                Either numerical value or IETF name.")
+    print(" --tls1.3-cipher ciph Use specified ciphersuite for TLSv1.3.")
+    print("                Either numerical value or IETF name.")
+    print(" --client-pke   A comma seperated list of PSK Key Exchange(PKE)")
+    print("                Modes to be added to the clientHello message. Can")
+    print("                be specified multiple times. The order will be")
+    print("                respected. Available psk_dhe_ke and psk_ke.")
+    print("                Default psk_dhe_ke,psk_ke.")
+    print(" --server-preferred-pke The preferred PKE of the server. If not ")
+    print("                specified it will get the first from the client")
+    print("                PKE list. Available psk_dhe_ke and psk_ke.")
     print(" --help         this message")
 
 
@@ -66,9 +80,18 @@ def main():
     expected_failures = {}
     last_exp_tmp = None
     dhe = False
+    ciphers_1_2 = None
+    ciphers_1_3 = None
+    ems = False
+    client_pke_list = []
+    server_preferred_pke = None
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:d", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dM", ["help",
+                                                        "tls1.2-cipher=",
+                                                        "tls1.3-cipher=",
+                                                        "client-pke=",
+                                                        "server-preferred-pke="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -87,6 +110,31 @@ def main():
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '-M' or opt == '--ems':
+            ems = True
+        elif opt == '--tls1.2-cipher':
+            ciphers_1_3 = [cipher_suite_to_id(arg)]
+        elif opt == '--tls1.3-cipher':
+            ciphers_1_3 = [cipher_suite_to_id(arg)]
+        elif opt == '--client-pke':
+            for pke_arg in arg.split(','):
+                try:
+                    pke_arg = getattr(PskKeyExchangeMode, pke_arg)
+                    if not pke_arg in client_pke_list:
+                        client_pke_list.append(pke_arg)
+                except AttributeError:
+                    raise ValueError(
+                        "Unknown PKE argument {0}. ".format(pke_arg) +
+                        "Please use psk_dhe_ke or psk_ke"
+                    )
+        elif opt == '--server-preferred-pke':
+            try:
+                server_preferred_pke = getattr(PskKeyExchangeMode, arg)
+            except AttributeError:
+                raise ValueError(
+                    "Unknown PKE argument {0}. ".format(arg) +
+                    "Please use psk_dhe_ke or psk_ke"
+                )
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -98,13 +146,39 @@ def main():
     else:
         run_only = None
 
+    if ciphers_1_2:
+        if not dhe:
+            # by default send minimal set of extensions, but allow user
+            # to override it
+            dhe = ciphers_1_2[0] in CipherSuite.ecdhAllSuites or \
+                    ciphers_1_2[0] in CipherSuite.dhAllSuites
+        ciphers_1_2+=[CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        if dhe:
+            ciphers_1_2 = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+                           CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                           CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                           CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        else:
+            ciphers_1_2 = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                           CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+
+    if not ciphers_1_3:
+        ciphers_1_3 = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+
+    if not client_pke_list:
+        client_pke_list = [
+            PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke]
+
+    if server_preferred_pke is None:
+        server_preferred_pke = client_pke_list[0]
+
     conversations = {}
 
     # basic connection
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {}
     groups = [GroupName.secp256r1]
     key_shares = []
@@ -123,7 +197,7 @@ def main():
         .create(RSA_SIG_ALL)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
         .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ClientHelloGenerator(ciphers_1_3, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectEncryptedExtensions())
@@ -157,6 +231,8 @@ def main():
     node = conversation
     ext = {}
     ext[ExtensionType.session_ticket] = AutoEmptyExtension()
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
@@ -166,18 +242,13 @@ def main():
             SignatureAlgorithmsExtension().create(SIG_ALL)
         ext[ExtensionType.signature_algorithms_cert] = \
             SignatureAlgorithmsCertExtension().create(SIG_ALL)
-        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    else:
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    ext = {}
-    ext[ExtensionType.session_ticket] = None
-    ext[ExtensionType.renegotiation_info] = None
-    node = node.add_child(ExpectServerHello(extensions=ext))
+    node = node.add_child(ClientHelloGenerator(ciphers_1_2, extensions=ext))
+    ext_srv = {}
+    ext_srv[ExtensionType.session_ticket] = None
+    ext_srv[ExtensionType.renegotiation_info] = None
+    if ems:
+        ext_srv[ExtensionType.extended_master_secret] = None
+    node = node.add_child(ExpectServerHello(extensions=ext_srv))
     node = node.add_child(ExpectCertificate())
     if dhe:
         node = node.add_child(ExpectServerKeyExchange())
@@ -197,11 +268,110 @@ def main():
     node.next_sibling = ExpectClose()
     conversations["sanity - TLS 1.2"] = conversation
 
+    if len(client_pke_list) > 1:
+        for pke in client_pke_list:
+            conversation = Connect(host, port)
+            node = conversation
+            ext = {}
+            groups = [GroupName.secp256r1]
+            key_shares = []
+            for group in groups:
+                key_shares.append(key_share_gen(group))
+            ext[ExtensionType.key_share] = ClientKeyShareExtension()\
+                .create(key_shares)
+            ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+                .create([TLS_1_3_DRAFT, (3, 3)])
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                .create(groups)
+            sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                        SignatureScheme.rsa_pss_pss_sha256]
+            ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+                .create(sig_algs)
+            ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+                .create(RSA_SIG_ALL)
+            ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+                .create([pke])
+            node = node.add_child(ClientHelloGenerator(
+                ciphers_1_3, extensions=ext))
+            node = node.add_child(ExpectServerHello())
+            node = node.add_child(ExpectChangeCipherSpec())
+            node = node.add_child(ExpectEncryptedExtensions())
+            node = node.add_child(ExpectCertificate())
+            node = node.add_child(ExpectCertificateVerify())
+            node = node.add_child(ExpectFinished())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(ApplicationDataGenerator(
+                bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+            # ensure that the server sends at least one NST always
+            node = node.add_child(ExpectNewSessionTicket())
+
+            # but multiple ones are OK too
+            cycle = ExpectNewSessionTicket()
+            node = node.add_child(cycle)
+            node.add_child(cycle)
+
+            node.next_sibling = ExpectApplicationData()
+            node = node.next_sibling.add_child(
+                AlertGenerator(AlertLevel.warning,
+                               AlertDescription.close_notify))
+
+            node = node.add_child(ExpectAlert(AlertLevel.warning,
+                                              AlertDescription.close_notify))
+            # server can close connection without sending alert
+            close = ExpectClose()
+            node.next_sibling = close
+            node = node.add_child(close)
+            node = node.add_child(Close())
+            node = node.add_child(Connect(host, port))
+
+            # start the second handshake
+            node = node.add_child(ResetHandshakeHashes())
+            node = node.add_child(ResetRenegotiationInfo())
+            ext = OrderedDict(ext)
+            ext[ExtensionType.pre_shared_key] = psk_session_ext_gen()
+            mods = []
+            mods.append(psk_ext_updater())
+            node = node.add_child(ClientHelloGenerator(ciphers_1_3,
+                                                       extensions=ext,
+                                                       modifiers=mods))
+            ext = {}
+            ext[ExtensionType.supported_versions] = srv_ext_handler_supp_vers
+            ext[ExtensionType.pre_shared_key] = gen_srv_ext_handler_psk()
+            if pke == PskKeyExchangeMode.psk_dhe_ke:
+                ext[ExtensionType.key_share] = srv_ext_handler_key_share
+            node = node.add_child(ExpectServerHello(extensions=ext))
+            node = node.add_child(ExpectChangeCipherSpec())
+            node = node.add_child(ExpectEncryptedExtensions())
+            node = node.add_child(ExpectFinished())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(ApplicationDataGenerator(
+                bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+            # ensure that the server sends at least one NST always
+            node = node.add_child(ExpectNewSessionTicket())
+
+            # but multiple ones are OK too
+            cycle = ExpectNewSessionTicket()
+            node = node.add_child(cycle)
+            node.add_child(cycle)
+
+            node.next_sibling = ExpectApplicationData()
+            node = node.next_sibling.add_child(
+                AlertGenerator(AlertLevel.warning,
+                               AlertDescription.close_notify))
+
+            node = node.add_child(ExpectAlert(AlertLevel.warning,
+                                              AlertDescription.close_notify))
+            node.next_sibling = ExpectClose()
+            node.add_child(ExpectClose())
+            pke_name = "PSK_WITH_DHE"
+            if pke == PskKeyExchangeMode.psk_ke:
+                pke_name = "PSK_ONLY"
+            conversation_name = "session resumption - {0}".format(pke_name)
+            conversations[conversation_name] = conversation
+
     # resume a session
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {}
     groups = [GroupName.secp256r1]
     key_shares = []
@@ -219,8 +389,8 @@ def main():
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
-        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+        .create(client_pke_list)
+    node = node.add_child(ClientHelloGenerator(ciphers_1_3, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectEncryptedExtensions())
@@ -259,12 +429,13 @@ def main():
     ext[ExtensionType.pre_shared_key] = psk_session_ext_gen()
     mods = []
     mods.append(psk_ext_updater())
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext,
+    node = node.add_child(ClientHelloGenerator(ciphers_1_3, extensions=ext,
                                                modifiers=mods))
     ext = {}
     ext[ExtensionType.supported_versions] = srv_ext_handler_supp_vers
     ext[ExtensionType.pre_shared_key] = gen_srv_ext_handler_psk()
-    ext[ExtensionType.key_share] = srv_ext_handler_key_share
+    if server_preferred_pke == PskKeyExchangeMode.psk_dhe_ke:
+        ext[ExtensionType.key_share] = srv_ext_handler_key_share
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectEncryptedExtensions())
@@ -296,6 +467,8 @@ def main():
     node = conversation
     ext = {}
     ext[ExtensionType.session_ticket] = AutoEmptyExtension()
+    if ems:
+        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
@@ -305,17 +478,12 @@ def main():
             SignatureAlgorithmsExtension().create(SIG_ALL)
         ext[ExtensionType.signature_algorithms_cert] = \
             SignatureAlgorithmsCertExtension().create(SIG_ALL)
-        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    else:
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ClientHelloGenerator(ciphers_1_2, extensions=ext))
     ext_srv = {}
     ext_srv[ExtensionType.session_ticket] = None
     ext_srv[ExtensionType.renegotiation_info] = None
+    if ems:
+        ext_srv[ExtensionType.extended_master_secret] = None
     node = node.add_child(ExpectServerHello(extensions=ext_srv,
                                             description="first"))
     node = node.add_child(ExpectCertificate())
@@ -342,8 +510,6 @@ def main():
     node = node.add_child(ResetRenegotiationInfo())
 
     # start the second handshake
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = OrderedDict(ext)
     groups = [GroupName.secp256r1]
     key_shares = []
@@ -361,11 +527,11 @@ def main():
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
-        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
+        .create(client_pke_list)
     ext[ExtensionType.pre_shared_key] = psk_session_ext_gen()
     mods = []
     mods.append(psk_ext_updater())
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext,
+    node = node.add_child(ClientHelloGenerator(ciphers_1_3, extensions=ext,
                                                modifiers=mods))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
