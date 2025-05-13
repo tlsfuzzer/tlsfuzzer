@@ -17,11 +17,8 @@ jobs:
             container: centos:6
             python-version: 2.6
           - name: py2.7
-            os: ubuntu-20.04
+            os: ubuntu-22.04
             python-version: 2.7
-          - name: py3.6
-            os: ubuntu-20.04
-            python-version: 3.6
           - name: py3.7
             os: ubuntu-22.04
             python-version: 3.7
@@ -47,12 +44,8 @@ jobs:
             python-version: 2.6
             opt-deps: ['extract']
           - name: py2.7 with extract
-            os: ubuntu-20.04
+            os: ubuntu-22.04
             python-version: 2.7
-            opt-deps: ['extract']
-          - name: py3.6 with extract
-            os: ubuntu-20.04
-            python-version: 3.6
             opt-deps: ['extract']
           - name: py3.7 with extract
             os: ubuntu-22.04
@@ -79,10 +72,6 @@ jobs:
             python-version: '3.12'
             opt-deps: ['extract']
           # also test with just analysis tooling installed
-          - name: py3.6 with analysis
-            os: ubuntu-20.04
-            python-version: 3.6
-            opt-deps: ['analysis']
           - name: py3.7 with analysis
             os: ubuntu-22.04
             python-version: 3.7
@@ -108,10 +97,6 @@ jobs:
             python-version: '3.12'
             opt-deps: ['analysis']
           # and with both extract and analysis
-          - name: py3.6 with extract and analysis
-            os: ubuntu-20.04
-            python-version: 3.6
-            opt-deps: ['extract', 'analysis']
           - name: py3.7 with extract and analysis
             os: ubuntu-22.04
             python-version: 3.7
@@ -189,15 +174,16 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Ensure python 2.7
+      - name: Ensure working pip on python 2.7
         if: matrix.python-version == '2.7'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            python2.7 python2.7-dev python-pip-whl
+          sudo add-apt-repository universe
+          sudo apt-get install -y python2.7 python2.7-dev
+          curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output get-pip.py
           sudo ln -sf python2.7 /usr/bin/python
-          export PYTHONPATH=`echo /usr/share/python-wheels/pip-*py2*.whl`
-          sudo --preserve-env=PYTHONPATH python -m pip install --upgrade pip setuptools wheel
+          sudo python get-pip.py
+          sudo pip install setuptools wheel
           sudo chown -R $USER /usr/local/lib/python2.7
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
@@ -246,7 +232,7 @@ jobs:
       #   if: ${{ matrix.container }}
       #   run: yum install -y m2crypto
       - name: Install kyber-py on py3.9 and later
-        if: ${{ !matrix.container && matrix.python-version != '2.6' && matrix.python-version != '2.7' && matrix.python-version != '3.6' && matrix.python-version != '3.7' && matrix.python-version != '3.8' }}
+        if: ${{ !matrix.container && matrix.python-version != '2.6' && matrix.python-version != '2.7' && matrix.python-version != '3.7' && matrix.python-version != '3.8' }}
         run: |
           wget https://github.com/GiacomoPope/kyber-py/archive/refs/tags/v1.0.zip -O kyber_py-1.0.zip
           pip install kyber_py-1.0.zip
@@ -374,11 +360,11 @@ jobs:
           # as http.server uses `sys_version = "Python/" + sys.version.split()[0]`
           # https://github.com/python/cpython/blob/2c050e52f1ccf5db03819e4ed70690521d67e9fa/Lib/http/server.py#L253
           case $PYTHON_VERSION in
-            2.7 | 3.6 | 3.7 | 3.8 | 3.9 | 3.12 )
+            2.7 | 3.7 | 3.8 | 3.9 )
               export REPLY_SIZE=1850
               ;;
-            3.10 | 3.11)
-              export REPLY_SIZE=1851  # Server: SimpleHTTP/0.6 Python/3.10.10 and SimpleHTTP/0.6 Python/3.11.10
+            3.10 | 3.11 | 3.12)
+              export REPLY_SIZE=1851  # Server: SimpleHTTP/0.6 Python/3.10.10, SimpleHTTP/0.6 Python/3.11.10 and SimpleHTTP/0.6 Python/3.12.10
               ;;
             nightly)
               export REPLY_SIZE=1852  # Server: SimpleHTTP/0.6 Python/3.10.0a0
@@ -389,7 +375,7 @@ jobs:
           esac
           # kyber-py library supports only python 3.9 and later
           case $PYTHON_VERSION in
-            2.6 | 2.7 | 3.6 | 3.7 | 3.8 )
+            2.6 | 2.7 | 3.7 | 3.8 )
               export TEST_FILE=tests/tlslite-ng-random-subset-py3.8.json
               ;;
             *)

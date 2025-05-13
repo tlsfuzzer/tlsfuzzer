@@ -34,7 +34,6 @@ jobs:
    - python: 3.3
    - python: 3.4
    - python: 3.5
-   - python: 3.6
 # workaround for 3.7 and 3.8 not available in default configuration
 # travis-ci/travis-ci#9815
    - python: 3.7
@@ -60,8 +59,6 @@ jobs:
      env: EXTRACT_DEP=true
    - python: 3.5
      env: EXTRACT_DEP=true
-   - python: 3.6
-     env: EXTRACT_DEP=true
    - python: 3.7
      dist: xenial
      sudo: true
@@ -79,8 +76,6 @@ jobs:
      sudo: true
      env: EXTRACT_DEP=true
 # ANALYSIS_DEP=true EXTRACT_DEP=false
-   - python: 3.6
-     env: ANALYSIS_DEP=true
    - python: 3.7
      dist: xenial
      sudo: true
@@ -98,8 +93,6 @@ jobs:
      sudo: true
      env: ANALYSIS_DEP=true
 # ANALYSIS_DEP=EXTRACT_DEP=true
-   - python: 3.6
-     env: ANALYSIS_DEP=true EXTRACT_DEP=true
    - python: 3.7
      dist: xenial
      sudo: true

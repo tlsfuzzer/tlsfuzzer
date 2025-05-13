@@ -25,7 +25,7 @@ directory.
 
 You'll need:
 
- * Python 2.6 or later or Python 3.6 or later
+ * Python 2.6 or later or Python 3.7 or later
  * [tlslite-ng](https://github.com/tlsfuzzer/tlslite-ng)
    0.8.1 or later (note that `tlslite` will *not* work and
    they conflict with each other)
