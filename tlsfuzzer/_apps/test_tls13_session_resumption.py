@@ -29,12 +29,12 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectEncryptedExtensions, ExpectCertificateVerify, \
         ExpectNewSessionTicket, srv_ext_handler_supp_vers, \
         gen_srv_ext_handler_psk, srv_ext_handler_key_share, \
-        ExpectServerHelloDone
+        ExpectServerHelloDone, ExpectServerKeyExchange
 from tlsfuzzer.helpers import key_share_gen, psk_session_ext_gen, \
-        psk_ext_updater, RSA_SIG_ALL, AutoEmptyExtension
+        psk_ext_updater, RSA_SIG_ALL, SIG_ALL, AutoEmptyExtension
 
 
-version = 5
+version = 6
 
 
 def help_msg():
@@ -55,6 +55,16 @@ def help_msg():
     print(" -d             negotiate (EC)DHE instead of RSA key exchange")
     print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
     print("                (excluding \"sanity\" tests)")
+    print(" -M | --ems     Advertise support for Extended Master Secret")
+    print(" --skip-1.2     Skip tests that target TLS 1.2")
+    print(" --client-pke   A comma seperated list of PSK Key Exchange(PKE)")
+    print("                Modes to be added to the clientHello message. Can")
+    print("                be specified multiple times. The order will be")
+    print("                respected. Available PSK_ONLY and PSK_WITH_DHE.")
+    print("                Default PSK_WITH_DHE,PSK_ONLY.")
+    print(" --server-preferred-pke The preferred PKE of the server. If not ")
+    print("                specified it will get the first from the client")
+    print("                PKE list. Available PSK_ONLY and PSK_WITH_DHE.")
     print(" --help         this message")
 
 
@@ -66,9 +76,20 @@ def main():
     expected_failures = {}
     last_exp_tmp = None
     dhe = False
+    ems = False
+    run_tls1_2 = True
+    client_pke_list = []
+    server_preferred_pke = None
+
+    supported_pkes = {
+        "PSK_WITH_DHE": PskKeyExchangeMode.psk_dhe_ke,
+        "PSK_ONLY": PskKeyExchangeMode.psk_ke
+    }
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:d", ["help"])
+    opts, args = getopt.getopt(argv, "h:p:e:x:X:n:dM", ["help", "skip-1.2",
+                                                       "client-pke=",
+                                                       "server-preferred-pke="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -87,6 +108,31 @@ def main():
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-n':
             num_limit = int(arg)
+        elif opt == '-M' or opt == '--ems':
+            ems = True
+        elif opt == '--skip-1.2':
+            run_tls1_2 = False
+        elif opt == '--client-pke':
+            pke_args = arg.split(',')
+
+            try:
+                for pke_arg in pke_args:
+                    pke_arg = pke_arg.upper()
+                    if supported_pkes[pke_arg] not in client_pke_list:
+                        client_pke_list.append(supported_pkes[pke_arg])
+            except KeyError:
+                raise ValueError(
+                    "Unknown PKE argument {0}. ".format(pke_arg) +
+                    "Please use PSK_WITH_DHE or PSK_ONLY"
+                )
+        elif opt == '--server-preferred-pke':
+            try:
+                server_preferred_pke = supported_pkes[arg.upper()]
+            except KeyError:
+                raise ValueError(
+                    "Unknown PKE argument {0}. ".format(arg) +
+                    "Please use PSK_WITH_DHE or PSK_ONLY"
+                )
         elif opt == '--help':
             help_msg()
             sys.exit(0)
@@ -97,6 +143,13 @@ def main():
         run_only = set(args)
     else:
         run_only = None
+
+    if not client_pke_list:
+        client_pke_list = [
+            PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke]
+
+    if server_preferred_pke is None:
+        server_preferred_pke = client_pke_list[0]
 
     conversations = {}
 
@@ -153,49 +206,154 @@ def main():
     conversations["sanity"] = conversation
 
     # check if TLS 1.2 works
-    conversation = Connect(host, port)
-    node = conversation
-    ext = {}
-    ext[ExtensionType.session_ticket] = AutoEmptyExtension()
-    if dhe:
-        groups = [GroupName.secp256r1,
-                  GroupName.ffdhe2048]
-        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-            .create(groups)
-        ext[ExtensionType.signature_algorithms] = \
-            SignatureAlgorithmsExtension().create(SIG_ALL)
-        ext[ExtensionType.signature_algorithms_cert] = \
-            SignatureAlgorithmsCertExtension().create(SIG_ALL)
-        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    else:
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    ext = {}
-    ext[ExtensionType.session_ticket] = None
-    ext[ExtensionType.renegotiation_info] = None
-    node = node.add_child(ExpectServerHello(extensions=ext))
-    node = node.add_child(ExpectCertificate())
-    if dhe:
-        node = node.add_child(ExpectServerKeyExchange())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectNewSessionTicket())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
-    node = node.add_child(ExpectApplicationData())
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                         AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
-    conversations["sanity - TLS 1.2"] = conversation
+    if (run_tls1_2):
+        conversation = Connect(host, port)
+        node = conversation
+        ext = {}
+        ext[ExtensionType.session_ticket] = AutoEmptyExtension()
+        if ems:
+            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+        if dhe:
+            groups = [GroupName.secp256r1,
+                      GroupName.ffdhe2048]
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                .create(groups)
+            ext[ExtensionType.signature_algorithms] = \
+                SignatureAlgorithmsExtension().create(SIG_ALL)
+            ext[ExtensionType.signature_algorithms_cert] = \
+                SignatureAlgorithmsCertExtension().create(SIG_ALL)
+            ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        else:
+            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+        ext = {}
+        ext[ExtensionType.session_ticket] = None
+        ext[ExtensionType.renegotiation_info] = None
+        node = node.add_child(ExpectServerHello(extensions=ext))
+        node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectNewSessionTicket())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        node = node.add_child(ExpectApplicationData())
+        node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                             AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert())
+        node.next_sibling = ExpectClose()
+        conversations["sanity - TLS 1.2"] = conversation
+
+    if len(client_pke_list) > 1:
+        for pke in client_pke_list:
+            conversation = Connect(host, port)
+            node = conversation
+            ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+            ext = {}
+            groups = [GroupName.secp256r1]
+            key_shares = []
+            for group in groups:
+                key_shares.append(key_share_gen(group))
+            ext[ExtensionType.key_share] = ClientKeyShareExtension()\
+                .create(key_shares)
+            ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+                .create([TLS_1_3_DRAFT, (3, 3)])
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                .create(groups)
+            sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                        SignatureScheme.rsa_pss_pss_sha256]
+            ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+                .create(sig_algs)
+            ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+                .create(RSA_SIG_ALL)
+            ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+                .create([pke])
+            node = node.add_child(ClientHelloGenerator(
+                ciphers, extensions=ext))
+            node = node.add_child(ExpectServerHello())
+            node = node.add_child(ExpectChangeCipherSpec())
+            node = node.add_child(ExpectEncryptedExtensions())
+            node = node.add_child(ExpectCertificate())
+            node = node.add_child(ExpectCertificateVerify())
+            node = node.add_child(ExpectFinished())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(ApplicationDataGenerator(
+                bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+            # ensure that the server sends at least one NST always
+            node = node.add_child(ExpectNewSessionTicket())
+
+            # but multiple ones are OK too
+            cycle = ExpectNewSessionTicket()
+            node = node.add_child(cycle)
+            node.add_child(cycle)
+
+            node.next_sibling = ExpectApplicationData()
+            node = node.next_sibling.add_child(
+                AlertGenerator(AlertLevel.warning,
+                               AlertDescription.close_notify))
+
+            node = node.add_child(ExpectAlert(AlertLevel.warning,
+                                              AlertDescription.close_notify))
+            # server can close connection without sending alert
+            close = ExpectClose()
+            node.next_sibling = close
+            node = node.add_child(close)
+            node = node.add_child(Close())
+            node = node.add_child(Connect(host, port))
+
+            # start the second handshake
+            node = node.add_child(ResetHandshakeHashes())
+            node = node.add_child(ResetRenegotiationInfo())
+            ext = OrderedDict(ext)
+            ext[ExtensionType.pre_shared_key] = psk_session_ext_gen()
+            mods = []
+            mods.append(psk_ext_updater())
+            node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext,
+                                                       modifiers=mods))
+            ext = {}
+            ext[ExtensionType.supported_versions] = srv_ext_handler_supp_vers
+            ext[ExtensionType.pre_shared_key] = gen_srv_ext_handler_psk()
+            if pke == PskKeyExchangeMode.psk_dhe_ke:
+                ext[ExtensionType.key_share] = srv_ext_handler_key_share
+            node = node.add_child(ExpectServerHello(extensions=ext))
+            node = node.add_child(ExpectChangeCipherSpec())
+            node = node.add_child(ExpectEncryptedExtensions())
+            node = node.add_child(ExpectFinished())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(ApplicationDataGenerator(
+                bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+            # ensure that the server sends at least one NST always
+            node = node.add_child(ExpectNewSessionTicket())
+
+            # but multiple ones are OK too
+            cycle = ExpectNewSessionTicket()
+            node = node.add_child(cycle)
+            node.add_child(cycle)
+
+            node.next_sibling = ExpectApplicationData()
+            node = node.next_sibling.add_child(
+                AlertGenerator(AlertLevel.warning,
+                               AlertDescription.close_notify))
+
+            node = node.add_child(ExpectAlert(AlertLevel.warning,
+                                              AlertDescription.close_notify))
+            node.next_sibling = ExpectClose()
+            node.add_child(ExpectClose())
+            pke_name = "PSK_WITH_DHE"
+            if pke == PskKeyExchangeMode.psk_ke:
+                pke_name = "PSK_ONLY"
+            conversation_name = "session resumption - {0}".format(pke_name)
+            conversations[conversation_name] = conversation
 
     # resume a session
     conversation = Connect(host, port)
@@ -219,7 +377,7 @@ def main():
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(RSA_SIG_ALL)
     ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
-        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
+        .create(client_pke_list)
     node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
@@ -264,7 +422,8 @@ def main():
     ext = {}
     ext[ExtensionType.supported_versions] = srv_ext_handler_supp_vers
     ext[ExtensionType.pre_shared_key] = gen_srv_ext_handler_psk()
-    ext[ExtensionType.key_share] = srv_ext_handler_key_share
+    if server_preferred_pke == PskKeyExchangeMode.psk_dhe_ke:
+        ext[ExtensionType.key_share] = srv_ext_handler_key_share
     node = node.add_child(ExpectServerHello(extensions=ext))
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectEncryptedExtensions())
@@ -292,109 +451,112 @@ def main():
     conversations["session resumption"] = conversation
 
     # see if the TLS 1.2 session can't be used for TLS 1.3
-    conversation = Connect(host, port)
-    node = conversation
-    ext = {}
-    ext[ExtensionType.session_ticket] = AutoEmptyExtension()
-    if dhe:
-        groups = [GroupName.secp256r1,
-                  GroupName.ffdhe2048]
+    if (run_tls1_2):
+        conversation = Connect(host, port)
+        node = conversation
+        ext = {}
+        ext[ExtensionType.session_ticket] = AutoEmptyExtension()
+        if ems:
+            ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+        if dhe:
+            groups = [GroupName.secp256r1,
+                      GroupName.ffdhe2048]
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                .create(groups)
+            ext[ExtensionType.signature_algorithms] = \
+                SignatureAlgorithmsExtension().create(SIG_ALL)
+            ext[ExtensionType.signature_algorithms_cert] = \
+                SignatureAlgorithmsCertExtension().create(SIG_ALL)
+            ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        else:
+            ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+        ext_srv = {}
+        ext_srv[ExtensionType.session_ticket] = None
+        ext_srv[ExtensionType.renegotiation_info] = None
+        node = node.add_child(ExpectServerHello(extensions=ext_srv,
+                                                description="first"))
+        node = node.add_child(ExpectCertificate())
+        if dhe:
+            node = node.add_child(ExpectServerKeyExchange())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(ClientKeyExchangeGenerator())
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectNewSessionTicket())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(AlertGenerator(AlertLevel.warning,
+                                             AlertDescription.close_notify))
+        node = node.add_child(ExpectAlert())
+        close = ExpectClose()
+        node.next_sibling = close
+        node = node.add_child(ExpectClose())
+        node = node.add_child(Close())
+        node = node.add_child(Connect(host, port))
+        close.add_child(node)
+
+        node = node.add_child(ResetHandshakeHashes())
+        node = node.add_child(ResetRenegotiationInfo())
+
+        # start the second handshake
+        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        ext = OrderedDict(ext)
+        groups = [GroupName.secp256r1]
+        key_shares = []
+        for group in groups:
+            key_shares.append(key_share_gen(group))
+        ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+            .create([TLS_1_3_DRAFT, (3, 3)])
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
             .create(groups)
-        ext[ExtensionType.signature_algorithms] = \
-            SignatureAlgorithmsExtension().create(SIG_ALL)
-        ext[ExtensionType.signature_algorithms_cert] = \
-            SignatureAlgorithmsCertExtension().create(SIG_ALL)
-        ciphers = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    else:
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    ext_srv = {}
-    ext_srv[ExtensionType.session_ticket] = None
-    ext_srv[ExtensionType.renegotiation_info] = None
-    node = node.add_child(ExpectServerHello(extensions=ext_srv,
-                                            description="first"))
-    node = node.add_child(ExpectCertificate())
-    if dhe:
-        node = node.add_child(ExpectServerKeyExchange())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectNewSessionTicket())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                         AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert())
-    close = ExpectClose()
-    node.next_sibling = close
-    node = node.add_child(ExpectClose())
-    node = node.add_child(Close())
-    node = node.add_child(Connect(host, port))
-    close.add_child(node)
+        sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+                    SignatureScheme.rsa_pss_pss_sha256]
+        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+            .create(sig_algs)
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+            .create(RSA_SIG_ALL)
+        ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+            .create(client_pke_list)
+        ext[ExtensionType.pre_shared_key] = psk_session_ext_gen()
+        mods = []
+        mods.append(psk_ext_updater())
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext,
+                                                   modifiers=mods))
+        node = node.add_child(ExpectServerHello())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectEncryptedExtensions())
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectCertificateVerify())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ApplicationDataGenerator(
+            bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        # ensure that the server sends at least one NST always
+        #node = node.add_child(ExpectNewSessionTicket())
 
-    node = node.add_child(ResetHandshakeHashes())
-    node = node.add_child(ResetRenegotiationInfo())
+        # but multiple ones are OK too
+        cycle = ExpectNewSessionTicket()
+        node = node.add_child(cycle)
+        node.add_child(cycle)
 
-    # start the second handshake
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = OrderedDict(ext)
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    for group in groups:
-        key_shares.append(key_share_gen(group))
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
-        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
-    ext[ExtensionType.pre_shared_key] = psk_session_ext_gen()
-    mods = []
-    mods.append(psk_ext_updater())
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext,
-                                               modifiers=mods))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectEncryptedExtensions())
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(b"GET / HTTP/1.0\r\n\r\n")))
-    # ensure that the server sends at least one NST always
-    #node = node.add_child(ExpectNewSessionTicket())
+        node.next_sibling = ExpectApplicationData()
+        node = node.next_sibling.add_child(
+            AlertGenerator(AlertLevel.warning,
+                           AlertDescription.close_notify))
 
-    # but multiple ones are OK too
-    cycle = ExpectNewSessionTicket()
-    node = node.add_child(cycle)
-    node.add_child(cycle)
+        node = node.add_child(ExpectAlert(AlertLevel.warning,
+                                          AlertDescription.close_notify))
+        node.next_sibling = ExpectClose()
+        node.add_child(ExpectClose())
 
-    node.next_sibling = ExpectApplicationData()
-    node = node.next_sibling.add_child(
-        AlertGenerator(AlertLevel.warning,
-                       AlertDescription.close_notify))
-
-    node = node.add_child(ExpectAlert(AlertLevel.warning,
-                                      AlertDescription.close_notify))
-    node.next_sibling = ExpectClose()
-    node.add_child(ExpectClose())
-
-    conversations["use TLS 1.2 ticket in TLS 1.3"] = conversation
+        conversations["use TLS 1.2 ticket in TLS 1.3"] = conversation
 
     # run the conversation
     good = 0
