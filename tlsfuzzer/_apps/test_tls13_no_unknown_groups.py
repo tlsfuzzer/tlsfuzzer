@@ -28,12 +28,12 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension, \
         HRRKeyShareExtension
-from tlsfuzzer.helpers import key_share_gen, SIG_ALL
+from tlsfuzzer.helpers import key_share_gen, SIG_ALL, cipher_suite_to_id
 from tlslite.utils.compat import ML_KEM_AVAILABLE
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 
 
-version = 2
+version = 3
 
 
 def help_msg():
@@ -107,13 +107,7 @@ def main():
         elif opt == '-n':
             num_limit = int(arg)
         elif opt == '-C':
-            if arg[:2] == '0x':
-                ciphers = [int(arg, 16)]
-            else:
-                try:
-                    ciphers = [getattr(CipherSuite, arg)]
-                except AttributeError:
-                    ciphers = [int(arg)]
+            ciphers = [cipher_suite_to_id(arg)]
         elif opt == "--groups":
             groups = []
             for i in arg.split(","):

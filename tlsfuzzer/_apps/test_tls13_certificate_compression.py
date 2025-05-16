@@ -31,11 +31,11 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
     SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension, \
     CompressedCertificateExtension, TLSExtension
 from tlsfuzzer.helpers import key_share_gen, SIG_ALL, RSA_SIG_ALL, \
-    AutoEmptyExtension
+    AutoEmptyExtension, cipher_suite_to_id
 from tlslite.utils.compression import compression_algo_impls
 
 
-version = 1
+version = 2
 
 KNOWN_ALGORITHMS = ('zlib', 'brotli', 'zstd')
 
@@ -117,13 +117,7 @@ def main():
         elif opt == '-d':
             dhe = True
         elif opt == '-C':
-            if arg[:2] == '0x':
-                ciphers = [int(arg, 16)]
-            else:
-                try:
-                    ciphers = [getattr(CipherSuite, arg)]
-                except AttributeError:
-                    ciphers = [int(arg)]
+            ciphers = [cipher_suite_to_id(arg)]
         elif opt == '-M' or opt == '--ems':
             ems = True
         elif opt == '--algorithms':

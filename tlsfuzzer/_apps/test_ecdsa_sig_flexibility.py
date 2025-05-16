@@ -22,11 +22,11 @@ from tlslite.extensions import SignatureAlgorithmsExtension, \
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
         HashAlgorithm, SignatureAlgorithm, ExtensionType, GroupName, \
         TLS_1_3_BRAINPOOL_SIG_SCHEMES, SignatureScheme
-from tlsfuzzer.helpers import SIG_ALL
+from tlsfuzzer.helpers import SIG_ALL, cipher_suite_to_id
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 7
+version = 8
 
 
 def help_msg():
@@ -85,13 +85,7 @@ def main():
         elif opt == '-n':
             num_limit = int(arg)
         elif opt == '-C':
-            if arg[:2] == '0x':
-                ciphers = [int(arg, 16)]
-            else:
-                try:
-                    ciphers = [getattr(CipherSuite, arg)]
-                except AttributeError:
-                    ciphers = [int(arg)]
+            ciphers = [cipher_suite_to_id(arg)]
         elif opt == '-g':
             vals = arg.split(":")
             groups = [getattr(GroupName, i) for i in vals]

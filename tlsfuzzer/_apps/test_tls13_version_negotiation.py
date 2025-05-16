@@ -28,10 +28,10 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.helpers import key_share_gen, RSA_SIG_ALL, key_share_ext_gen, \
-        AutoEmptyExtension
+        AutoEmptyExtension, cipher_suite_to_id
 
 
-version = 7
+version = 8
 
 
 def help_msg():
@@ -90,13 +90,7 @@ def main():
         elif opt == '-d':
             dhe = True
         elif opt == '-C':
-            if arg[:2] == '0x':
-                tls12_ciphers = [int(arg, 16)]
-            else:
-                try:
-                    tls12_ciphers = [getattr(CipherSuite, arg)]
-                except AttributeError:
-                    tls12_ciphers = [int(arg)]
+            tls12_ciphers = [cipher_suite_to_id(arg)]
         elif opt == '-M' or opt == '--ems':
             ems = True
         elif opt == '--help':

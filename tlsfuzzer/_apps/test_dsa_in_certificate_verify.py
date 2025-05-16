@@ -28,10 +28,10 @@ from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.extensions import SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension
+from tlsfuzzer.helpers import SIG_ALL, AutoEmptyExtension, cipher_suite_to_id
 
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -118,13 +118,7 @@ def main():
         elif opt == '-d':
             dhe = True
         elif opt == '-C':
-            if arg[:2] == '0x':
-                ciphers = [int(arg, 16)]
-            else:
-                try:
-                    ciphers = [getattr(CipherSuite, arg)]
-                except AttributeError:
-                    ciphers = [int(arg)]
+            ciphers = [cipher_suite_to_id(arg)]
         elif opt == '-M' or opt == '--ems':
             ems = True
         elif opt == '-k':

@@ -33,7 +33,7 @@ from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
     SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension, \
     CompressedCertificateExtension, TLSExtension
 from tlsfuzzer.helpers import key_share_gen, SIG_ALL, expected_ext_parser, \
-    dict_update_non_present
+    dict_update_non_present, cipher_suite_to_id
 from tlslite.utils.compression import *
 from tlslite.utils.cryptomath import numberToByteArray
 from tlslite.utils.keyfactory import parsePEMKey
@@ -41,7 +41,7 @@ from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 
 
-version = 4
+version = 5
 
 KNOWN_ALGORITHMS = ('zlib', 'brotli', 'zstd')
 KNOWN_ALGORITHM_CODES = set([
@@ -159,13 +159,7 @@ def main():
         elif opt == '-n':
             num_limit = int(arg)
         elif opt == '-C':
-            if arg[:2] == '0x':
-                ciphers = [int(arg, 16)]
-            else:
-                try:
-                    ciphers = [getattr(CipherSuite, arg)]
-                except AttributeError:
-                    ciphers = [int(arg)]
+            ciphers = [cipher_suite_to_id(arg)]
         elif opt == '-c':
             text_cert = open(arg, 'rb').read()
             if sys.version_info[0] >= 3:

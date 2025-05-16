@@ -113,7 +113,7 @@ def main():
         elif opt == '-M' or opt == '--ems':
             ems = True
         elif opt == '--tls1.2-cipher':
-            ciphers_1_3 = [cipher_suite_to_id(arg)]
+            ciphers_1_2 = [cipher_suite_to_id(arg)]
         elif opt == '--tls1.3-cipher':
             ciphers_1_3 = [cipher_suite_to_id(arg)]
         elif opt == '--client-pke':
