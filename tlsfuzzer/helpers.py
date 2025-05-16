@@ -6,7 +6,7 @@ import time
 import random
 from functools import partial
 from tlslite.constants import HashAlgorithm, SignatureAlgorithm, \
-        SignatureScheme, ClientCertificateType, ExtensionType
+        SignatureScheme, ClientCertificateType, ExtensionType, CipherSuite
 
 from tlslite.extensions import KeyShareEntry, PreSharedKeyExtension, \
         PskIdentity, ClientKeyShareExtension, SessionTicketExtension
@@ -156,6 +156,24 @@ def sig_algs_to_ids(names):
             ids.append(getattr(SignatureScheme, name))
 
     return ids
+
+
+def cipher_suite_to_id(name):
+    """
+    Convert a string with a cipher suite name to numerical ID.
+
+    Handles both numerical IDs and names.
+
+    :raises ValueError: when the specified identifier is not defined
+        in ExtensionType and it is not an number
+    """
+    if name[:2] == '0x':
+        return int(name, 16)
+    else:
+        try:
+            return getattr(CipherSuite, name)
+        except AttributeError:
+            return int(name)
 
 
 def _ext_name_to_id(name):
