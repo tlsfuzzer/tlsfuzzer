@@ -27,10 +27,11 @@ from tlslite.utils.keyfactory import parsePEMKey
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 from tlsfuzzer.utils.lists import natural_sort_keys
-from tlsfuzzer.helpers import RSA_SIG_ALL, AutoEmptyExtension
+from tlsfuzzer.helpers import RSA_SIG_ALL, AutoEmptyExtension, \
+    cipher_suite_to_id
 
 
-version = 11
+version = 12
 
 
 def help_msg():
@@ -94,13 +95,7 @@ def main():
         elif opt == '-d':
             dhe = True
         elif opt == '-C':
-            if arg[:2] == '0x':
-                ciphers = [int(arg, 16)]
-            else:
-                try:
-                    ciphers = [getattr(CipherSuite, arg)]
-                except AttributeError:
-                    ciphers = [int(arg)]
+            ciphers = [cipher_suite_to_id(arg)]
         elif opt == '--help':
             help_msg()
             sys.exit(0)

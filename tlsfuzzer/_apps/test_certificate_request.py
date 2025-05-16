@@ -22,7 +22,8 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectApplicationData, ExpectServerKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import sig_algs_to_ids, RSA_SIG_ALL, \
-        client_cert_types_to_ids, AutoEmptyExtension, ECDSA_SIG_ALL
+        client_cert_types_to_ids, AutoEmptyExtension, ECDSA_SIG_ALL, \
+        cipher_suite_to_id
 from tlslite.extensions import SignatureAlgorithmsExtension, \
         SignatureAlgorithmsCertExtension, SupportedGroupsExtension
 from tlslite.constants import CipherSuite, AlertDescription, \
@@ -33,7 +34,7 @@ from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 
 
-version = 13
+version = 14
 
 
 def help_msg():
@@ -123,13 +124,7 @@ def main():
         elif opt == '-d':
             dhe = True
         elif opt == '-C':
-            if arg[:2] == '0x':
-                ciphers = [int(arg, 16)]
-            else:
-                try:
-                    ciphers = [getattr(CipherSuite, arg)]
-                except AttributeError:
-                    ciphers = [int(arg)]
+            ciphers = [cipher_suite_to_id(arg)]
         elif opt == '-M' or opt == '--ems':
             ems = True
         elif opt == '--help':
