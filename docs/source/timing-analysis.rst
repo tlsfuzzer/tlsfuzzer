@@ -485,12 +485,113 @@ You run analysis of such a file by using the basic command:
 
 ECDSA signature analysis
 ------------------------
-TODO
+It is possible to analyse ECDSA private key operations (be it signing) with
+respect to the leakage of the random nonce of the singature and then in
+extension the private key. This analysis is based on the
+`Minerva attack <https://minerva.crocs.fi.muni.cz/>`_ research.
 
+For that, using one specific ECDSA key, the test harness needs to collect
+timing information about individual signatures and save those times to a file.
+
+For extraction, we can then use the following command:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/extract.py -o "/output/dir" --raw-data data.bin --raw-sigs sigs.bin --raw-times times.csv --priv-key-ecdsa key.pem
+
+where ``data.bin`` is a binary file with concatenated all the data used for
+creation of the signatures, ``sigs.bin`` is a binary file with concatenated
+all the created signatures, ``times.csv`` is a CSV file with one column, with
+values representing the processing times for every message in turn and
+``key.pem`` is the private ECDSA key that was used for signing the data.
+
+That will create 4 measurements files:
+
+1. ``measurements.csv`` for the normal analysis of the nonce.
+2. ``measurements-invert.csv`` for the analysis of the modular multiplicative inverse of the nonce.
+3. ``measurements-hamming-weight.csv`` for Hamming weight analysis of the normal nonce.
+4. ``measurements-hamming-weight-invert.csv`` for Hamming weight analysis of the modular multiplicative inverse of the nonce.
+
+Create a new directory for the ``analysis.py`` script to work in, copy one
+of those files there, and rename it to ``measurements.csv`` if not named like that already.
+
+Then you can run the analysis for bit sizes like so:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/analysis.py -o "/dir/with/measurements" --bit-size
+
+And you can run the analysis for Hamming weight like so:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/analysis.py -o "/dir/with/measurements" --Hamming-weight
+
+Repeat for every file.
+
+.. tip::
+
+   For Hamming weight analysis executing the analysis script with
+   ``--minimal-analysis --no-wilcoxon-test --no-le-sign-test --no-sign-test``
+   options will make it run much faster while still providing the most
+   important output: the Skillings-Mack test value.
+
+.. tip::
+
+   For testing the most important TLS implementations or getting some more
+   guidelines you can visit `minerva-toolkit
+   <https://github.com/GeorgePantelakis/minerva-toolkit>`_
 
 ECDH key agreement analysis
 ---------------------------
-TODO
+It is possible to analyse ECDH private key operations (be it secret derivation)
+with respect to the leakage of the random nonce of the derivation and then in
+extension the private key.
+
+For that, using one specific ECDH key, the test harness needs to collect
+timing information about individual derivation values and save those times to
+a file.
+
+For extraction, we can then use the following command:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/extract.py -o "/output/dir" --raw-data data.bin --raw-values values.bin --raw-times times.csv --priv-key-ecdsa key.pem
+
+where ``data.bin`` is a binary file with concatenated all the data used for
+creation of the derivation values, ``values.bin`` is a binary file with
+concatenated all the created derivation values, ``times.csv`` is a CSV file
+with one column, with values representing the processing times for every
+message in turn and ``key.pem`` is the private ECDSA key that was used for
+signing the data.
+
+That will create 2 measurements files:
+
+1. ``measurements.csv`` for the normal analysis of the nonce.
+2. ``measurements-hamming-weight.csv`` for Hamming weight analysis of the normal nonce.
+
+Create a new directory for the ``analysis.py`` script to work in, copy one
+of those files there, and rename it to ``measurements.csv`` if not named like
+that already.
+
+Then you can run the analysis for bit sizes like so:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/analysis.py -o "/dir/with/measurements" --bit-size
+
+And you can run the analysis for Hamming weight like so:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/analysis.py -o "/dir/with/measurements" --Hamming-weight
+
+.. tip::
+
+   For Hamming weight analysis executing the analysis script with
+   ``--minimal-analysis --no-wilcoxon-test --no-le-sign-test --no-sign-test``
+   options will make it run much faster while still providing the most
+   important output: the Skillings-Mack test value.
 
 RSA key-based analysis
 ----------------------
