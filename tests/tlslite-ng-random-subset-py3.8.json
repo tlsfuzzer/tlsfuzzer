@@ -528,6 +528,8 @@
     {"server_command": ["{python}", "-u", "{command}", "server",
                  "-k", "tests/serverRSAPSSKey.pem",
                  "-c", "tests/serverRSAPSSCert.pem",
+                 "--dc-key", "tests/serverDelCredRSAPSSKey.pem",
+                 "--dc-pub", "tests/serverDelCredRSAPSSPub.pem",
                  "localhost:4433"],
      "server_hostname": "localhost",
      "server_port": 4433,
@@ -539,7 +541,9 @@
          "arguments" : ["-x", "rsa_pss_rsae_sha256 only",
                         "-x", "rsa_pss_rsae_sha384 only",
                         "-x", "rsa_pss_rsae_sha512 only"]
-        }
+        },
+        {"name": "test-tls13-delegated-credential.py",
+         "arguments": ["--dc-sig-alg", "rsa_pss_pss_sha256"]}
      ]
     },
     {"server_command": ["{python}", "-u", "{command}", "server",
@@ -651,6 +655,8 @@
                 "--echo",
                 "-k", "tests/serverX509Key.pem",
                 "-c", "tests/serverX509Cert.pem",
+                "--dc-key", "tests/serverDelCredSECP256r1Key.pem",
+                "--dc-pub", "tests/serverDelCredSECP256r1Pub.pem",
                 "localhost:4434"],
      "server_hostname": "localhost",
      "server_port": 4434,
@@ -659,7 +665,9 @@
          {"name": "test-lengths.py",
           "arguments": ["-p", "4434", "-n", "500"]},
          {"name": "test-tls13-lengths.py",
-          "arguments": ["-p", "4434", "-n", "200"]}
+          "arguments": ["-p", "4434", "-n", "200"]},
+         {"name": "test-tls13-delegated-credential.py",
+          "arguments": ["-p", "4434", "--dc-sig-alg", "ecdsa_secp256r1_sha256"]}
      ]
     },
     {"server_command": ["{python}", "-u", "{command}", "server",
@@ -691,6 +699,8 @@
     {"server_command": ["{python}", "-u", "{command}", "server",
                 "-k", "tests/serverEd25519Key.pem",
                 "-c", "tests/serverEd25519Cert.pem",
+                "--dc-key", "tests/serverDelCredEd25519Key.pem",
+                "--dc-pub", "tests/serverDelCredEd25519Pub.pem",
                 "localhost:4433"],
      "server_hostname": "localhost",
      "server_port": 4433,
@@ -698,7 +708,9 @@
      "tests" : [
          {"name": "test-tls13-eddsa.py",
           "arguments": ["-x", "ed448 only",
-                        "-X", "handshake_failure"]}
+                        "-X", "handshake_failure"]},
+         {"name": "test-tls13-delegated-credential.py",
+          "arguments": ["--dc-sig-alg", "ed25519"]}
      ]
     },
     {"server_command": ["{python}", "-u", "{command}", "server",
