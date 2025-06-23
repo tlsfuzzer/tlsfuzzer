@@ -1,6 +1,13 @@
-Example longer file for transfer tests
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nulla porttitor tempor mi non pellentesque. In pellentesque blandit turpis id luctus. Mauris efficitur nunc sit amet augue scelerisque sagittis. Pellentesque leo arcu, feugiat vitae lectus sed, hendrerit luctus purus. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. In elementum, sem ac tincidunt aliquet, sapien urna accumsan risus, in tempor diam ipsum ut justo. Sed quam nulla, sollicitudin vel nibh at, gravida dapibus leo.
-
-Donec sollicitudin tortor vitae dolor tincidunt, vel efficitur nulla lacinia. Pellentesque sagittis fermentum venenatis. Cras ac auctor metus. In mauris diam, semper porttitor placerat placerat, semper sed justo. Nam quis ligula gravida, pulvinar eros eu, volutpat risus. Nunc condimentum quis turpis ac faucibus. Curabitur ac lectus ex.
-
-Ut quis sodales metus, id eleifend augue. Maecenas cursus, diam ut tempus suscipit, augue libero bibendum enim, sed facilisis ipsum libero sed nulla. Pellentesque eu laoreet dolor. In scelerisque accumsan eleifend. Donec pellentesque lorem dolor, ac tristique tortor facilisis ullamcorper. Nullam tincidunt neque ac faucibus feugiat. Duis eget turpis orci. Sed malesuada ligula et ullamcorper tincidunt. Quisque interdum nisi sed erat accumsan egestas. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Duis vitae justo vitae nisi varius porta vel vitae mi. Sed a enim viverra, imperdiet erat sit amet, commodo dolor. Morbi viverra nec purus eu pulvinar. Morbi nec nibh pellentesque, finibus ex sit amet, efficitur est. Integer ut maximus erat.
+-----BEGIN CERTIFICATE-----
+MIIB9jCCAV+gAwIBAgIJAMyn9DpsTG55MA0GCSqGSIb3DQEBCwUAMBQxEjAQBgNV
+BAMMCWxvY2FsaG9zdDAeFw0xNTAxMjExNDQzMDFaFw0xNTAyMjAxNDQzMDFaMBQx
+EjAQBgNVBAMMCWxvY2FsaG9zdDCBnzANBgkqhkiG9w0BAQEFAAOBjQAwgYkCgYEA
+0QkEeakSyV/LMtTeARdRtX5pdbzVuUuqOIdz3lg7YOyRJ/oyLTPzWXpKxr//t4FP
+QvYsSJiVOlPk895FNu6sNF/uJQyQGfFWYKkE6fzFifQ6s9kssskFlL1DVI/dD/Zn
+7sgzua2P1SyLJHQTTs1MtMb170/fX2EBPkDz+2kYKN0CAwEAAaNQME4wHQYDVR0O
+BBYEFJtvXbRmxRFXYVMOPH/29pXCpGmLMB8GA1UdIwQYMBaAFJtvXbRmxRFXYVMO
+PH/29pXCpGmLMAwGA1UdEwQFMAMBAf8wDQYJKoZIhvcNAQELBQADgYEAkOgC7LP/
+Rd6uJXY28HlD2K+/hMh1C3SRT855ggiCMiwstTHACGgNM+AZNqt6k8nSfXc6k1gw
+5a7SGjzkWzMaZC3ChBeCzt/vIAGlMyXeqTRhjTCdc/ygRv3NPrhUKKsxUYyXRk5v
+g/g6MwxzXfQP3IyFu3a9Jia/P89Z1rQCNRY=
+-----END CERTIFICATE-----
