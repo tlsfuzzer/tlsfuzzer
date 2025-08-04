@@ -35,7 +35,7 @@ from tlsfuzzer.helpers import key_share_gen, SIG_ALL, RSA_SIG_ALL, \
 from tlslite.utils.compression import compression_algo_impls
 
 
-version = 2
+version = 3
 
 KNOWN_ALGORITHMS = ('zlib', 'brotli', 'zstd')
 
@@ -70,8 +70,10 @@ def help_msg():
     print("                          additional extensions, usually used for")
     print("                          (EC)DHE ciphers. Only effects TLS v1.2")
     print("                          tests.")
-    print(" -C ciph                  Use specified ciphersuite. Either")
-    print("                          numerical value or IETF name.")
+    print(" --tls1.2-cipher ciph     Use specified ciphersuite for TLSv1.2.")
+    print("                          Either numerical value or IETF name.")
+    print(" --tls1.3-cipher ciph     Use specified ciphersuite for TLSv1.3.")
+    print("                          Either numerical value or IETF name.")
     print(" -M | --ems               Advertise support for Extended Master")
     print("                          Secret. Only effects TLS v1.2 tests.")
     print(" --algorithms algorithms  comma-separated list of compression")
@@ -91,7 +93,8 @@ def main():
     expected_failures = {}
     last_exp_tmp = None
     dhe = False
-    ciphers = None
+    ciphers_1_2 = None
+    ciphers_1_3 = None
     ems = False
     compression_algorithms_list = list(KNOWN_ALGORITHMS)
 
@@ -116,8 +119,10 @@ def main():
             num_limit = int(arg)
         elif opt == '-d':
             dhe = True
-        elif opt == '-C':
-            ciphers = [cipher_suite_to_id(arg)]
+        elif opt == '--tls1.2-cipher':
+            ciphers_1_2 = [cipher_suite_to_id(arg)]
+        elif opt == '--tls1.3-cipher':
+            ciphers_1_3 = [cipher_suite_to_id(arg)]
         elif opt == '-M' or opt == '--ems':
             ems = True
         elif opt == '--algorithms':
@@ -133,8 +138,28 @@ def main():
     else:
         run_only = None
 
-    if not ciphers:
-        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256]
+    if ciphers_1_2:
+        ciphers_1_2 += [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        if not dhe:
+            # by default send minimal set of extensions, but allow user
+            # to override it
+            dhe = ciphers_1_2[0] in CipherSuite.ecdhAllSuites or \
+                    ciphers_1_2[0] in CipherSuite.dhAllSuites
+    else:
+        if dhe:
+            ciphers_1_2 = [CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+                           CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+                           CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+                           CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        else:
+            ciphers_1_2 = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+                           CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+
+    if ciphers_1_3:
+        ciphers_1_3 += [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    else:
+        ciphers_1_3 = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
 
     compression_algorithms = {}
 
@@ -194,9 +219,7 @@ def main():
         SignatureAlgorithmsExtension().create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = \
         SignatureAlgorithmsCertExtension().create(SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(
-        ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
-        extensions=ext))
+    node = node.add_child(ClientHelloGenerator(ciphers_1_3, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectEncryptedExtensions())
@@ -224,8 +247,6 @@ def main():
     for alg_name, algorithm in compression_algorithms.items():
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {}
         groups = [GroupName.secp256r1]
         key_shares = []
@@ -251,7 +272,8 @@ def main():
         compression_algs = [algorithm]
         ext[ExtensionType.compress_certificate] = \
             CompressedCertificateExtension().create(compression_algs)
-        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+        node = node.add_child(ClientHelloGenerator(
+            ciphers_1_3, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectEncryptedExtensions())
@@ -286,9 +308,6 @@ def main():
     if ems:
         ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
     if dhe:
-        ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         groups = [GroupName.secp256r1,
                   GroupName.ffdhe2048]
         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
@@ -297,14 +316,12 @@ def main():
             SignatureAlgorithmsExtension().create(SIG_ALL)
         ext[ExtensionType.signature_algorithms_cert] = \
             SignatureAlgorithmsCertExtension().create(SIG_ALL)
-    else:
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+
     ext[ExtensionType.compress_certificate] = \
                 CompressedCertificateExtension().create(
                     list(compression_algorithms.values())
                 )
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ClientHelloGenerator(ciphers_1_2, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectCertificate())
     if dhe:
@@ -334,8 +351,6 @@ def main():
     if "zlib" in compression_algorithms and extra_algo:
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {}
         groups = [GroupName.secp256r1]
         key_shares = []
@@ -361,7 +376,8 @@ def main():
         algorithms = [compression_algorithms["zlib"], extra_algo]
         ext[ExtensionType.compress_certificate] = \
                 CompressedCertificateExtension().create(algorithms)
-        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+        node = node.add_child(ClientHelloGenerator(
+            ciphers_1_3, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectEncryptedExtensions())
@@ -401,8 +417,6 @@ def main():
     for unreasonable_compression_algorithm in UNSUPPORTED_ALGORITHMS:
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {}
         groups = [GroupName.secp256r1]
         key_shares = []
@@ -428,7 +442,8 @@ def main():
         compression_algs = [unreasonable_compression_algorithm]
         ext[ExtensionType.compress_certificate] = \
                 CompressedCertificateExtension().create(compression_algs)
-        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+        node = node.add_child(ClientHelloGenerator(
+            ciphers_1_3, extensions=ext))
         node = node.add_child(ExpectServerHello())
         node = node.add_child(ExpectChangeCipherSpec())
         node = node.add_child(ExpectEncryptedExtensions())
@@ -457,8 +472,6 @@ def main():
         if "zlib" in compression_algorithms:
             conversation = Connect(host, port)
             node = conversation
-            ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
             ext = {}
             groups = [GroupName.secp256r1]
             key_shares = []
@@ -486,7 +499,7 @@ def main():
                                 CertificateCompressionAlgorithm.zlib]
             ext[ExtensionType.compress_certificate] = \
                     CompressedCertificateExtension().create(compression_algs)
-            node = node.add_child(ClientHelloGenerator(ciphers,
+            node = node.add_child(ClientHelloGenerator(ciphers_1_3,
                                                        extensions=ext))
             node = node.add_child(ExpectServerHello())
             node = node.add_child(ExpectChangeCipherSpec())
@@ -519,8 +532,6 @@ def main():
     # Empty list in extension
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {}
     groups = [GroupName.secp256r1]
     key_shares = []
@@ -546,7 +557,7 @@ def main():
     compression_algs = []
     ext[ExtensionType.compress_certificate] = \
         CompressedCertificateExtension().create(compression_algs)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ClientHelloGenerator(ciphers_1_3, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                           AlertDescription.decode_error))
     node.add_child(ExpectClose())
@@ -555,8 +566,6 @@ def main():
     # duplicated values in extension
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {}
     groups = [GroupName.secp256r1]
     key_shares = []
@@ -582,7 +591,7 @@ def main():
     compression_algs = [list(compression_algorithms.values())[0]] * 3
     ext[ExtensionType.compress_certificate] = \
         CompressedCertificateExtension().create(compression_algs)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ClientHelloGenerator(ciphers_1_3, extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectEncryptedExtensions())
@@ -616,8 +625,6 @@ def main():
     ]:
         conversation = Connect(host, port)
         node = conversation
-        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
         ext = {}
         groups = [GroupName.secp256r1]
         key_shares = []
@@ -647,7 +654,7 @@ def main():
         ]
         ext[ExtensionType.compress_certificate] = \
             CompressedCertificateExtension().create(compression_algs)
-        msg = ClientHelloGenerator(ciphers, extensions=ext)
+        msg = ClientHelloGenerator(ciphers_1_3, extensions=ext)
         node = node.add_child(fuzz_message(msg, substitutions={-7: new_len}))
         node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                           AlertDescription.decode_error))
@@ -657,8 +664,6 @@ def main():
     # odd length
     conversation = Connect(host, port)
     node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
     ext = {}
     groups = [GroupName.secp256r1]
     key_shares = []
@@ -688,7 +693,7 @@ def main():
                       b'\x00\x02'  # brotli
                       b'\x00\x03'  # zstd
                       b'\x04'))    # the odd byte
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ClientHelloGenerator(ciphers_1_3, extensions=ext))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                     AlertDescription.decode_error))
     node = node.add_child(ExpectClose())
