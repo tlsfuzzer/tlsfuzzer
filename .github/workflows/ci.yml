@@ -121,7 +121,8 @@ jobs:
             os: ubuntu-latest
             python-version: '3.12'
             # note: codeclimate can be specified in only one environment
-            opt-deps: ['extract', 'analysis', 'codeclimate']
+            # note: codeclimate was here but it is broken for now, needs fixing
+            opt-deps: ['extract', 'analysis']
     steps:
       - uses: actions/checkout@v2
         if: ${{ !matrix.container }}
