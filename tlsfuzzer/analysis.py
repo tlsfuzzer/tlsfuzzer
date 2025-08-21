@@ -2319,7 +2319,7 @@ class Analysis(object):
         k_sizes = data['k_size']
         values = data['value']
 
-        while k_sizes[i] != max_k_size:
+        while i < k_sizes.size and k_sizes[i] != max_k_size:
             i += 1
 
         while i < end or prev_tupple_id == tuple_id:
