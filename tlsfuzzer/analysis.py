@@ -298,6 +298,7 @@ class Analysis(object):
         self._k_sizes = None
         self._bit_size_data_used = None
         self._total_bit_size_data_used = 0
+        self._sanity_data_points_used = 0
 
         if not bit_size_analysis:
             data = self.load_data()
@@ -1830,6 +1831,7 @@ class Analysis(object):
         all_wilcoxon_values = list(self._bit_size_wilcoxon_test.values())
         total_non_max_data = sum(self._k_sizes[i] for i in self._k_sizes
                                  if i != max(self._k_sizes.keys()))
+        total_non_max_data += self._sanity_data_points_used
         with open(join(self.output, "analysis_results/report.txt"), "w") as fp:
             fp.write(
                 "tlsfuzzer analyse.py version {0} bit size analysis\n\n"
@@ -2199,6 +2201,9 @@ class Analysis(object):
                 tuples_written_in_timing_files = {}
                 for k_size, total in chunks:
                     tuples_written_in_timing_files[k_size] = total
+
+                    if k_size == max_k_size:
+                        self._sanity_data_points_used = total
 
                 if status:
                     status[2].set()
