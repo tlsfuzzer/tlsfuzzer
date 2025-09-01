@@ -28,7 +28,7 @@ from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import RSA_SIG_ALL, AutoEmptyExtension
 
 
-version = 6
+version = 7
 
 
 def help_msg():
@@ -338,16 +338,24 @@ def main():
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throughout
     sanity_tests = [('sanity', conversations['sanity'])]
+    run_sanity = True
     if run_only:
-        if num_limit > len(run_only):
-            num_limit = len(run_only)
-        regular_tests = [(k, v) for k, v in conversations.items() if
-                          k in run_only]
+        if len(run_only) == 1 and 'sanity' in run_only:
+            run_sanity = False
+            regular_tests = sanity_tests
+        else:
+            if not 'sanity' in run_only:
+                run_sanity = False
+            regular_tests = [(k, v) for k, v in conversations.items() if
+                             k in run_only and (k != 'sanity')]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
                          (k != 'sanity') and k not in run_exclude]
     sampled_tests = sample(regular_tests, min(num_limit, len(regular_tests)))
-    ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
+    if run_sanity:
+        ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
+    else:
+        ordered_tests = sampled_tests
 
     for c_name, c_test in ordered_tests:
         if run_only and c_name not in run_only or c_name in run_exclude:
@@ -396,10 +404,23 @@ def main():
     print("Test end")
     print(20 * '=')
     print("version: {0}".format(version))
-    print("successful: {0}".format(good))
-    print("failed: {0}".format(bad))
-    failed_sorted = sorted(failed, key=natural_sort_keys)
-    print("  {0}".format('\n  '.join(repr(i) for i in failed_sorted)))
+    print(20 * '=')
+    if run_sanity:
+        print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
+    else:
+        print("TOTAL: {0}".format(len(sampled_tests)))
+    print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
+    print("PASS: {0}".format(good))
+    print("XFAIL: {0}".format(xfail))
+    print("FAIL: {0}".format(bad))
+    print("XPASS: {0}".format(xpass))
+    print(20 * '=')
+    sort = sorted(xpassed ,key=natural_sort_keys)
+    if len(sort):
+        print("XPASSED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
+    sort = sorted(failed, key=natural_sort_keys)
+    if len(sort):
+        print("FAILED:\n\t{0}".format('\n\t'.join(repr(i) for i in sort)))
 
     if bad or xpass:
         sys.exit(1)

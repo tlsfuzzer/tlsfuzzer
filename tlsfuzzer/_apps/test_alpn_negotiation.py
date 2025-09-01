@@ -28,7 +28,7 @@ from tlsfuzzer.helpers import RSA_SIG_ALL, AutoEmptyExtension
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 
 
-version = 6
+version = 7
 
 
 def help_msg():
@@ -343,7 +343,7 @@ def main():
                                                       bytearray(b'http/2')])
     msg = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     # -17 is position of second byte in 2 byte long length of "protocol_name_list"
-    # setting it to value of 9 (bytes) will hide the second item in the "protocol_name_list"    
+    # setting it to value of 9 (bytes) will hide the second item in the "protocol_name_list"
     node = node.add_child(fuzz_message(msg, substitutions={-17: 9}))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decode_error))
@@ -370,7 +370,7 @@ def main():
                                                       bytearray(b'http/2')])
     msg = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     # -17 is position of second byte in 2 byte long length of "protocol_name_list"
-    # setting it to value of 18 (bytes) will raise the length value for 2 more bytes    
+    # setting it to value of 18 (bytes) will raise the length value for 2 more bytes
     node = node.add_child(fuzz_message(msg, substitutions={-17: 18}))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decode_error))
@@ -397,7 +397,7 @@ def main():
                                                       bytearray(b'http/2')])
     msg = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
     # -7 is position of a length (1 byte long) for the last item in "protocol_name_list"
-    # setting it to value of 8 (bytes) will raise the length value for 2 more bytes  
+    # setting it to value of 8 (bytes) will raise the length value for 2 more bytes
     node = node.add_child(fuzz_message(msg, substitutions={-7: 8}))
     node = node.add_child(ExpectAlert(AlertLevel.fatal,
                                       AlertDescription.decode_error))
@@ -843,16 +843,24 @@ def main():
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throughout
     sanity_tests = [('sanity', conversations['sanity'])]
+    run_sanity = True
     if run_only:
-        if num_limit > len(run_only):
-            num_limit = len(run_only)
-        regular_tests = [(k, v) for k, v in conversations.items() if
-                          k in run_only]
+        if len(run_only) == 1 and 'sanity' in run_only:
+            run_sanity = False
+            regular_tests = sanity_tests
+        else:
+            if not 'sanity' in run_only:
+                run_sanity = False
+            regular_tests = [(k, v) for k, v in conversations.items() if
+                             k in run_only and (k != 'sanity')]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
                          (k != 'sanity') and k not in run_exclude]
     sampled_tests = sample(regular_tests, min(num_limit, len(regular_tests)))
-    ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
+    if run_sanity:
+        ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
+    else:
+        ordered_tests = sampled_tests
 
     for c_name, c_test in ordered_tests:
         if run_only and c_name not in run_only or c_name in run_exclude:
@@ -902,7 +910,10 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2*len(sanity_tests)))
+    if run_sanity:
+        print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
+    else:
+        print("TOTAL: {0}".format(len(sampled_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
