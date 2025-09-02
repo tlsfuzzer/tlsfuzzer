@@ -324,10 +324,10 @@ jobs:
           ./cc-test-reporter before-build
       - name: Run unit tests (py2.6)
         if: ${{ matrix.python-version == '2.6' }}
-        run: coverage run --branch --source tlsfuzzer -m unittest2 discover
+        run: coverage run --branch --source tlsfuzzer --omit '*/_apps/*' -m unittest2 discover
       - name: Run unit tests (py2.7+)
         if: ${{ matrix.python-version != '2.6' }}
-        run: coverage run --branch --source tlsfuzzer -m unittest discover
+        run: coverage run --branch --source tlsfuzzer --omit '*/_apps/*' -m unittest discover
       - name: Log branch coverage
         run: coverage report -m
       - name: Publish coverage to CodeClimate
