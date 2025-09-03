@@ -31,7 +31,7 @@ from tlslite.x509certchain import X509CertChain
 from tlslite.utils.cryptomath import numBytes
 
 
-version = 8
+version = 9
 
 
 def help_msg():
@@ -465,7 +465,7 @@ def main():
         scheme = SignatureScheme.rsa_pss_pss_sha256
     sig = bytearray(b'\xfa\xbc\x0f\x4c')
 
-    (conversation, node) = build_conn_graph(host, port, sigs, cert, 
+    (conversation, node) = build_conn_graph(host, port, sigs, cert,
                                             CertificateVerifyGenerator(private_key,
                                                 msg_alg=scheme,
                                                 signature=sig),
@@ -490,18 +490,30 @@ def main():
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throughout
     sanity_tests = [('sanity', conversations['sanity'])]
+    run_sanity = True
     if run_only:
-        if num_limit > len(run_only):
-            num_limit = len(run_only)
-        long_tests = [(k, v) for k, v in conversations_long.items() if k in run_only]
-        short_tests = [(k, v) for k, v in conversations.items() if (k != 'sanity') and k in run_only]
+        if len(run_only) == 1 and 'sanity' in run_only:
+            run_sanity = False
+            long_tests = sanity_tests
+            short_tests = []
+        else:
+            if not 'sanity' in run_only:
+                run_sanity = False
+            long_tests = [(k, v) for k, v in conversations_long.items()
+                          if k in run_only]
+            short_tests = [(k, v) for k, v in conversations.items()
+                           if (k != 'sanity') and k in run_only]
     else:
         long_tests = [(k, v) for k, v in conversations_long.items() if
-                        k not in run_exclude]
+                      k not in run_exclude]
         short_tests = [(k, v) for k, v in conversations.items() if
-                        (k != 'sanity') and k not in run_exclude]
+                       (k != 'sanity') and k not in run_exclude]
     sampled_tests = sample(long_tests, min(num_limit, len(long_tests)))
-    ordered_tests = chain(sanity_tests, short_tests, sampled_tests, sanity_tests)
+    if run_sanity:
+        ordered_tests = chain(
+            sanity_tests, short_tests, sampled_tests, sanity_tests)
+    else:
+        ordered_tests = chain(short_tests, sampled_tests)
 
     for c_name, c_test in ordered_tests:
         print("{0} ...".format(c_name))
@@ -552,7 +564,11 @@ def main():
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + len(short_tests) + 2*len(sanity_tests)))
+    if run_sanity:
+        print("TOTAL: {0}".format(
+            len(sampled_tests) + len(short_tests) + 2 * len(sanity_tests)))
+    else:
+        print("TOTAL: {0}".format(len(sampled_tests) + len(short_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))

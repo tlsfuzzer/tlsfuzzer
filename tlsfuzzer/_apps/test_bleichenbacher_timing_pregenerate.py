@@ -33,7 +33,7 @@ from tlsfuzzer.utils.statics import WARM_UP
 from tlsfuzzer.utils.log import Log
 
 
-version = 6
+version = 7
 
 
 def help_msg():
@@ -858,21 +858,24 @@ def main():
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throughout
     sanity_tests = [('sanity', conversations['sanity'])]
+    run_sanity = True
     if run_only:
-        if num_limit > len(run_only):
-            num_limit = len(run_only)
-        regular_tests = [(k, v) for k, v in conversations.items() if k in run_only]
+        if len(run_only) == 1 and 'sanity' in run_only:
+            run_sanity = False
+            regular_tests = sanity_tests
+        else:
+            if not 'sanity' in run_only:
+                run_sanity = False
+            regular_tests = [(k, v) for k, v in conversations.items() if
+                             k in run_only and (k != 'sanity')]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
                          (k != 'sanity') and k not in run_exclude]
-    if num_limit < len(conversations):
-        sampled_tests = sample(regular_tests, min(num_limit, len(regular_tests)))
-    else:
-        sampled_tests = regular_tests
-    if len(sampled_tests) == 1:
-        ordered_tests = sampled_tests
-    else:
+    sampled_tests = sample(regular_tests, min(num_limit, len(regular_tests)))
+    if run_sanity:
         ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
+    else:
+        ordered_tests = sampled_tests
 
     print("Running tests for {0}".format(CipherSuite.ietfNames[cipher]))
 
@@ -1018,7 +1021,10 @@ place where the timing leak happens:
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
+    if run_sanity:
+        print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
+    else:
+        print("TOTAL: {0}".format(len(sampled_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
