@@ -1,7 +1,6 @@
 [![GitHub CI](https://github.com/tlsfuzzer/tlsfuzzer/actions/workflows/ci.yml/badge.svg)](https://github.com/tlsfuzzer/tlsfuzzer/actions/workflows/ci.yml)
 [![Read the Docs](https://img.shields.io/readthedocs/tlsfuzzer)](https://tlsfuzzer.readthedocs.io/en/latest/)
 [![Coverage Status](https://coveralls.io/repos/tlsfuzzer/tlsfuzzer/badge.svg?branch=master)](https://coveralls.io/r/tlsfuzzer/tlsfuzzer?branch=master)
-[![Code Climate](https://codeclimate.com/github/tlsfuzzer/tlsfuzzer/badges/gpa.svg)](https://codeclimate.com/github/tlsfuzzer/tlsfuzzer)
 
 # tlsfuzzer
 tlsfuzzer is a test suite for SSLv2, SSLv3, TLS 1.0, TLS 1.1, TLS 1.2, and
