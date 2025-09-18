@@ -139,8 +139,6 @@ jobs:
           - name: py3.12 with extract and analysis
             os: ubuntu-latest
             python-version: '3.12'
-            # note: codeclimate can be specified in only one environment
-            # note: codeclimate was here but it is broken for now, needs fixing
             opt-deps: ['extract', 'analysis']
     steps:
       - uses: actions/checkout@v2
@@ -376,14 +374,6 @@ jobs:
         run: pip install -r requirements.txt
       - name: Display installed python package versions
         run: pip list
-      - name: Prepare Codeclimate environment
-        if: ${{ contains(matrix.opt-deps, 'codeclimate') }}
-        env:
-          CC_TEST_REPORTER_ID: ${{ secrets.CC_TEST_REPORTER_ID }}
-        run: |
-          curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
-          chmod +x ./cc-test-reporter
-          ./cc-test-reporter before-build
       - name: Run unit tests (py2.6)
         if: ${{ matrix.python-version == '2.6' }}
         run: coverage run --branch --source tlsfuzzer --omit '*/_apps/*' -m unittest2 discover
@@ -392,13 +382,6 @@ jobs:
         run: coverage run --branch --source tlsfuzzer --omit '*/_apps/*' -m unittest discover
       - name: Log branch coverage
         run: coverage report -m
-      - name: Publish coverage to CodeClimate
-        if: ${{ contains(matrix.opt-deps, 'codeclimate') }}
-        env:
-          CC_TEST_REPORTER_ID: 1b11fe8cca47f31f58c5d27de82688a26bbcb432bfa3607d561b816489bed9bd
-        run: |
-          coverage xml
-          ./cc-test-reporter after-build
       - name: Publish coverage to Coveralls
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
