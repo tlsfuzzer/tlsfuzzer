@@ -1449,7 +1449,10 @@ class ExpectCertificateRequest(_ExpectExtensionsMessage):
         for sig_alg in cert_request.supported_signature_algs:
             if sig_alg in (SignatureScheme.ecdsa_brainpoolP256r1tls13_sha256,
                            SignatureScheme.ecdsa_brainpoolP384r1tls13_sha384,
-                           SignatureScheme.ecdsa_brainpoolP512r1tls13_sha512):
+                           SignatureScheme.ecdsa_brainpoolP512r1tls13_sha512,
+                           SignatureScheme.mldsa44,
+                           SignatureScheme.mldsa65,
+                           SignatureScheme.mldsa87):
                 raise AssertionError(
                     "TLS 1.3 specific signature scheme in an earlier protocol "
                     "version: {0}".format(sig_alg))
