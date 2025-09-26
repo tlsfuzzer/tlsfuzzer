@@ -292,11 +292,12 @@ jobs:
       # - name: Install M2Crypto (py2.6)
       #   if: ${{ matrix.container }}
       #   run: yum install -y m2crypto
-      - name: Install kyber-py on py3.9 and later
+      - name: Install kyber-py dilithium_py on py3.9 and later
         if: ${{ !matrix.container && matrix.python-version != '2.6' && matrix.python-version != '2.7' && matrix.python-version != '3.6' && matrix.python-version != '3.7' && matrix.python-version != '3.8' }}
         run: |
           wget https://github.com/GiacomoPope/kyber-py/archive/refs/tags/v1.0.zip -O kyber_py-1.0.zip
-          pip install kyber_py-1.0.zip
+          wget https://github.com/GiacomoPope/dilithium-py/archive/refs/tags/1.3.0.zip -O dilithium_py-1.3.0.zip
+          pip install kyber_py-1.0.zip dilithium_py-1.3.0.zip
       - name: Install build dependencies (2.6)
         if: ${{ matrix.python-version == '2.6' }}
         run: |
@@ -419,7 +420,7 @@ jobs:
               export REPLY_SIZE=1849  # Server: SimpleHTTP/0.6 Python/3.8.6
               ;;
           esac
-          # kyber-py library supports only python 3.9 and later
+          # kyber-py and dilithium-py library supports only python 3.9 and later
           case $PYTHON_VERSION in
             2.6 | 2.7 | 3.6 | 3.7 | 3.8 )
               export TEST_FILE=tests/tlslite-ng-random-subset-py3.8.json
