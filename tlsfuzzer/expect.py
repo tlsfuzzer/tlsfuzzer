@@ -1153,6 +1153,18 @@ class ExpectCertificateVerify(ExpectHandshake):
                         .format(
                             SignatureScheme.toStr(cert_v.signatureAlgorithm),
                             key_type))
+            elif key_type in ("mldsa44", "mldsa65", "mldsa87"):
+                assert cert_v.signatureAlgorithm in (
+                        SignatureScheme.mldsa44,
+                        SignatureScheme.mldsa65,
+                        SignatureScheme.mldsa87)
+                if getattr(SignatureScheme, key_type.lower()) != \
+                        cert_v.signatureAlgorithm:
+                    raise AssertionError(
+                        "Mismatched signature ({0}) for used key ({1})"
+                        .format(
+                            SignatureScheme.toStr(cert_v.signatureAlgorithm),
+                            key_type))
             else:
                 assert key_type == "ecdsa"
                 curve_name = state.get_server_public_key().curve_name
@@ -1191,7 +1203,9 @@ class ExpectCertificateVerify(ExpectHandshake):
 
         salg = cert_v.signatureAlgorithm
 
-        if salg in (SignatureScheme.ed25519, SignatureScheme.ed448):
+        if salg in (SignatureScheme.ed25519, SignatureScheme.ed448,
+                    SignatureScheme.mldsa44, SignatureScheme.mldsa65,
+                    SignatureScheme.mldsa87):
             hash_name = "intrinsic"
             padding = None
             salt_len = None
