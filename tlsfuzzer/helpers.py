@@ -20,6 +20,7 @@ __all__ = ['sig_algs_to_ids', 'key_share_gen', 'psk_ext_gen',
            'key_share_ext_gen', 'uniqueness_check', 'RSA_SIG_ALL',
            'ECDSA_SIG_ALL', 'RSA_PKCS1_ALL', 'RSA_PSS_PSS_ALL',
            'RSA_PSS_RSAE_ALL', 'ECDSA_SIG_TLS1_3_ALL', 'EDDSA_SIG_ALL',
+           'MLDSA_SIG_ALL',
            'SIG_ALL', 'AutoEmptyExtension', 'client_cert_types_to_ids',
            'session_ticket_ext_gen']
 
@@ -92,9 +93,16 @@ DSA_ALL = [(getattr(HashAlgorithm, x), SignatureAlgorithm.dsa) for x in
 List of all DSA signatures
 """
 
+MLDSA_SIG_ALL = [SignatureScheme.mldsa87,
+                 SignatureScheme.mldsa65,
+                 SignatureScheme.mldsa44]
+"""
+List of all pure ML-DSA signatures
+"""
 
-SIG_ALL = RSA_PSS_PSS_ALL + RSA_PSS_RSAE_ALL + RSA_PKCS1_ALL + ECDSA_SIG_ALL +\
-    EDDSA_SIG_ALL + DSA_ALL
+
+SIG_ALL = MLDSA_SIG_ALL + RSA_PSS_PSS_ALL + RSA_PSS_RSAE_ALL + RSA_PKCS1_ALL +\
+    ECDSA_SIG_ALL + EDDSA_SIG_ALL + DSA_ALL
 """List of all signature algorithms supported by tlsfuzzer,
 as used in ``signature_algorithms`` or ``signature_algorithms_cert`` extension.
 
