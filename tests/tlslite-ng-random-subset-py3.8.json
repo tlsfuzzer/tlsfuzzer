@@ -313,6 +313,7 @@
                          "--exc", "12",
                          "--exc", "23",
                          "--exc", "27",
+                         "--exc", "34",
                          "--exc", "13172"],
           "comment" : "several tls12 extensions must be excluded, tlslite-ng issue #314"},
          {"name" : "test-tls13-large-number-of-extensions.py",
