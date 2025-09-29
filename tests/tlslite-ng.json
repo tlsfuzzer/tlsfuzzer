@@ -464,6 +464,11 @@
                          "-c", "tests/serverEd448Cert.pem",
                          "-s", "mldsa87 mldsa65 mldsa44 ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
          },
+         {"name" : "test-tls13-mldsa-in-certificate-verify.py",
+          "arguments" : ["-k", "tests/serverMldsa65Key.pem",
+                         "-c", "tests/serverMldsa65Cert.pem",
+                         "-s", "mldsa87 mldsa65 mldsa44 ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
+         },
          {"name" : "test-tls13-client-certificate-compression.py",
           "arguments" : ["-k", "tests/clientX509Key.pem",
                          "-c", "tests/clientX509Cert.pem",

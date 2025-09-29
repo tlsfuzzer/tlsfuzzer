@@ -106,8 +106,7 @@ SIG_ALL = MLDSA_SIG_ALL + RSA_PSS_PSS_ALL + RSA_PSS_RSAE_ALL + RSA_PKCS1_ALL +\
 """List of all signature algorithms supported by tlsfuzzer,
 as used in ``signature_algorithms`` or ``signature_algorithms_cert`` extension.
 
-For now includes only RSA, ECDSA and EdDSA algorithms, will include DSA
-algorithms later on.
+Will include hybrid PQC algorithms and SLH-DSA later.
 
 Sorted in order of strongest to weakest hash.
 """
