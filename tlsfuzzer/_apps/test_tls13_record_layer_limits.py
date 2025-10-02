@@ -700,7 +700,7 @@ def main():
         print("TOTAL: {0}".format(
             len(sampled_tests) + len(short_tests) + 2 * len(sanity_tests)))
     else:
-        print("TOTAL: {0}".format(len(sampled_tests)) + len(short_tests))
+        print("TOTAL: {0}".format(len(sampled_tests) + len(short_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
