@@ -3,4 +3,4 @@
 
 """Static variables shared between multiple modules."""
 
-WARM_UP = 250
+WARM_UP = 0
