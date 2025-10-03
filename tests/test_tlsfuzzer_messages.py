@@ -58,6 +58,7 @@ from tlslite.utils.python_eddsakey import Python_EdDSAKey
 from tlslite.utils.compression import compression_algo_impls
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
+from tlslite.utils.compat import ML_DSA_AVAILABLE
 from ecdsa import SigningKey, Ed25519
 
 
@@ -2592,6 +2593,81 @@ class TestCertificateVerifyGeneratorEdDSA(unittest.TestCase):
         sig[0] ^= 0xff
         self.assertTrue(priv_key.hashAndVerify(
             sig, b""))
+
+
+@unittest.skipIf(not ML_DSA_AVAILABLE, "Requires dilithium-py library")
+class TestCertificateVerifyGeneratorMLDSA(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from dilithium_py.ml_dsa.default_parameters import ML_DSA_65
+        from tlslite.utils.python_mldsakey import Python_MLDSAKey
+        pub_key, priv_key = ML_DSA_65.keygen()
+        cls.priv_key = Python_MLDSAKey((ML_DSA_65, pub_key),
+                                       (ML_DSA_65, priv_key))
+
+
+    def test_generate_with_mldsa_and_no_cert_req_in_tls1_3(self):
+        priv_key = self.priv_key
+
+        cert_ver_g = CertificateVerifyGenerator(priv_key)
+        state = ConnectionState()
+        state.version = (3, 4)
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertTrue(msg.signature)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.mldsa65)
+
+        verif_bytes = KeyExchange.calcVerifyBytes(
+                (3, 4),
+                state.handshake_hashes,
+                constants.SignatureScheme.mldsa65,
+                b'',
+                b'',
+                b'',
+                "sha256")
+
+        self.assertTrue(priv_key.hashAndVerify(
+            msg.signature, verif_bytes,
+            "", "sha256"))
+
+    def test_generate_with_xors(self):
+        priv_key = self.priv_key
+        cert_ver_g = CertificateVerifyGenerator(priv_key,
+                                                padding_xors={0: 0xff})
+        state = ConnectionState()
+        state.version = (3, 4)
+        req = CertificateRequest((3, 4)).create([], [],
+            [constants.SignatureScheme.mldsa65])
+        state.handshake_messages = [req]
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertTrue(msg.signature)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.mldsa65)
+
+        verif_bytes = KeyExchange.calcVerifyBytes(
+                (3, 4),
+                state.handshake_hashes,
+                constants.SignatureScheme.mldsa65,
+                b'',
+                b'',
+                b'',
+                "sha256")
+
+        sig = msg.signature
+        self.assertFalse(priv_key.hashAndVerify(
+            sig, verif_bytes,
+            "", "sha256"))
+
+        sig[0] ^= 0xff
+        self.assertTrue(priv_key.hashAndVerify(
+            sig, verif_bytes,
+            "", "sha256"))
 
 
 class TestClearContext(unittest.TestCase):

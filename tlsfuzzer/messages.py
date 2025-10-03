@@ -1264,7 +1264,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         if key_alg in ("rsa", "rsa-pss"):
             return CertificateVerifyGenerator._sig_alg_for_rsa_key(
                 key_alg, accept_sig_algs, version)
-        if key_alg in ("Ed25519", "Ed448"):
+        if key_alg in ("Ed25519", "Ed448", "mldsa87", "mldsa65", "mldsa44"):
             return CertificateVerifyGenerator._sig_alg_for_eddsa_key(
                 key_alg, accept_sig_algs)
         if key_alg == "dsa":
@@ -1431,6 +1431,11 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                 SignatureScheme.ed25519, SignatureScheme.ed448) or \
                 self.private_key.key_type in ("Ed25519", "Ed448"):
             signature_type = "eddsa"
+        elif self.sig_alg and self.sig_alg in (
+                SignatureScheme.mldsa87, SignatureScheme.mldsa65,
+                SignatureScheme.mldsa44) or \
+                self.private_key.key_type in ("mldsa87", "mldsa65", "mldsa44"):
+            signature_type = "mldsa"
         elif self.sig_alg and self.sig_alg[1] == SignatureAlgorithm.dsa or \
                 self.private_key.key_type == "dsa":
             signature_type = "dsa"
@@ -1455,7 +1460,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                                         status.server_random,
                                         status.prf_name,
                                         key_type=self.private_key.key_type)
-        if signature_type == "eddsa":
+        if signature_type in ("eddsa", "mldsa"):
             self.mgf1_hash = "intrinsic"
             self.rsa_pss_salt_len = None
             padding = None
@@ -1498,7 +1503,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             signature = bytearray(signature)
             max_byte = len(signature) - 1
             self._normalise_subs_and_xors(max_byte)
-        if signature_type in ("ecdsa", "eddsa", "dsa"):
+        if signature_type in ("ecdsa", "eddsa", "dsa", "mldsa"):
             # but EdDSA signatures are always the same length for given
             # key type, so don't normalise the values for them
             signature = substitute_and_xor(signature, self.padding_subs,
@@ -1915,6 +1920,8 @@ def substitute_and_xor(data, substitutions, xors):
 
     (Method used internally by tlsfuzzer.)
     """
+    if type(data) == bytes:
+        data = bytearray(data)
     if substitutions:
         _apply_function(data, substitutions, lambda a, b: b)
 
