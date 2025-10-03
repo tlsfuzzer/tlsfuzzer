@@ -1156,12 +1156,18 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
     :vartype private_key: :py:class:`~tlslite.utils.rsakey.RSAKey` or
         :py:class:`~tlslite.utils.ecdsakey.ECDSAKey`
     :ivar private_key: key that will be used for signing the message
+
+    :vartype sig_func: callable
+    :ivar sig_func: Function to call instead of the ``private_key.sign()`` or
+        ``private_key.hashAndSign()`` methods; needs to have the same
+        prototype as those two. Can be used to modify how the signature
+        is calculated or encoded.
     """
 
     def __init__(self, private_key=None, msg_version=None, msg_alg=None,
                  sig_version=None, sig_alg=None, signature=None,
                  rsa_pss_salt_len=None, padding_xors=None, padding_subs=None,
-                 mgf1_hash=None, context=None):
+                 mgf1_hash=None, context=None, sig_func=None):
         """Create object for generating Certificate Verify messages."""
         super(CertificateVerifyGenerator, self).__init__()
         self.private_key = private_key
@@ -1177,6 +1183,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         self.padding_subs = padding_subs
         self.mgf1_hash = mgf1_hash
         self.context = context
+        self.sig_func = sig_func
 
     @staticmethod
     def _sig_alg_for_rsa_key(key_alg, accept_sig_algs, version):
@@ -1484,6 +1491,9 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             # calcVerifyBytes does everything
             padding, old_private_key_op = self._get_rsa_sig_parameters()
             sig_func = self.private_key.sign
+
+        if self.sig_func:
+            sig_func = self.sig_func
 
         try:
             signature = sig_func(verify_bytes,
