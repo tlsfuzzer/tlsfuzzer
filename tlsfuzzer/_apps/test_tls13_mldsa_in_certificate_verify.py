@@ -23,7 +23,7 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectCertificateVerify, ExpectNewSessionTicket
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import key_share_ext_gen, sig_algs_to_ids, RSA_SIG_ALL,\
-        ECDSA_SIG_ALL, EDDSA_SIG_ALL, MLDSA_SIG_ALL
+        ECDSA_SIG_ALL, EDDSA_SIG_ALL, MLDSA_SIG_ALL, pad_or_truncate_signature
 from tlslite.extensions import SignatureAlgorithmsExtension, \
         SignatureAlgorithmsCertExtension, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension
@@ -37,7 +37,7 @@ from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 
 
-version = 1
+version = 2
 
 
 def help_msg():
@@ -469,7 +469,133 @@ def main():
 
     conversations_long["empty signature field"] = conversation
 
-    # TODO: add padded signature, truncated singature
+    # padded or truncated signatures
+    conversation = Connect(hostname, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    ext[ExtensionType.supported_versions] = \
+        SupportedVersionsExtension().create([(3, 4), (3, 3)])
+    ext[ExtensionType.supported_groups] = \
+        SupportedGroupsExtension().create(groups)
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(
+            ECDSA_SIG_ALL + RSA_SIG_ALL + EDDSA_SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(
+        ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificateRequest())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(CertificateGenerator(X509CertChain([cert])))
+    node = node.add_child(
+        CertificateVerifyGenerator(
+            private_key,
+            sig_func=pad_or_truncate_signature(private_key.hashAndSign,
+                                               -1)))
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectAlert(
+        AlertLevel.fatal, AlertDescription.decrypt_error))
+    node.add_child(ExpectClose())
+
+    conversations_long["signature truncated by one byte"] = conversation
+
+    conversation = Connect(hostname, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    ext[ExtensionType.supported_versions] = \
+        SupportedVersionsExtension().create([(3, 4), (3, 3)])
+    ext[ExtensionType.supported_groups] = \
+        SupportedGroupsExtension().create(groups)
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(
+            ECDSA_SIG_ALL + RSA_SIG_ALL + EDDSA_SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(
+        ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificateRequest())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(CertificateGenerator(X509CertChain([cert])))
+    node = node.add_child(
+        CertificateVerifyGenerator(
+            private_key,
+            sig_func=pad_or_truncate_signature(private_key.hashAndSign,
+                                               1, 0)))
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectAlert(
+        AlertLevel.fatal, AlertDescription.decrypt_error))
+    node.add_child(ExpectClose())
+
+    conversations_long["signature padded by one byte"] = conversation
+
+    # truncate or pad to the size of a a different sig type
+    if private_key.key_type == "mldsa44":
+        lens = [("pad to the size of mldsa65", 3309 - 2420, b'\x00'),
+                ("pad to the size of mldsa87", 4627 - 2420, b'\x00')]
+    elif private_key.key_type == "mldsa65":
+        lens = [("truncate to mldsa44 size", -(3309 - 2420), None),
+                ("pad to the size of mldsa87", 4627 - 3200, b"\x00")]
+    else:
+        assert private_key.key_type == "mldsa87"
+        lens = [("truncate to mldsa65 size", -(4627 - 3309), None),
+                ("truncate to mldsa44 size", -(4627 - 2420), None)]
+
+    for name, len_change, pad_byte in lens:
+        conversation = Connect(hostname, port)
+        node = conversation
+        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        ext = {}
+        groups = [GroupName.secp256r1]
+        ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+        ext[ExtensionType.supported_versions] = \
+            SupportedVersionsExtension().create([(3, 4), (3, 3)])
+        ext[ExtensionType.supported_groups] = \
+            SupportedGroupsExtension().create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(sig_algs)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(
+                ECDSA_SIG_ALL + RSA_SIG_ALL + EDDSA_SIG_ALL)
+        node = node.add_child(ClientHelloGenerator(
+            ciphers, extensions=ext))
+        node = node.add_child(ExpectServerHello())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectEncryptedExtensions())
+        node = node.add_child(ExpectCertificateRequest())
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectCertificateVerify())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(CertificateGenerator(X509CertChain([cert])))
+        node = node.add_child(
+            CertificateVerifyGenerator(
+                private_key,
+                sig_func=pad_or_truncate_signature(private_key.hashAndSign,
+                                                   len_change, pad_byte)))
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectAlert(
+            AlertLevel.fatal, AlertDescription.decrypt_error))
+        node.add_child(ExpectClose())
+
+        conversations_long[name] = conversation
 
     # run the conversation
     good = 0
