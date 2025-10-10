@@ -15,16 +15,18 @@ from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
         FinishedGenerator, ApplicationDataGenerator, \
         CertificateGenerator, CertificateVerifyGenerator, \
-        AlertGenerator
+        AlertGenerator, TCPBufferingEnable, TCPBufferingFlush, \
+        TCPBufferingDisable
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectClose, ExpectCertificateRequest, \
         ExpectApplicationData, ExpectEncryptedExtensions, \
-        ExpectCertificateVerify, ExpectNewSessionTicket
+        ExpectCertificateVerify, ExpectNewSessionTicket, \
+        ExpectServerKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.helpers import key_share_ext_gen, sig_algs_to_ids, RSA_SIG_ALL,\
         ECDSA_SIG_ALL, EDDSA_SIG_ALL, MLDSA_SIG_ALL,\
-        pad_or_truncate_signature, SIG_ALL
+        pad_or_truncate_signature, SIG_ALL, AutoEmptyExtension
 from tlslite.extensions import SignatureAlgorithmsExtension, \
         SignatureAlgorithmsCertExtension, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension
@@ -38,7 +40,7 @@ from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 
 
-version = 3
+version = 4
 
 
 def help_msg():
@@ -641,6 +643,84 @@ def main():
         node.add_child(ExpectClose())
 
         conversations_long[name] = conversation
+
+    conversation = Connect(hostname, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+               CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {ExtensionType.signature_algorithms :
+           SignatureAlgorithmsExtension().create([
+             (getattr(HashAlgorithm, x),
+              SignatureAlgorithm.rsa) for x in ['sha512', 'sha384', 'sha256',
+                                                'sha224', 'sha1', 'md5']]),
+           ExtensionType.signature_algorithms_cert :
+           SignatureAlgorithmsCertExtension().create(RSA_SIG_ALL)}
+    groups = [GroupName.secp256r1,
+              GroupName.ffdhe2048]
+    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+        .create(groups)
+    ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello(version=(3, 3)))
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectServerKeyExchange())
+    node = node.add_child(ExpectCertificateRequest())
+    node = node.add_child(ExpectServerHelloDone())
+    node = node.add_child(TCPBufferingEnable())
+    node = node.add_child(CertificateGenerator(X509CertChain([cert])))
+    node = node.add_child(ClientKeyExchangeGenerator())
+    # since the server should not advertise ML-DSA as a valid sig type
+    # we need to override what type we want to send actually
+    node = node.add_child(CertificateVerifyGenerator(
+        private_key,
+        msg_alg=getattr(SignatureScheme, private_key.key_type)))
+    node = node.add_child(ChangeCipherSpecGenerator())
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(TCPBufferingDisable())
+    node = node.add_child(TCPBufferingFlush())
+    node = node.add_child(ExpectAlert(
+        AlertLevel.fatal, AlertDescription.illegal_parameter))
+    node.add_child(ExpectClose())
+
+    conversations["ML-DSA in TLS 1.2"] = conversation
+
+    conversation = Connect(hostname, port)
+    node = conversation
+    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    ext = {}
+    groups = [GroupName.secp256r1]
+    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    ext[ExtensionType.supported_versions] = \
+        SupportedVersionsExtension().create([(3, 4), (3, 3)])
+    ext[ExtensionType.supported_groups] = \
+        SupportedGroupsExtension().create(groups)
+    ext[ExtensionType.signature_algorithms] = \
+        SignatureAlgorithmsExtension().create(sig_algs)
+    ext[ExtensionType.signature_algorithms_cert] = \
+        SignatureAlgorithmsCertExtension().create(
+            ECDSA_SIG_ALL + RSA_SIG_ALL + EDDSA_SIG_ALL)
+    node = node.add_child(ClientHelloGenerator(
+        ciphers, extensions=ext))
+    node = node.add_child(ExpectServerHello())
+    node = node.add_child(ExpectChangeCipherSpec())
+    node = node.add_child(ExpectEncryptedExtensions())
+    node = node.add_child(ExpectCertificateRequest())
+    node = node.add_child(ExpectCertificate())
+    node = node.add_child(ExpectCertificateVerify())
+    node = node.add_child(ExpectFinished())
+    node = node.add_child(CertificateGenerator(X509CertChain([cert])))
+    node = node.add_child(
+        CertificateVerifyGenerator(
+            private_key,
+            sig_version=(3, 3)))
+    node = node.add_child(FinishedGenerator())
+    node = node.add_child(ExpectAlert(
+        AlertLevel.fatal, AlertDescription.decrypt_error))
+    node.add_child(ExpectClose())
+
+    conversations_long["TLS 1.2 style signature in TLS 1.3"] = conversation
 
     # run the conversation
     good = 0
