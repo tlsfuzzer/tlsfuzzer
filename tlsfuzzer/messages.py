@@ -1156,12 +1156,18 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
     :vartype private_key: :py:class:`~tlslite.utils.rsakey.RSAKey` or
         :py:class:`~tlslite.utils.ecdsakey.ECDSAKey`
     :ivar private_key: key that will be used for signing the message
+
+    :vartype sig_func: callable
+    :ivar sig_func: Function to call instead of the ``private_key.sign()`` or
+        ``private_key.hashAndSign()`` methods; needs to have the same
+        prototype as those two. Can be used to modify how the signature
+        is calculated or encoded.
     """
 
     def __init__(self, private_key=None, msg_version=None, msg_alg=None,
                  sig_version=None, sig_alg=None, signature=None,
                  rsa_pss_salt_len=None, padding_xors=None, padding_subs=None,
-                 mgf1_hash=None, context=None):
+                 mgf1_hash=None, context=None, sig_func=None):
         """Create object for generating Certificate Verify messages."""
         super(CertificateVerifyGenerator, self).__init__()
         self.private_key = private_key
@@ -1177,6 +1183,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         self.padding_subs = padding_subs
         self.mgf1_hash = mgf1_hash
         self.context = context
+        self.sig_func = sig_func
 
     @staticmethod
     def _sig_alg_for_rsa_key(key_alg, accept_sig_algs, version):
@@ -1424,6 +1431,8 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             raise ValueError("Can't create a signature without "
                              "private key!")
 
+        verify_bytes_sig = self.sig_alg
+
         if self.sig_alg and self.sig_alg[1] == SignatureAlgorithm.ecdsa or\
                 self.private_key.key_type == "ecdsa":
             signature_type = "ecdsa"
@@ -1436,6 +1445,10 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                 SignatureScheme.mldsa44) or \
                 self.private_key.key_type in ("mldsa87", "mldsa65", "mldsa44"):
             signature_type = "mldsa"
+            # there are no ML-DSA signatures in TLS 1.2, so tlslite code
+            # can't make them, so we need to fake the way to sign them
+            if self.sig_version <= (3, 3):
+                verify_bytes_sig = SignatureScheme.ed25519
         elif self.sig_alg and self.sig_alg[1] == SignatureAlgorithm.dsa or \
                 self.private_key.key_type == "dsa":
             signature_type = "dsa"
@@ -1454,7 +1467,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         verify_bytes = \
             KeyExchange.calcVerifyBytes(self.sig_version,
                                         handshake_hashes,
-                                        self.sig_alg,
+                                        verify_bytes_sig,
                                         status.key['premaster_secret'],
                                         status.client_random,
                                         status.server_random,
@@ -1484,6 +1497,9 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             # calcVerifyBytes does everything
             padding, old_private_key_op = self._get_rsa_sig_parameters()
             sig_func = self.private_key.sign
+
+        if self.sig_func:
+            sig_func = self.sig_func
 
         try:
             signature = sig_func(verify_bytes,

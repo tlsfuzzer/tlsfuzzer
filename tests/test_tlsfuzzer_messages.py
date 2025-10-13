@@ -2594,6 +2594,63 @@ class TestCertificateVerifyGeneratorEdDSA(unittest.TestCase):
         self.assertTrue(priv_key.hashAndVerify(
             sig, b""))
 
+    def test_generate_with_eddsa_and_explicit_sig_function(self):
+        priv_key = self.priv_key
+        cert_ver_g = CertificateVerifyGenerator(priv_key,
+                                                sig_func=priv_key.hashAndSign)
+        state = ConnectionState()
+        state.version = (3, 4)
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertTrue(msg.signature)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.ed25519)
+
+        verif_bytes = KeyExchange.calcVerifyBytes(
+                (3, 4),
+                state.handshake_hashes,
+                constants.SignatureScheme.ed25519,
+                b'',
+                b'',
+                b'',
+                "sha256")
+
+        self.assertTrue(priv_key.hashAndVerify(
+            msg.signature, verif_bytes,
+            "", "sha256"))
+
+    def test_generate_with_eddsa_and_modified_sig_function(self):
+        priv_key = self.priv_key
+        # just pad the signature so that it doesn't verify any more
+        sig_func = lambda byts, padding, hashAlg, saltLen: \
+                priv_key.hashAndSign(byts, padding, hashAlg, saltLen) + b"\x00"
+        cert_ver_g = CertificateVerifyGenerator(priv_key,
+                                                sig_func=sig_func)
+        state = ConnectionState()
+        state.version = (3, 4)
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertTrue(msg.signature)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.ed25519)
+
+        verif_bytes = KeyExchange.calcVerifyBytes(
+                (3, 4),
+                state.handshake_hashes,
+                constants.SignatureScheme.ed25519,
+                b'',
+                b'',
+                b'',
+                "sha256")
+
+        self.assertFalse(priv_key.hashAndVerify(
+            msg.signature, verif_bytes,
+            "", "sha256"))
+
 
 @unittest.skipIf(not ML_DSA_AVAILABLE, "Requires dilithium-py library")
 class TestCertificateVerifyGeneratorMLDSA(unittest.TestCase):

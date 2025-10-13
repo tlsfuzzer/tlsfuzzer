@@ -593,3 +593,36 @@ def dict_update_non_present(d, keys, value=None):
                              .format(k))
         d[k] = value
     return d
+
+
+def pad_or_truncate_signature(sig_method, modify, pad_byte=None):
+    """
+    Wrap the signature method and modify the result.
+
+    Allow either truncating a returned signature (by specifying
+    ``modify`` as a negative number) or padding (by specifying a positive
+    number) with the specified ``pad_byte``.
+
+    :param callable sig_method: sign() or hashAndSign() method of a private
+    key object
+    :param int modify: value by how much truncate or pad the signature
+    :param pad_byte: the byte used for padding the signature
+    :return: callable
+    """
+    if modify == 0:
+        raise ValueError("modify needs to be non-zero")
+    if pad_byte is not None and modify < 0:
+        raise ValueError("pad_byte can be specified only "
+                         "for padding operations")
+    if pad_byte is None and modify > 0:
+        raise ValueError("pad_byte unspecified for padding operation")
+
+    if modify > 0:
+        if isinstance(pad_byte, int):
+            pad = bytearray([pad_byte]) * modify
+        else:
+            pad = pad_byte * modify
+        return lambda a, b, c, d: bytearray(sig_method(a, b, c, d) + pad)
+
+    return lambda a, b, c, d: bytearray(sig_method(a, b, c, d))[:modify]
+
