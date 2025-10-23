@@ -2704,7 +2704,12 @@ class Analysis(object):
             del data
 
     def _split_data_to_pairwise(self, name):
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Splitting up data to pairwise directories")
+
         data = self._read_hamming_weight_data(name)
+        all_pairs = set()
         try:
             pair_writers = dict()
 
@@ -2716,6 +2721,7 @@ class Analysis(object):
             group_counts = sorted(group_counts,
                                   key=lambda x: x[1])
             most_common = set(i for i, j in group_counts[-5:])
+            top_200_most_common = set(i for i, j in group_counts[-200:])
 
             slope_path = join(self.output,
                               "analysis_results/by-pair-sizes/slope")
@@ -2744,33 +2750,64 @@ class Analysis(object):
                             continue
 
                         pair = (base_group, compared_group)
-                        # if it's a new pair, open the file for it and write
-                        # a header
-                        if pair not in pair_writers:
-                            pair_path = join(
-                                    self.output,
-                                    "analysis_results/by-pair-sizes/"
-                                    "{0:04d}-{1:04d}"
-                                    .format(base_group, compared_group))
-                            try:
-                                os.makedirs(pair_path)
-                            except FileExistsError:
-                                pass
-                            pair_writers[pair] = open(
+                        all_pairs.add(pair)
+                        pair_path = join(
+                            self.output,
+                            "analysis_results/by-pair-sizes/"
+                            "{0:04d}-{1:04d}".format(
+                                base_group, compared_group))
+                        # since we can have a lot of groups, we should keep open
+                        # only the files for most common groups and open all the
+                        # other ones on demand
+                        if compared_group in top_200_most_common:
+                            if pair not in pair_writers:
+                                try:
+                                    os.makedirs(pair_path)
+                                except FileExistsError:
+                                    # ignore error, overwrite the file
+                                    pass
+                                pair_writers[pair] = open(
                                     join(pair_path, "timing.csv"), "w")
-                            pair_writers[pair].write(
+                                pair_writers[pair].write(
                                     "{0},{1}\n".format(base_group,
                                                        compared_group))
 
-                        pair_writers[pair].write(
+                            pair_writers[pair].write(
                                 "{0},{1}\n".format(base_value, compared_value))
+                        else:
+                            pair_path_file = join(pair_path, "timing.csv")
+                            try:
+                                os.makedirs(pair_path)
+                                # if it exists, it will raise an exception
+                                # otherwise we put the header in
+                                with open(pair_path_file, "w") as f:
+                                    f.write(
+                                        "{0},{1}\n".format(base_group,
+                                                           compared_group))
+                            except FileExistsError:
+                                pass
+                            with open(pair_path_file, "a") as f:
+                                f.write("{0},{1}\n".format(
+                                    base_value, compared_value))
+
 
         finally:
             del data
             for writer in pair_writers.values():
                 writer.close()
 
-        return [i for i, j in group_counts[-5:]], pair_writers.keys()
+        if self.verbose:
+            print("[i] Splitting up data to pairwise directories done in {:.3}s".format(
+                time.time() - start_time))
+
+        # for pairwise tests we just need it one-way, but we need to preserve the order
+        # in the tuple
+        all_unique_pairs = set()
+        for i in all_pairs:
+            if (i[1], i[0]) not in all_unique_pairs:
+                all_unique_pairs.add(i)
+
+        return [i for i, _ in group_counts[-5:]], all_unique_pairs
 
     def _analyse_weight_pairs(self, pairs):
         out_dir = self.output
