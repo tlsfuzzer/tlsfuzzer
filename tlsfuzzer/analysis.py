@@ -2997,7 +2997,7 @@ class Analysis(object):
         if skillings_mack_p_value > 1e-5:
             tmp_file = name_bin + ".tmp"
             self._hamming_weight_report += "Skillings-Mack test p-value after "
-            self._hamming_weight_report += "intoducing a side-channel of:\n"
+            self._hamming_weight_report += "introducing a side-channel of:\n"
 
             for time in [10, 1, 0.1]:
                 shutil.copyfile(name_bin, tmp_file)
