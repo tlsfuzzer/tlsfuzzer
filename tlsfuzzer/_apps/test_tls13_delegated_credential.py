@@ -1,4 +1,4 @@
-# Author: Hubert Kario, (c) 2018-2022
+# Author: Ganna Starovoytova, (c) 2025
 # Released under Gnu GPL v2.0, see LICENSE file for details
 
 from __future__ import print_function
@@ -28,7 +28,7 @@ from tlslite.extensions import DelegatedCredentialExtension, KeyShareEntry, Clie
 from tlsfuzzer.helpers import key_share_gen, SIG_ALL
 
 
-version = 7
+version = 1
 
 
 def help_msg():
@@ -377,9 +377,9 @@ def main():
                 bad += 1
                 failed.append(c_name)
 
-    print("Basic communication test with TLS 1.3 server")
-    print("Check if communication with typical group and cipher works with")
-    print("the TLS 1.3 server.\n")
+    print("Communication test with TLS 1.3 server with support of delegated credentials.")
+    print("Advertise the support of the delegated credentials on the client's side ")
+    print("and check the delegated credentials if the server sends them.\n")
 
     print("Test end")
     print(20 * '=')

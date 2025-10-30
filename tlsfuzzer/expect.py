@@ -1125,21 +1125,29 @@ class ExpectCertificateVerify(ExpectHandshake):
         c_hello = state.get_last_message_of_type(ClientHello)
 
         dc_cert_ext = None
+        cert_entry = None
+        ext_list = []
         delegated_credential = None
-        del_cred_list = []
         cert_msg = state.get_last_message_of_type(Certificate)
         if cert_msg:
-            cert_entry = cert_msg.certificate_list[0]
-
-            for ext in cert_entry.extensions:
-                if isinstance(ext, DelegatedCredentialCertExtension):
-                    del_cred_list.append(ext)
-                    dc_cert_ext = ext
-            if len(del_cred_list) > 1:
+            certs = cert_msg.certificate_list
+            for i_cert_entry, cert in enumerate(certs):
+                for ext in cert.extensions:
+                    if isinstance(ext, DelegatedCredentialCertExtension):
+                        if i_cert_entry != 0:
+                            raise TLSIllegalParameterException(
+                                "The server sent several certificates with " \
+                                "delegated credential. " \
+                                "The server must sent delegated credentials " \
+                                "only in its end-entity certificate."
+                            )
+                        dc_cert_ext = ext
+                        cert_entry = cert
+                        ext_list.append(ext)
+            if len(ext_list) > 1:
                 raise TLSIllegalParameterException(
-                    "The server sent multiple delegated credentials "\
-                    "extensions in a single CertificateEntry.")
-
+                    "The server sent multiply delegated credentials " \
+                    "extensions in a single Certificate Entry.")
             if dc_cert_ext:
                 client_dc_ext = c_hello.getExtension(ExtensionType.delegated_credential)
                 if not client_dc_ext:
