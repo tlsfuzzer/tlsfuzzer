@@ -1661,7 +1661,7 @@ class Analysis(object):
         chunk = next(csv_reader)
         measurements_bin = np.memmap(measurements_bin_path,
                                      dtype=[('block', np.dtype('i8')),
-                                            ('group', np.dtype('i2')),
+                                            ('group', np.dtype('i4')),
                                             ('value', np.dtype('f8'))],
                                      mode="w+",
                                      shape=(len(chunk.index), 1),
@@ -1678,7 +1678,7 @@ class Analysis(object):
         for chunk in csv_reader:
             measurements_bin = np.memmap(measurements_bin_path,
                                          dtype=[('block', np.dtype('i8')),
-                                                ('group', np.dtype('i2')),
+                                                ('group', np.dtype('i4')),
                                                 ('value', np.dtype('f8'))],
                                          mode="r+",
                                          shape=(row_written + len(chunk.index),
@@ -1721,7 +1721,7 @@ class Analysis(object):
 
         data = np.memmap(measurements_bin_path,
                          dtype=[('block', np.dtype('i8')),
-                                ('group', np.dtype('i2')),
+                                ('group', np.dtype('i4')),
                                 ('value', np.dtype('f8'))],
                          mode="r")
 
@@ -1911,7 +1911,7 @@ class Analysis(object):
 
         data = np.memmap(name_bin,
                          dtype=[('tuple_num', np.dtype('i8')),
-                                ('k_size', np.dtype('i2')),
+                                ('k_size', np.dtype('i4')),
                                 ('value', np.dtype('f8'))],
                          mode="r")
 
@@ -2065,7 +2065,7 @@ class Analysis(object):
 
             chunks = pd.read_csv(
                 in_fp, iterator=True, chunksize=100000,
-                dtype=[("row", np.uint64), ("k_size", np.uint16),
+                dtype=[("row", np.uint64), ("k_size", np.uint32),
                        ("value", np.float64)],
                 names=["row", "k_size", "value"])
 
@@ -2316,7 +2316,7 @@ class Analysis(object):
 
         data = np.memmap(name_bin,
                          dtype=[('tuple_num', np.dtype('i8')),
-                                ('k_size', np.dtype('i2')),
+                                ('k_size', np.dtype('i4')),
                                 ('value', np.dtype('f8'))],
                          mode="r")
 
@@ -2674,7 +2674,7 @@ class Analysis(object):
         # first make sure the binary file exists
         data = np.memmap(name,
                          dtype=[('block', np.dtype('i8')),
-                                ('group', np.dtype('i2')),
+                                ('group', np.dtype('i4')),
                                 ('value', np.dtype('f8'))],
                          mode=mode)
         return data
