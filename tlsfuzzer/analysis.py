@@ -2114,6 +2114,11 @@ class Analysis(object):
                 previous_row = rows.iat[-1]
                 previous_max_k_value = curr_maxk_vals.iat[-1]
 
+        # because we then split up the data into tuples and those are
+        # CSVs again, the correction of the clock_frequency is applied
+        # twice (see _convert_to_binary() method)
+        self.clock_frequency = None
+
     def _k_specific_writing_worker(self, args):
         k_folder_path, pipe, k_size, max_k_size, acceptance_percent = args
         items_written = 0
