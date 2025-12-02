@@ -15,6 +15,12 @@ from os.path import join, splitext, getsize, exists
 from collections import defaultdict
 from socket import inet_aton, gethostbyname, gaierror, error
 import multiprocessing as mp
+try:
+    # the Python 3.14 default changed to spawn, which drops global variables
+    # which we need for passing around the data
+    mp.set_start_method('fork', force=True)
+except (RuntimeError, AttributeError):
+    pass
 from threading import Thread, Event
 import hashlib
 import tempfile

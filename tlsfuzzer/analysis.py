@@ -15,6 +15,12 @@ import getopt
 import sys
 import math
 import multiprocessing as mp
+try:
+    # the Python 3.14 default changed to spawn, which drops global variables
+    # which we need for passing around the data
+    mp.set_start_method('fork', force=True)
+except (RuntimeError, AttributeError):
+    pass
 from threading import Event, Thread
 import shutil
 from itertools import chain
