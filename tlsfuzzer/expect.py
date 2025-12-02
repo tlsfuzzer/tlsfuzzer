@@ -23,7 +23,7 @@ from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus, \
         CertificateVerify, EncryptedExtensions, NewSessionTicket, Heartbeat,\
         KeyUpdate, HelloRequest, NewSessionTicket1_0, CompressedCertificate
-from tlslite.extensions import TLSExtension, ALPNExtension,\
+from tlslite.extensions import DelegatedCredentialCertExtension, TLSExtension, ALPNExtension,\
         ECPointFormatsExtension
 from tlslite.utils.codec import Parser, Writer
 from tlslite.utils.compat import b2a_hex
@@ -34,7 +34,7 @@ from tlslite.keyexchange import KeyExchange, DHE_RSAKeyExchange, \
         ECDHE_RSAKeyExchange, AECDHKeyExchange
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
-from tlslite.errors import TLSDecryptionFailed, TLSIllegalParameterException
+from tlslite.errors import TLSDecryptionFailed, TLSIllegalParameterException, TLSUnexpectedMessage
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.handshakehelpers import HandshakeHelpers
 from .handshake_helpers import calc_pending_states, kex_for_group, \
@@ -1029,7 +1029,6 @@ class ExpectCertificate(ExpectHandshake):
             cert.parse(parser)
             self._old_cert_bytes = msg_bytes
             self._old_cert = cert
-
         state.handshake_messages.append(cert)
         state.handshake_hashes.update(msg_bytes)
 
@@ -1123,13 +1122,59 @@ class ExpectCertificateVerify(ExpectHandshake):
         cert_v = CertificateVerify(self.version)
         cert_v.parse(parser)
 
+        c_hello = state.get_last_message_of_type(ClientHello)
+
+        dc_cert_ext = None
+        cert_entry = None
+        ext_list = []
+        delegated_credential = None
+        cert_msg = state.get_last_message_of_type(Certificate)
+        if cert_msg:
+            certs = cert_msg.certificate_list
+            for i_cert_entry, cert in enumerate(certs):
+                for ext in cert.extensions:
+                    if isinstance(ext, DelegatedCredentialCertExtension):
+                        if i_cert_entry != 0:
+                            raise TLSIllegalParameterException(
+                                "The server sent several certificates with " \
+                                "delegated credential. " \
+                                "The server must sent delegated credentials " \
+                                "only in its end-entity certificate."
+                            )
+                        dc_cert_ext = ext
+                        cert_entry = cert
+                        ext_list.append(ext)
+            if len(ext_list) > 1:
+                raise TLSIllegalParameterException(
+                    "The server sent multiply delegated credentials " \
+                    "extensions in a single Certificate Entry.")
+            if dc_cert_ext:
+                client_dc_ext = c_hello.getExtension(ExtensionType.delegated_credential)
+                if not client_dc_ext:
+                    raise TLSUnexpectedMessage(
+                        "The server provided delegated credential, "\
+                        "when client does not support it.")
+                if not dc_cert_ext.delegated_credential.verify(
+                        cert_entry,
+                        c_hello,
+                        cert_v):
+                    raise TLSDecryptionFailed("Server Delegated Credential " \
+                                            "verification failed")
+                delegated_credential = dc_cert_ext.delegated_credential
+                salg = delegated_credential.cred.dc_cert_verify_algorithm
+                dc_public_key = delegated_credential.cred.pub_key
+
         if self.sig_alg:
             assert self.sig_alg == cert_v.signatureAlgorithm
         else:
-            c_hello = state.get_last_message_of_type(ClientHello)
-            ext = c_hello.getExtension(ExtensionType.signature_algorithms)
-            assert cert_v.signatureAlgorithm in ext.sigalgs
-            key_type = state.get_server_public_key().key_type
+            if delegated_credential:
+                ext = c_hello.getExtension(ExtensionType.delegated_credential)
+                assert cert_v.signatureAlgorithm in ext.sigalgs
+                key_type = dc_public_key.key_type
+            else:
+                ext = c_hello.getExtension(ExtensionType.signature_algorithms)
+                assert cert_v.signatureAlgorithm in ext.sigalgs
+                key_type = state.get_server_public_key().key_type
             if key_type == "rsa-pss":
                 # in TLS 1.3 only RSA-PSS signatures are allowed
                 assert cert_v.signatureAlgorithm in (
@@ -1201,7 +1246,11 @@ class ExpectCertificateVerify(ExpectHandshake):
                             "received: {0}"
                             .format(SignatureScheme.toStr(sigalg), curve_name))
 
+        # setting the algorithm of the signature and the key for verification
         salg = cert_v.signatureAlgorithm
+        public_key = state.get_server_public_key()
+        if delegated_credential:
+            public_key = dc_public_key
 
         if salg in (SignatureScheme.ed25519, SignatureScheme.ed448,
                     SignatureScheme.mldsa44, SignatureScheme.mldsa65,
@@ -1231,7 +1280,7 @@ class ExpectCertificateVerify(ExpectHandshake):
                                 b'TLS 1.3, server CertificateVerify' +
                                 b'\x00') + transcript_hash
 
-        if not state.get_server_public_key().hashAndVerify(
+        if not public_key.hashAndVerify(
                 cert_v.signature,
                 sig_context,
                 padding,
