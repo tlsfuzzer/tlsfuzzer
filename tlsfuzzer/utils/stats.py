@@ -26,16 +26,13 @@ def _summarise_tuple(current_block, all_groups, adjusted_ranks, block_counts,
                      pair_counts):
     ranks = _rank_dict(current_block)
     len_current_block = len(current_block)
-    for pair in (frozenset(x)
-                 for x in combinations(ranks.keys(), 2)):
+    sqrt_12_inv_len = sqrt(12/(len_current_block + 1))
+    for pair in map(frozenset, combinations(ranks.keys(), 2)):
         pair_counts[pair] += 1
-    for g in all_groups:
-        if g not in ranks:
-            ranks[g] = (len_current_block + 1) / 2.0
-        else:
-            block_counts[g] += (len_current_block - 1)
-        adjusted_ranks[g] += sqrt(12/(len_current_block + 1)) * \
-            (ranks[g] - (len_current_block + 1) / 2.)
+
+    for g, r in ranks.items():
+        block_counts[g] += (len_current_block - 1)
+        adjusted_ranks[g] += sqrt_12_inv_len * (r - (len_current_block + 1)/2.)
 
 
 def _set_unique(idx):
@@ -134,7 +131,24 @@ def _summarise_chunk(args):
     return stop - start, adjusted_ranks, block_counts, pair_counts
 
 
-def skillings_mack_test(values, groups, blocks, duplicates=None, status=None):
+class _DummyPool(object):
+    """
+    Dummy multiprocessing.Pool replacement.
+
+    Pool that is not actually multithreaded
+    """
+    def __init__(self):
+        self.imap_unordered = map
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        pass
+
+
+def skillings_mack_test(values, groups, blocks, duplicates=None, status=None,
+                        multiprocess=True):
     """Perform the Skillings-Mack rank sum test.
 
     Skillings-Mack test is a Friedman-like test for unbalanced incomplete
@@ -170,6 +184,10 @@ def skillings_mack_test(values, groups, blocks, duplicates=None, status=None):
       will use the last value in a block
     :param list status: optional three-element list to communicate progress
       to the ``progress_report()`` method
+    :param bool multiprocess: optional, must be provided as a keyword,
+      if set to True (default) it will use python multiprocessing module
+      to paralelise computation (detrimental for small samples), set to false
+      it will use single-thread operation
     :return: named tuple with values of (``p_value``, ``T``, ``df``)
     """
     assert duplicates is None or duplicates in ('first', 'last')
@@ -188,7 +206,12 @@ def skillings_mack_test(values, groups, blocks, duplicates=None, status=None):
     _blocks = blocks
 
     all_groups = set()
-    with Pool() as p:
+
+    if multiprocess:
+        pool = Pool
+    else:
+        pool = _DummyPool
+    with pool() as p:
         # slice the data so that every worker has at least good few
         # dozen megabytes of data to work with
         chunks = p.imap_unordered(_set_unique, _slices(len(groups),
