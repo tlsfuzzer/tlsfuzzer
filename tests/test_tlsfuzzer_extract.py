@@ -22,7 +22,8 @@ from tlsfuzzer.utils.log import Log
 
 failed_import = False
 try:
-    from tlsfuzzer.extract import Extract, main, help_msg
+    from tlsfuzzer.extract import Extract, main, help_msg, \
+        LongFormatCSVBlocker
     import multiprocessing as mp
 except ImportError:
     failed_import = True
@@ -2506,3 +2507,306 @@ jvyL4LAR
                 extract.process_rsa_keys()
 
             self.assertIn("Inconsistent private key", str(e.exception))
+
+
+@unittest.skipIf(failed_import,
+                 "Could not import extraction. Skipping related tests.")
+class TestLongFormatCSVBlocker(unittest.TestCase):
+    def setUp(self):
+        self.builtin_open = open
+        self._measurements_file = []
+
+    def file_emulator(self, *args, **kwargs):
+        name = args[0]
+        try:
+            mode = args[1]
+        except IndexError:
+            mode = 'r'
+        if "measurements.csv" in name:
+            r = mock.mock_open()(name, mode)
+            r.write.side_effect = lambda s: (
+                self._measurements_file.append(s[:-1])
+            )
+            return r
+        if "w" in mode:
+            r = mock.mock_open()(name, mode)
+            r.write.side_effect = None
+            return r
+        return self.builtin_open(*args, **kwargs)
+
+    def test_no_input(self):
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_emulator
+
+            writer = LongFormatCSVBlocker("measurements.csv")
+            writer.close()
+
+        mock_file.assert_called()
+        self.assertEqual(self._measurements_file, [])
+        self.assertEqual(writer.data_points_dropped, 0)
+
+    def test_with_too_few_values(self):
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_emulator
+
+            writer = LongFormatCSVBlocker("measurements.csv")
+            writer.add(128, 0.25)
+            writer.close()
+
+        mock_file.assert_called()
+        self.assertEqual(self._measurements_file, [])
+        self.assertEqual(writer.data_points_dropped, 1)
+
+    def test_with_duplicated_group(self):
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_emulator
+
+            writer = LongFormatCSVBlocker("measurements.csv")
+            writer.add(128, 0.25)
+            writer.add(128, 0.5)
+            writer.close()
+
+        mock_file.assert_called()
+        self.assertEqual(self._measurements_file, [])
+        self.assertEqual(writer.data_points_dropped, 2)
+
+    def test_with_just_two_values(self):
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_emulator
+
+            writer = LongFormatCSVBlocker("measurements.csv")
+            writer.add(128, 0.25)
+            writer.add(129, 0.5)
+            writer.close()
+
+        mock_file.assert_called()
+        self.assertEqual(len(self._measurements_file), 2)
+        # order doesn't matter
+        self.assertIn('0,128,0.25', self._measurements_file)
+        self.assertIn('0,129,0.5', self._measurements_file)
+        self.assertEqual(writer.data_points_dropped, 0)
+
+    def test_with_two_groups_and_multiple_values_per_group(self):
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_emulator
+
+            writer = LongFormatCSVBlocker("measurements.csv")
+            writer.add(128, 1)
+            writer.add(128, 2)
+            writer.add(128, 3)
+            writer.add(129, 0.5)
+            writer.close()
+
+        mock_file.assert_called()
+        self.assertEqual(len(self._measurements_file), 2)
+        # order doesn't matter
+        self.assertIn('0,129,0.5', self._measurements_file)
+        for i in self._measurements_file:
+            if i == '0,129,0.5':
+                continue
+            self.assertIn(i, ['0,128,1', '0,128,2', '0,128,3'])
+        self.assertEqual(writer.data_points_dropped, 2)
+
+    def test_with_with_enough_data_to_fill_a_block(self):
+        data = [(128 + i, 1 + i) for i in range(10)]
+
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_emulator
+
+            writer = LongFormatCSVBlocker("measurements.csv")
+            for g, v in data:
+                writer.add(g, v)
+            writer.close()
+
+        mock_file.assert_called()
+        self.assertEqual(len(self._measurements_file), 10)
+        # order doesn't matter
+        for g, v in data:
+            self.assertIn('0,{0},{1}'.format(g, v), self._measurements_file)
+        self.assertEqual(writer.data_points_dropped, 0)
+
+    def test_with_with_enough_data_to_fill_a_block_and_not_start_new(self):
+        data = [(128 + i, 1 + i) for i in range(11)]
+
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_emulator
+
+            writer = LongFormatCSVBlocker("measurements.csv")
+            for g, v in data:
+                writer.add(g, v)
+            writer.close()
+
+        mock_file.assert_called()
+        self.assertEqual(len(self._measurements_file), 10)
+        # order doesn't matter
+        for g, v in data[:10]:
+            self.assertIn('0,{0},{1}'.format(g, v), self._measurements_file)
+
+        self.assertIn('0,137,10', self._measurements_file)
+        self.assertNotIn('0,138,11', self._measurements_file)
+        self.assertNotIn('1,138,11', self._measurements_file)
+        self.assertEqual(writer.data_points_dropped, 1)
+
+    def test_with_with_enough_data_to_fill_a_block_and_start_new(self):
+        data = [(128 + i, 1 + i) for i in range(12)]
+
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_emulator
+
+            writer = LongFormatCSVBlocker("measurements.csv")
+            for g, v in data:
+                writer.add(g, v)
+            writer.close()
+
+        mock_file.assert_called()
+        self.assertEqual(len(self._measurements_file), 12)
+        # order within block doesn't matter, but block numbers need to be
+        # monotonic
+        self.assertEqual(set(self._measurements_file[:10]),
+                         set("0,{0},{1}".format(g, v) for g, v in data[:10]))
+        self.assertEqual(set(self._measurements_file[10:]),
+                         set("1,{0},{1}".format(g, v) for g, v in data[10:]))
+        self.assertEqual(writer.data_points_dropped, 0)
+
+    def test_with_three_blocks(self):
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_emulator
+
+            writer = LongFormatCSVBlocker("measurements.csv")
+            writer.add(128, 1)
+            for _ in range(9):
+                writer.add(129, 2)
+            writer.add(128, 3)
+            for _ in range(9):
+                writer.add(129, 4)
+            writer.add(128, 5)
+            writer.add(129, 6)
+
+            writer.close()
+
+        mock_file.assert_called()
+        self.assertEqual(len(self._measurements_file), 6)
+        # order within block doesn't matter, but block numbers need to be
+        # monotonic
+        self.assertIn('0,128,1', self._measurements_file[:2])
+        self.assertIn('0,129,2', self._measurements_file[:2])
+        self.assertIn('1,128,3', self._measurements_file[2:4])
+        self.assertIn('1,129,4', self._measurements_file[2:4])
+        self.assertIn('2,128,5', self._measurements_file[4:])
+        self.assertIn('2,129,6', self._measurements_file[4:])
+        self.assertEqual(writer.data_points_dropped, 8 + 8)
+
+    def test_with_different_window_size(self):
+        data = [(128 + i, 1 + i) for i in range(12)]
+
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_emulator
+
+            writer = LongFormatCSVBlocker("measurements.csv", window=12)
+            for g, v in data:
+                writer.add(g, v)
+            writer.close()
+
+        mock_file.assert_called()
+        self.assertEqual(len(self._measurements_file), 12)
+        # order within block doesn't matter
+        self.assertEqual(set(self._measurements_file),
+                         set("0,{0},{1}".format(g, v) for g, v in data))
+        self.assertEqual(writer.data_points_dropped, 0)
+
+    def test_duplicate_set(self):
+        data = [(256, 1), (255, 2)]
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_emulator
+
+            writer = LongFormatCSVBlocker("measurements.csv", duplicate=256)
+            for g, v in data:
+                writer.add(g, v)
+            writer.close()
+
+        mock_file.assert_called()
+        self.assertEqual(len(self._measurements_file), 2)
+        # order within block doesn't matter
+        self.assertEqual(set(self._measurements_file),
+                         set("0,{0},{1}".format(g, v) for g, v in data))
+        self.assertEqual(writer.data_points_dropped, 0)
+
+    def test_duplicate_with_duplicated_baseline_value(self):
+        data = [(255, 1), (256, 2), (256, 3)]
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_emulator
+
+            writer = LongFormatCSVBlocker("measurements.csv", duplicate=256)
+            for g, v in data:
+                writer.add(g, v)
+            writer.close()
+
+        mock_file.assert_called()
+        self.assertEqual(len(self._measurements_file), 3)
+        # order within block doesn't matter
+        self.assertEqual(set(self._measurements_file),
+                         set("0,{0},{1}".format(g, v) for g, v in data))
+        # but the baseline has to be first
+        self.assertIn(self._measurements_file[0],
+                      set("0,{0},{1}".format(g, v) for g, v in data[1:]))
+        self.assertEqual(writer.data_points_dropped, 0)
+
+    def test_duplicate_with_triplicated_baseline_value(self):
+        data = [(255, 1), (256, 2), (256, 3), (256, 4)]
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_emulator
+
+            writer = LongFormatCSVBlocker("measurements.csv", duplicate=256)
+            for g, v in data:
+                writer.add(g, v)
+            writer.close()
+
+        mock_file.assert_called()
+        self.assertEqual(len(self._measurements_file), 3)
+        # the baseline has to be first
+        self.assertIn(self._measurements_file[0],
+                      set("0,{0},{1}".format(g, v) for g, v in data[1:]))
+        self.assertIn(self._measurements_file[1],
+                      set("0,{0},{1}".format(g, v) for g, v in data[1:]))
+        self.assertNotEqual(self._measurements_file[0],
+                            self._measurements_file[1])
+        self.assertEqual(self._measurements_file[2], "0,255,1")
+        self.assertEqual(writer.data_points_dropped, 1)
+
+    def test_duplicate_with_one_group_in_window(self):
+        data = [(255, 1), (255, 1), (255, 1), (255, 2), (256, 3)]
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_emulator
+
+            writer = LongFormatCSVBlocker("measurements.csv",
+                                          duplicate=256,
+                                          window=3)
+            for g, v in data:
+                writer.add(g, v)
+            writer.close()
+
+        mock_file.assert_called()
+        self.assertEqual(len(self._measurements_file), 2)
+        # the baseline has to be first
+        self.assertEqual(self._measurements_file[0], "0,256,3")
+        self.assertEqual(self._measurements_file[1], "0,255,2")
+        self.assertEqual(writer.data_points_dropped, 3)
+
+    def test_duplicate_with_no_baseline_in_window(self):
+        data = [(255, 1), (254, 1), (253, 1), (255, 2), (256, 3)]
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_emulator
+
+            writer = LongFormatCSVBlocker("measurements.csv",
+                                          duplicate=256,
+                                          window=3)
+            for g, v in data:
+                writer.add(g, v)
+            writer.close()
+
+        mock_file.assert_called()
+        self.assertEqual(len(self._measurements_file), 2)
+        # the baseline has to be first
+        self.assertEqual(self._measurements_file[0], "0,256,3")
+        self.assertEqual(self._measurements_file[1], "0,255,2")
+        self.assertEqual(writer.data_points_dropped, 3)

@@ -24,7 +24,7 @@ except (RuntimeError, AttributeError):
 from threading import Thread, Event
 import hashlib
 import tempfile
-from random import choice
+from random import choice, sample
 import ecdsa
 import pandas as pd
 import numpy as np
@@ -350,6 +350,78 @@ def main():
 
     if rsa_keys:
         extract.process_rsa_keys()
+
+
+class LongFormatCSVBlocker(object):
+    """
+    Class to write data into CSV file in long format with automatic blocking.
+
+    Blocking in this context refers to blocks in statistical sense, as in
+    "incomplete block design" of an experiment.
+
+    It will take classified data point by point and then write them out to
+    a file when the amount of data fills up a pre-set window.
+
+    ``duplicate`` specifies the group that must be present and, if there are
+    multiple values in that group, it will write random two of them (used
+    for max bit size of a variable for bit-size analysis)
+    """
+    def __init__(self, filename, window=10, duplicate=None):
+        self.filename = filename
+        self.window = window
+        self._file = open(filename, "w")
+        self.data_points_dropped = 0
+        self._block_no = 0
+        self._data_in_window = defaultdict(list)
+        self._datapoints_in_window = 0
+        self.duplicate = duplicate
+
+    def _write_out_window(self):
+        # write out data only if there's data from at least two groups
+        if len(self._data_in_window) > 1:
+            # when duplicate is specified, write a window only if there is a
+            # value from that group, and provide two measurements from it, if
+            # possible
+            if self.duplicate is not None:
+                if self.duplicate in self._data_in_window:
+                    v = self._data_in_window.pop(self.duplicate)
+                    if len(v) > 1:
+                        self.data_points_dropped += len(v) - 2
+                        # randomise the order when there are two values too
+                        v = sample(v, 2)
+                    for i in v:
+                        self._file.write("{0},{1},{2}\n".format(
+                            self._block_no, self.duplicate, i))
+                else:
+                    # when the baseline is missing, drop all measurements
+                    # from the window
+                    self.data_points_dropped += self._datapoints_in_window
+                    self._data_in_window = defaultdict(list)
+                    self._datapoints_in_window = 0
+                    return
+
+            for k, v in self._data_in_window.items():
+                self.data_points_dropped += len(v) - 1
+                selected = choice(v)
+                self._file.write("{0},{1},{2}\n".format(
+                    self._block_no, k, selected))
+            self._block_no += 1
+        else:
+            self.data_points_dropped += self._datapoints_in_window
+
+        self._data_in_window = defaultdict(list)
+        self._datapoints_in_window = 0
+
+    def add(self, group, value):
+        self._data_in_window[group].append(value)
+        self._datapoints_in_window += 1
+        if self._datapoints_in_window >= self.window:
+            self._write_out_window()
+
+    def close(self):
+        """Write out any left over data and close the file."""
+        self._write_out_window()
+        self._file.close()
 
 
 class Extract:
