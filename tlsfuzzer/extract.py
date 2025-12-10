@@ -39,18 +39,13 @@ from tlsfuzzer.utils.progress_report import progress_report
 from tlsfuzzer.utils.compat import bit_count
 from tlslite.utils.cryptomath import bytesToNumber, numberToByteArray
 from tlslite.utils.python_key import Python_Key
+from tlsfuzzer.utils.compat import bit_count
 
 try:
     from itertools import izip
 except ImportError: # will be 3.x series
     izip = zip
 
-if sys.version_info >= (3, 10):
-    def bit_count(n):
-        return n.bit_count()
-else:
-    def bit_count(n):
-        return bin(n).count("1")
 
 WAIT_FOR_FIRST_BARE_MAX_VALUE = 0
 WAIT_FOR_NON_BARE_MAX_VALUE = 1
