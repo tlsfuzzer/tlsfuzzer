@@ -40,6 +40,7 @@ from tlsfuzzer.utils.compat import bit_count
 from tlslite.utils.cryptomath import bytesToNumber, numberToByteArray
 from tlslite.utils.python_key import Python_Key
 from tlsfuzzer.utils.compat import bit_count
+from tlslite.utils.compat import bit_length
 
 try:
     from itertools import izip
@@ -113,6 +114,8 @@ def help_msg():
     print("                values. Creates separate measurements.csv files")
     print("                for the d, p, q, dP, dQ, and qInv values.")
     print("                Contents must be concatenated PKCS#8 PEM keys.")
+    print(" --ml-kem-keys FILE Analyse the time based on ML-KEM key and")
+    print("                ciphertexts.")
     print(" --workers num  Number of worker processes to use for")
     print("                parallelizable computation. More workers")
     print("                will finish analysis faster, but will require")
@@ -177,6 +180,7 @@ def main():
     workers = None
     max_bit_size = None
     verbose = False
+    ml_kem_keys = None
 
     argv = sys.argv[1:]
 
@@ -193,7 +197,8 @@ def main():
                                 "value-endianness=", "priv-key-ecdsa=",
                                 "clock-frequency=", "hash-func=",
                                 "skip-invert", "workers=", "rsa-keys=",
-                                "max-bit-size=", "verbose"])
+                                "max-bit-size=", "ml-kem-keys=",
+                                "verbose"])
     for opt, arg in opts:
         if opt == '-l':
             logfile = arg
@@ -237,6 +242,8 @@ def main():
             value_endianness = arg
         elif opt == "--rsa-keys":
             rsa_keys = arg
+        elif opt == "--ml-kem-keys":
+            ml_kem_keys = arg
         elif opt == "--priv-key-ecdsa":
             priv_key = arg
             if not key_type:
@@ -280,7 +287,7 @@ def main():
         raise ValueError(
             "Only 'little' and 'big' endianess supported")
 
-    if not all([any([logfile, sigs, rsa_keys, values]), output]):
+    if not all([any([logfile, sigs, rsa_keys, ml_kem_keys, values]), output]):
         raise ValueError(
             "Specifying either logfile, rsa keys, raw sigs or raw values "
             "and output is mandatory")
@@ -293,10 +300,16 @@ def main():
             "When doing signature extraction, times file, data file, "
             "data size, signatures file and one private key are necessary.")
 
-    if values and not all([values, priv_key, raw_times, data]):
+    if values and not ml_kem_keys and \
+            not all([values, priv_key, raw_times, data]):
         raise ValueError(
             "When doing ECDH secret extraction, times file, data file, "
             "secrets file, and one private key are necessary.")
+
+    if ml_kem_keys and not all([values, raw_times, logfile]):
+        raise ValueError(
+            "When doing ML-KEM secret extraction, raw values, times, "
+            "and logile are necessary.")
 
     if hash_func_name == None:
         if prehashed:
@@ -323,7 +336,8 @@ def main():
         key_type=key_type, frequency=freq, hash_func=hash_func,
         workers=workers, verbose=verbose, rsa_keys=rsa_keys,
         sig_format=sig_format, values=values, value_size=value_size,
-        value_endianness=value_endianness, max_bit_size=max_bit_size
+        value_endianness=value_endianness, max_bit_size=max_bit_size,
+        ml_kem_keys=ml_kem_keys
     )
     extract.parse()
 
@@ -345,6 +359,9 @@ def main():
 
     if rsa_keys:
         extract.process_rsa_keys()
+
+    if ml_kem_keys:
+        extract.process_ml_kem_keys()
 
 
 class LongFormatCSVBlocker(object):
@@ -432,7 +449,7 @@ class Extract:
                  hash_func=hashlib.sha256, workers=None, verbose=False,
                  fin_as_resp=False, rsa_keys=None, sig_format="DER",
                  values=None, value_size=None, value_endianness="little",
-                 max_bit_size=None):
+                 max_bit_size=None, ml_kem_keys=None):
         """
         Initialises instance and sets up class name generator from log.
 
@@ -520,6 +537,7 @@ class Extract:
         self.value_size = value_size
         self.value_endianness = value_endianness
         self.max_bit_size = max_bit_size
+        self.ml_kem_keys = ml_kem_keys
 
         if sig_format not in ["DER", "RAW"]:
             raise ValueError(
@@ -1859,6 +1877,200 @@ class Extract:
             for i in value_names:
                 if measurements[i]:
                     measurements[i].close()
+
+    def _parse_pem_ml_kem_key(self, dk_pem):
+        from kyber_py.ml_kem.pkcs import dk_from_pem
+
+        kem, dk, _, _ = dk_from_pem(dk_pem)
+
+        return kem, dk
+
+    def _read_ml_kem_key(self, file):
+        lines = []
+        while True:
+            line = file.readline()
+            # empty line still has '\n', only EOF is an empty string
+            if not line:
+                return None
+            line = line.strip()
+            if line == "-----BEGIN PRIVATE KEY-----":
+                lines.append(line)
+                break
+        while True:
+            line = file.readline()
+            if not line:
+                raise ValueError("Truncated private key file!")
+            line = line.strip()
+            if line == "-----BEGIN PRIVATE KEY-----":
+                raise ValueError("Inconsistent private key file!")
+            lines.append(line)
+            if line == "-----END PRIVATE KEY-----":
+                break
+
+        one_pem_key = "\n".join(lines)
+
+        return self._parse_pem_ml_kem_key(one_pem_key)
+
+    def _ml_kem_k_pke_decrypt_with_intermediates(self, kem, dk_pke, c, values):
+        n = kem.k * kem.du * 32
+        c1, c2 = c[:n], c[n:]
+
+        u = kem.M.decode_vector(c1, kem.k, kem.du).decompress(kem.du)
+        v = kem.R.decode(c2, kem.dv).decompress(kem.dv)
+        s_hat = kem.M.decode_vector(dk_pke, kem.k, 12, is_ntt=True)
+
+        u_hat = u.to_ntt()
+        s_hat_dot_u_hat = s_hat.dot(u_hat)
+        values['hw-s-hat-dot-u-hat'] = sum(bit_count(i) for i in s_hat_dot_u_hat.coeffs)
+        values['bit-size-s-hat-dot-u-hat'] = sum(bit_length(i) for i in s_hat_dot_u_hat)
+        w = v - (s_hat_dot_u_hat).from_ntt()
+
+        #print("====================")
+        #print(dir(w))
+        #print(w.coeffs)
+        #print(sum(i == 0 for i in w.coeffs))
+        #print(sum(i >= 3329 for i in w.coeffs))
+        values['hw-w'] = sum(bit_count(i) for i in w.coeffs)
+        values['bit-size-w'] = sum(bit_length(i) for i in w.coeffs)
+        values['bit-size-min-w'] = min(bit_length(i) for i in w.coeffs)
+
+        m = w.compress(1).encode(1)
+
+        return m
+
+    def _ml_kem_decaps_with_intermediates(self, kem, dk, c):
+        """
+        Perform ML-KEM decapsulation, return also metadata about intermediate
+        values of the algorithm.
+        """
+        values = dict()
+
+        if len(c) != 32 * (kem.du * kem.k + kem.dv):
+            raise ValueError("wrong ciphertext length")
+        if len(dk) != kem._dk_size():
+            raise ValueError("wrong decapsulation key length")
+
+        dk_pke = dk[0:384 * kem.k]
+        ek_pke = dk[384 * kem.k : 768 * kem.k + 32]
+        h = dk[768 * kem.k + 32 : 768 * kem.k + 64]
+        z = dk[768 * kem.k + 64 :]
+        m_prime = self._ml_kem_k_pke_decrypt_with_intermediates(
+            kem, dk_pke, c, values)
+
+        values['hw-m-prime'] = bit_count(bytesToNumber(m_prime))
+
+        K_prime, r_prime = kem._G(m_prime + h)
+
+        values['hw-r-prime'] = bit_count(bytesToNumber(r_prime))
+
+        K_bar = kem._J(z + c)
+
+        c_prime = kem._k_pke_encrypt(ek_pke, m_prime, r_prime)
+
+        values['hw-c-prime'] = bit_count(bytesToNumber(c_prime))
+
+        values['hd-c-c-prime'] = bit_count(bytesToNumber(c) ^ bytesToNumber(c_prime))
+
+        for i, a, b in zip(range(len(c)), c, c_prime):
+            if a != b:
+                break
+        else:
+            i = -1
+        values['first-diff-c-c-prime'] = i
+        diff = -1
+        for i, a, b in zip(range(len(c)), c, c_prime):
+            if a != b:
+                diff = i
+        values['last-diff-c-c-prime'] = diff
+
+        if c == c_prime:
+            return K_prime, values
+        else:
+            return K_bar, values
+
+    def process_ml_kem_keys(self):
+        ml_kem_keys = None
+        ciphertexts = None
+        measurements = dict((i, None) for i in value_names)
+
+        times_iterator = self._get_time_from_file()
+
+        progress = None
+
+        try:
+            ml_kem_keys = open(self.ml_kem_keys, "rt")
+
+            kem, key = self._read_ml_kem_key(ml_kem_keys)
+
+            value_size = 32 * (kem.du * kem.k + kem.dv)
+
+            # names of statistics we are collecting together with the
+            # parameters for how the blocking window should be done
+            value_names = {
+                'hw-m-prime': {'window': 17},
+                'hw-r-prime': {'window': 17},
+                'hw-w': {'window': 30},
+                'bit-size-w': {'window': 30},  # a _sum_ of bit sizes
+                'hw-s-hat-dot-u-hat': {'window': 30},
+                'bit-size-s-hat-dot-u-hat': {'window': 30},  # sum of bit sizes
+                'bit-size-min-w': {'window': 5, 'duplicate': 0},
+                'hw-c-prime': {'window': 30},
+                'hd-c-c-prime': {'window': 17},  # uncertain
+                'first-diff-c-c-prime': {'window': 5, 'duplicate': 0},
+                'last-diff-c-c-prime': {'window': 5, 'duplicate': value_size-1},
+            }
+
+            for i, k in value_names.items():
+                f_name = join(self.output, "measurements-{0}.csv".format(i))
+                measurements[i] = LongFormatCSVBlocker(f_name, **k)
+
+            ciphertexts = open(self.values, "rb")
+
+            ciphertexts.seek(0, 2)
+            exp_len = ciphertexts.tell()
+            ciphertexts.seek(0, 0)
+            status = [0, exp_len, Event()]
+            if self.verbose:
+                kwargs = {}
+                kwargs['unit'] = 'B'
+                kwargs['prefix'] = 'binary'
+                kwargs['delay'] = self.delay
+                kwargs['end'] = self.carriage_return
+                progress = Thread(target=progress_report, args=(status,),
+                                  kwargs=kwargs)
+                progress.start()
+
+            while True:
+                ciphertext = ciphertexts.read(value_size)
+                status[0] = ciphertexts.tell()
+
+                if not ciphertext:
+                    break
+                else:
+                    ss, v = self._ml_kem_decaps_with_intermediates(
+                        kem, key, ciphertext)
+
+                    # TODO compare the the gotten shared secret with the
+                    # expected value
+
+                    v_time = next(times_iterator)
+                    for v_k, v_v in v.items():
+                        measurements[v_k].add(v_v, v_time)
+        finally:
+            status[2].set()
+            if self.verbose:
+                progress.join()
+            print()
+
+            if ml_kem_keys:
+                ml_kem_keys.close()
+            if ciphertexts:
+                ciphertexts.close()
+
+            for i in measurements.values():
+                if i:
+                    i.close()
+
 
 if __name__ == '__main__':
     main()
