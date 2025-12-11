@@ -236,6 +236,29 @@ class TestSkillingsMackTest(unittest.TestCase):
         self.assertEqualApprox(res.T, 13.28095)
         self.assertEqual(res.df, 2)
 
+    def test_PMCMRplus_example_single_threaded(self):
+        # check if it produces the same values as the example from PMCMRplus
+        # R module documentation
+        vals =   [3, 5, 15, 1, 3, 18, 5, 4, 21, 2, 6, 0, 2, 17, 0, 2, 10, 0,
+                  3, 8, 0, 2, 13]
+        groups = ['1', '2', '3', '1', '2', '3', '1', '2', '3', '1', '3', '1',
+                  '2', '3', '1', '2', '3', '1', '2', '3', '1', '2', '3']
+        blocks = [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7,
+                  8, 8, 8]
+
+        status = [0, 1, None]
+        res = skillings_mack_test(vals, groups, blocks, status=status,
+                                  multiprocess=False)
+
+        self.assertEqual(status[0], len(groups) + 1)
+        self.assertEqual(status[1], len(groups) + 1)
+        self.assertIsInstance(res, skillings_mack_result)
+        self.assertEqual(len(res), 3)
+
+        self.assertEqualApprox(res.p_value, 0.001306405)
+        self.assertEqualApprox(res.T, 13.28095)
+        self.assertEqual(res.df, 2)
+
     def test_PMCMRplus_example_with_duplicate_use_last(self):
         # check if it produces the same values as the example from PMCMRplus
         # R module documentation
