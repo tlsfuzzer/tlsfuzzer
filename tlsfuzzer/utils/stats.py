@@ -7,6 +7,7 @@ from math import sqrt
 from itertools import combinations
 from collections import defaultdict, namedtuple
 from multiprocessing import Pool
+import multiprocessing as mp
 from scipy.stats import rankdata, distributions
 import numpy as np
 
@@ -36,9 +37,13 @@ def _summarise_tuple(current_block, all_groups, adjusted_ranks, block_counts,
             (r - (len_current_block + 1) / 2.)
 
 
-def _set_unique(idx):
-    global _groups
-    return set(np.unique(_groups[idx[0]:idx[1]]))
+def _set_unique(args):
+    groups, idx = args
+    ret = set(np.unique(groups[idx[0]:idx[1]]))
+    # the groups can be a shared memory object, so we need to stop its use
+    # in deterministic manner
+    del groups
+    return ret
 
 
 def _slices(length, chunksize):
@@ -76,13 +81,7 @@ def _block_slices(blocks, chunksize):
 
 
 def _summarise_chunk(args):
-    global _groups
-    groups = _groups
-    global _values
-    values = _values
-    global _blocks
-    blocks = _blocks
-    all_groups, duplicates, idx = args
+    values, groups, blocks, all_groups, duplicates, idx = args
     start, stop = idx
 
     current_block = None
@@ -129,6 +128,12 @@ def _summarise_chunk(args):
         _summarise_tuple(current_block, all_groups, adjusted_ranks,
                          block_counts, pair_counts)
 
+    # the values, groups, and blocks can be shared memory objects, so we need
+    # to stop their use in a deterministic manner
+    del values
+    del groups
+    del blocks
+
     return stop - start, adjusted_ranks, block_counts, pair_counts
 
 
@@ -168,9 +173,9 @@ def skillings_mack_test(values, groups, blocks, duplicates=None, status=None,
 
     Note: while the arguments have to be list-like, the function accepts
     memory mapped files and allows processing data sets larger than
-    available system memory.
-
-    Function is not thread-safe.
+    available system memory. But when using with multiprocess=True,
+    it's necessary to use objects that have fast pickling operation
+    (like the tlsfuzzer.utils.shared_numpy SharedNDarray or SharedMemmap).
 
     :param list-like values: a list containing values that can be ranked
       (int, float, etc.)
@@ -199,24 +204,24 @@ def skillings_mack_test(values, groups, blocks, duplicates=None, status=None,
     if status is not None:
         status[1] = len(groups) + 1
 
-    global _groups
-    _groups = groups
-    global _values
-    _values = values
-    global _blocks
-    _blocks = blocks
-
     all_groups = set()
 
     if multiprocess:
-        pool = Pool
+        if hasattr(multiprocess, "imap_unordered"):
+            pool = _DummyPool
+        else:
+            pool = Pool
     else:
         pool = _DummyPool
     with pool() as p:
+        if multiprocess and hasattr(multiprocess, "imap_unordered"):
+            p = multiprocess
+
         # slice the data so that every worker has at least good few
         # dozen megabytes of data to work with
-        chunks = p.imap_unordered(_set_unique, _slices(len(groups),
-                                                       1024*1024*64))
+        chunks = p.imap_unordered(_set_unique,
+                                  ((groups, i) for i in
+                                   _slices(len(groups), 1024*1024*64)))
 
         for i in chunks:
             all_groups.update(i)
@@ -237,7 +242,8 @@ def skillings_mack_test(values, groups, blocks, duplicates=None, status=None,
                          max(10, len(blocks) // (os.cpu_count() * 100)))
 
         chunks = p.imap_unordered(_summarise_chunk,
-                                  ((all_groups, duplicates, i) for i in
+                                  ((values, groups, blocks, all_groups,
+                                    duplicates, i) for i in
                                    _block_slices(blocks, chunk_size)))
 
         for progress, chunk_ranks, chunk_block_counts, chunk_pair_counts \

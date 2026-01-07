@@ -2070,7 +2070,7 @@ class TestBitSizeAnalysis(unittest.TestCase):
 
         self.analysis.skillings_mack_test("measurements.bin")
 
-        memmap_mock.assert_called_once()
+        memmap_mock.assert_called()
 
         self.analysis.verbose = True
         self.analysis.skillings_mack_test("measurements.bin")

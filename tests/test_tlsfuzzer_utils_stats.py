@@ -24,19 +24,20 @@ class TestSummariseChunk(unittest.TestCase):
                                  .format(a, b))
 
     def test_summarise_chunk(self):
-        tlsfuzzer.utils.stats._values = \
+        values = \
             [3, 5, 15, 1, 3, 18, 5, 4, 21, 2, 6, 0, 2, 17, 0, 2, 10, 0,
              3, 8, 0, 2, 13]
-        tlsfuzzer.utils.stats._groups = \
+        groups = \
             ['1', '2', '3', '1', '2', '3', '1', '2', '3', '1', '3', '1',
              '2', '3', '1', '2', '3', '1', '2', '3', '1', '2', '3']
-        all_groups = set(tlsfuzzer.utils.stats._groups)
-        len_groups = len(tlsfuzzer.utils.stats._groups)
-        tlsfuzzer.utils.stats._blocks = \
+        all_groups = set(groups)
+        len_groups = len(groups)
+        blocks = \
             [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7,
              8, 8, 8]
 
-        ret = _summarise_chunk((all_groups, None, (0, len_groups)))
+        ret = _summarise_chunk((values, groups, blocks, all_groups, None,
+                                (0, len_groups)))
 
         progress, adjusted_ranks, block_counts, pair_counts = ret
 
@@ -53,19 +54,20 @@ class TestSummariseChunk(unittest.TestCase):
     def test_summarise_chunk_duplicate_use_last(self):
         # check if it produces the same values as the example from PMCMRplus
         # R module documentation
-        tlsfuzzer.utils.stats._values = \
+        values = \
                 [3, 5, 15, 1, 3, 18, 5, 4, 21, 2, 6, 0, 2, 17, 0, 2, 10, 0,
                   3, 8, 0, 2, 0, 13]
-        tlsfuzzer.utils.stats._groups = \
+        groups = \
                 ['1', '2', '3', '1', '2', '3', '1', '2', '3', '1', '3', '1',
                   '2', '3', '1', '2', '3', '1', '2', '3', '1', '2', '3', '3']
-        all_groups = set(tlsfuzzer.utils.stats._groups)
-        len_groups = len(tlsfuzzer.utils.stats._groups)
-        tlsfuzzer.utils.stats._blocks = \
+        all_groups = set(groups)
+        len_groups = len(groups)
+        blocks = \
                 [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7,
                   8, 8, 8, 8]
 
-        ret = _summarise_chunk((all_groups, 'last', (0, len_groups)))
+        ret = _summarise_chunk((values, groups, blocks, all_groups, 'last',
+                                (0, len_groups)))
 
         progress, adjusted_ranks, block_counts, pair_counts = ret
 
@@ -82,39 +84,41 @@ class TestSummariseChunk(unittest.TestCase):
     def test_summarise_chunk_duplicates(self):
         # check if it produces the same values as the example from PMCMRplus
         # R module documentation
-        tlsfuzzer.utils.stats._values = \
+        values = \
                 [3, 5, 15, 1, 3, 18, 5, 4, 21, 2, 6, 0, 2, 17, 0, 2, 10, 0,
                   3, 8, 0, 2, 0, 13]
-        tlsfuzzer.utils.stats._groups = \
+        groups = \
                 ['1', '2', '3', '1', '2', '3', '1', '2', '3', '1', '3', '1',
                   '2', '3', '1', '2', '3', '1', '2', '3', '1', '2', '3', '3']
-        all_groups = set(tlsfuzzer.utils.stats._groups)
-        len_groups = len(tlsfuzzer.utils.stats._groups)
-        tlsfuzzer.utils.stats._blocks = \
+        all_groups = set(groups)
+        len_groups = len(groups)
+        blocks = \
                 [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7,
                   8, 8, 8, 8]
 
         with self.assertRaises(ValueError) as e:
-            ret = _summarise_chunk((all_groups, None, (0, len_groups)))
+            ret = _summarise_chunk((values, groups, blocks, all_groups, None,
+                                    (0, len_groups)))
 
         self.assertIn("Duplicate group (3) in block (8)", str(e.exception))
 
     def test_summarise_chunk_duplicate_use_first(self):
         # check if it produces the same values as the example from PMCMRplus
         # R module documentation
-        tlsfuzzer.utils.stats._values = \
+        values = \
                 [3, 5, 15, 1, 3, 18, 5, 4, 21, 2, 6, 0, 2, 17, 0, 2, 10, 0,
                   3, 8, 0, 2, 13, 0]
-        tlsfuzzer.utils.stats._groups = \
+        groups = \
                 ['1', '2', '3', '1', '2', '3', '1', '2', '3', '1', '3', '1',
                   '2', '3', '1', '2', '3', '1', '2', '3', '1', '2', '3', '3']
-        all_groups = set(tlsfuzzer.utils.stats._groups)
-        len_groups = len(tlsfuzzer.utils.stats._groups)
-        tlsfuzzer.utils.stats._blocks = \
+        all_groups = set(groups)
+        len_groups = len(groups)
+        blocks = \
                 [1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 5, 5, 5, 6, 6, 6, 7, 7, 7,
                   8, 8, 8, 8]
 
-        ret = _summarise_chunk((all_groups, 'first', (0, len_groups)))
+        ret = _summarise_chunk((values, groups, blocks, all_groups, 'first',
+                                (0, len_groups)))
 
         progress, adjusted_ranks, block_counts, pair_counts = ret
 
@@ -129,33 +133,35 @@ class TestSummariseChunk(unittest.TestCase):
              frozenset(['3', '2']): 7})
 
     def test_summarise_not_sorted(self):
-        tlsfuzzer.utils.stats._values = [10, 20, 30, 40, 50]
-        tlsfuzzer.utils.stats._groups = [0, 1, 2, 0, 2]
-        tlsfuzzer.utils.stats._blocks = [0, 0, 1, 1, 0]
-        all_groups = set(tlsfuzzer.utils.stats._groups)
-        len_groups = len(tlsfuzzer.utils.stats._groups)
+        values = [10, 20, 30, 40, 50]
+        groups = [0, 1, 2, 0, 2]
+        blocks = [0, 0, 1, 1, 0]
+        all_groups = set(groups)
+        len_groups = len(groups)
         with self.assertRaises(ValueError) as e:
-            ret = _summarise_chunk((all_groups, None, (0, len_groups)))
+            ret = _summarise_chunk((values, groups, blocks, all_groups, None,
+                                    (0, len_groups)))
 
         self.assertIn("blocks are not sorted", str(e.exception))
 
     def test_summarise_empty(self):
-        tlsfuzzer.utils.stats._values = []
-        tlsfuzzer.utils.stats._groups = []
-        tlsfuzzer.utils.stats._blocks = []
-        all_groups = set(tlsfuzzer.utils.stats._groups)
-        len_groups = len(tlsfuzzer.utils.stats._groups)
+        values = []
+        groups = []
+        blocks = []
+        all_groups = set(groups)
+        len_groups = len(groups)
         with self.assertRaises(ValueError) as e:
-            ret = _summarise_chunk((all_groups, None, (0, len_groups)))
+            ret = _summarise_chunk((values, groups, blocks, all_groups, None,
+                                    (0, len_groups)))
 
         self.assertIn("Empty data set", str(e.exception))
 
     def test_set_unique(self):
-        tlsfuzzer.utils.stats._groups = \
+        groups = \
             ['1', '2', '3', '1', '2', '3', '1', '2', '3', '1', '3', '1',
              '2', '3', '1', '2', '3', '1', '2', '3', '1', '2', '3']
 
-        self.assertEqual(_set_unique((0, 24)), set(['1', '2', '3']))
+        self.assertEqual(_set_unique((groups, (0, 24))), set(['1', '2', '3']))
 
 
 @unittest.skipIf(failed_import,
