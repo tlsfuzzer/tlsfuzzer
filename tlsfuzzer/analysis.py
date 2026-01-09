@@ -41,6 +41,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.utils.progress_report import progress_report
 from tlsfuzzer.utils.stats import skillings_mack_test, _slices
+from tlsfuzzer.utils.shared_numpy import SharedMemmap
 from tlsfuzzer.messages import div_ceil
 from tlslite.utils.cryptomath import bytesToNumber
 
@@ -1725,17 +1726,26 @@ class Analysis(object):
         data.
         """
 
-        data = np.memmap(measurements_bin_path,
-                         dtype=[('block', np.dtype('i8')),
-                                ('group', np.dtype('i4')),
-                                ('value', np.dtype('f8'))],
-                         mode="r")
+        blocks = SharedMemmap(measurements_bin_path,
+                              dtype=[('block', np.dtype('i8')),
+                                     ('group', np.dtype('i4')),
+                                     ('value', np.dtype('f8'))],
+                              mode="r",
+                              column="block")
+        groups = SharedMemmap(measurements_bin_path,
+                              dtype=[('block', np.dtype('i8')),
+                                     ('group', np.dtype('i4')),
+                                     ('value', np.dtype('f8'))],
+                              mode="r",
+                              column="group")
+        values = SharedMemmap(measurements_bin_path,
+                              dtype=[('block', np.dtype('i8')),
+                                     ('group', np.dtype('i4')),
+                                     ('value', np.dtype('f8'))],
+                              mode="r",
+                              column="value")
 
         try:
-            blocks = data['block']
-            groups = data['group']
-            values = data['value']
-
             status = None
             if self.verbose:
                 print("[i] Calculating Skillings-Mack test")
@@ -1771,7 +1781,9 @@ class Analysis(object):
                         sm_test.p_value))
 
         finally:
-            del data
+            del blocks
+            del groups
+            del values
 
         return sm_test.p_value
 
