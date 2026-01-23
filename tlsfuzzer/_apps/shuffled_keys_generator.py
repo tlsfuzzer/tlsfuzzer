@@ -9,11 +9,11 @@ def help_msg():
 Usage: shuffled_keys_generator.py [OPTIONS] KEY_FILE1 KEY_FILE2 ...
 
 Options:
-  -n <int>    Number of repetitions (default: 100000)
-  -l <str>    Log file path (default: log.csv)
-  -o <str>    Output file path (default: keys.pem)
-  -d          Dry run: validate files and show sequence without writing
-  -h          Show this help message
+  -n, --repetitions <int>    Number of repetitions (default: 100000)
+  -l, --log-file    <str>    Path where to write the log file (default: log.csv)
+  -o, --output      <str>    Output file path (default: keys.pem)
+  -d, --dry-run              Dry run: validate files and show sequence without writing
+  -h, --help                 Show this help message
     """)
 
 def main():
