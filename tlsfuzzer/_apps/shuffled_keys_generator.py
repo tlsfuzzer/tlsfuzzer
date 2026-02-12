@@ -30,8 +30,7 @@ def main():
             "hn:l:o:d",
             ["help", "repetitions=", "log-file=", "output=", "dry-run"]
         )
-    except getopt.GetoptError:
-        err = sys.exc_info()[1]
+    except getopt.GetoptError as err:
         print("Error: {0}".format(str(err)))
         help_msg()
         sys.exit(2)
@@ -62,6 +61,10 @@ def main():
         # Python 2.6 alternative to pathlib: os.path
         basename = os.path.basename(file_path_str)
 
+        if file_path_str == output_file:
+            print("Error: Source file '{0}' is equal to expected output file".format(file_path_str))
+            sys.exit(1)
+
         if not os.path.exists(file_path_str):
             print("Error: Source file '{0}' not found.".format(file_path_str))
             sys.exit(1)
@@ -75,9 +78,6 @@ def main():
         content = f.read()
         f.close()
 
-        if "-----BEGIN" not in content:
-            print("Warning: '{0}' does not appear to be a valid PEM file.".format(basename))
-
         file_contents[basename] = content
         log_class_names.append(basename)
 
@@ -88,14 +88,10 @@ def main():
     log = Log(log_file)
     log.start_log(log_class_names)
 
-    # Python 2.6 doesn't support the {:,} thousands separator in format()
-    # Using basic integer printing
-    print("Generating {0} shuffled runs using {1} keys...".format(repetitions, len(args)))
-    for _ in range(repetitions):
-        log.shuffle_new_run()
-
     if not dry_run:
-        log.write()
+        print("Generating {0} shuffled runs using {1} keys...".format(repetitions, len(args)))
+        for _ in range(repetitions):
+            log.shuffle_new_run()
 
     # 3. Reconstruct the sequence
     log.read_log()
@@ -112,12 +108,11 @@ def main():
 
     print("Writing concatenated keys to '{0}'...".format(output_file))
     try:
-        out_file = open(output_file, "w")
+        out_file = open(output_file, "wb")
         for index in log.iterate_log():
             out_file.write(file_contents[test_classes[index]])
         out_file.close()
-    except IOError:
-        err = sys.exc_info()[1]
+    except IOError as err:
         print("Error writing to output file: {0}".format(str(err)))
         sys.exit(1)
 
