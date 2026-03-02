@@ -16,8 +16,6 @@ except ImportError:
 from tlsfuzzer._apps.shuffled_keys_generator import main
 
 class TestShuffledKeysGenerator(unittest.TestCase):
-    @unittest.skipIf(sys.version_info < (2, 7),
-                 "mock_open doesn't work correctly in mock v2.0.0")
     def test_main_error_on_output_collision(self):
         """
         Test 1: Error should occur if the output filename matches input.
@@ -41,8 +39,6 @@ class TestShuffledKeysGenerator(unittest.TestCase):
                         with self.assertRaises(SystemExit):
                             main()
 
-    @unittest.skipIf(sys.version_info < (2, 7),
-                 "mock_open doesn't work correctly in mock v2.0.0")
     def test_main_concatenation_logic(self):
         """
         Test 2: Check concatenation based on log.csv ordering across Py2 and Py3.
