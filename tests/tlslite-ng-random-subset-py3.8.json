@@ -350,6 +350,7 @@
                          "--pha-as-reply",
                          "--query", "GET /secret HTTP/1.0\r\n\r\n"]
           },
+         {"name" : "test-tls13-psk-crash.py"},
          {"name" : "test-tls13-record-layer-limits.py"},
          {"name" : "test-tls13-record-padding.py"},
          {"name" : "test-tls13-rsa-signatures.py"},
