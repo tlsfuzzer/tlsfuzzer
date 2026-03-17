@@ -3456,3 +3456,550 @@ KhakWUXIrF660toSgpJE/OsDVUwDkKVzu0V6IN+25zQ65NxVLqyHdDdyuVDApvNo
         self.assertNotEqual(values['hd-c-c-prime'], 0)
         self.assertNotEqual(values['first-diff-c-c-prime'], -1)
         self.assertNotEqual(values['last-diff-c-c-prime'], -1)
+
+
+@unittest.skipIf(failed_import or not ml_kem_available,
+                 "Could not import extraction or kyber_py, skipping")
+class TestFullExtraction(unittest.TestCase):
+    def setUp(self):
+        self.builtin_open = open
+        self.outputs = defaultdict(list)
+
+    def file_selector(self, *args, **kwargs):
+        name = args[0]
+        mode = args[1]
+
+        if "w" in mode or "a" in mode:
+            self.assertIn("/tmp", name)
+            r = mock.mock_open()(name, mode)
+            r.write.side_effect = lambda s: self.outputs[name].append(s)
+            return r
+        return self.builtin_open(*args, **kwargs)
+
+    @mock.patch('builtins.print')
+    def test_extract_verbose(self, mock_print):
+        common_dir = "mlkem512_test_files"
+        out_dir = join(dirname(abspath(__file__)), common_dir)
+        out_dir = "/tmp/a"
+        raw_times = join(dirname(abspath(__file__)), common_dir,
+                         "raw_times.csv")
+        raw_ciphertexts = join(dirname(abspath(__file__)), common_dir,
+                               "ciphers.bin")
+        log_file = join(dirname(abspath(__file__)), common_dir,
+                        "log.csv")
+        key_file = join(dirname(abspath(__file__)), common_dir,
+                        "dk.pem")
+
+        log = Log(log_file)
+        log.read_log()
+
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_selector
+            extract = Extract(log, output=out_dir, raw_times=raw_times,
+                              values=raw_ciphertexts, ml_kem_keys=key_file,
+                              verbose=True, delay=1)
+
+            extract.parse()
+
+            extract.process_ml_kem_keys()
+
+        self.assertEqual(mock_print.mock_calls[0],
+                         mock.call('Writing to /tmp/a/timing.csv\n'))
+        for c in mock_print.mock_calls[1:]:
+            if c != mock.call():
+                self.assertIn('Done: ', str(c))
+
+    @mock.patch('builtins.print')
+    def test_extract(self, mock_print):
+        common_dir = "mlkem512_test_files"
+        out_dir = join(dirname(abspath(__file__)), common_dir)
+        out_dir = "/tmp/a"
+        raw_times = join(dirname(abspath(__file__)), common_dir,
+                         "raw_times.csv")
+        raw_ciphertexts = join(dirname(abspath(__file__)), common_dir,
+                               "ciphers.bin")
+        log_file = join(dirname(abspath(__file__)), common_dir,
+                        "log.csv")
+        key_file = join(dirname(abspath(__file__)), common_dir,
+                        "dk.pem")
+
+        log = Log(log_file)
+        log.read_log()
+
+        with mock.patch('__main__.__builtins__.open') as mock_file:
+            mock_file.side_effect = self.file_selector
+            extract = Extract(log, output=out_dir, raw_times=raw_times,
+                              values=raw_ciphertexts, ml_kem_keys=key_file)
+
+            extract.parse()
+
+            extract.process_ml_kem_keys()
+
+        self.assertEqual(set([
+            '/tmp/a/timing.csv',
+            '/tmp/a/measurements-bit-size-min-w.csv',
+            '/tmp/a/measurements-first-diff-c-c-prime.csv',
+            '/tmp/a/measurements-last-diff-c-c-prime.csv',
+            '/tmp/a/measurements-hw-m-prime.csv',
+            '/tmp/a/measurements-hw-r-prime.csv',
+            '/tmp/a/measurements-hd-c-c-prime.csv',
+            '/tmp/a/measurements-hw-s-hat-dot-u-hat.csv',
+            '/tmp/a/measurements-bit-size-s-hat-dot-u-hat.csv',
+            '/tmp/a/measurements-hw-w.csv',
+            '/tmp/a/measurements-bit-size-w.csv',
+            '/tmp/a/measurements-hw-c-prime.csv']), self.outputs.keys())
+
+        file = '/tmp/a/timing.csv'
+        self.assertEqual(self.outputs[file],
+            ['one_u_remain_0,one_u_remain_1,one_v_remain_0,one_v_remain_-1,random_0,random_1,valid_0,valid_1,valid_2,xor_u_coefficient_0_1,xor_u_coefficient_-1_1,xor_v_coefficient_0_1,xor_v_coefficient_-1_1\r\n',
+             '2.572230000e+06,2.539137000e+06,2.656580000e+06,2.674955000e+06,2.656605000e+06,2.674829000e+06,2.690352000e+06,2.666550000e+06,2.614733000e+06,2.658934000e+06,2.664320000e+06,2.635011000e+06,2.672320000e+06\r\n',
+             '2.590677000e+06,2.583684000e+06,2.624952000e+06,2.653114000e+06,2.706152000e+06,2.672175000e+06,2.687308000e+06,2.704215000e+06,2.717891000e+06,2.676333000e+06,2.751911000e+06,2.671540000e+06,2.646080000e+06\r\n',
+             '2.659281000e+06,2.654878000e+06,2.675695000e+06,3.581513000e+06,2.698066000e+06,2.791494000e+06,2.696919000e+06,2.729882000e+06,2.768880000e+06,2.623325000e+06,2.748901000e+06,2.729885000e+06,2.722352000e+06\r\n',
+             '2.641593000e+06,2.642752000e+06,2.705510000e+06,2.706439000e+06,2.763182000e+06,2.713622000e+06,2.711581000e+06,2.688373000e+06,2.745355000e+06,2.756074000e+06,2.741499000e+06,2.734472000e+06,2.723980000e+06\r\n',
+             '2.648782000e+06,2.663268000e+06,2.770663000e+06,2.739362000e+06,2.777486000e+06,2.767834000e+06,2.720834000e+06,2.737402000e+06,2.740656000e+06,2.735921000e+06,2.740835000e+06,2.734270000e+06,2.739939000e+06\r\n',
+             '3.124822000e+06,2.655880000e+06,2.743632000e+06,3.304483000e+06,2.770717000e+06,3.541447000e+06,3.341956000e+06,2.908643000e+06,3.217506000e+06,3.216138000e+06,2.933603000e+06,2.786638000e+06,2.738585000e+06\r\n',
+             '2.786364000e+06,2.755239000e+06,2.850841000e+06,2.934163000e+06,2.827179000e+06,2.871078000e+06,2.908413000e+06,2.872655000e+06,2.856293000e+06,2.833760000e+06,2.878577000e+06,2.879560000e+06,2.837547000e+06\r\n',
+             '2.859223000e+06,2.735037000e+06,2.772793000e+06,2.828338000e+06,2.802157000e+06,2.810243000e+06,3.433362000e+06,2.762381000e+06,2.842058000e+06,2.841991000e+06,3.351845000e+06,2.917893000e+06,3.423473000e+06\r\n',
+             '3.190742000e+06,3.005240000e+06,3.072507000e+06,2.891758000e+06,3.067056000e+06,2.881629000e+06,3.227947000e+06,2.994336000e+06,2.869151000e+06,3.005836000e+06,3.084320000e+06,3.100945000e+06,3.442762000e+06\r\n',
+             '2.756092000e+06,2.748371000e+06,2.781808000e+06,2.960446000e+06,2.852706000e+06,2.877404000e+06,2.820347000e+06,2.948172000e+06,2.841697000e+06,2.843591000e+06,2.854258000e+06,2.978798000e+06,2.890212000e+06\r\n',
+             '2.765088000e+06,2.697088000e+06,2.791742000e+06,2.809755000e+06,2.804332000e+06,2.816708000e+06,2.801115000e+06,2.795346000e+06,2.814629000e+06,2.814142000e+06,2.778207000e+06,2.876003000e+06,2.823811000e+06\r\n',
+             '2.684130000e+06,2.719657000e+06,2.750889000e+06,2.811323000e+06,2.816287000e+06,2.795115000e+06,2.799193000e+06,2.846137000e+06,2.812452000e+06,2.813432000e+06,2.804510000e+06,2.820829000e+06,2.782602000e+06\r\n',
+             '2.696997000e+06,2.723556000e+06,2.777127000e+06,2.794831000e+06,2.817826000e+06,2.770422000e+06,2.764272000e+06,2.827870000e+06,2.833299000e+06,2.896012000e+06,2.809983000e+06,2.800712000e+06,2.809013000e+06\r\n',
+             '2.701380000e+06,2.717912000e+06,2.776701000e+06,2.811292000e+06,2.790875000e+06,2.799023000e+06,2.834446000e+06,2.795074000e+06,2.771604000e+06,2.803210000e+06,2.783898000e+06,2.801718000e+06,2.789133000e+06\r\n',
+             '2.711023000e+06,2.704018000e+06,2.774304000e+06,2.784363000e+06,2.785108000e+06,2.815381000e+06,2.778631000e+06,2.816000000e+06,2.813170000e+06,2.760370000e+06,2.816559000e+06,2.792629000e+06,2.817598000e+06\r\n',
+             '2.708738000e+06,2.730276000e+06,2.772447000e+06,2.783604000e+06,2.756647000e+06,2.787260000e+06,2.798221000e+06,2.800018000e+06,2.877947000e+06,2.763520000e+06,2.812582000e+06,2.799340000e+06,2.806605000e+06\r\n',
+             '2.689384000e+06,2.700321000e+06,2.777137000e+06,2.786992000e+06,2.794991000e+06,2.809944000e+06,2.791107000e+06,2.758542000e+06,2.825234000e+06,2.826249000e+06,2.763352000e+06,2.776540000e+06,2.802626000e+06\r\n',
+             '2.686514000e+06,2.725750000e+06,2.750459000e+06,2.788483000e+06,2.819103000e+06,2.805215000e+06,2.809930000e+06,2.757718000e+06,2.781780000e+06,2.827473000e+06,2.802392000e+06,2.814223000e+06,2.805529000e+06\r\n',
+             '2.700336000e+06,2.681396000e+06,2.772463000e+06,2.776506000e+06,2.792328000e+06,2.787726000e+06,2.737963000e+06,2.788824000e+06,2.787959000e+06,2.748083000e+06,2.791562000e+06,2.821158000e+06,3.187148000e+06\r\n',
+             '2.698854000e+06,2.685893000e+06,2.756865000e+06,2.791965000e+06,2.763223000e+06,2.783552000e+06,2.762609000e+06,2.826866000e+06,2.761837000e+06,2.821408000e+06,2.769735000e+06,2.773473000e+06,2.795917000e+06\r\n',
+             '2.695711000e+06,2.685215000e+06,2.790532000e+06,2.796162000e+06,2.784972000e+06,2.758635000e+06,2.793543000e+06,2.804230000e+06,2.838838000e+06,2.783282000e+06,2.763466000e+06,2.901240000e+06,2.820575000e+06\r\n',
+             '2.194092000e+06,2.666475000e+06,2.929719000e+06,2.799468000e+06,5.091971000e+06,2.576191000e+06,2.742707000e+06,2.496774000e+06,2.397017000e+06,2.732538000e+06,2.263720000e+06,2.813752000e+06,2.813234000e+06\r\n',
+             '2.559889000e+06,2.495434000e+06,2.717675000e+06,2.718163000e+06,2.677578000e+06,2.705773000e+06,2.668929000e+06,2.700598000e+06,2.724140000e+06,2.681932000e+06,2.713144000e+06,2.610770000e+06,2.663192000e+06\r\n',
+             '2.653542000e+06,2.663698000e+06,2.701039000e+06,2.712339000e+06,2.773274000e+06,2.731750000e+06,2.735094000e+06,2.728166000e+06,2.735284000e+06,2.700910000e+06,2.724852000e+06,2.740931000e+06,2.752070000e+06\r\n',
+             '2.904858000e+06,2.624228000e+06,2.707859000e+06,2.781345000e+06,2.771292000e+06,2.745362000e+06,2.780931000e+06,2.770167000e+06,2.765083000e+06,2.735497000e+06,2.772022000e+06,2.750777000e+06,2.736476000e+06\r\n',
+             '2.720670000e+06,2.701805000e+06,2.730738000e+06,2.790359000e+06,2.780604000e+06,2.817485000e+06,2.808541000e+06,2.814247000e+06,2.786495000e+06,2.776676000e+06,2.792465000e+06,2.793528000e+06,2.764339000e+06\r\n',
+             '2.669518000e+06,2.663886000e+06,2.811316000e+06,2.770822000e+06,2.800608000e+06,2.807728000e+06,2.803005000e+06,2.839349000e+06,2.841855000e+06,2.773391000e+06,2.846973000e+06,2.748178000e+06,2.793392000e+06\r\n',
+             '2.717150000e+06,2.689604000e+06,2.778848000e+06,2.775789000e+06,2.778202000e+06,2.808522000e+06,2.796464000e+06,2.805407000e+06,2.778683000e+06,2.810381000e+06,2.792809000e+06,2.799400000e+06,2.866992000e+06\r\n',
+             '2.700918000e+06,2.703050000e+06,2.836313000e+06,2.791022000e+06,2.798520000e+06,2.803956000e+06,2.824437000e+06,2.775316000e+06,2.831991000e+06,2.813211000e+06,2.790672000e+06,2.836003000e+06,2.782021000e+06\r\n',
+             '2.735040000e+06,2.709845000e+06,2.749616000e+06,2.762941000e+06,2.837907000e+06,2.827838000e+06,2.809134000e+06,2.822137000e+06,2.808263000e+06,2.818860000e+06,2.789109000e+06,2.812528000e+06,2.816486000e+06\r\n',
+             '2.780255000e+06,2.726475000e+06,2.785017000e+06,2.784842000e+06,2.775503000e+06,2.790499000e+06,2.795441000e+06,2.808169000e+06,2.777816000e+06,2.787499000e+06,2.817461000e+06,2.816753000e+06,3.127248000e+06\r\n',
+             '2.708226000e+06,2.716293000e+06,2.827461000e+06,2.789650000e+06,2.793284000e+06,2.826770000e+06,2.818464000e+06,2.850188000e+06,2.824999000e+06,2.782662000e+06,2.778032000e+06,2.833960000e+06,2.832242000e+06\r\n',
+             '2.717125000e+06,2.733272000e+06,2.799662000e+06,2.801511000e+06,2.848954000e+06,2.768944000e+06,2.806477000e+06,2.804353000e+06,2.810200000e+06,2.800792000e+06,2.794705000e+06,2.833714000e+06,2.805942000e+06\r\n',
+             '2.709014000e+06,2.738645000e+06,3.044498000e+06,2.834852000e+06,2.831300000e+06,2.825362000e+06,2.764948000e+06,2.733619000e+06,2.800412000e+06,2.847463000e+06,2.812836000e+06,2.824113000e+06,2.806710000e+06\r\n',
+             '2.703545000e+06,2.703287000e+06,2.769727000e+06,2.773068000e+06,3.024705000e+06,2.803746000e+06,2.787976000e+06,2.799205000e+06,2.814536000e+06,2.799415000e+06,2.796276000e+06,2.798286000e+06,2.801405000e+06\r\n',
+             '2.714528000e+06,2.679689000e+06,2.760758000e+06,2.803761000e+06,2.769376000e+06,2.816339000e+06,2.827674000e+06,2.847376000e+06,2.803459000e+06,2.820196000e+06,2.805301000e+06,2.799047000e+06,2.828614000e+06\r\n',
+             '2.725654000e+06,2.863613000e+06,3.347308000e+06,2.980255000e+06,2.919609000e+06,2.982949000e+06,2.816876000e+06,3.042228000e+06,2.863814000e+06,2.950160000e+06,3.090746000e+06,2.816989000e+06,2.974773000e+06\r\n',
+             '2.862930000e+06,3.403212000e+06,3.593056000e+06,3.014363000e+06,3.030002000e+06,3.186475000e+06,3.047822000e+06,3.364158000e+06,3.084208000e+06,3.447368000e+06,3.046161000e+06,3.664542000e+06,3.400597000e+06\r\n',
+             '2.959023000e+06,3.021788000e+06,3.077686000e+06,3.006585000e+06,2.942449000e+06,3.182813000e+06,2.965627000e+06,3.028775000e+06,2.903878000e+06,3.109377000e+06,3.047479000e+06,3.079459000e+06,3.053340000e+06\r\n',
+             '2.986616000e+06,2.774974000e+06,3.169540000e+06,2.910753000e+06,2.891751000e+06,3.090321000e+06,2.964355000e+06,3.119323000e+06,2.965541000e+06,2.928101000e+06,2.934025000e+06,2.963911000e+06,2.912077000e+06\r\n',
+             '4.195615000e+06,2.777965000e+06,2.838710000e+06,2.804378000e+06,2.885424000e+06,2.793306000e+06,2.910929000e+06,2.811782000e+06,2.932779000e+06,2.850346000e+06,2.807106000e+06,2.804100000e+06,2.955593000e+06\r\n',
+             '2.891865000e+06,3.436874000e+06,2.872695000e+06,2.860240000e+06,2.845683000e+06,2.981166000e+06,3.340413000e+06,3.546538000e+06,2.762922000e+06,2.560185000e+06,3.128096000e+06,2.809481000e+06,2.869655000e+06\r\n',
+             '2.694089000e+06,2.831107000e+06,2.770571000e+06,2.872435000e+06,2.830507000e+06,2.941309000e+06,2.966371000e+06,2.866713000e+06,3.127749000e+06,2.817272000e+06,2.825719000e+06,2.928612000e+06,2.819591000e+06\r\n',
+             '2.729372000e+06,2.894303000e+06,2.818246000e+06,2.813086000e+06,2.782988000e+06,2.836979000e+06,2.800187000e+06,2.810860000e+06,2.828343000e+06,2.845889000e+06,2.802742000e+06,2.882664000e+06,2.831120000e+06\r\n',
+             '2.799888000e+06,2.695335000e+06,2.872335000e+06,2.861776000e+06,2.981983000e+06,2.902221000e+06,2.806787000e+06,2.836621000e+06,2.844417000e+06,2.863254000e+06,2.804428000e+06,2.941791000e+06,2.917902000e+06\r\n',
+             '2.930570000e+06,2.806625000e+06,2.822822000e+06,2.843650000e+06,3.170775000e+06,2.869919000e+06,2.827247000e+06,2.837320000e+06,3.234042000e+06,3.028785000e+06,2.821637000e+06,2.840395000e+06,2.822427000e+06\r\n',
+             '2.711820000e+06,2.707712000e+06,2.787411000e+06,2.859147000e+06,2.854505000e+06,2.826262000e+06,2.809364000e+06,2.811082000e+06,2.865974000e+06,2.882337000e+06,2.813373000e+06,2.873042000e+06,2.789262000e+06\r\n',
+             '2.712025000e+06,2.735011000e+06,2.830406000e+06,2.794619000e+06,2.838427000e+06,2.852528000e+06,2.808623000e+06,2.817257000e+06,2.810003000e+06,2.817172000e+06,2.818400000e+06,2.798703000e+06,2.810428000e+06\r\n',
+             '2.674005000e+06,2.696488000e+06,2.770171000e+06,2.808643000e+06,2.818076000e+06,2.807992000e+06,2.812205000e+06,2.814529000e+06,2.830373000e+06,2.852529000e+06,2.840067000e+06,2.804107000e+06,3.065319000e+06\r\n',
+             '2.721891000e+06,2.711746000e+06,2.854555000e+06,2.811399000e+06,2.853789000e+06,2.820944000e+06,2.874700000e+06,2.788269000e+06,2.819923000e+06,2.833031000e+06,2.827690000e+06,2.800409000e+06,2.804366000e+06\r\n'])
+
+        file = "/tmp/a/measurements-bit-size-min-w.csv"
+        self.assertEqual(len(self.outputs[file]), 462)
+        self.assertIn(self.outputs[file][:3],
+            [['0,0,2635011.0\n', '0,2,2658934.0\n', '0,1,2614733.0\n'],
+             ['0,0,2635011.0\n', '0,2,2658934.0\n', '0,1,2690352.0\n'],
+             ['0,0,2635011.0\n', '0,2,2664320.0\n', '0,1,2690352.0\n'],
+             ['0,0,2635011.0\n', '0,2,2664320.0\n', '0,1,2614733.0\n']])
+        self.assertIn(self.outputs[file][-5:],
+            [['109,0,2711746.0\n', '109,0,2800409.0\n', '109,6,2820944.0\n', '109,1,2833031.0\n', '109,4,2853789.0\n'],
+             ['109,0,2800409.0\n', '109,0,2711746.0\n', '109,6,2820944.0\n', '109,1,2833031.0\n', '109,4,2853789.0\n']])
+
+        file = "/tmp/a/measurements-first-diff-c-c-prime.csv"
+        self.assertEqual(len(self.outputs[file]), 475)
+        self.assertIn(self.outputs[file][:4],
+            [['0,0,2658934.0\n', '0,638,2664320.0\n', '0,-1,2614733.0\n', '0,640,2635011.0\n'],
+             ['0,0,2658934.0\n', '0,638,2664320.0\n', '0,-1,2690352.0\n', '0,640,2635011.0\n'],
+             ])
+        self.assertIn(self.outputs[file][-3:],
+            [['123,0,2833031.0\n', '123,0,2820944.0\n', '123,640,2800409.0\n'],
+             ['123,0,2833031.0\n', '123,0,2711746.0\n', '123,640,2800409.0\n'],
+             ['123,0,2833031.0\n', '123,0,2853789.0\n', '123,640,2800409.0\n'],
+             ['123,0,2820944.0\n', '123,0,2833031.0\n', '123,640,2800409.0\n'],
+             ['123,0,2820944.0\n', '123,0,2853789.0\n', '123,640,2800409.0\n'],
+             ['123,0,2820944.0\n', '123,0,2711746.0\n', '123,640,2800409.0\n'],
+             ['123,0,2711746.0\n', '123,0,2833031.0\n', '123,640,2800409.0\n'],
+             ['123,0,2711746.0\n', '123,0,2820944.0\n', '123,640,2800409.0\n'],
+             ['123,0,2711746.0\n', '123,0,2853789.0\n', '123,640,2800409.0\n'],
+             ['123,0,2853789.0\n', '123,0,2711746.0\n', '123,640,2800409.0\n'],
+             ['123,0,2853789.0\n', '123,0,2833031.0\n', '123,640,2800409.0\n'],
+             ['123,0,2853789.0\n', '123,0,2820944.0\n', '123,640,2800409.0\n']])
+
+        file = "/tmp/a/measurements-last-diff-c-c-prime.csv"
+        self.assertEqual(len(self.outputs[file]), 478)
+        self.assertIn(self.outputs[file][:3],
+            [['0,767,2646080.0\n', '0,767,2672320.0\n', '0,-1,2666550.0\n'],
+             ['0,767,2646080.0\n', '0,767,2656605.0\n', '0,-1,2666550.0\n'],
+             ['0,767,2646080.0\n', '0,767,2624952.0\n', '0,-1,2666550.0\n'],
+             ['0,767,2624952.0\n', '0,767,2646080.0\n', '0,-1,2666550.0\n'],
+             ['0,767,2624952.0\n', '0,767,2656605.0\n', '0,-1,2666550.0\n'],
+             ['0,767,2624952.0\n', '0,767,2672320.0\n', '0,-1,2666550.0\n'],
+             ['0,767,2672320.0\n', '0,767,2646080.0\n', '0,-1,2666550.0\n'],
+             ['0,767,2672320.0\n', '0,767,2624952.0\n', '0,-1,2666550.0\n'],
+             ['0,767,2672320.0\n', '0,767,2656605.0\n', '0,-1,2666550.0\n'],
+             ['0,767,2656605.0\n', '0,767,2646080.0\n', '0,-1,2666550.0\n'],
+             ['0,767,2656605.0\n', '0,767,2672320.0\n', '0,-1,2666550.0\n'],
+             ['0,767,2656605.0\n', '0,767,2624952.0\n', '0,-1,2666550.0\n'],
+             ])
+        self.assertIn(self.outputs[file][-4:],
+            [['126,767,2711746.0\n', '126,767,2853789.0\n', '126,640,2800409.0\n', '126,0,2833031.0\n'],
+             ['126,767,2711746.0\n', '126,767,2820944.0\n', '126,640,2800409.0\n', '126,0,2833031.0\n'],
+             ['126,767,2853789.0\n', '126,767,2711746.0\n', '126,640,2800409.0\n', '126,0,2833031.0\n'],
+             ['126,767,2853789.0\n', '126,767,2820944.0\n', '126,640,2800409.0\n', '126,0,2833031.0\n'],
+             ['126,767,2820944.0\n', '126,767,2711746.0\n', '126,640,2800409.0\n', '126,0,2833031.0\n'],
+             ['126,767,2820944.0\n', '126,767,2853789.0\n', '126,640,2800409.0\n', '126,0,2833031.0\n'],
+            ])
+
+        file = "/tmp/a/measurements-hw-m-prime.csv"
+        self.assertEqual(len(self.outputs[file]), 495)
+        # since for HW test files we won't get duplicates, we don't need to
+        # look at the whole group, just at individual elements
+        self.assertEqual(self.outputs[file][0], '0,119,2656580.0\n')
+        self.assertEqual(self.outputs[file][1], '0,123,2674955.0\n')
+        self.assertIn(self.outputs[file][2], ['0,128,2656605.0\n', '0,128,2674829.0\n'])
+        self.assertEqual(self.outputs[file][3], '0,130,2572230.0\n')
+        self.assertIn(self.outputs[file][4], ['0,129,2539137.0\n', '0,129,2672320.0\n'])
+        self.assertIn(self.outputs[file][5], ['0,136,2664320.0\n', '0,136,2624952.0\n'])
+        self.assertEqual(self.outputs[file][6], '0,120,2614733.0\n')
+        self.assertEqual(self.outputs[file][7], '0,121,2690352.0\n')
+        self.assertEqual(self.outputs[file][8], '0,117,2658934.0\n')
+        self.assertEqual(self.outputs[file][9], '0,133,2635011.0\n')
+        self.assertEqual(self.outputs[file][10], '0,118,2666550.0\n')
+        self.assertIn(self.outputs[file][11], ['0,127,2646080.0\n', '0,127,2687308.0\n'])
+        self.assertEqual(self.outputs[file][12], '0,138,2671540.0\n')
+        self.assertIn(self.outputs[file][13], ['1,131,2729882.0\n', '1,131,2672175.0\n'])
+
+        self.assertEqual(self.outputs[file][-5], '37,139,2804366.0\n')
+        self.assertEqual(self.outputs[file][-4], '38,141,2711746.0\n')
+        self.assertEqual(self.outputs[file][-3], '38,143,2820944.0\n')
+        self.assertEqual(self.outputs[file][-2], '38,115,2833031.0\n')
+        self.assertEqual(self.outputs[file][-1], '38,124,2853789.0\n')
+
+        file = "/tmp/a/measurements-hw-r-prime.csv"
+        self.assertEqual(len(self.outputs[file]), 497)
+        # since for HW test files we won't get duplicates, we don't need to
+        # look at the whole group, just at individual elements
+        self.assertIn(self.outputs[file][0], ['0,121,2656580.0\n', '0,121,2690352.0\n', '0,121,2687308.0\n'])
+        self.assertEqual(self.outputs[file][1], '0,113,2674955.0\n')
+        self.assertEqual(self.outputs[file][2], '0,140,2674829.0\n')
+        self.assertEqual(self.outputs[file][3], '0,127,2572230.0\n')
+        self.assertEqual(self.outputs[file][4], '0,117,2539137.0\n')
+        self.assertEqual(self.outputs[file][5], '0,131,2664320.0\n')
+        self.assertEqual(self.outputs[file][6], '0,123,2614733.0\n')
+        self.assertEqual(self.outputs[file][7], '0,139,2658934.0\n')
+        self.assertEqual(self.outputs[file][8], '0,151,2635011.0\n')
+        self.assertEqual(self.outputs[file][9], '0,126,2666550.0\n')
+        self.assertEqual(self.outputs[file][10], '0,138,2672320.0\n')
+        self.assertIn(self.outputs[file][11], ['0,128,2656605.0\n', '0,128,2671540.0\n'])
+        self.assertEqual(self.outputs[file][12], '0,120,2646080.0\n')
+        self.assertEqual(self.outputs[file][13], '0,137,2624952.0\n')
+        self.assertEqual(self.outputs[file][14], '1,134,2672175.0\n')
+
+        self.assertEqual(self.outputs[file][-4], '37,136,2804366.0\n')
+        self.assertIn(self.outputs[file][-3], ['38,121,2711746.0\n', '38,121,2833031.0\n'])
+        self.assertEqual(self.outputs[file][-2], '38,115,2820944.0\n')
+        self.assertEqual(self.outputs[file][-1], '38,126,2853789.0\n')
+
+        file = "/tmp/a/measurements-hd-c-c-prime.csv"
+        self.assertEqual(len(self.outputs[file]), 369)
+        # since for HW test files we won't get duplicates, we don't need to
+        # look at the whole group, just at individual elements
+        self.assertEqual(self.outputs[file][0], '0,3056,2656580.0\n')
+        self.assertEqual(self.outputs[file][1], '0,3090,2674955.0\n')
+        self.assertEqual(self.outputs[file][2], '0,3123,2674829.0\n')
+        self.assertEqual(self.outputs[file][3], '0,3105,2572230.0\n')
+        self.assertEqual(self.outputs[file][4], '0,3074,2539137.0\n')
+        self.assertIn(self.outputs[file][5], ['0,1,2671540.0\n', '0,1,2658934.0\n', '0,1,2672320.0\n', '0,1,2646080.0\n', '0,1,2664320.0\n', '0,1,2635011.0\n'])
+        self.assertIn(self.outputs[file][6], ['0,0,2690352.0\n', '0,0,2666550.0\n', '0,0,2614733.0\n', '0,0,2687308.0\n'])
+        self.assertEqual(self.outputs[file][7], '0,3145,2656605.0\n')
+        self.assertEqual(self.outputs[file][8], '0,3071,2624952.0\n')
+        self.assertEqual(self.outputs[file][9], '1,3062,2672175.0\n')
+
+        self.assertEqual(self.outputs[file][-5],'37,3038,2721891.0\n')
+        self.assertEqual(self.outputs[file][-4],'38,3064,2711746.0\n')
+        self.assertEqual(self.outputs[file][-3],'38,3074,2820944.0\n')
+        self.assertEqual(self.outputs[file][-2],'38,1,2833031.0\n')
+        self.assertEqual(self.outputs[file][-1],'38,3121,2853789.0\n')
+
+        file = "/tmp/a/measurements-hw-s-hat-dot-u-hat.csv"
+        self.assertEqual(len(self.outputs[file]), 579)
+        # since for HW test files we won't get duplicates, we don't need to
+        # look at the whole group, just at individual elements
+        self.assertEqual(self.outputs[file][0], '0,1497,2656580.0\n')
+        self.assertEqual(self.outputs[file][1], '0,1487,2674955.0\n')
+        self.assertEqual(self.outputs[file][2], '0,1483,2674829.0\n')
+        self.assertEqual(self.outputs[file][3], '0,1490,2572230.0\n')
+        self.assertEqual(self.outputs[file][4], '0,1492,2539137.0\n')
+        self.assertEqual(self.outputs[file][5], '0,1485,2664320.0\n')
+        self.assertEqual(self.outputs[file][6], '0,1486,2614733.0\n')
+        self.assertEqual(self.outputs[file][7], '0,1421,2690352.0\n')
+        self.assertEqual(self.outputs[file][8], '0,1481,2658934.0\n')
+        self.assertEqual(self.outputs[file][9], '0,1458,2635011.0\n')
+        self.assertEqual(self.outputs[file][10], '0,1489,2666550.0\n')
+        self.assertEqual(self.outputs[file][11], '0,1434,2672320.0\n')
+        self.assertIn(self.outputs[file][12], ['0,1447,2656605.0\n', '0,1447,2748901.0\n'])
+        self.assertEqual(self.outputs[file][13], '0,1440,2646080.0\n')
+        self.assertEqual(self.outputs[file][14], '0,1455,2624952.0\n')
+        self.assertIn(self.outputs[file][15], ['0,1450,2583684.0\n', '0,1450,2671540.0\n'])
+        self.assertEqual(self.outputs[file][16], '0,1511,2687308.0\n')
+        self.assertEqual(self.outputs[file][17], '0,1449,2672175.0\n')
+        self.assertEqual(self.outputs[file][18], '0,1448,2706152.0\n')
+        self.assertEqual(self.outputs[file][19], '0,1417,2653114.0\n')
+        self.assertEqual(self.outputs[file][20], '0,1452,2717891.0\n')
+        self.assertEqual(self.outputs[file][21], '0,1445,2751911.0\n')
+        self.assertEqual(self.outputs[file][22], '0,1529,2704215.0\n')
+        self.assertEqual(self.outputs[file][23], '0,1498,2590677.0\n')
+        self.assertEqual(self.outputs[file][24], '0,1444,2676333.0\n')
+        self.assertEqual(self.outputs[file][25], '0,1478,2698066.0\n')
+        self.assertEqual(self.outputs[file][26], '0,1469,2791494.0\n')
+        self.assertEqual(self.outputs[file][27], '0,1510,2722352.0\n')
+        self.assertEqual(self.outputs[file][28], '1,1463,2768880.0\n')
+
+        self.assertEqual(self.outputs[file][-21], '20,1472,2840067.0\n')
+        self.assertEqual(self.outputs[file][-20], '21,1472,2808643.0\n')
+        self.assertEqual(self.outputs[file][-19], '21,1456,2812205.0\n')
+        self.assertEqual(self.outputs[file][-18], '21,1440,2674005.0\n')
+        self.assertEqual(self.outputs[file][-17], '21,1471,2804107.0\n')
+        self.assertEqual(self.outputs[file][-16], '21,1475,3065319.0\n')
+        self.assertEqual(self.outputs[file][-15], '21,1450,2807992.0\n')
+        self.assertEqual(self.outputs[file][-14], '21,1493,2696488.0\n')
+        self.assertEqual(self.outputs[file][-13], '21,1522,2819923.0\n')
+        self.assertEqual(self.outputs[file][-12], '21,1476,2788269.0\n')
+        self.assertEqual(self.outputs[file][-11], '21,1503,2874700.0\n')
+        self.assertEqual(self.outputs[file][-10], '21,1453,2811399.0\n')
+        self.assertEqual(self.outputs[file][-9], '21,1445,2854555.0\n')
+        self.assertEqual(self.outputs[file][-8], '21,1523,2721891.0\n')
+        self.assertEqual(self.outputs[file][-7], '21,1478,2827690.0\n')
+        self.assertEqual(self.outputs[file][-6], '21,1405,2804366.0\n')
+        self.assertEqual(self.outputs[file][-5], '21,1477,2800409.0\n')
+        self.assertEqual(self.outputs[file][-4], '21,1421,2711746.0\n')
+        self.assertEqual(self.outputs[file][-3], '21,1474,2820944.0\n')
+        self.assertEqual(self.outputs[file][-2], '21,1442,2833031.0\n')
+        self.assertEqual(self.outputs[file][-1], '21,1447,2853789.0\n')
+
+        file = "/tmp/a/measurements-bit-size-s-hat-dot-u-hat.csv"
+        self.assertEqual(len(self.outputs[file]), 551)
+        # since for HW test files we won't get duplicates, we don't need to
+        # look at the whole group, just at individual elements
+        self.assertEqual(self.outputs[file][0], '0,2775,2656580.0\n')
+        self.assertEqual(self.outputs[file][1], '0,2785,2674955.0\n')
+        self.assertIn(self.outputs[file][2], ['0,2786,2674829.0\n', '0,2786,2658934.0\n'])
+        self.assertEqual(self.outputs[file][3], '0,2758,2572230.0\n')
+        self.assertEqual(self.outputs[file][4], '0,2788,2539137.0\n')
+        self.assertEqual(self.outputs[file][5], '0,2750,2664320.0\n')
+        self.assertIn(self.outputs[file][6], ['0,2776,2722352.0\n', '0,2776,2614733.0\n'])
+        self.assertEqual(self.outputs[file][7], '0,2735,2690352.0\n')
+        self.assertEqual(self.outputs[file][8], '0,2747,2635011.0\n')
+        self.assertIn(self.outputs[file][9], ['0,2761,2717891.0\n', '0,2761,2666550.0\n'])
+        self.assertEqual(self.outputs[file][10], '0,2762,2672320.0\n')
+        self.assertEqual(self.outputs[file][11], '0,2769,2656605.0\n')
+        self.assertIn(self.outputs[file][12], ['0,2741,2646080.0\n', '0,2741,2676333.0\n'])
+        self.assertEqual(self.outputs[file][13], '0,2794,2624952.0\n')
+        self.assertEqual(self.outputs[file][14], '0,2737,2671540.0\n')
+        self.assertEqual(self.outputs[file][15], '0,2793,2687308.0\n')
+        self.assertIn(self.outputs[file][16], ['0,2772,2672175.0\n', '0,2772,2751911.0\n', '0,2772,2590677.0\n'])
+        self.assertEqual(self.outputs[file][17], '0,2744,2706152.0\n')
+        self.assertEqual(self.outputs[file][18], '0,2782,2653114.0\n')
+        self.assertEqual(self.outputs[file][19], '0,2724,2583684.0\n')
+        self.assertEqual(self.outputs[file][20], '0,2765,2704215.0\n')
+        self.assertEqual(self.outputs[file][21], '0,2742,2698066.0\n')
+        self.assertEqual(self.outputs[file][22], '0,2748,2791494.0\n')
+        self.assertEqual(self.outputs[file][23], '0,2736,2748901.0\n')
+        self.assertEqual(self.outputs[file][24], '1,2787,2768880.0\n')
+
+        self.assertEqual(self.outputs[file][-20], '20,2805,2840067.0\n')
+        self.assertEqual(self.outputs[file][-19], '21,2792,2808643.0\n')
+        self.assertEqual(self.outputs[file][-18], '21,2717,2812205.0\n')
+        self.assertEqual(self.outputs[file][-17], '21,2744,2674005.0\n')
+        self.assertEqual(self.outputs[file][-16], '21,2746,2804107.0\n')
+        self.assertEqual(self.outputs[file][-15], '21,2766,3065319.0\n')
+        self.assertEqual(self.outputs[file][-14], '21,2748,2807992.0\n')
+        self.assertIn(self.outputs[file][-13], ['21,2758,2800409.0\n', '21,2758,2696488.0\n'])
+        self.assertEqual(self.outputs[file][-12], '21,2806,2819923.0\n')
+        self.assertEqual(self.outputs[file][-11], '21,2760,2788269.0\n')
+        self.assertEqual(self.outputs[file][-10], '21,2763,2874700.0\n')
+        self.assertEqual(self.outputs[file][-9], '21,2773,2811399.0\n')
+        self.assertEqual(self.outputs[file][-8], '21,2721,2854555.0\n')
+        self.assertEqual(self.outputs[file][-7], '21,2762,2721891.0\n')
+        self.assertEqual(self.outputs[file][-6], '21,2769,2827690.0\n')
+        self.assertEqual(self.outputs[file][-5], '21,2730,2804366.0\n')
+        self.assertEqual(self.outputs[file][-4], '21,2733,2711746.0\n')
+        self.assertEqual(self.outputs[file][-3], '21,2776,2820944.0\n')
+        self.assertEqual(self.outputs[file][-2], '21,2767,2833031.0\n')
+        self.assertEqual(self.outputs[file][-1], '21,2738,2853789.0\n')
+
+        file = "/tmp/a/measurements-hw-w.csv"
+        self.assertEqual(len(self.outputs[file]), 591)
+        # since for HW test files we won't get duplicates, we don't need to
+        # look at the whole group, just at individual elements
+        self.assertIn(self.outputs[file][0], ['0,1461,2672175.0\n', '0,1461,2656580.0\n'])
+        self.assertEqual(self.outputs[file][1], '0,1467,2674955.0\n')
+        self.assertEqual(self.outputs[file][2], '0,1455,2674829.0\n')
+        self.assertEqual(self.outputs[file][3], '0,1443,2572230.0\n')
+        self.assertEqual(self.outputs[file][4], '0,1492,2539137.0\n')
+        self.assertEqual(self.outputs[file][5], '0,1389,2664320.0\n')
+        self.assertEqual(self.outputs[file][6], '0,1387,2614733.0\n')
+        self.assertEqual(self.outputs[file][7], '0,1411,2690352.0\n')
+        self.assertEqual(self.outputs[file][8], '0,1421,2658934.0\n')
+        self.assertEqual(self.outputs[file][9], '0,1354,2635011.0\n')
+        self.assertEqual(self.outputs[file][10], '0,1416,2666550.0\n')
+        self.assertIn(self.outputs[file][11], ['0,1398,2748901.0\n', '0,1398,2672320.0\n'])
+        self.assertEqual(self.outputs[file][12], '0,1452,2656605.0\n')
+        self.assertIn(self.outputs[file][13], ['0,1454,2646080.0\n', '0,1454,2698066.0\n'])
+        self.assertIn(self.outputs[file][14], ['0,1481,2590677.0\n', '0,1481,2624952.0\n'])
+        self.assertEqual(self.outputs[file][15], '0,1435,2671540.0\n')
+        self.assertEqual(self.outputs[file][16], '0,1401,2687308.0\n')
+        self.assertEqual(self.outputs[file][17], '0,1472,2706152.0\n')
+        self.assertEqual(self.outputs[file][18], '0,1466,2653114.0\n')
+        self.assertEqual(self.outputs[file][19], '0,1468,2583684.0\n')
+        self.assertEqual(self.outputs[file][20], '0,1446,2717891.0\n')
+        self.assertEqual(self.outputs[file][21], '0,1418,2751911.0\n')
+        self.assertEqual(self.outputs[file][22], '0,1437,2704215.0\n')
+        self.assertEqual(self.outputs[file][23], '0,1380,2676333.0\n')
+        self.assertEqual(self.outputs[file][24], '0,1429,2791494.0\n')
+        self.assertEqual(self.outputs[file][25], '0,1440,2722352.0\n')
+        self.assertEqual(self.outputs[file][26], '1,1417,2768880.0\n')
+
+        self.assertEqual(self.outputs[file][-21], '20,1375,2840067.0\n')
+        self.assertEqual(self.outputs[file][-20], '21,1449,2808643.0\n')
+        self.assertEqual(self.outputs[file][-19], '21,1399,2812205.0\n')
+        self.assertEqual(self.outputs[file][-18], '21,1433,2674005.0\n')
+        self.assertEqual(self.outputs[file][-17], '21,1450,2804107.0\n')
+        self.assertEqual(self.outputs[file][-16], '21,1420,3065319.0\n')
+        self.assertEqual(self.outputs[file][-15], '21,1432,2807992.0\n')
+        self.assertEqual(self.outputs[file][-14], '21,1471,2696488.0\n')
+        self.assertEqual(self.outputs[file][-13], '21,1424,2819923.0\n')
+        self.assertEqual(self.outputs[file][-12], '21,1373,2788269.0\n')
+        self.assertEqual(self.outputs[file][-11], '21,1411,2874700.0\n')
+        self.assertEqual(self.outputs[file][-10], '21,1440,2811399.0\n')
+        self.assertEqual(self.outputs[file][-9], '21,1455,2854555.0\n')
+        self.assertEqual(self.outputs[file][-8], '21,1419,2721891.0\n')
+        self.assertEqual(self.outputs[file][-7], '21,1368,2827690.0\n')
+        self.assertEqual(self.outputs[file][-6], '21,1382,2804366.0\n')
+        self.assertEqual(self.outputs[file][-5], '21,1406,2800409.0\n')
+        self.assertEqual(self.outputs[file][-4], '21,1474,2711746.0\n')
+        self.assertEqual(self.outputs[file][-3], '21,1485,2820944.0\n')
+        self.assertEqual(self.outputs[file][-2], '21,1362,2833031.0\n')
+        self.assertEqual(self.outputs[file][-1], '21,1446,2853789.0\n')
+
+        file = "/tmp/a/measurements-bit-size-w.csv"
+        self.assertEqual(len(self.outputs[file]), 617)
+        # since for HW test files we won't get duplicates, we don't need to
+        # look at the whole group, just at individual elements
+        self.assertEqual(self.outputs[file][0], '0,2786,2656580.0\n')
+        self.assertEqual(self.outputs[file][1], '0,2752,2674955.0\n')
+        self.assertEqual(self.outputs[file][2], '0,2775,2674829.0\n')
+        self.assertEqual(self.outputs[file][3], '0,2756,2572230.0\n')
+        self.assertEqual(self.outputs[file][4], '0,2805,2539137.0\n')
+        self.assertEqual(self.outputs[file][5], '0,2534,2664320.0\n')
+        self.assertEqual(self.outputs[file][6], '0,2509,2614733.0\n')
+        self.assertEqual(self.outputs[file][7], '0,2489,2690352.0\n')
+        self.assertEqual(self.outputs[file][8], '0,2555,2658934.0\n')
+        self.assertEqual(self.outputs[file][9], '0,2547,2635011.0\n')
+        self.assertEqual(self.outputs[file][10], '0,2515,2666550.0\n')
+        self.assertEqual(self.outputs[file][11], '0,2511,2672320.0\n')
+        self.assertEqual(self.outputs[file][12], '0,2770,2656605.0\n')
+        self.assertEqual(self.outputs[file][13], '0,2598,2646080.0\n')
+        self.assertEqual(self.outputs[file][14], '0,2765,2624952.0\n')
+        self.assertEqual(self.outputs[file][15], '0,2562,2671540.0\n')
+        self.assertEqual(self.outputs[file][16], '0,2575,2687308.0\n')
+        self.assertEqual(self.outputs[file][17], '0,2783,2672175.0\n')
+        self.assertEqual(self.outputs[file][18], '0,2758,2706152.0\n')
+        self.assertEqual(self.outputs[file][19], '0,2729,2653114.0\n')
+        self.assertEqual(self.outputs[file][20], '0,2732,2583684.0\n')
+        self.assertIn(self.outputs[file][21], ['0,2585,2717891.0\n', '0,2585,2704215.0\n'])
+        self.assertEqual(self.outputs[file][22], '0,2544,2751911.0\n')
+        self.assertEqual(self.outputs[file][23], '0,2780,2590677.0\n')
+        self.assertEqual(self.outputs[file][24], '0,2503,2676333.0\n')
+        self.assertEqual(self.outputs[file][25], '0,2743,2698066.0\n')
+        self.assertEqual(self.outputs[file][26], '0,2747,2791494.0\n')
+        self.assertEqual(self.outputs[file][27], '0,2530,2748901.0\n')
+        self.assertEqual(self.outputs[file][28], '0,2582,2722352.0\n')
+        self.assertEqual(self.outputs[file][29], '1,2521,2768880.0\n')
+
+        self.assertEqual(self.outputs[file][-21], '20,2564,2840067.0\n')
+        self.assertEqual(self.outputs[file][-20], '21,2760,2808643.0\n')
+        self.assertEqual(self.outputs[file][-19], '21,2594,2812205.0\n')
+        self.assertEqual(self.outputs[file][-18], '21,2722,2674005.0\n')
+        self.assertEqual(self.outputs[file][-17], '21,2593,2804107.0\n')
+        self.assertEqual(self.outputs[file][-16], '21,2561,3065319.0\n')
+        self.assertEqual(self.outputs[file][-15], '21,2761,2807992.0\n')
+        self.assertEqual(self.outputs[file][-14], '21,2754,2696488.0\n')
+        self.assertEqual(self.outputs[file][-13], '21,2562,2819923.0\n')
+        self.assertEqual(self.outputs[file][-12], '21,2515,2788269.0\n')
+        self.assertEqual(self.outputs[file][-11], '21,2552,2874700.0\n')
+        self.assertEqual(self.outputs[file][-10], '21,2739,2811399.0\n')
+        self.assertEqual(self.outputs[file][-9], '21,2762,2854555.0\n')
+        self.assertEqual(self.outputs[file][-8], '21,2744,2721891.0\n')
+        self.assertEqual(self.outputs[file][-7], '21,2498,2827690.0\n')
+        self.assertEqual(self.outputs[file][-6], '21,2536,2804366.0\n')
+        self.assertEqual(self.outputs[file][-5], '21,2523,2800409.0\n')
+        self.assertEqual(self.outputs[file][-4], '21,2752,2711746.0\n')
+        self.assertEqual(self.outputs[file][-3], '21,2788,2820944.0\n')
+        self.assertEqual(self.outputs[file][-2], '21,2509,2833031.0\n')
+        self.assertEqual(self.outputs[file][-1], '21,2728,2853789.0\n')
+
+        file = "/tmp/a/measurements-hw-c-prime.csv"
+        self.assertEqual(len(self.outputs[file]), 577)
+        # since for HW test files we won't get duplicates, we don't need to
+        # look at the whole group, just at individual elements
+        self.assertEqual(self.outputs[file][0], '0,3054,2656580.0\n')
+        self.assertEqual(self.outputs[file][1], '0,3079,2674955.0\n')
+        self.assertEqual(self.outputs[file][2], '0,3107,2674829.0\n')
+        self.assertEqual(self.outputs[file][3], '0,3077,2572230.0\n')
+        self.assertEqual(self.outputs[file][4], '0,3029,2539137.0\n')
+        self.assertEqual(self.outputs[file][5], '0,3015,2664320.0\n')
+        self.assertEqual(self.outputs[file][6], '0,3042,2614733.0\n')
+        self.assertEqual(self.outputs[file][7], '0,3117,2690352.0\n')
+        self.assertEqual(self.outputs[file][8], '0,3119,2658934.0\n')
+        self.assertEqual(self.outputs[file][9], '0,3100,2635011.0\n')
+        self.assertEqual(self.outputs[file][10], '0,2983,2666550.0\n')
+        self.assertEqual(self.outputs[file][11], '0,3049,2672320.0\n')
+        self.assertEqual(self.outputs[file][12], '0,3000,2656605.0\n')
+        self.assertEqual(self.outputs[file][13], '0,3059,2646080.0\n')
+        self.assertEqual(self.outputs[file][14], '0,3090,2624952.0\n')
+        self.assertEqual(self.outputs[file][15], '0,3056,2671540.0\n')
+        self.assertEqual(self.outputs[file][16], '0,3102,2687308.0\n')
+        self.assertEqual(self.outputs[file][17], '0,3110,2672175.0\n')
+        self.assertEqual(self.outputs[file][18], '0,3031,2706152.0\n')
+        self.assertEqual(self.outputs[file][19], '0,3037,2653114.0\n')
+        self.assertEqual(self.outputs[file][20], '0,3072,2583684.0\n')
+        self.assertIn(self.outputs[file][21], ['0,3087,2717891.0\n', '0,3087,2590677.0\n'])
+        self.assertEqual(self.outputs[file][22], '0,3131,2751911.0\n')
+        self.assertEqual(self.outputs[file][23], '0,3034,2704215.0\n')
+        self.assertEqual(self.outputs[file][24], '0,3101,2676333.0\n')
+        self.assertEqual(self.outputs[file][25], '0,3068,2698066.0\n')
+        self.assertEqual(self.outputs[file][26], '0,3134,2791494.0\n')
+        self.assertEqual(self.outputs[file][27], '0,3073,2748901.0\n')
+        self.assertEqual(self.outputs[file][28], '0,3108,2722352.0\n')
+        self.assertEqual(self.outputs[file][29], '1,3061,2768880.0\n')
+
+        self.assertEqual(self.outputs[file][-20], '20,3031,2840067.0\n')
+        self.assertEqual(self.outputs[file][-19], '21,3080,2808643.0\n')
+        self.assertEqual(self.outputs[file][-18], '21,3154,2812205.0\n')
+        self.assertEqual(self.outputs[file][-17], '21,3061,2674005.0\n')
+        self.assertEqual(self.outputs[file][-16], '21,3023,2804107.0\n')
+        self.assertIn(self.outputs[file][-15], ['21,3111,2788269.0\n', '21,3111,3065319.0\n'])
+        self.assertEqual(self.outputs[file][-14], '21,3026,2807992.0\n')
+        self.assertEqual(self.outputs[file][-13], '21,3079,2696488.0\n')
+        self.assertEqual(self.outputs[file][-12], '21,3119,2819923.0\n')
+        self.assertEqual(self.outputs[file][-11], '21,3069,2874700.0\n')
+        self.assertEqual(self.outputs[file][-10], '21,3113,2811399.0\n')
+        self.assertEqual(self.outputs[file][-9], '21,3063,2854555.0\n')
+        self.assertEqual(self.outputs[file][-8], '21,3073,2721891.0\n')
+        self.assertEqual(self.outputs[file][-7], '21,3038,2827690.0\n')
+        self.assertEqual(self.outputs[file][-6], '21,3047,2804366.0\n')
+        self.assertEqual(self.outputs[file][-5], '21,3103,2800409.0\n')
+        self.assertEqual(self.outputs[file][-4], '21,3088,2711746.0\n')
+        self.assertEqual(self.outputs[file][-3], '21,3075,2820944.0\n')
+        self.assertEqual(self.outputs[file][-2], '21,3152,2833031.0\n')
+        self.assertEqual(self.outputs[file][-1], '21,3065,2853789.0\n')
