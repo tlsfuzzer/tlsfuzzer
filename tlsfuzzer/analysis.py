@@ -2867,6 +2867,9 @@ class Analysis(object):
             except ValueError:
                 pass
 
+        if not groups:
+            print("[w] No groups can be turned into non-negative integers")
+
         # since we might not introduce a side-channel to some groups, the
         # introduced side-channel needs to be 0 on average
         median = statistics.median(groups)
