@@ -30,6 +30,7 @@ from itertools import combinations, repeat, chain
 import os
 import time
 import random
+import statistics
 
 import numpy as np
 from scipy import stats
@@ -50,7 +51,7 @@ TestPair = namedtuple('TestPair', 'index1  index2')
 mpl.use('Agg')
 
 
-VERSION = 9
+VERSION = 10
 
 
 _diffs = None
@@ -2830,7 +2831,7 @@ class Analysis(object):
             if (i[1], i[0]) not in all_unique_pairs:
                 all_unique_pairs.add(i)
 
-        return [i for i, _ in group_counts[-5:]], all_unique_pairs
+        return [i for i, _ in group_counts[-5:]], all_unique_pairs, unique_vals
 
     def _test_with_single_group_side_channel(self, name_bin, group):
         sm_p_values = {}
@@ -2848,6 +2849,43 @@ class Analysis(object):
                 time, p_value)
             if self.verbose:
                 print("[i] {0}ns: {1}".format(time, p_value))
+            os.remove(tmp_file)
+
+        self._hamming_weight_report += "\n"
+
+        return sm_p_values
+
+    def _test_with_systemic_side_channel(self, name_bin, all_groups):
+        sm_p_values = {}
+
+        groups = []
+        for i in all_groups:
+            try:
+                val = int(i)
+                if val >= 0:
+                    groups.append(val)
+            except ValueError:
+                pass
+
+        # since we might not introduce a side-channel to some groups, the
+        # introduced side-channel needs to be 0 on average
+        median = statistics.median(groups)
+
+        tmp_file = name_bin + ".tmp"
+        self._hamming_weight_report += ("Skillings-Mack test p-value after "
+             "introducing a systemic side-channel of:\n")
+
+        for time in [10, 1, 0.1, 0.01]:
+            shutil.copyfile(name_bin, tmp_file)
+            for i in groups:
+                self._add_value_to_group(
+                    tmp_file, i, (i - median) * time * 1e-9)
+            p_value = self.skillings_mack_test(tmp_file)
+            sm_p_values[time] = p_value
+            self._hamming_weight_report += "\t{0}ns/bit: {1}\n".format(
+                time, p_value)
+            if self.verbose:
+                print("[i] {0}ns/bit: {1}".format(time, p_value))
             os.remove(tmp_file)
 
         return sm_p_values
@@ -3071,12 +3109,16 @@ class Analysis(object):
         self._hamming_weight_report += "Skillings-Mack test p-value: {0}\n"\
             .format(skillings_mack_p_value)
 
-        most_common, pairs = self._split_data_to_pairwise(name_bin)
+        most_common, pairs, all_groups = self._split_data_to_pairwise(name_bin)
 
         sm_p_values = {}
+        sys_sm_p_values = {}
         if skillings_mack_p_value > 1e-5:
             sm_p_values = self._test_with_single_group_side_channel(
                 name_bin, most_common[0])
+
+            sys_sm_p_values = self._test_with_systemic_side_channel(
+                name_bin, all_groups)
 
         self._analyse_weight_pairs(pairs)
 
@@ -3088,6 +3130,11 @@ class Analysis(object):
                     print(("[i] Sample large enough to detect {0} ns "
                            "difference: {1}").format(
                                time, sm_p_values[time] < 1e-9))
+            if len(sys_sm_p_values.keys()) is not None:
+                for time in sys_sm_p_values:
+                    print(("[i] Sample large enough to detect {0} ns/bit "
+                           "difference: {1}").format(
+                               time, sys_sm_p_values[time] < 1e-9))
 
         if skillings_mack_p_value < self.alpha:
             return 1
