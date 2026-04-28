@@ -2872,17 +2872,28 @@ class Analysis(object):
 
         # since we might not introduce a side-channel to some groups, the
         # introduced side-channel needs to be 0 on average
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Starting to calculate median of groups")
         median = statistics.median(groups)
+        if self.verbose:
+            print("[i] Calculating median done in {:.3}s".format(
+                  time.time() - start_time))
 
         tmp_file = name_bin + ".tmp"
         self._hamming_weight_report += ("Skillings-Mack test p-value after "
              "introducing a systemic side-channel of:\n")
 
         for time in [10, 1, 0.1, 0.01]:
+            if self.verbose:
+                start_time = time.time()
+                print("[i] Starting file modification for {0}ns/bit side-channel".format(time))
             shutil.copyfile(name_bin, tmp_file)
             for i in groups:
                 self._add_value_to_group(
                     tmp_file, i, (i - median) * time * 1e-9)
+            if self.verbose:
+                print("[i] File modified in {:.3s}".format(time.time() - start_time))
             p_value = self.skillings_mack_test(tmp_file)
             sm_p_values[time] = p_value
             self._hamming_weight_report += "\t{0}ns/bit: {1}\n".format(
