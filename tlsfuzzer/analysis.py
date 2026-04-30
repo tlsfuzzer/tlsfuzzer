@@ -2884,22 +2884,22 @@ class Analysis(object):
         self._hamming_weight_report += ("Skillings-Mack test p-value after "
              "introducing a systemic side-channel of:\n")
 
-        for time in [10, 1, 0.1, 0.01]:
+        for mod_time in [10, 1, 0.1, 0.01]:
             if self.verbose:
                 start_time = time.time()
-                print("[i] Starting file modification for {0}ns/bit side-channel".format(time))
+                print("[i] Starting file modification for {0}ns/bit side-channel".format(mod_time))
             shutil.copyfile(name_bin, tmp_file)
             for i in groups:
                 self._add_value_to_group(
-                    tmp_file, i, (i - median) * time * 1e-9)
+                    tmp_file, i, (i - median) * mod_time * 1e-9)
             if self.verbose:
-                print("[i] File modified in {:.3s}".format(time.time() - start_time))
+                print("[i] File modified in {:.3}s".format(time.time() - start_time))
             p_value = self.skillings_mack_test(tmp_file)
-            sm_p_values[time] = p_value
+            sm_p_values[mod_time] = p_value
             self._hamming_weight_report += "\t{0}ns/bit: {1}\n".format(
-                time, p_value)
+                mod_time, p_value)
             if self.verbose:
-                print("[i] {0}ns/bit: {1}".format(time, p_value))
+                print("[i] {0}ns/bit: {1}".format(mod_time, p_value))
             os.remove(tmp_file)
 
         return sm_p_values
