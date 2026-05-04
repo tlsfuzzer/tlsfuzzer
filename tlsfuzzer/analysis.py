@@ -2734,6 +2734,8 @@ class Analysis(object):
 
         data = self._read_hamming_weight_data(name)
         all_pairs = set()
+        time_of_pairs = 0.0
+        time_of_slope = 0.0
         try:
             pair_writers = dict()
 
@@ -2756,7 +2758,12 @@ class Analysis(object):
             pair_writers['slope'].write(
                     "lower,higher\n")
 
+            if self.verbose:
+                print("[i]  Pariwise preparation: {:.3}s".format(
+                    time.time() - start_time))
+
             for block_vals in self._read_tuples(data):
+                start_temp = time.time()
                 # save data to estimate the slope of the time to Hamming weight
                 # dependency (if there is no dependency then the slope will
                 # be 0
@@ -2764,6 +2771,9 @@ class Analysis(object):
                 for lower, higher in zip(i, i):
                     pair_writers['slope'].write(
                         "{0},{1}\n".format(lower[1], higher[1]))
+
+                time_of_slope += time.time() - start_temp
+                start_temp = time.time()
 
                 # create pairwise comparisons graphs only for the most common
                 # groups, skip blocks that have only uncommon groups in them
@@ -2815,12 +2825,15 @@ class Analysis(object):
                                     base_value, compared_value))
 
 
+                time_of_pairs += time.time() - start_temp
         finally:
             del data
             for writer in pair_writers.values():
                 writer.close()
 
         if self.verbose:
+            print("[i]  Splitting up slope: {:.3}s".format(time_of_slope))
+            print("[i]  Splitting up pairs: {:.3}s".format(time_of_pairs))
             print("[i] Splitting up data to pairwise directories done in {:.3}s".format(
                 time.time() - start_time))
 
