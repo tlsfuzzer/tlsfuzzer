@@ -2728,6 +2728,36 @@ class Analysis(object):
         finally:
             del data
 
+    def _write_pair_to_file(self, args):
+        (base_group, compared_group), data = args
+
+        sparse_data = sparse.csc_array((data['value'],
+                                        (data['block'], data['group'])))
+        pair_path = join(
+            self.output,
+            "analysis_results/by-pair-sizes/"
+            "{0:04d}-{1:04d}".format(
+                base_group, compared_group))
+        pair_path_file = join(pair_path, "timing.csv")
+        try:
+            os.makedirs(pair_path)
+            # if it exists, it will raise an exception
+            # otherwise we put the header in
+            with open(pair_path_file, "w") as f:
+                f.write(
+                    "{0},{1}\n".format(base_group,
+                                       compared_group))
+        except FileExistsError:
+            pass
+        with open(pair_path_file, "a") as f:
+            np.savetxt(f,
+                       sparse_data[
+                           np.ix_(
+                               np.intersect1d(sparse_data[:,(base_group,)].indices,
+                                              sparse_data[:,(compared_group,)].indices),
+                               [base_group, compared_group])].toarray(),
+                       delimiter=",")
+
     def _split_data_to_pairwise(self, name):
         if self.verbose:
             start_time = time.time()
@@ -2767,8 +2797,10 @@ class Analysis(object):
                                             (data['block'], data['group'])))
 
             start_temp = time.time()
+
             # create pairwise comparisons graphs only for the most common
             # groups, skip blocks that have only uncommon groups in them
+            group_pairs = []
             for group_pair in combinations(unique_vals, 2):
                 if group_pair[0] in most_common:
                     base_group, compared_group = group_pair
@@ -2776,31 +2808,15 @@ class Analysis(object):
                     compared_group, base_group = group_pair
                 else:
                     continue
+                group_pairs.append((base_group, compared_group))
+            with mp.Pool(self.workers) as pool:
 
-                pair_path = join(
-                    self.output,
-                    "analysis_results/by-pair-sizes/"
-                    "{0:04d}-{1:04d}".format(
-                        base_group, compared_group))
-                pair_path_file = join(pair_path, "timing.csv")
-                try:
-                    os.makedirs(pair_path)
-                    # if it exists, it will raise an exception
-                    # otherwise we put the header in
-                    with open(pair_path_file, "w") as f:
-                        f.write(
-                            "{0},{1}\n".format(base_group,
-                                               compared_group))
-                except FileExistsError:
+                for i in pool.imap_unordered(
+                    self._write_pair_to_file,
+                    zip(group_pairs, repeat(data))
+                ):
                     pass
-                with open(pair_path_file, "a") as f:
-                    np.savetxt(f,
-                               sparse_data[
-                                   np.ix_(
-                                       np.intersect1d(sparse_data[:,(base_group,)].indices,
-                                                      sparse_data[:,(compared_group,)].indices),
-                                       [base_group, compared_group])].toarray(),
-                               delimiter=",")
+
             time_of_pairs += time.time() - start_temp
 
             for block_vals in self._read_tuples(data):
