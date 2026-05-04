@@ -2758,12 +2758,34 @@ class Analysis(object):
                                [base_group, compared_group])].toarray(),
                        delimiter=",")
 
+    def _read_shared_hamming_weight_data(self, measurements_bin_path, mode="r"):
+        blocks = SharedMemmap(measurements_bin_path,
+                              dtype=[('block', np.dtype('i8')),
+                                     ('group', np.dtype('i4')),
+                                     ('value', np.dtype('f8'))],
+                              mode=mode,
+                              column="block")
+        groups = SharedMemmap(measurements_bin_path,
+                              dtype=[('block', np.dtype('i8')),
+                                     ('group', np.dtype('i4')),
+                                     ('value', np.dtype('f8'))],
+                              mode=mode,
+                              column="group")
+        values = SharedMemmap(measurements_bin_path,
+                              dtype=[('block', np.dtype('i8')),
+                                     ('group', np.dtype('i4')),
+                                     ('value', np.dtype('f8'))],
+                              mode=mode,
+                              column="value")
+
+        return dict([("block", blocks), ("group", groups), ("value", values)])
+
     def _split_data_to_pairwise(self, name):
         if self.verbose:
             start_time = time.time()
             print("[i] Splitting up data to pairwise directories")
 
-        data = self._read_hamming_weight_data(name)
+        data = self._read_shared_hamming_weight_data(name)
         all_pairs = set()
         time_of_pairs = 0.0
         time_of_slope = 0.0
@@ -2792,9 +2814,6 @@ class Analysis(object):
             if self.verbose:
                 print("[i]  Pariwise preparation: {:.3}s".format(
                     time.time() - start_time))
-
-            sparse_data = sparse.csc_array((data['value'],
-                                            (data['block'], data['group'])))
 
             start_temp = time.time()
 
