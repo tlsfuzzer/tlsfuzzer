@@ -2729,7 +2729,7 @@ class Analysis(object):
             del data
 
     def _write_pair_to_file(self, args):
-        (base_group, compared_group), data = args
+        (base_group, compared_group), data, lock = args
 
         sparse_data = sparse.csc_array((data['value'],
                                         (data['block'], data['group'])))
@@ -2749,14 +2749,16 @@ class Analysis(object):
                                        compared_group))
         except FileExistsError:
             pass
-        with open(pair_path_file, "a") as f:
-            np.savetxt(f,
-                       sparse_data[
-                           np.ix_(
-                               np.intersect1d(sparse_data[:,(base_group,)].indices,
-                                              sparse_data[:,(compared_group,)].indices),
-                               [base_group, compared_group])].toarray(),
-                       delimiter=",")
+        data_to_write = \
+            sparse_data[
+                        np.ix_(
+                            np.intersect1d(sparse_data[:,(base_group,)].indices,
+                                           sparse_data[:,(compared_group,)].indices),
+                            [base_group, compared_group])
+                        ].toarray()
+        with lock:
+            with open(pair_path_file, "a") as f:
+                np.savetxt(f, data_to_write, delimiter=",")
 
     def _read_shared_hamming_weight_data(self, measurements_bin_path, mode="r"):
         blocks = SharedMemmap(measurements_bin_path,
@@ -2828,13 +2830,15 @@ class Analysis(object):
                 else:
                     continue
                 group_pairs.append((base_group, compared_group))
-            with mp.Pool(self.workers) as pool:
+            with mp.Manager() as manager:
+                lock = manager.Lock()
+                with mp.Pool(self.workers) as pool:
 
-                for i in pool.imap_unordered(
-                    self._write_pair_to_file,
-                    zip(group_pairs, repeat(data))
-                ):
-                    pass
+                    for i in pool.imap_unordered(
+                        self._write_pair_to_file,
+                        zip(group_pairs, repeat(data), repeat(lock))
+                    ):
+                        pass
 
             time_of_pairs += time.time() - start_temp
 
