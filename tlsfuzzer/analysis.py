@@ -258,6 +258,107 @@ def main():
         raise ValueError("Missing -o option!")
 
 
+def _slope_writer_process(queue, slope_path):
+    """Dedicated process for writing slope data."""
+    os.makedirs(slope_path, exist_ok=True)
+    with open(join(slope_path, "timing.csv"), "w") as f:
+        f.write("lower,higher\n")
+        while True:
+            chunk = queue.get()
+            if chunk is None:  # Sentinel value to terminate
+                break
+            # Writing large batches is significantly faster than line-by-line
+            f.writelines(chunk)
+
+
+def _worker_process(worker_id, name, start_idx, end_idx, most_common, output_dir, slope_queue):
+    """Worker process that parses a chunk of the memmap and buffers writes."""
+    start_time = time.time()
+
+    # Re-open the memmap locally for this process to ensure thread/process safety
+    data = np.memmap(name,
+                     dtype=[('block', 'i8'), ('group', 'i4'), ('value', 'f8')],
+                     mode='r')[start_idx:end_idx]
+
+    time_of_slope = 0.0
+    time_of_pairs = 0.0
+    all_pairs = set()
+
+    BUFFER_LIMIT = 50000
+    pair_buffers = defaultdict(list)
+    slope_buffer = []
+
+    def flush_pair(pair_key):
+        """Flushes an individual pair's buffer to disk."""
+        base_group, compared_group = pair_key
+        pair_path = join(output_dir, "analysis_results", "by-pair-sizes",
+                         f"{base_group:04d}-{compared_group:04d}")
+        os.makedirs(pair_path, exist_ok=True)
+
+        # Write to a worker-specific file to avoid lock contention
+        file_path = join(pair_path, f"timing_{worker_id}.csv")
+        with open(file_path, "a") as f:
+            f.writelines(pair_buffers[pair_key])
+        pair_buffers[pair_key].clear()
+
+    # Fast iteration through blocks
+    idx = 0
+    total_len = len(data)
+
+    while idx < total_len:
+        current_block = data['block'][idx]
+        block_start = idx
+
+        # Find the end of the current block
+        while idx < total_len and data['block'][idx] == current_block:
+            idx += 1
+        block_end = idx
+
+        # Extract block data
+        b_groups = data['group'][block_start:block_end]
+        b_values = data['value'][block_start:block_end]
+        block_vals = dict(zip(b_groups, b_values))
+
+        # --- SLOPE LOGIC ---
+        t_temp = time.time()
+        sorted_items = sorted(block_vals.items())
+        i = iter(sorted_items)
+        for (_, val1), (_, val2) in zip(i, i):
+            slope_buffer.append(f"{val1},{val2}\n")
+
+        if len(slope_buffer) >= BUFFER_LIMIT:
+            slope_queue.put(slope_buffer)
+            slope_buffer = []
+        time_of_slope += time.time() - t_temp
+
+        # --- PAIRWISE LOGIC ---
+        t_temp = time.time()
+        intersect = most_common.intersection(b_groups)
+        for base_group in intersect:
+            base_value = block_vals[base_group]
+            for compared_group, compared_value in block_vals.items():
+                if base_group == compared_group:
+                    continue
+
+                pair = (base_group, compared_group)
+                all_pairs.add(pair)
+                pair_buffers[pair].append(f"{base_value},{compared_value}\n")
+
+                if len(pair_buffers[pair]) >= BUFFER_LIMIT:
+                    flush_pair(pair)
+
+        time_of_pairs += time.time() - t_temp
+
+    # Flush remaining buffers
+    if slope_buffer:
+        slope_queue.put(slope_buffer)
+    for pair in list(pair_buffers.keys()):
+        if pair_buffers[pair]:
+            flush_pair(pair)
+
+    return time_of_slope, time_of_pairs, all_pairs
+
+
 class Analysis(object):
     """Analyse extracted timing information from csv file."""
 
@@ -2730,115 +2831,91 @@ class Analysis(object):
     def _split_data_to_pairwise(self, name):
         if self.verbose:
             start_time = time.time()
-            print("[i] Splitting up data to pairwise directories")
+            print("[i] Splitting up data to pairwise directories (Multiprocessing)")
+
+        if num_workers is None:
+            num_workers = mp.cpu_count()
 
         data = self._read_hamming_weight_data(name)
-        all_pairs = set()
-        time_of_pairs = 0.0
-        time_of_slope = 0.0
-        try:
-            pair_writers = dict()
 
-            unique_vals, unique_counts = np.unique(data['group'],
-                                                   return_counts=True)
-            group_counts = list((i, j)
-                                for i, j
-                                in zip(unique_vals, unique_counts))
-            group_counts = sorted(group_counts,
-                                  key=lambda x: x[1])
-            most_common = set(i for i, j in group_counts[-5:])
-            top_200_most_common = set(i for i, j in group_counts[-200:])
+        # Determine group counts
+        unique_vals, unique_counts = np.unique(data['group'], return_counts=True)
+        group_counts = sorted(zip(unique_vals, unique_counts), key=lambda x: x[1])
+        most_common = set(i for i, j in group_counts[-5:])
 
-            slope_path = join(self.output,
-                              "analysis_results/by-pair-sizes/slope")
-            os.makedirs(slope_path, exist_ok=True)
+        # Determine chunk boundaries dynamically without loading the whole array to RAM
+        total_len = len(data)
+        chunk_indices = [0]
 
-            pair_writers['slope'] = open(
-                    join(slope_path, "timing.csv"), "w")
-            pair_writers['slope'].write(
-                    "lower,higher\n")
+        for i in range(1, num_workers):
+            idx = total_len * i // num_workers
+            if idx >= total_len:
+                break
+            # Step forward until the block ID changes so we don't split a block
+            target_block = data['block'][idx]
+            while idx < total_len and data['block'][idx] == target_block:
+                idx += 1
+            chunk_indices.append(idx)
+        chunk_indices.append(total_len)
 
-            if self.verbose:
-                print("[i]  Pariwise preparation: {:.3}s".format(
-                    time.time() - start_time))
-
-            for block_vals in self._read_tuples(data):
-                start_temp = time.time()
-                # save data to estimate the slope of the time to Hamming weight
-                # dependency (if there is no dependency then the slope will
-                # be 0
-                i = iter(sorted(block_vals.items()))
-                for lower, higher in zip(i, i):
-                    pair_writers['slope'].write(
-                        "{0},{1}\n".format(lower[1], higher[1]))
-
-                time_of_slope += time.time() - start_temp
-                start_temp = time.time()
-
-                # create pairwise comparisons graphs only for the most common
-                # groups, skip blocks that have only uncommon groups in them
-                for base_group in most_common.intersection(block_vals.keys()):
-                    base_value = block_vals[base_group]
-                    for compared_group, compared_value in block_vals.items():
-                        if base_group == compared_group:
-                            continue
-
-                        pair = (base_group, compared_group)
-                        all_pairs.add(pair)
-                        pair_path = join(
-                            self.output,
-                            "analysis_results/by-pair-sizes/"
-                            "{0:04d}-{1:04d}".format(
-                                base_group, compared_group))
-                        # since we can have a lot of groups, we should keep open
-                        # only the files for most common groups and open all the
-                        # other ones on demand
-                        if compared_group in top_200_most_common:
-                            if pair not in pair_writers:
-                                try:
-                                    os.makedirs(pair_path)
-                                except FileExistsError:
-                                    # ignore error, overwrite the file
-                                    pass
-                                pair_writers[pair] = open(
-                                    join(pair_path, "timing.csv"), "w")
-                                pair_writers[pair].write(
-                                    "{0},{1}\n".format(base_group,
-                                                       compared_group))
-
-                            pair_writers[pair].write(
-                                "{0},{1}\n".format(base_value, compared_value))
-                        else:
-                            pair_path_file = join(pair_path, "timing.csv")
-                            try:
-                                os.makedirs(pair_path)
-                                # if it exists, it will raise an exception
-                                # otherwise we put the header in
-                                with open(pair_path_file, "w") as f:
-                                    f.write(
-                                        "{0},{1}\n".format(base_group,
-                                                           compared_group))
-                            except FileExistsError:
-                                pass
-                            with open(pair_path_file, "a") as f:
-                                f.write("{0},{1}\n".format(
-                                    base_value, compared_value))
-
-
-                time_of_pairs += time.time() - start_temp
-        finally:
-            del data
-            for writer in pair_writers.values():
-                writer.close()
+        # Deduplicate indices in case workers got squeezed at the end
+        chunk_indices = sorted(list(set(chunk_indices)))
 
         if self.verbose:
-            print("[i]  Splitting up slope: {:.3}s".format(time_of_slope))
-            print("[i]  Splitting up pairs: {:.3}s".format(time_of_pairs))
-            print("[i] Splitting up data to pairwise directories done in {:.3}s".format(
-                time.time() - start_time))
+            print(f"[i] Pairwise preparation and chunking done: {time.time() - start_time:.3f}s")
 
-        # for pairwise tests we just need it one-way, but we need to preserve the order
-        # in the tuple
+        slope_path = join(self.output, "analysis_results/by-pair-sizes/slope")
+        manager = mp.Manager()
+        slope_queue = manager.Queue()
+
+        # Start dedicated slope writer
+        slope_writer = mp.Process(target=_slope_writer_process, args=(slope_queue, slope_path))
+        slope_writer.start()
+
+        # Execute workers
+        pool_args = []
+        for w_id in range(len(chunk_indices) - 1):
+            pool_args.append((
+                w_id, name, chunk_indices[w_id], chunk_indices[w_id+1],
+                most_common, self.output, slope_queue
+            ))
+
+        with mp.Pool(processes=num_workers) as pool:
+            results = pool.starmap(_worker_process, pool_args)
+
+        # Signal slope writer to finish and wait for it
+        slope_queue.put(None)
+        slope_writer.join()
+
+        # Aggregate metrics
+        time_of_slope = sum(r[0] for r in results)
+        time_of_pairs = sum(r[1] for r in results)
+        all_pairs = set().union(*(r[2] for r in results))
+
+        # Merge worker-specific CSV files into single timing.csv files
+        if self.verbose:
+            print("[i] Merging temporary worker files...")
+
+        for base_group, compared_group in all_pairs:
+            pair_path = join(self.output, "analysis_results/by-pair-sizes",
+                             f"{base_group:04d}-{compared_group:04d}")
+            final_file = join(pair_path, "timing.csv")
+
+            with open(final_file, "w") as outfile:
+                outfile.write(f"{base_group},{compared_group}\n")
+                # Append all worker files and delete them
+                for w_id in range(num_workers):
+                    temp_file = join(pair_path, f"timing_{w_id}.csv")
+                    if os.path.exists(temp_file):
+                        with open(temp_file, "r") as infile:
+                            outfile.write(infile.read())
+                        os.remove(temp_file)
+
+        if self.verbose:
+            print(f"[i] Splitting up slope: {time_of_slope:.3f}s (Aggregated CPU time)")
+            print(f"[i] Splitting up pairs: {time_of_pairs:.3f}s (Aggregated CPU time)")
+            print(f"[i] Splitting up data done in {time.time() - start_time:.3f}s")
+
         all_unique_pairs = set()
         for i in all_pairs:
             if (i[1], i[0]) not in all_unique_pairs:
