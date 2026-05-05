@@ -2820,19 +2820,28 @@ class Analysis(object):
             yield block_values
 
     def _add_value_to_group(self, name, group, diff):
-        data = self._read_hamming_weight_data(name, mode="r+")
+        all_data = self._read_hamming_weight_data(name, mode="r+")
         try:
-            groups = data['group']
-            values = data['value']
-            values[groups == group] += diff
+            for data in np.split(all_data,
+                                 range(10000000,
+                                       len(all_data['group']),
+                                       10000000)):
+                groups = data['group']
+                values = data['value']
+                values[groups == group] += diff
         finally:
             del data
+
+    def _worker_add_value_to_group(self, args):
+        name, group, diff = args
+        return self._add_value_to_group(name, group, diff)
 
     def _split_data_to_pairwise(self, name):
         if self.verbose:
             start_time = time.time()
             print("[i] Splitting up data to pairwise directories (Multiprocessing)")
 
+        num_workers = self.workers
         if num_workers is None:
             num_workers = mp.cpu_count()
 
@@ -2979,9 +2988,13 @@ class Analysis(object):
                 start_time = time.time()
                 print("[i] Starting file modification for {0}ns/bit side-channel".format(mod_time))
             shutil.copyfile(name_bin, tmp_file)
-            for i in groups:
-                self._add_value_to_group(
-                    tmp_file, i, (i - median) * mod_time * 1e-9)
+            with mp.Pool(processes=self.workers) as pool:
+                for i in pool.imap_unordered(
+                        self._worker_add_value_to_group,
+                        zip(repeat(tmp_file),
+                            groups,
+                            ((i - median) * mod_time * 1e-9 for i in groups))):
+                    pass
             if self.verbose:
                 print("[i] File modified in {:.3}s".format(time.time() - start_time))
             p_value = self.skillings_mack_test(tmp_file)
