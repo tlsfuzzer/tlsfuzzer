@@ -30,6 +30,7 @@ from itertools import combinations, repeat, chain
 import os
 import time
 import random
+import tempfile
 import statistics
 
 import numpy as np
@@ -1012,45 +1013,99 @@ class Analysis(object):
                    )
 
     @staticmethod
-    def _cent_tend_of_random_sample(reps=100):
+    def _sample_memory_efficient(data, out_data):
+        """
+        implement an equivalent of
+        ```
+        out_data = np.random.choice(data, replace=True, size=len(data
+        out_data.sort()
+        ```
+        that assumes sorted data on input
+        """
+        sample_size = len(data)
+        bin_size = int(math.sqrt(len(data)))
+        num_bins = (sample_size + bin_size - 1) // bin_size
+
+        bin_sizes = np.repeat(np.int64(bin_size), sample_size // bin_size)
+        if sample_size % bin_size:
+            bin_sizes = np.append(bin_sizes, np.int64(sample_size % bin_size))
+        assert len(bin_sizes) == num_bins
+        bin_idx = np.cumsum(bin_sizes)
+
+        # sample bins (how many values to pull from every bin)
+        bin_populations = np.zeros(num_bins, dtype=np.int64)
+
+        for count in bin_sizes:
+            subsample = np.random.randint(0, sample_size, count)
+            subsample //= bin_size
+            bin_populations += np.bincount(subsample, minlength=num_bins)
+
+        assert sum(bin_populations) == sample_size
+
+        out_idx = np.cumsum(bin_populations)
+
+        # then sample from every chunk
+        start_idx = 0
+        out_start = 0
+        for end_idx, out_end, out_sample_size in zip(bin_idx, out_idx, bin_populations):
+            sample_idxs = np.random.randint(0, end_idx - start_idx, size=out_sample_size)
+            sample_count = np.bincount(sample_idxs, minlength=end_idx - start_idx)
+            sample = np.repeat(data[start_idx:end_idx], sample_count)
+
+            out_data[out_start:out_end] = sample
+
+            start_idx = end_idx
+            out_start = out_end
+
+        assert len(out_data) == len(data)
+
+    @staticmethod
+    def _cent_tend_of_random_sample(args):
         """
         Calculate mean, median, trimmed means (5%, 25%, 45%) and trimean with
         bootstrapping.
         """
+        reps, file_name, dir_name = args
         ret = []
-        global _diffs
-        diffs = _diffs
+        data = np.memmap(file_name, dtype=np.float64, mode="r", order="C")
 
         for _ in range(reps):
-            boot = np.random.choice(diffs, replace=True, size=len(diffs))
+            with tempfile.NamedTemporaryFile(dir=dir_name) as fp:
+                boot = np.memmap(fp,
+                                 dtype=np.float64,
+                                 mode="w+",
+                                 shape=(len(data),),
+                                 order="C")
 
-            q1, median, q3 = np.quantile(boot, [0.25, 0.5, 0.75])
-            # use tuple instead of a dict because tuples are much quicker
-            # to instantiate
-            ret.append((np.mean(boot, 0),
-                        median,
-                        stats.trim_mean(boot, 0.05, 0),
-                        stats.trim_mean(boot, 0.25, 0),
-                        stats.trim_mean(boot, 0.45, 0),
-                        (q1+2*median+q3)/4))
+                Analysis._sample_memory_efficient(data, boot)
+
+                q1, median, q3 = np.quantile(boot, [0.25, 0.5, 0.75])
+                # use tuple instead of a dict because tuples are much quicker
+                # to instantiate
+                ret.append((np.mean(boot, 0),
+                            median,
+                            stats.trim_mean(boot, 0.05, 0),
+                            stats.trim_mean(boot, 0.25, 0),
+                            stats.trim_mean(boot, 0.45, 0),
+                            (q1+2*median+q3)/4))
         return ret
-
-    @staticmethod
-    def _import_diffs(diffs):
-        global _diffs
-        _diffs = diffs
 
     def _bootstrap_differences(self, pair, reps=5000, status=None):
         """Return a list of bootstrapped central tendencies of differences."""
-        # don't pickle the diffs as they are read-only, use a global to pass
-        # it to workers
-        global _diffs
         # because the samples are not independent, we calculate mean of
         # differences not a difference of means
         data = self.load_data()
         index1, index2 = pair
         _diffs = data.iloc[:, index2] -\
             data.iloc[:, index1]
+
+        diff_bin_path = join(self.output, "timing_diff.bin")
+        diff_bin = np.memmap(diff_bin_path, dtype=np.float64,
+                             mode="w+", shape=(len(_diffs), ), order="C")
+        diff_bin[:] = _diffs[:]
+        _diffs = None
+        diff_bin.sort()
+        diff_bin.flush()
 
         job_count = os.cpu_count() * 4
         job_size = max(reps // job_count, 1)
@@ -1060,8 +1115,7 @@ class Analysis(object):
 
         ret = dict((k, list()) for k in keys)
 
-        with mp.Pool(self.workers, initializer=self._import_diffs,
-                     initargs=(_diffs,)) as pool:
+        with mp.Pool(self.workers) as pool:
             # while it's accessing a protected member of a python class,
             # it's a). been there for a long time (at least 2.7) and
             # b). it's because of a bug in multiprocessing module itself:
@@ -1071,7 +1125,11 @@ class Analysis(object):
 
             cent_tend = pool.imap_unordered(
                 self._cent_tend_of_random_sample,
-                chain(repeat(job_size, reps // job_size), [reps % job_size]))
+                zip(chain(repeat(job_size, reps // job_size), [reps % job_size]),
+                    repeat(diff_bin_path),
+                    repeat(self.output),
+                )
+            )
 
             for values in cent_tend:
                 # handle reps % job_size == 0
@@ -1088,7 +1146,8 @@ class Analysis(object):
                 self._check_if_workers_are_alive(workers)
             # pylint: enable=protected-access
 
-        _diffs = None
+        os.remove(diff_bin_path)
+
         return ret
 
     def _calc_exact_values(self, diff):
