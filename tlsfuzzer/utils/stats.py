@@ -238,8 +238,7 @@ def skillings_mack_test(values, groups, blocks, duplicates=None, status=None,
 
         # smaller chunk size gives better updates on progress and
         # less of a rounding error with summing
-        chunk_size = min(1024*1024,
-                         max(10, len(blocks) // (os.cpu_count() * 20)))
+        chunk_size = max(10, len(blocks) // (os.cpu_count() * 4))
 
         chunks = p.imap_unordered(_summarise_chunk,
                                   ((values, groups, blocks, all_groups,
