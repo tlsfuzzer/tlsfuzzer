@@ -1013,7 +1013,7 @@ class Analysis(object):
                    )
 
     @staticmethod
-    def _sample_memory_efficient(data, out_data):
+    def _sample_memory_efficient(data):
         """
         implement an equivalent of
         ```
@@ -1052,12 +1052,10 @@ class Analysis(object):
             sample_count = np.bincount(sample_idxs, minlength=end_idx - start_idx)
             sample = np.repeat(data[start_idx:end_idx], sample_count)
 
-            out_data[out_start:out_end] = sample
+            yield sample
 
             start_idx = end_idx
             out_start = out_end
-
-        assert len(out_data) == len(data)
 
     @staticmethod
     def _cent_tend_of_random_sample(args):
@@ -1069,25 +1067,63 @@ class Analysis(object):
         ret = []
         data = np.memmap(file_name, dtype=np.float64, mode="r", order="C")
 
+        data_size = len(data)
+
+        median1_idx = (data_size - 1) // 2
+        median2_idx = (data_size - 1 + 1) // 2
+
+        trim_mean_5_start_idx = int(0.05 * data_size)
+        trim_mean_5_stop_idx = data_size - trim_mean_5_start_idx
+
+        trim_mean_25_start_idx = int(0.25 * data_size)
+        trim_mean_25_stop_idx = data_size - trim_mean_25_start_idx
+
+        trim_mean_45_start_idx = int(0.45 * data_size)
+        trim_mean_45_stop_idx = data_size - trim_mean_45_start_idx
+
         for _ in range(reps):
-            with tempfile.NamedTemporaryFile(dir=dir_name) as fp:
-                boot = np.memmap(fp,
-                                 dtype=np.float64,
-                                 mode="w+",
-                                 shape=(len(data),),
-                                 order="C")
+            mean_sum = []
+            trim_mean_5_sum = []
+            trim_mean_25_sum = []
+            trim_mean_45_sum = []
+            start_idx = 0
+            for sample in Analysis._sample_memory_efficient(data):
+                sample_len = len(sample)
+                end_idx = start_idx + sample_len
+                mean_sum.append(np.sum(sample))
 
-                Analysis._sample_memory_efficient(data, boot)
+                if median1_idx >= start_idx and median1_idx < end_idx:
+                    median1 = sample[median1_idx - start_idx]
+                if median2_idx >= start_idx and median2_idx < end_idx:
+                    median2 = sample[median2_idx - start_idx]
 
-                q1, median, q3 = np.quantile(boot, [0.25, 0.5, 0.75])
-                # use tuple instead of a dict because tuples are much quicker
-                # to instantiate
-                ret.append((np.mean(boot, 0),
-                            median,
-                            stats.trim_mean(boot, 0.05, 0),
-                            stats.trim_mean(boot, 0.25, 0),
-                            stats.trim_mean(boot, 0.45, 0),
-                            (q1+2*median+q3)/4))
+                a = max(0, min(sample_len, trim_mean_5_start_idx - start_idx))
+                b = min(sample_len, max(0, trim_mean_5_stop_idx - start_idx))
+                trim_mean_5_subsample = sample[a:b]
+                trim_mean_5_sum.append(np.sum(trim_mean_5_subsample))
+
+                a = max(0, min(sample_len, trim_mean_25_start_idx - start_idx))
+                b = min(sample_len, max(0, trim_mean_25_stop_idx - start_idx))
+                trim_mean_25_subsample = sample[a:b]
+                trim_mean_25_sum.append(np.sum(trim_mean_25_subsample))
+
+                a = max(0, min(sample_len, trim_mean_45_start_idx - start_idx))
+                b = min(sample_len, max(0, trim_mean_45_stop_idx - start_idx))
+                trim_mean_45_subsample = sample[a:b]
+                trim_mean_45_sum.append(np.sum(trim_mean_45_subsample))
+
+                start_idx = end_idx
+
+            q1, q3 = 0, 1
+            median = (median1 + median2) / 2
+            # use tuple instead of a dict because tuples are much quicker
+            # to instantiate
+            ret.append((np.sum(mean_sum) / data_size,
+                        median,
+                        np.sum(trim_mean_5_sum) / (trim_mean_5_stop_idx - trim_mean_5_start_idx),
+                        np.sum(trim_mean_25_sum) / (trim_mean_25_stop_idx - trim_mean_25_start_idx),
+                        np.sum(trim_mean_45_sum) / (trim_mean_45_stop_idx - trim_mean_45_start_idx),
+                        (q1+2*median+q3)/4))
         return ret
 
     def _bootstrap_differences(self, pair, reps=5000, status=None):
