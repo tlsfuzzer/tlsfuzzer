@@ -116,6 +116,10 @@ def help_msg():
     print("                Contents must be concatenated PKCS#8 PEM keys.")
     print(" --ml-kem-keys FILE Analyse the time based on ML-KEM key and")
     print("                ciphertexts.")
+    print(" --ml-dsa-keys FILE Analyse the time based on ML-DSA private key,")
+    print("                signatures, and messages (reconstruct intermediates).")
+    print(" --ml-dsa-sigs FILE Binary file with concatenated ML-DSA signatures.")
+    print(" --ml-dsa-msgs FILE Binary file with concatenated ML-DSA messages.")
     print(" --workers num  Number of worker processes to use for")
     print("                parallelizable computation. More workers")
     print("                will finish analysis faster, but will require")
@@ -181,6 +185,9 @@ def main():
     max_bit_size = None
     verbose = False
     ml_kem_keys = None
+    ml_dsa_keys = None
+    ml_dsa_sigs = None
+    ml_dsa_msgs = None
 
     argv = sys.argv[1:]
 
@@ -198,6 +205,7 @@ def main():
                                 "clock-frequency=", "hash-func=",
                                 "skip-invert", "workers=", "rsa-keys=",
                                 "max-bit-size=", "ml-kem-keys=",
+                                "ml-dsa-keys=", "ml-dsa-sigs=", "ml-dsa-msgs=",
                                 "verbose"])
     for opt, arg in opts:
         if opt == '-l':
@@ -244,6 +252,12 @@ def main():
             rsa_keys = arg
         elif opt == "--ml-kem-keys":
             ml_kem_keys = arg
+        elif opt == "--ml-dsa-keys":
+            ml_dsa_keys = arg
+        elif opt == "--ml-dsa-sigs":
+            ml_dsa_sigs = arg
+        elif opt == "--ml-dsa-msgs":
+            ml_dsa_msgs = arg
         elif opt == "--priv-key-ecdsa":
             priv_key = arg
             if not key_type:
@@ -287,7 +301,8 @@ def main():
         raise ValueError(
             "Only 'little' and 'big' endianess supported")
 
-    if not all([any([logfile, sigs, rsa_keys, ml_kem_keys, values]), output]):
+    if not all([any([logfile, sigs, rsa_keys, ml_kem_keys, ml_dsa_keys,
+                     values]), output]):
         raise ValueError(
             "Specifying either logfile, rsa keys, raw sigs or raw values "
             "and output is mandatory")
@@ -310,6 +325,11 @@ def main():
         raise ValueError(
             "When doing ML-KEM secret extraction, raw values, times, "
             "and logile are necessary.")
+
+    if ml_dsa_keys and not all([ml_dsa_sigs, ml_dsa_msgs, raw_times]):
+        raise ValueError(
+            "When doing ML-DSA intermediate extraction, raw times, "
+            "ml-dsa-keys, ml-dsa-sigs, and ml-dsa-msgs are necessary.")
 
     if hash_func_name == None:
         if prehashed:
@@ -337,7 +357,10 @@ def main():
         workers=workers, verbose=verbose, rsa_keys=rsa_keys,
         sig_format=sig_format, values=values, value_size=value_size,
         value_endianness=value_endianness, max_bit_size=max_bit_size,
-        ml_kem_keys=ml_kem_keys
+        ml_kem_keys=ml_kem_keys,
+        ml_dsa_keys=ml_dsa_keys,
+        ml_dsa_sigs=ml_dsa_sigs,
+        ml_dsa_msgs=ml_dsa_msgs
     )
     extract.parse()
 
@@ -362,6 +385,9 @@ def main():
 
     if ml_kem_keys:
         extract.process_ml_kem_keys()
+
+    if ml_dsa_keys:
+        extract.process_ml_dsa_signatures()
 
 
 class LongFormatCSVBlocker(object):
@@ -449,7 +475,8 @@ class Extract:
                  hash_func=hashlib.sha256, workers=None, verbose=False,
                  fin_as_resp=False, rsa_keys=None, sig_format="DER",
                  values=None, value_size=None, value_endianness="little",
-                 max_bit_size=None, ml_kem_keys=None):
+                 max_bit_size=None, ml_kem_keys=None,
+                 ml_dsa_keys=None, ml_dsa_sigs=None, ml_dsa_msgs=None):
         """
         Initialises instance and sets up class name generator from log.
 
@@ -538,6 +565,9 @@ class Extract:
         self.value_endianness = value_endianness
         self.max_bit_size = max_bit_size
         self.ml_kem_keys = ml_kem_keys
+        self.ml_dsa_keys = ml_dsa_keys
+        self.ml_dsa_sigs = ml_dsa_sigs
+        self.ml_dsa_msgs = ml_dsa_msgs
 
         if sig_format not in ["DER", "RAW"]:
             raise ValueError(
@@ -2071,6 +2101,310 @@ class Extract:
                 ml_kem_keys.close()
             if ciphertexts:
                 ciphertexts.close()
+
+            for i in measurements.values():
+                if i:
+                    i.close()
+
+    def _parse_pem_ml_dsa_key(self, sk_pem):
+        from dilithium_py.ml_dsa.pkcs import sk_from_pem
+        from dilithium_py.ml_dsa.ml_dsa import ML_DSA
+        from dilithium_py.ml_dsa.default_parameters import DEFAULT_PARAMETERS
+
+        _, sk, _, _ = sk_from_pem(sk_pem)
+
+        sk_size = len(sk)
+        if sk_size == 2560:
+            scheme = ML_DSA(DEFAULT_PARAMETERS['ML_DSA_44'])
+        elif sk_size == 4032:
+            scheme = ML_DSA(DEFAULT_PARAMETERS['ML_DSA_65'])
+        elif sk_size == 4896:
+            scheme = ML_DSA(DEFAULT_PARAMETERS['ML_DSA_87'])
+        else:
+            raise ValueError(
+                'Unknown ML-DSA private key size: {0} bytes'.format(sk_size))
+
+        return scheme, sk
+
+    def _read_ml_dsa_key(self, file):
+        lines = []
+        while True:
+            line = file.readline()
+            if not line:
+                return None
+            line = line.strip()
+            if line == '-----BEGIN PRIVATE KEY-----':
+                lines.append(line)
+                break
+        while True:
+            line = file.readline()
+            if not line:
+                raise ValueError('Truncated private key file.')
+            line = line.strip()
+            if line == '-----BEGIN PRIVATE KEY-----':
+                raise ValueError('Inconsistent private key file.')
+            lines.append(line)
+            if line == '-----END PRIVATE KEY-----':
+                break
+
+        one_pem_key = '\n'.join(lines)
+
+        return self._parse_pem_ml_dsa_key(one_pem_key)
+
+    def _iter_ml_dsa_vector_coeffs(self, vector):
+        m, n = vector.dim()
+        if m == 1:
+            for j in range(n):
+                for c in vector[0, j].coeffs:
+                    yield int(c)
+        elif n == 1:
+            for i in range(m):
+                for c in vector[i, 0].coeffs:
+                    yield int(c)
+        else:
+            raise ValueError(
+                'Expected ML-DSA vector layout (1, n) or (m, 1), got ({0}, {1})'
+                .format(m, n))
+
+    def _ml_dsa_vector_coeff_stats(self, vector, q, alpha=None):
+        n_zero = 0
+        n_need_reduction = 0
+        n_fully_low_bit = 0
+        n_above_low_bit_cutoff = 0
+        half_q = q // 2
+        alpha_half = (alpha // 2) if alpha is not None else None
+
+        for c in self._iter_ml_dsa_vector_coeffs(vector):
+            c = int(c) % q
+            if c == 0:
+                n_zero += 1
+            if c > half_q:
+                n_need_reduction += 1
+            if alpha_half is not None:
+                if c <= alpha_half:
+                    n_fully_low_bit += 1
+                else:
+                    n_above_low_bit_cutoff += 1
+
+        out = {'n_zero': n_zero, 'n_need_reduction': n_need_reduction}
+        if alpha is not None:
+            out['n_fully_low_bit'] = n_fully_low_bit
+            out['n_above_low_bit_cutoff'] = n_above_low_bit_cutoff
+        return out
+
+    def _ml_dsa_sign_intermediates(self, scheme, sk, sig, msg):
+        rho, k, tr, s1, s2, _t0 = scheme._unpack_sk(sk)
+        s1_hat = s1.to_ntt()
+        s2_hat = s2.to_ntt()
+        a_hat = scheme._expand_matrix_from_seed(rho)
+        q = s1.parent.ring.q
+
+        values = dict()
+
+        c_tilde, z, _h = scheme._unpack_sig(sig)
+
+        m_prime = bytes([0, 0]) + msg
+        mu = scheme._h(tr + m_prime, 64)
+
+        rnd = bytes([0] * 32)
+        rho_prime = scheme._h(k + rnd + mu, 64)
+
+        c = scheme.R.sample_in_ball(c_tilde, scheme.tau)
+        c_hat = c.to_ntt()
+
+        c_s1_hat = s1_hat.scale(c_hat)
+        c_s1 = c_s1_hat.from_ntt()
+        y = z - c_s1
+
+        y_hat = y.to_ntt()
+        w_hat = a_hat @ y_hat
+        w = w_hat.from_ntt()
+
+        alpha = scheme.gamma_2 << 1
+        c_s2_hat = s2_hat.scale(c_hat)
+        c_s2 = c_s2_hat.from_ntt()
+
+        w0 = w.low_bits(alpha)
+
+        values['hw-rho-prime'] = bit_count(bytesToNumber(rho_prime))
+        values['bit-size-rho-prime'] = bit_length(bytesToNumber(rho_prime))
+        values['rho-prime-n-zero'] = sum(1 for b in rho_prime if b == 0)
+
+        y_hw = 0
+        y_bits = 0
+        for c0 in self._iter_ml_dsa_vector_coeffs(y):
+            y_hw += bit_count(c0)
+            y_bits += bit_length(c0)
+        values['hw-y'] = y_hw
+        values['bit-size-y'] = y_bits
+        sy = self._ml_dsa_vector_coeff_stats(y, q, alpha)
+        values['y-n-zero'] = sy['n_zero']
+        values['y-n-need-reduction'] = sy['n_need_reduction']
+        values['y-n-fully-low-bit'] = sy['n_fully_low_bit']
+        values['y-n-above-low-bit-cutoff'] = sy['n_above_low_bit_cutoff']
+
+        w_hw = 0
+        w_bits = 0
+        for c0 in self._iter_ml_dsa_vector_coeffs(w):
+            w_hw += bit_count(c0)
+            w_bits += bit_length(c0)
+        values['hw-w'] = w_hw
+        values['bit-size-w'] = w_bits
+        sw = self._ml_dsa_vector_coeff_stats(w, q, alpha)
+        values['w-n-zero'] = sw['n_zero']
+        values['w-n-need-reduction'] = sw['n_need_reduction']
+        values['w-n-fully-low-bit'] = sw['n_fully_low_bit']
+        values['w-n-above-low-bit-cutoff'] = sw['n_above_low_bit_cutoff']
+
+        cs1_hw = 0
+        cs1_bits = 0
+        for c0 in self._iter_ml_dsa_vector_coeffs(c_s1):
+            cs1_hw += bit_count(c0)
+            cs1_bits += bit_length(c0)
+        values['hw-c-s1'] = cs1_hw
+        values['bit-size-c-s1'] = cs1_bits
+        scs1 = self._ml_dsa_vector_coeff_stats(c_s1, q)
+        values['c-s1-n-zero'] = scs1['n_zero']
+        values['c-s1-n-need-reduction'] = scs1['n_need_reduction']
+
+        cs2_hw = 0
+        cs2_bits = 0
+        for c0 in self._iter_ml_dsa_vector_coeffs(c_s2):
+            cs2_hw += bit_count(c0)
+            cs2_bits += bit_length(c0)
+        values['hw-c-s2'] = cs2_hw
+        values['bit-size-c-s2'] = cs2_bits
+        scs2 = self._ml_dsa_vector_coeff_stats(c_s2, q)
+        values['c-s2-n-zero'] = scs2['n_zero']
+        values['c-s2-n-need-reduction'] = scs2['n_need_reduction']
+
+        w0_hw = 0
+        w0_bits = 0
+        for c0 in self._iter_ml_dsa_vector_coeffs(w0):
+            w0_hw += bit_count(c0)
+            w0_bits += bit_length(c0)
+        values['hw-w0'] = w0_hw
+        values['bit-size-w0'] = w0_bits
+
+        return values
+
+    def process_ml_dsa_signatures(self):
+        """
+        Extract intermediate data from ML-DSA signatures.
+
+        Requires the ``ml_dsa_keys``, ``ml_dsa_sigs``, and ``ml_dsa_msgs``
+        instance variables to be set, will create long format CSV files with
+        some metadata of intermediate values in the signing algorithm in the
+        output directory.
+        """
+        ml_dsa_keys = None
+        signatures = None
+        messages = None
+
+        times_iterator = self._get_time_from_file()
+
+        progress = None
+
+        try:
+            ml_dsa_keys = open(self.ml_dsa_keys, 'rt')
+
+            scheme, sk = self._read_ml_dsa_key(ml_dsa_keys)
+
+            sk_size = len(sk)
+            if sk_size == 2560:
+                sig_size = 2420
+            elif sk_size == 4032:
+                sig_size = 3309
+            elif sk_size == 4896:
+                sig_size = 4627
+            else:
+                raise ValueError(
+                    'Unknown ML-DSA key size: {0}'.format(sk_size))
+
+            msg_size = self.data_size if self.data_size else 32
+
+            value_names = {
+                'hw-rho-prime': {'window': 17},
+                'bit-size-rho-prime': {'window': 17},
+                'rho-prime-n-zero': {'window': 17},
+                'hw-y': {'window': 30},
+                'bit-size-y': {'window': 30},
+                'y-n-zero': {'window': 30},
+                'y-n-need-reduction': {'window': 30},
+                'y-n-fully-low-bit': {'window': 30},
+                'y-n-above-low-bit-cutoff': {'window': 30},
+                'hw-w': {'window': 30},
+                'bit-size-w': {'window': 30},
+                'w-n-zero': {'window': 30},
+                'w-n-need-reduction': {'window': 30},
+                'w-n-fully-low-bit': {'window': 30},
+                'w-n-above-low-bit-cutoff': {'window': 30},
+                'hw-c-s1': {'window': 30},
+                'bit-size-c-s1': {'window': 30},
+                'c-s1-n-zero': {'window': 30},
+                'c-s1-n-need-reduction': {'window': 30},
+                'hw-c-s2': {'window': 30},
+                'bit-size-c-s2': {'window': 30},
+                'c-s2-n-zero': {'window': 30},
+                'c-s2-n-need-reduction': {'window': 30},
+                'hw-w0': {'window': 30},
+                'bit-size-w0': {'window': 30},
+            }
+
+            measurements = dict()
+
+            for i, k in value_names.items():
+                f_name = join(self.output, 'measurements-{0}.csv'.format(i))
+                measurements[i] = LongFormatCSVBlocker(f_name, **k)
+
+            signatures = open(self.ml_dsa_sigs, 'rb')
+            messages = open(self.ml_dsa_msgs, 'rb')
+
+            signatures.seek(0, 2)
+            exp_len = signatures.tell()
+            signatures.seek(0, 0)
+            status = [0, exp_len, Event()]
+            if self.verbose:
+                kwargs = {}
+                kwargs['unit'] = 'B'
+                kwargs['prefix'] = 'binary'
+                kwargs['delay'] = self.delay
+                kwargs['end'] = self.carriage_return
+                progress = Thread(target=progress_report, args=(status,),
+                                  kwargs=kwargs)
+                progress.start()
+
+            while True:
+                sig = signatures.read(sig_size)
+                status[0] = signatures.tell()
+
+                if not sig:
+                    break
+
+                if len(sig) != sig_size:
+                    break
+
+                msg = messages.read(msg_size)
+                if not msg or len(msg) != msg_size:
+                    break
+
+                v = self._ml_dsa_sign_intermediates(scheme, sk, sig, msg)
+
+                v_time = next(times_iterator)
+                for v_k, v_v in v.items():
+                    measurements[v_k].add(v_v, v_time)
+        finally:
+            status[2].set()
+            if self.verbose:
+                progress.join()
+            print()
+
+            if ml_dsa_keys:
+                ml_dsa_keys.close()
+            if signatures:
+                signatures.close()
+            if messages:
+                messages.close()
 
             for i in measurements.values():
                 if i:
