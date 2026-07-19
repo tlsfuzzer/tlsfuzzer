@@ -33,7 +33,7 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         ch_key_share_handler, SetRecordVersion, CopyVariables, \
         ResetWriteConnectionState, HeartbeatGenerator, Certificate, \
         KeyUpdateGenerator, ClearContext, RawSocketWriteGenerator, \
-        CompressedCertificateGenerator
+        CompressedCertificateGenerator, fuzz_extension
 from tlsfuzzer.helpers import psk_ext_gen, psk_ext_updater, \
         psk_session_ext_gen, AutoEmptyExtension
 from tlsfuzzer.runner import ConnectionState
@@ -4074,3 +4074,43 @@ class TestCompressedCertificateGenerator(unittest.TestCase):
         ccg.generate(state)
 
         self.assertIsNotNone(ccg.msg)
+
+class TestFuzzExtension(unittest.TestCase):
+    class MockExtension(object):
+        def __init__(self, ext_type, binders=None, data=None):
+            self.extType = ext_type
+            self.binders = binders
+            self.data = data
+
+    class MockMessage(object):
+        def __init__(self, extensions):
+            self.extensions = extensions
+
+    def test_fuzz_extension_psk_binder(self):
+        raw_binder = bytearray([0, 0, 0])
+        ext = self.MockExtension(
+        constants.ExtensionType.pre_shared_key, binders=[raw_binder])
+        msg = self.MockMessage([ext])
+        
+        modifier = fuzz_extension(constants.ExtensionType.pre_shared_key, offset=0)
+        modifier(None, msg)
+
+        self.assertEqual(int(msg.extensions[0].binders[0][0]), 255)
+
+    def test_fuzz_extension_generic_data(self):
+        ext = self.MockExtension(constants.ExtensionType.server_name, data=bytearray([1, 2, 3]))
+        msg = self.MockMessage([ext])
+        
+        modifier = fuzz_extension(constants.ExtensionType.server_name, offset=1)
+        modifier(None, msg)
+        
+        self.assertEqual(int(msg.extensions[0].data[1]), 253)
+
+    def test_fuzz_extension_no_match(self):
+        ext = self.MockExtension(constants.ExtensionType.server_name, data=bytearray([0x01]))
+        msg = self.MockMessage([ext])
+        
+        modifier = fuzz_extension(constants.ExtensionType.pre_shared_key, offset=0)
+        modifier(None, msg)
+        
+        self.assertEqual(msg.extensions[0].data[0], 0x01)

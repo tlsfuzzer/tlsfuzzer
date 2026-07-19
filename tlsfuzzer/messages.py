@@ -4,6 +4,7 @@
 """Objects for generating TLS messages to send."""
 
 import random
+import sys
 import struct
 from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         Finished, Alert, ApplicationData, Message, Certificate, \
@@ -2416,3 +2417,32 @@ def fuzz_pkcs1_padding(key, substitutions=None, xors=None, padding_byte=None):
 
     key._addPKCS1Padding = new_addPKCS1Padding
     return key
+
+
+def fuzz_extension(ext_type, offset=0, fuzzer=lambda x: x ^ 0xff):
+    """
+    Modify an extension in the message.
+   """
+    def modifier(state, msg):
+        for ext in getattr(msg, 'extensions', []):
+            if ext.extType == ext_type:
+                if ext_type == ExtensionType.pre_shared_key and hasattr(ext, 'binders'):
+                    if ext.binders and offset < len(ext.binders[0]):
+                        temp_binder = bytearray(ext.binders[0])
+                        temp_binder[offset] = fuzzer(temp_binder[offset])
+                        # Python 2: bytes() is str; index then is not an int.
+                        if sys.version_info[0] < 3:
+                            ext.binders[0] = bytearray(temp_binder)
+                        else:
+                            ext.binders[0] = bytes(temp_binder)
+                elif hasattr(ext, 'data') and ext.data:
+                    payload = bytearray(ext.data)
+                    if offset < len(payload):
+                        payload[offset] = fuzzer(payload[offset])
+                        if sys.version_info[0] < 3:
+                            ext.data = bytearray(payload)
+                        else:
+                            ext.data = bytes(payload)
+                break
+        return msg
+    return modifier
