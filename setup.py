@@ -9,7 +9,6 @@ except ImportError:
     from distutils.core import setup
 
 setup(name="tlsfuzzer",
-      version="0.0.1",
       author="Hubert Kario",
       author_email="hkario@redhat.com",
       url="https://github.com/tlsfuzzer/tlsfuzzer",
