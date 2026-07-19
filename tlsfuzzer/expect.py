@@ -853,10 +853,14 @@ class ExpectServerHello(_ExpectExtensionsMessage):
                                          state.handshake_hashes,
                                          prf_name)
         state.key['server handshake traffic secret'] = s_traffic_secret
+        state.log_ssl_key('SERVER_HANDSHAKE_TRAFFIC_SECRET',
+                          s_traffic_secret)
         c_traffic_secret = derive_secret(secret, b'c hs traffic',
                                          state.handshake_hashes,
                                          prf_name)
         state.key['client handshake traffic secret'] = c_traffic_secret
+        state.log_ssl_key('CLIENT_HANDSHAKE_TRAFFIC_SECRET',
+                          c_traffic_secret)
 
         state.msg_sock.calcTLS1_3PendingState(
             state.cipher, c_traffic_secret, s_traffic_secret, None)
@@ -1766,16 +1770,19 @@ class ExpectFinished(ExpectHandshake):
                 secret, b'c ap traffic', state.handshake_hashes,
                 state.prf_name)
             state.key['client application traffic secret'] = c_traff_sec
+            state.log_ssl_key('CLIENT_TRAFFIC_SECRET_0', c_traff_sec)
             s_traff_sec = derive_secret(
                 secret, b's ap traffic', state.handshake_hashes,
                 state.prf_name)
             state.key['server application traffic secret'] = s_traff_sec
+            state.log_ssl_key('SERVER_TRAFFIC_SECRET_0', s_traff_sec)
 
             # derive TLS exporter key
             exp_ms = derive_secret(secret, b'exp master',
                                    state.handshake_hashes,
                                    state.prf_name)
             state.key['exporter master secret'] = exp_ms
+            state.log_ssl_key('EXPORTER_SECRET', exp_ms)
 
             # set up the encryption keys for application data
             state.msg_sock.calcTLS1_3PendingState(

@@ -1625,6 +1625,10 @@ class ChangeCipherSpecGenerator(MessageGenerator):
                     output_length=48)
 
             status.key['master_secret'] = master_secret
+            # Implementations of TLS 1.2 [TLS12] (and also earlier versions)
+            # use the label "CLIENT_RANDOM" to identify the "master" secret
+            # for the connection. [RFC 9850]
+            status.log_ssl_key('CLIENT_RANDOM', master_secret)
 
             # in case of resumption, the pending states are generated
             # during receive of server sent CCS
