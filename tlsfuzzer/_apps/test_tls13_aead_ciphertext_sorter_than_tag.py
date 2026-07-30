@@ -11,7 +11,8 @@ from random import sample
 from tlsfuzzer.runner import Runner
 from tlsfuzzer.messages import Connect, ClientHelloGenerator, \
         ClientKeyExchangeGenerator, ChangeCipherSpecGenerator, \
-        FinishedGenerator, ApplicationDataGenerator, AlertGenerator
+        FinishedGenerator, ApplicationDataGenerator, AlertGenerator, \
+        PlaintextMessageGenerator
 from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectServerHelloDone, ExpectChangeCipherSpec, ExpectFinished, \
         ExpectAlert, ExpectApplicationData, ExpectClose, \
@@ -19,16 +20,17 @@ from tlsfuzzer.expect import ExpectServerHello, ExpectCertificate, \
         ExpectNewSessionTicket
 
 from tlslite.constants import CipherSuite, AlertLevel, AlertDescription, \
-        TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme
+        TLS_1_3_DRAFT, GroupName, ExtensionType, SignatureScheme, ContentType
 from tlslite.keyexchange import ECDHKeyExchange
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlslite.extensions import KeyShareEntry, ClientKeyShareExtension, \
         SupportedVersionsExtension, SupportedGroupsExtension, \
         SignatureAlgorithmsExtension, SignatureAlgorithmsCertExtension
+from tlslite.utils.cryptomath import getRandomBytes
 from tlsfuzzer.helpers import key_share_gen, SIG_ALL, cipher_suite_to_id
 
 
-version = 10
+version = 1
 
 
 def help_msg():
@@ -48,13 +50,10 @@ def help_msg():
     print("                usage: [-x probe-name] [-X exception], order is compulsory!")
     print(" -n num         run 'num' or all(if 0) tests instead of default(all)")
     print("                (\"sanity\" tests are always executed)")
-    print(" -C ciph        Use specified ciphersuite. Either numerical value or")
-    print("                IETF name.")
     print(" -g kex         Key exchange groups to advertise in the supported_groups")
     print("                extension, separated by colons. By default:")
     print("                \"secp256r1\"")
     print(" --help         this message")
-
 
 def main():
     host = "localhost"
@@ -63,7 +62,6 @@ def main():
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
-    ciphers = None
     groups = None
 
     argv = sys.argv[1:]
@@ -84,8 +82,6 @@ def main():
             expected_failures[last_exp_tmp] = str(arg)
         elif opt == '-n':
             num_limit = int(arg)
-        elif opt == '-C':
-            ciphers = [cipher_suite_to_id(arg)]
         elif opt == '-g':
             vals = arg.split(":")
             groups = [getattr(GroupName, i) for i in vals]
@@ -100,8 +96,6 @@ def main():
     else:
         run_only = None
 
-    if not ciphers:
-        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256]
     if groups is None:
         groups = [GroupName.secp256r1]
 
@@ -130,9 +124,10 @@ def main():
         .create(sig_algs)
     ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
         .create(SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(
-        ciphers + [CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV],
-        extensions=ext))
+    node = node.add_child(ClientHelloGenerator([
+            CipherSuite.TLS_AES_128_GCM_SHA256,
+            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV
+        ], extensions=ext))
     node = node.add_child(ExpectServerHello())
     node = node.add_child(ExpectChangeCipherSpec())
     node = node.add_child(ExpectEncryptedExtensions())
@@ -155,6 +150,99 @@ def main():
     node = node.add_child(ExpectAlert())
     node.next_sibling = ExpectClose()
     conversations["sanity"] = conversation
+
+    # too small  AEAD ciphertext handling
+    for cipher, name, max_size in (
+        (CipherSuite.TLS_AES_128_CCM_SHA256,"aesccm", 16),
+        (CipherSuite.TLS_AES_128_GCM_SHA256,"aesgcm", 16),
+        (CipherSuite.TLS_CHACHA20_POLY1305_SHA256, "chacha20", 16),
+    ):
+        for val in range(max_size):
+            conversation = Connect(host, port)
+            node = conversation
+            ext = {}
+            key_shares = []
+            for group in groups:
+                key_shares.append(key_share_gen(group))
+            ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+            ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+                .create([TLS_1_3_DRAFT, (3, 3)])
+            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+                .create(groups)
+            sig_algs = [SignatureScheme.mldsa87,
+                        SignatureScheme.mldsa65,
+                        SignatureScheme.mldsa44,
+                        SignatureScheme.rsa_pss_rsae_sha256,
+                        SignatureScheme.rsa_pss_pss_sha256,
+                        SignatureScheme.ecdsa_secp256r1_sha256,
+                        SignatureScheme.ed25519,
+                        SignatureScheme.ed448]
+            ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+                .create(sig_algs)
+            ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+                .create(SIG_ALL)
+            node = node.add_child(ClientHelloGenerator([
+                    cipher, CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV
+                ], extensions=ext))
+            node = node.add_child(ExpectServerHello())
+            node = node.add_child(ExpectChangeCipherSpec())
+            node = node.add_child(ExpectEncryptedExtensions())
+            node = node.add_child(ExpectCertificate())
+            node = node.add_child(ExpectCertificateVerify())
+            node = node.add_child(ExpectFinished())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(PlaintextMessageGenerator(
+                ContentType.application_data, getRandomBytes(val)))
+
+            # This message is optional and may show up 0 to many times
+            cycle = ExpectNewSessionTicket()
+            node = node.add_child(cycle)
+            node.add_child(cycle)
+
+            node.next_sibling = ExpectAlert(AlertLevel.fatal,
+                                            AlertDescription.bad_record_mac)
+            node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+                                                AlertDescription.close_notify))
+
+            node.add_child(ExpectClose())
+            conversations["{0} bytes long ciphertext for {1}".format(
+                val, name)] = conversation
+
+    # too small  AEAD ciphertext handling with _8 cipher
+    for val in range(8):
+        conversation = Connect(host, port)
+        node = conversation
+        ext = {}
+        key_shares = []
+        for group in groups:
+            key_shares.append(key_share_gen(group))
+        ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+        ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+            .create([TLS_1_3_DRAFT, (3, 3)])
+        ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+            .create(groups)
+        sig_algs = [SignatureScheme.mldsa87,
+                    SignatureScheme.mldsa65,
+                    SignatureScheme.mldsa44,
+                    SignatureScheme.rsa_pss_rsae_sha256,
+                    SignatureScheme.rsa_pss_pss_sha256,
+                    SignatureScheme.ecdsa_secp256r1_sha256,
+                    SignatureScheme.ed25519,
+                    SignatureScheme.ed448]
+        ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+            .create(sig_algs)
+        ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+            .create(SIG_ALL)
+        node = node.add_child(ClientHelloGenerator([
+                CipherSuite.TLS_AES_128_CCM_8_SHA256,
+                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV
+            ], extensions=ext))
+        node = ExpectAlert(AlertLevel.fatal,
+                           AlertDescription.handshake_failure)
+        node.add_child(ExpectClose())
+        conversations[
+            "{0} bytes long ciphertext for aesccm against _8 cipher".format(val)
+        ] = conversation
 
     # run the conversation
     good = 0
@@ -179,7 +267,7 @@ def main():
             if not 'sanity' in run_only:
                 run_sanity = False
             regular_tests = [(k, v) for k, v in conversations.items() if
-                             k in run_only and not k.startswith('sanity')]
+                             not k in run_only and not k.startswith('sanity')]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
                          not k.startswith('sanity') and k not in run_exclude]
@@ -227,9 +315,10 @@ def main():
                 bad += 1
                 failed.append(c_name)
 
-    print("Basic communication test with TLS 1.3 server")
-    print("Check if communication with typical group and cipher works with")
-    print("the TLS 1.3 server.\n")
+    print("Truncated AEAD ciphertext test with TLS 1.3 server.")
+    print("Check if the server correctly rejects application data records")
+    print("containing AEAD ciphertexts shorter than the authentication tag")
+    print("with a fatal bad_record_mac alert.\n")
 
     print("Test end")
     print(20 * '=')
