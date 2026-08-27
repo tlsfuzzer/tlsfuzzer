@@ -9,7 +9,8 @@ from tlslite.constants import HashAlgorithm, SignatureAlgorithm, \
         SignatureScheme, ClientCertificateType, ExtensionType, CipherSuite
 
 from tlslite.extensions import KeyShareEntry, PreSharedKeyExtension, \
-        PskIdentity, ClientKeyShareExtension, SessionTicketExtension
+        PskIdentity, ClientKeyShareExtension, SessionTicketExtension, \
+        TLSExtension
 from tlslite.handshakehelpers import HandshakeHelpers
 from .handshake_helpers import kex_for_group
 from tlslite.utils.cryptomath import getRandomBytes
@@ -22,7 +23,10 @@ __all__ = ['sig_algs_to_ids', 'key_share_gen', 'psk_ext_gen',
            'RSA_PSS_RSAE_ALL', 'ECDSA_SIG_TLS1_3_ALL', 'EDDSA_SIG_ALL',
            'MLDSA_SIG_ALL',
            'SIG_ALL', 'AutoEmptyExtension', 'client_cert_types_to_ids',
-           'session_ticket_ext_gen']
+           'session_ticket_ext_gen', 'server_cert_type_ext_gen',
+           'client_cert_type_ext_gen', 'CLIENT_CERTIFICATE_TYPE',
+           'SERVER_CERTIFICATE_TYPE', 'CERTIFICATE_TYPE_X509',
+           'CERTIFICATE_TYPE_RAW_PUBLIC_KEY']
 
 
 RSA_SIG_ALL = [(getattr(HashAlgorithm, x), SignatureAlgorithm.rsa) for x in
@@ -239,6 +243,61 @@ def client_cert_types_to_ids(names):
             ids.append(getattr(ClientCertificateType, name))
 
     return ids
+
+
+# RFC 7250 s:3. tlslite has no ExtensionType member for either of these, so the
+# numbers are named here rather than at every call site. Note that tlslite's
+# ExtensionType.cert_type (9, RFC 6091) and this module's
+# client_cert_types_to_ids() (RFC 5246 ClientCertificateType) are both different
+# registries that happen to have confusable names.
+CLIENT_CERTIFICATE_TYPE = 19
+SERVER_CERTIFICATE_TYPE = 20
+
+CERTIFICATE_TYPE_X509 = 0
+CERTIFICATE_TYPE_RAW_PUBLIC_KEY = 2
+
+
+def _cert_type_ext_gen(ext_type, types):
+    """
+    Build the client half of an RFC 7250 certificate-type extension.
+
+    A client sends a preference list while a server answers with a single
+    value, so this builds the client form only: a one-byte count followed by
+    the values, most preferred first.
+
+    :type ext_type: int
+    :param ext_type: extension number, 19 or 20
+    :type types: iterable
+    :param types: CertificateType values to advertise
+    :rtype: TLSExtension
+    """
+    types = list(types)
+    if not 1 <= len(types) <= 255:
+        raise ValueError("need between 1 and 255 certificate types")
+    body = bytearray([len(types)]) + bytearray(types)
+    return TLSExtension(extType=ext_type).create(body)
+
+
+def server_cert_type_ext_gen(types=(CERTIFICATE_TYPE_RAW_PUBLIC_KEY,)):
+    """
+    Solicit these certificate types from the server, most preferred first.
+
+    :type types: iterable
+    :param types: CertificateType values, raw public keys by default
+    :rtype: TLSExtension
+    """
+    return _cert_type_ext_gen(SERVER_CERTIFICATE_TYPE, types)
+
+
+def client_cert_type_ext_gen(types=(CERTIFICATE_TYPE_RAW_PUBLIC_KEY,)):
+    """
+    Offer these certificate types for our own credential.
+
+    :type types: iterable
+    :param types: CertificateType values, raw public keys by default
+    :rtype: TLSExtension
+    """
+    return _cert_type_ext_gen(CLIENT_CERTIFICATE_TYPE, types)
 
 
 def key_share_ext_gen(groups):
