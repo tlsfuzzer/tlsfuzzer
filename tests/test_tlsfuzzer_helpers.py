@@ -17,12 +17,15 @@ from tlsfuzzer.helpers import sig_algs_to_ids, key_share_gen, psk_ext_gen, \
         flexible_getattr, psk_session_ext_gen, key_share_ext_gen, \
         uniqueness_check, AutoEmptyExtension, protocol_name_to_tuple, \
         client_cert_types_to_ids, ext_names_to_ids, expected_ext_parser, \
-        dict_update_non_present, pad_or_truncate_signature
+        dict_update_non_present, pad_or_truncate_signature, \
+        server_cert_type_ext_gen, client_cert_type_ext_gen, \
+        CLIENT_CERTIFICATE_TYPE, SERVER_CERTIFICATE_TYPE, \
+        CERTIFICATE_TYPE_X509, CERTIFICATE_TYPE_RAW_PUBLIC_KEY
 from tlsfuzzer.runner import ConnectionState
 from tlslite.extensions import KeyShareEntry, PreSharedKeyExtension, \
-        PskIdentity, ClientKeyShareExtension
+        PskIdentity, ClientKeyShareExtension, TLSExtension
 from tlslite.constants import GroupName, CipherSuite
-from tlslite.messages import NewSessionTicket
+from tlslite.messages import NewSessionTicket, ClientHello
 
 class TestSigAlgsToIds(unittest.TestCase):
     def test_with_empty(self):
@@ -242,6 +245,96 @@ class TestKeyShareExtGen(unittest.TestCase):
         self.assertEqual(len(ext.client_shares), 1)
         self.assertEqual(ext.client_shares[0].group, 1313)
         self.assertEqual(ext.client_shares[0].key_exchange, b'something')
+
+
+class TestCertTypeExtGen(unittest.TestCase):
+    def test_extension_numbers(self):
+        # RFC 7250 s:3
+        self.assertEqual(CLIENT_CERTIFICATE_TYPE, 19)
+        self.assertEqual(SERVER_CERTIFICATE_TYPE, 20)
+
+    def test_certificate_type_values(self):
+        self.assertEqual(CERTIFICATE_TYPE_X509, 0)
+        self.assertEqual(CERTIFICATE_TYPE_RAW_PUBLIC_KEY, 2)
+
+    def test_server_ext_type(self):
+        ext = server_cert_type_ext_gen()
+
+        self.assertIsInstance(ext, TLSExtension)
+        self.assertEqual(ext.extType, SERVER_CERTIFICATE_TYPE)
+
+    def test_client_ext_type(self):
+        ext = client_cert_type_ext_gen()
+
+        self.assertIsInstance(ext, TLSExtension)
+        self.assertEqual(ext.extType, CLIENT_CERTIFICATE_TYPE)
+
+    def test_default_solicits_raw_public_keys(self):
+        ext = server_cert_type_ext_gen()
+
+        self.assertEqual(ext.extData, bytearray(b'\x01\x02'))
+
+    def test_client_default_solicits_raw_public_keys(self):
+        ext = client_cert_type_ext_gen()
+
+        self.assertEqual(ext.extData, bytearray(b'\x01\x02'))
+
+    def test_single_type(self):
+        ext = server_cert_type_ext_gen([CERTIFICATE_TYPE_RAW_PUBLIC_KEY])
+
+        self.assertEqual(ext.extData, bytearray(b'\x01\x02'))
+
+    def test_multiple_types_keep_order(self):
+        # a one byte count, then the values, most preferred first
+        ext = server_cert_type_ext_gen([CERTIFICATE_TYPE_RAW_PUBLIC_KEY,
+                                        CERTIFICATE_TYPE_X509])
+
+        self.assertEqual(ext.extData, bytearray(b'\x02\x02\x00'))
+
+    def test_multiple_types_reversed_order(self):
+        ext = server_cert_type_ext_gen([CERTIFICATE_TYPE_X509,
+                                        CERTIFICATE_TYPE_RAW_PUBLIC_KEY])
+
+        self.assertEqual(ext.extData, bytearray(b'\x02\x00\x02'))
+
+    def test_with_iterator(self):
+        ext = server_cert_type_ext_gen(iter([CERTIFICATE_TYPE_X509]))
+
+        self.assertEqual(ext.extData, bytearray(b'\x01\x00'))
+
+    def test_with_max_length(self):
+        ext = server_cert_type_ext_gen([CERTIFICATE_TYPE_X509] * 255)
+
+        self.assertEqual(ext.extData,
+                         bytearray(b'\xff') + bytearray(255))
+
+    def test_with_empty_list(self):
+        with self.assertRaises(ValueError) as e:
+            server_cert_type_ext_gen([])
+
+        self.assertIn("between 1 and 255", str(e.exception))
+
+    def test_with_too_many_types(self):
+        with self.assertRaises(ValueError) as e:
+            server_cert_type_ext_gen([CERTIFICATE_TYPE_X509] * 256)
+
+        self.assertIn("between 1 and 255", str(e.exception))
+
+    def test_client_gen_with_empty_list(self):
+        with self.assertRaises(ValueError) as e:
+            client_cert_type_ext_gen([])
+
+        self.assertIn("between 1 and 255", str(e.exception))
+
+    def test_write_to_client_hello(self):
+        hello = ClientHello()
+        hello.create((3, 3), bytearray(32), bytearray(0),
+                     [CipherSuite.TLS_AES_128_GCM_SHA256],
+                     extensions=[server_cert_type_ext_gen(
+                         [CERTIFICATE_TYPE_RAW_PUBLIC_KEY])])
+
+        # extension header on the wire: type 0x0014, length 0x0002, body 0102
+        self.assertIn(b'\x00\x14\x00\x02\x01\x02', bytes(hello.write()))
 
 
 class TestFlexibleGetattr(unittest.TestCase):
