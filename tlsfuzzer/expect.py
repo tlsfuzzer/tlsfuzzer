@@ -15,23 +15,26 @@ from tlslite.constants import ContentType, HandshakeType, CertificateType,\
         SSL2HandshakeType, CipherSuite, GroupName, AlertDescription, \
         SignatureScheme, TLS_1_3_HRR, HeartbeatMode, \
         TLS_1_1_DOWNGRADE_SENTINEL, TLS_1_2_DOWNGRADE_SENTINEL, \
-        HeartbeatMessageType, ClientCertificateType, CertificateStatusType
+        HeartbeatMessageType, ClientCertificateType, CertificateStatusType, \
+        CertificateCompressionAlgorithm, \
+        ECPointFormat
 from tlslite.messages import ServerHello, Certificate, ServerHelloDone,\
         ChangeCipherSpec, Finished, Alert, CertificateRequest, ServerHello2,\
         ServerKeyExchange, ClientHello, ServerFinished, CertificateStatus, \
         CertificateVerify, EncryptedExtensions, NewSessionTicket, Heartbeat,\
-        KeyUpdate, HelloRequest, NewSessionTicket1_0
-from tlslite.extensions import TLSExtension, ALPNExtension
+        KeyUpdate, HelloRequest, NewSessionTicket1_0, CompressedCertificate
+from tlslite.extensions import TLSExtension, ALPNExtension,\
+        ECPointFormatsExtension
 from tlslite.utils.codec import Parser, Writer
 from tlslite.utils.compat import b2a_hex
 from tlslite.utils.cryptomath import secureHMAC, derive_secret, \
         HKDF_expand_label
 from tlslite.mathtls import RFC7919_GROUPS, FFDHE_PARAMETERS, calc_key
 from tlslite.keyexchange import KeyExchange, DHE_RSAKeyExchange, \
-        ECDHE_RSAKeyExchange
+        ECDHE_RSAKeyExchange, AECDHKeyExchange
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
-from tlslite.errors import TLSDecryptionFailed
+from tlslite.errors import TLSDecryptionFailed, TLSIllegalParameterException
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.handshakehelpers import HandshakeHelpers
 from .handshake_helpers import calc_pending_states, kex_for_group, \
@@ -460,17 +463,13 @@ def clnt_ext_handler_status_request(state, extension):
     """
     Check status_request extension from initiating side.
 
-    To be used in ClientHello and CertificateRequest
+    To be used in CertificateRequest
     """
     del state  # kept for compatibility
-    if extension.status_type != CertificateStatusType.ocsp:
+    if extension.extData:
         raise AssertionError(
-            "Unexpected status_type in status_request extension: {0}"
-            .format(CertificateStatusType.toStr(extension.status_type)))
-    if extension.responder_id_list is None \
-            or extension.request_extensions is None:
-        raise AssertionError(
-            "Malformed status_request extension")
+            "Unexpected payload in status_request extension: {0}"
+            .format(extension.extData))
 
 
 def clnt_ext_handler_sig_algs(state, extension):
@@ -1035,14 +1034,79 @@ class ExpectCertificate(ExpectHandshake):
         state.handshake_hashes.update(msg_bytes)
 
 
+class ExpectCompressedCertificate(ExpectHandshake):
+    def __init__(self, cert_type=CertificateType.x509, compression_algo=None):
+        super(ExpectCompressedCertificate, self).__init__(
+            ContentType.handshake,
+            HandshakeType.compressed_certificate
+        )
+        self.cert_type = cert_type
+        self._old_cert = None
+        self._old_cert_bytes = None
+        self._compression_algo = compression_algo
+
+    def process(self, state, msg):
+        """
+        :type state: `~ConnectionState`
+        """
+        assert msg.contentType == ContentType.handshake
+
+        msg_bytes = msg.write()
+        if self._old_cert_bytes is not None and \
+                msg_bytes == self._old_cert_bytes:
+            cert = self._old_cert
+        else:
+            parser = Parser(msg_bytes)
+            hs_type = parser.get(1)
+            assert hs_type == HandshakeType.compressed_certificate
+
+            cert = CompressedCertificate(self.cert_type, state.version)
+            cert.parse(parser)
+            self._old_cert_bytes = msg_bytes
+            self._old_cert = cert
+
+            if self._compression_algo is not None:
+                if cert.compression_algo != self._compression_algo:
+                    raise AssertionError(
+                        "Compression algorithms doesn't much. " +
+                        "Expected: {0}, Got: {1}".format(
+                            self._compression_algo, cert.compression_algo)
+                    )
+            else:
+                ch = state.get_last_message_of_type(ClientHello)
+                assert ch is not None
+                ext = ch.getExtension(ExtensionType.compress_certificate)
+                assert ext is not None
+                assert cert.compression_algo in ext.algorithms
+
+        state.handshake_messages.append(cert)
+        state.handshake_hashes.update(msg_bytes)
+
+
 class ExpectCertificateVerify(ExpectHandshake):
-    """Processing TLS Handshake protocol Certificate Verify messages."""
-    def __init__(self, version=None, sig_alg=None):
+    """
+    Processing TLS Handshake protocol Certificate Verify messages.
+    :param tuple(int,int) version: Expected TLS version of the message. If not
+    provided will be taken from the state.
+    :param tuple(int,int) sig_alg: Expected value of the signature scheme
+    created by the server. If not provided it will be compared with signature
+    algorithm extension from client hello.
+    :param str hash_file: The file where hashes of the signature context will
+    be logged
+    :param str sig_file: The file where the signatures themselves will be
+    logged
+
+    """
+    def __init__(
+        self, version=None, sig_alg=None, hash_file=None, sig_file=None
+    ):
         super(ExpectCertificateVerify, self).__init__(
             ContentType.handshake,
             HandshakeType.certificate_verify)
         self.version = version
         self.sig_alg = sig_alg
+        self.hash_file = hash_file
+        self.sig_file = sig_file
 
     def process(self, state, msg):
         """
@@ -1089,29 +1153,71 @@ class ExpectCertificateVerify(ExpectHandshake):
                         .format(
                             SignatureScheme.toStr(cert_v.signatureAlgorithm),
                             key_type))
+            elif key_type in ("mldsa44", "mldsa65", "mldsa87"):
+                assert cert_v.signatureAlgorithm in (
+                        SignatureScheme.mldsa44,
+                        SignatureScheme.mldsa65,
+                        SignatureScheme.mldsa87)
+                if getattr(SignatureScheme, key_type.lower()) != \
+                        cert_v.signatureAlgorithm:
+                    raise AssertionError(
+                        "Mismatched signature ({0}) for used key ({1})"
+                        .format(
+                            SignatureScheme.toStr(cert_v.signatureAlgorithm),
+                            key_type))
             else:
                 assert key_type == "ecdsa"
                 curve_name = state.get_server_public_key().curve_name
-                assert curve_name in ("NIST256p", "NIST384p", "NIST521p")
+                assert curve_name in (
+                    "NIST256p", "NIST384p", "NIST521p",
+                    "BRAINPOOLP256r1", "BRAINPOOLP384r1", "BRAINPOOLP512r1"
+                )
                 sigalg = cert_v.signatureAlgorithm
                 assert sigalg in ECDSA_SIG_TLS1_3_ALL
-                hash_name = curve_name_to_hash_tls13(curve_name)
-                # in TLS 1.3 the hash is bound to key curve
-                if sigalg != (getattr(HashAlgorithm, hash_name),
-                              SignatureAlgorithm.ecdsa):
-                    raise AssertionError(
-                        "Invalid signature type for {1} key, "
-                        "received: {0}"
-                        .format(SignatureScheme.toStr(sigalg), curve_name))
+                if "NIST" in curve_name:
+                    hash_name = curve_name_to_hash_tls13(curve_name)
+                    # in TLS 1.3 the hash is bound to key curve
+                    if sigalg != (getattr(HashAlgorithm, hash_name),
+                                  SignatureAlgorithm.ecdsa):
+                        raise AssertionError(
+                            "Invalid signature type for {1} key, "
+                            "received: {0}"
+                            .format(SignatureScheme.toStr(sigalg), curve_name))
+                else:
+                    # but for Brainpool it's simpler to just explicitly list
+                    if curve_name == "BRAINPOOLP256r1":
+                        exp_sig_alg = \
+                            SignatureScheme.ecdsa_brainpoolP256r1tls13_sha256
+                    elif curve_name == "BRAINPOOLP384r1":
+                        exp_sig_alg = \
+                            SignatureScheme.ecdsa_brainpoolP384r1tls13_sha384
+                    else:
+                        assert curve_name == "BRAINPOOLP512r1"
+                        exp_sig_alg = \
+                            SignatureScheme.ecdsa_brainpoolP512r1tls13_sha512
+                    if sigalg != exp_sig_alg:
+                        raise AssertionError(
+                            "Invalid signature type for {1} key, "
+                            "received: {0}"
+                            .format(SignatureScheme.toStr(sigalg), curve_name))
 
         salg = cert_v.signatureAlgorithm
 
-        if salg in (SignatureScheme.ed25519, SignatureScheme.ed448):
+        if salg in (SignatureScheme.ed25519, SignatureScheme.ed448,
+                    SignatureScheme.mldsa44, SignatureScheme.mldsa65,
+                    SignatureScheme.mldsa87):
             hash_name = "intrinsic"
             padding = None
             salt_len = None
         elif salg[1] == SignatureAlgorithm.ecdsa:
             hash_name = HashAlgorithm.toStr(salg[0])
+            padding = None
+            salt_len = None
+        elif salg in (SignatureScheme.ecdsa_brainpoolP256r1tls13_sha256,
+                      SignatureScheme.ecdsa_brainpoolP384r1tls13_sha384,
+                      SignatureScheme.ecdsa_brainpoolP512r1tls13_sha512):
+            scheme = SignatureScheme.toRepr(salg)
+            hash_name = SignatureScheme.getHash(scheme)
             padding = None
             salt_len = None
         else:
@@ -1132,6 +1238,13 @@ class ExpectCertificateVerify(ExpectHandshake):
                 hash_name,
                 salt_len):
             raise AssertionError("Signature verification failed")
+
+        if self.hash_file:
+            data = getattr(hashlib, hash_name)(sig_context).digest()
+            self.hash_file.write(data)
+
+        if self.sig_file:
+            self.sig_file.write(cert_v.signature)
 
         state.handshake_messages.append(cert_v)
         state.handshake_hashes.update(msg.write())
@@ -1210,13 +1323,13 @@ class ExpectServerKeyExchange(ExpectHandshake):
         server_random = state.server_random
         public_key = state.get_server_public_key()
         server_hello = state.get_last_message_of_type(ServerHello)
+        client_hello = state.get_last_message_of_type(ClientHello)
         if server_hello is None:
             server_hello = ServerHello
             server_hello.server_version = state.version
         if valid_sig_algs is None:
             # if the value was unset in script, get the advertised value from
             # Client Hello
-            client_hello = state.get_last_message_of_type(ClientHello)
             if client_hello is not None:
                 sig_algs_ext = client_hello.getExtension(ExtensionType.
                                                          signature_algorithms)
@@ -1228,6 +1341,9 @@ class ExpectServerKeyExchange(ExpectHandshake):
                 if self.cipher_suite in CipherSuite.ecdheEcdsaSuites:
                     valid_sig_algs = [(HashAlgorithm.sha1,
                                        SignatureAlgorithm.ecdsa)]
+                if self.cipher_suite in CipherSuite.dheDsaSuites:
+                    valid_sig_algs = [(HashAlgorithm.sha1,
+                                       SignatureAlgorithm.dsa)]
 
         try:
             KeyExchange.verifyServerKeyExchange(server_key_exchange,
@@ -1266,7 +1382,7 @@ class ExpectServerKeyExchange(ExpectHandshake):
                     valid_groups = GroupName.allEC
             state.key_exchange = \
                 ECDHE_RSAKeyExchange(self.cipher_suite,
-                                     clientHello=None,
+                                     clientHello=client_hello,
                                      serverHello=server_hello,
                                      privateKey=None,
                                      acceptedCurves=valid_groups)
@@ -1326,7 +1442,8 @@ class ExpectCertificateRequest(_ExpectExtensionsMessage):
             corresponding client certificate type.
         :param extensions: dictionary with extensions that need to be included
             in the message. Set to ``None`` to accept any, set to empty dict to
-            expect no extensions. Usable in TLS 1.3 only.
+            expect no extensions. This has to be an exact match of the
+            extensions included in the message. Usable in TLS 1.3 only.
         """
         msg_type = HandshakeType.certificate_request
         super(ExpectCertificateRequest, self).__init__(ContentType.handshake,
@@ -1344,9 +1461,19 @@ class ExpectCertificateRequest(_ExpectExtensionsMessage):
     def _sanity_check_cert_types(cert_request):
         """Verify that the CertificateRequest is self-consistent."""
         for sig_alg in cert_request.supported_signature_algs:
-            if sig_alg[1] in (SignatureAlgorithm.ecdsa,
-                              SignatureAlgorithm.ed25519,
-                              SignatureAlgorithm.ed448):
+            if sig_alg in (SignatureScheme.ecdsa_brainpoolP256r1tls13_sha256,
+                           SignatureScheme.ecdsa_brainpoolP384r1tls13_sha384,
+                           SignatureScheme.ecdsa_brainpoolP512r1tls13_sha512,
+                           SignatureScheme.mldsa44,
+                           SignatureScheme.mldsa65,
+                           SignatureScheme.mldsa87):
+                raise AssertionError(
+                    "TLS 1.3 specific signature scheme in an earlier protocol "
+                    "version: {0}".format(sig_alg))
+
+            if sig_alg[1] == SignatureAlgorithm.ecdsa or \
+                sig_alg in (SignatureScheme.ed25519,
+                            SignatureScheme.ed448):
                 key_type = "ECDSA"
                 cert_type = "ecdsa_sign"
             elif sig_alg[1] == SignatureAlgorithm.rsa:

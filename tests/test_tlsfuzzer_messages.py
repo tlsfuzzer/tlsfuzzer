@@ -32,7 +32,8 @@ from tlsfuzzer.messages import ClientHelloGenerator, ClientKeyExchangeGenerator,
         SetPaddingCallback, replace_plaintext, ch_cookie_handler, \
         ch_key_share_handler, SetRecordVersion, CopyVariables, \
         ResetWriteConnectionState, HeartbeatGenerator, Certificate, \
-        KeyUpdateGenerator, ClearContext, RawSocketWriteGenerator
+        KeyUpdateGenerator, ClearContext, RawSocketWriteGenerator, \
+        CompressedCertificateGenerator
 from tlsfuzzer.helpers import psk_ext_gen, psk_ext_updater, \
         psk_session_ext_gen, AutoEmptyExtension
 from tlsfuzzer.runner import ConnectionState
@@ -54,8 +55,10 @@ from tlslite.utils.cryptomath import numberToByteArray
 from tlslite.utils.python_rsakey import Python_RSAKey
 from tlslite.utils.python_ecdsakey import Python_ECDSAKey
 from tlslite.utils.python_eddsakey import Python_EdDSAKey
+from tlslite.utils.compression import compression_algo_impls
 from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
+from tlslite.utils.compat import ML_DSA_AVAILABLE
 from ecdsa import SigningKey, Ed25519
 
 
@@ -2591,6 +2594,138 @@ class TestCertificateVerifyGeneratorEdDSA(unittest.TestCase):
         self.assertTrue(priv_key.hashAndVerify(
             sig, b""))
 
+    def test_generate_with_eddsa_and_explicit_sig_function(self):
+        priv_key = self.priv_key
+        cert_ver_g = CertificateVerifyGenerator(priv_key,
+                                                sig_func=priv_key.hashAndSign)
+        state = ConnectionState()
+        state.version = (3, 4)
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertTrue(msg.signature)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.ed25519)
+
+        verif_bytes = KeyExchange.calcVerifyBytes(
+                (3, 4),
+                state.handshake_hashes,
+                constants.SignatureScheme.ed25519,
+                b'',
+                b'',
+                b'',
+                "sha256")
+
+        self.assertTrue(priv_key.hashAndVerify(
+            msg.signature, verif_bytes,
+            "", "sha256"))
+
+    def test_generate_with_eddsa_and_modified_sig_function(self):
+        priv_key = self.priv_key
+        # just pad the signature so that it doesn't verify any more
+        sig_func = lambda byts, padding, hashAlg, saltLen: \
+                priv_key.hashAndSign(byts, padding, hashAlg, saltLen) + b"\x00"
+        cert_ver_g = CertificateVerifyGenerator(priv_key,
+                                                sig_func=sig_func)
+        state = ConnectionState()
+        state.version = (3, 4)
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertTrue(msg.signature)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.ed25519)
+
+        verif_bytes = KeyExchange.calcVerifyBytes(
+                (3, 4),
+                state.handshake_hashes,
+                constants.SignatureScheme.ed25519,
+                b'',
+                b'',
+                b'',
+                "sha256")
+
+        self.assertFalse(priv_key.hashAndVerify(
+            msg.signature, verif_bytes,
+            "", "sha256"))
+
+
+@unittest.skipIf(not ML_DSA_AVAILABLE, "Requires dilithium-py library")
+class TestCertificateVerifyGeneratorMLDSA(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from dilithium_py.ml_dsa.default_parameters import ML_DSA_65
+        from tlslite.utils.python_mldsakey import Python_MLDSAKey
+        pub_key, priv_key = ML_DSA_65.keygen()
+        cls.priv_key = Python_MLDSAKey((ML_DSA_65, pub_key),
+                                       (ML_DSA_65, priv_key))
+
+
+    def test_generate_with_mldsa_and_no_cert_req_in_tls1_3(self):
+        priv_key = self.priv_key
+
+        cert_ver_g = CertificateVerifyGenerator(priv_key)
+        state = ConnectionState()
+        state.version = (3, 4)
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertTrue(msg.signature)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.mldsa65)
+
+        verif_bytes = KeyExchange.calcVerifyBytes(
+                (3, 4),
+                state.handshake_hashes,
+                constants.SignatureScheme.mldsa65,
+                b'',
+                b'',
+                b'',
+                "sha256")
+
+        self.assertTrue(priv_key.hashAndVerify(
+            msg.signature, verif_bytes,
+            "", "sha256"))
+
+    def test_generate_with_xors(self):
+        priv_key = self.priv_key
+        cert_ver_g = CertificateVerifyGenerator(priv_key,
+                                                padding_xors={0: 0xff})
+        state = ConnectionState()
+        state.version = (3, 4)
+        req = CertificateRequest((3, 4)).create([], [],
+            [constants.SignatureScheme.mldsa65])
+        state.handshake_messages = [req]
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertTrue(msg.signature)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.mldsa65)
+
+        verif_bytes = KeyExchange.calcVerifyBytes(
+                (3, 4),
+                state.handshake_hashes,
+                constants.SignatureScheme.mldsa65,
+                b'',
+                b'',
+                b'',
+                "sha256")
+
+        sig = msg.signature
+        self.assertFalse(priv_key.hashAndVerify(
+            sig, verif_bytes,
+            "", "sha256"))
+
+        sig[0] ^= 0xff
+        self.assertTrue(priv_key.hashAndVerify(
+            sig, verif_bytes,
+            "", "sha256"))
+
 
 class TestClearContext(unittest.TestCase):
     def test___init__(self):
@@ -3761,3 +3896,181 @@ class TestHeartbeatGenerator(unittest.TestCase):
         hb = hbg.generate(None)
 
         self.assertEqual(hb.padding, bytearray(b''))
+
+class TestCompressedCertificateGenerator(unittest.TestCase):
+    def state_generator(self, cr_algo_list=None):
+        if not cr_algo_list:
+            cr_algo_list = [
+                constants.CertificateCompressionAlgorithm.zlib,
+                constants.CertificateCompressionAlgorithm.brotli,
+                constants.CertificateCompressionAlgorithm.zstd
+            ]
+
+        state = ConnectionState()
+        state.version = (3, 4)
+        cr = CertificateRequest(state.version)
+        cr.addExtension(extensions.CompressedCertificateExtension().create(
+            cr_algo_list))
+        state.handshake_messages.append(cr)
+
+        return state
+
+    def test___init__(self):
+        ccg = CompressedCertificateGenerator()
+
+        self.assertIsNotNone(ccg)
+        self.assertIsNone(ccg.certs)
+        self.assertIsNone(ccg.cert_type)
+        self.assertIsNone(ccg.version)
+        self.assertIsNone(ccg.context)
+        self.assertIsNone(ccg.algorithm)
+        self.assertIsNone(ccg.compressed_certificate_message)
+
+    def test_generate_default(self):
+        state = self.state_generator()
+        ccg = CompressedCertificateGenerator()
+
+        ccg.generate(state)
+
+        self.assertIsNotNone(ccg.msg)
+        self.assertEqual(ccg.version, state.version)
+        self.assertEqual(ccg.cert_type, constants.CertificateType.x509)
+        self.assertEqual(ccg.algorithm,
+            constants.CertificateCompressionAlgorithm.zlib)
+
+    @unittest.skipIf(not compression_algo_impls["brotli_compress"],
+                     "Brotli package is not installed.")
+    def test_generate_with_values(self):
+        state = self.state_generator()
+        ccg = CompressedCertificateGenerator(
+            cert_type=constants.CertificateType.x509,
+            version=(3, 4),
+            algorithm=constants.CertificateCompressionAlgorithm.brotli)
+
+        ccg.generate(state)
+
+        self.assertIsNotNone(ccg.msg)
+        self.assertEqual(ccg.version, state.version)
+        self.assertEqual(ccg.cert_type, constants.CertificateType.x509)
+        self.assertEqual(ccg.algorithm,
+            constants.CertificateCompressionAlgorithm.brotli)
+
+    def test_generate_cr_only_zlib(self):
+        state = self.state_generator(
+            cr_algo_list=[constants.CertificateCompressionAlgorithm.zlib])
+        ccg = CompressedCertificateGenerator()
+
+        ccg.generate(state)
+
+        self.assertIsNotNone(ccg.msg)
+        self.assertEqual(ccg.version, state.version)
+        self.assertEqual(ccg.cert_type, constants.CertificateType.x509)
+        self.assertEqual(ccg.algorithm,
+            constants.CertificateCompressionAlgorithm.zlib)
+
+    @unittest.skipIf(not compression_algo_impls["brotli_compress"],
+                     "Brotli package is not installed.")
+    def test_generate_cr_only_brotli(self):
+        state = self.state_generator(
+            cr_algo_list=[constants.CertificateCompressionAlgorithm.brotli])
+        ccg = CompressedCertificateGenerator()
+
+        ccg.generate(state)
+
+        self.assertIsNotNone(ccg.msg)
+        self.assertEqual(ccg.version, state.version)
+        self.assertEqual(ccg.cert_type, constants.CertificateType.x509)
+        self.assertEqual(ccg.algorithm,
+            constants.CertificateCompressionAlgorithm.brotli)
+
+    @unittest.skipIf(not compression_algo_impls["zstd_compress"],
+                     "Zstandard package is not installed.")
+    def test_generate_cr_only_zstd(self):
+        state = self.state_generator(
+            cr_algo_list=[constants.CertificateCompressionAlgorithm.zstd])
+        ccg = CompressedCertificateGenerator()
+
+        ccg.generate(state)
+
+        self.assertIsNotNone(ccg.msg)
+        self.assertEqual(ccg.version, state.version)
+        self.assertEqual(ccg.cert_type, constants.CertificateType.x509)
+        self.assertEqual(ccg.algorithm,
+            constants.CertificateCompressionAlgorithm.zstd)
+
+    def test_generate_cr_only_unknown(self):
+        state = self.state_generator(cr_algo_list=[10])
+        ccg = CompressedCertificateGenerator()
+
+        with self.assertRaises(ValueError) as e:
+            ccg.generate(state)
+
+        self.assertIn("No matching algorithms in compress_certificate",
+            str(e.exception))
+
+        self.assertIsNone(ccg.msg)
+
+    def test_generate_with_zlib_algo(self):
+        state = self.state_generator()
+        ccg = CompressedCertificateGenerator(
+            algorithm=constants.CertificateCompressionAlgorithm.zlib)
+
+        ccg.generate(state)
+
+        self.assertIsNotNone(ccg.msg)
+        self.assertEqual(ccg.version, state.version)
+        self.assertEqual(ccg.cert_type, constants.CertificateType.x509)
+        self.assertEqual(ccg.algorithm,
+            constants.CertificateCompressionAlgorithm.zlib)
+
+    @unittest.skipIf(not compression_algo_impls["brotli_compress"],
+                     "Brotli package is not installed.")
+    def test_generate_with_brotli_algo(self):
+        state = self.state_generator()
+        ccg = CompressedCertificateGenerator(
+            algorithm=constants.CertificateCompressionAlgorithm.brotli)
+
+        ccg.generate(state)
+
+        self.assertIsNotNone(ccg.msg)
+        self.assertEqual(ccg.version, state.version)
+        self.assertEqual(ccg.cert_type, constants.CertificateType.x509)
+        self.assertEqual(ccg.algorithm,
+            constants.CertificateCompressionAlgorithm.brotli)
+
+    @unittest.skipIf(not compression_algo_impls["zstd_compress"],
+                     "Zstandard package is not installed.")
+    def test_generate_with_zstd_algo(self):
+        state = self.state_generator()
+        ccg = CompressedCertificateGenerator(
+            algorithm=constants.CertificateCompressionAlgorithm.zstd)
+
+        ccg.generate(state)
+
+        self.assertIsNotNone(ccg.msg)
+        self.assertEqual(ccg.version, state.version)
+        self.assertEqual(ccg.cert_type, constants.CertificateType.x509)
+        self.assertEqual(ccg.algorithm,
+            constants.CertificateCompressionAlgorithm.zstd)
+
+    def test_generate_with_unknown_algo(self):
+        state = self.state_generator()
+        ccg = CompressedCertificateGenerator(
+            algorithm=10)
+
+        with self.assertRaises(ValueError) as e:
+            ccg.generate(state)
+
+        self.assertIn("Unknown compression algorithm code",
+            str(e.exception))
+
+        self.assertIsNone(ccg.msg)
+
+    def test_generate_with_compressed_message(self):
+        state = self.state_generator()
+        ccg = CompressedCertificateGenerator(
+            compressed_certificate_message=bytearray(b'\x00\x00\x00\x00'))
+
+        ccg.generate(state)
+
+        self.assertIsNotNone(ccg.msg)

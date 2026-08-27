@@ -17,17 +17,19 @@ Bleichenbacher against RSA key exchange. You can test for it using the
 <https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-bleichenbacher-timing-pregenerate.py>`_
 script.
 
-While we also include another script to do Bleichenbacher side-channel
-testing
-(`test-bleichenbacher-timing.py
-<https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-bleichenbacher-timing.py>`_)
-and one to test de-padding and verifying MAC values in CBC ciphertexts
+While we also include script to do side-channel
+testing for de-padding and verifying MAC values in CBC ciphertexts
 (`test-lucky13.py
-<https://github.com/tomato42/tlsfuzzer/blob/master/scripts/test-lucky13.py>`_,
-the Lucky Thirteen attack), they do not use similarly robust approach
+<https://github.com/tlsfuzzer/tlsfuzzer/blob/master/scripts/test-lucky13.py>`_,
+the Lucky Thirteen attack), it does not use similarly robust approach
 as the ``test-bleichenbacher-timing-pregenerate.py`` script, which
-may cause them to report false positives.
+may cause it to report false positives.
 
+Another attack will be the Minerva attack. This attack exploits side channels
+in ECDSA signing process based on the size of the nonce to get the private key.
+You can test for it using the `test-tls13-minerva.py
+<https://github.com/tlsfuzzer/tlsfuzzer/blob/master/scripts/test-tls13-minerva.py>`_
+script.
 
 Environment setup
 =================
@@ -200,7 +202,7 @@ for testing
 this kind of data to check if the
 observations differ significantly or not.
 
-In frequentist statitics tests work in terms of hypothesis testing.
+In frequentist statistics tests work in terms of hypothesis testing.
 Scripts in ``tlsfuzzer`` use
 `Wilcoxon signed-rank test
 <https://en.wikipedia.org/wiki/Wilcoxon_signed-rank_test>`_
@@ -261,8 +263,9 @@ Also, it means that if you wish to decrease the reported confidence interval
 by a factor of 10, you must execute the script with 100 times as many
 repetitions (as 10²=100).
 Or execute the same script with the same settings 100 times, combine
-the resulting data in ``timing.csv`` files and analyse such combined data
-set.
+the resulting data in ``timing.csv`` files (or ``measurements.csv`` and
+``measurements-inverse.csv`` files for Minerva/bit-size) and analyse such
+combined data set.
 That's the primary reason for the careful system setup: it's much
 easier to adjust a system configuration than to execute hundred tests
 that take 24h to complete...
@@ -352,7 +355,7 @@ Bleichenbacher test is extended to use the timing functionality:
 
 .. code:: bash
 
-   PYTHONPATH=. python scripts/test-bleichenbacher-timing.py -i lo
+   PYTHONPATH=. python scripts/test-bleichenbacher-timing-pregenerate.py -i lo
 
 By default, if ``dpkt`` dependency is available, the extraction will run right
 after the timing packet capture.
@@ -376,6 +379,44 @@ file.
    PYTHONPATH=. python tlsfuzzer/analysis.py -o "/tmp/results"
 
 
+For Minerva attack and similar bit-size attacks things are a bit different on
+extraction and analysis. To run the test you use similar method as the
+Bleichenbacher test:
+
+.. code:: bash
+
+   PYTHONPATH=. python scripts/test-tls13-minerva.py -i lo
+
+By default the test will only gather the data. If the private key is provided
+by ``--priv-key`` the test will also start extraction and analysis of the data.
+If analysis fail then the test will return non-zero code.
+In case you want to run the extraction on another machine you can do this by
+providing the raw times, the data, the signatures, the private key and specify
+the ``--prehashed`` flag:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/extract.py --raw-times timing.csv \
+   --raw-data data.bin --data-size 32 --raw-sigs sigs.bin \
+   --priv-key-ecdsa priv_key.pem -o /tmp/results/ --prehashed
+
+.. note::
+
+   Different key sizes would require different ``--data-size`` value. The flag
+   represents the number of bytes to read in each iteration from the data.bin
+   file. Since in this example we are using data from signatures that used
+   the sha-256 hashing algorithm, we pass 32 bytes to the
+   flag as this is the length of the output of the algorithm.
+
+This will create a ``measurements.csv`` file with the measurements in the long
+format.
+Finally for analysis we just need to specify the dir that has the
+``measurements.csv`` file in it and the ``--bit-size`` flag:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/analysis.py --bit-size -o "/tmp/results"
+
 With large sample sizes, to avoid exhausting available memory and to speed up
 the analysis, you can skip the generation of some graphs using the
 ``--no-ecdf-plot``, ``--no-scatter-plot`` and ``--no-conf-interval-plot``.
@@ -392,7 +433,7 @@ The ``extract.py`` can also process data collected by some external source
 (be it packet capture closer to server under test or an internal probe
 inside the server).
 
-The provided csv file must have a header and one column. While the file
+The provided CSV file must have a header and one column. While the file
 can contain additional data points at the beginning, the very last
 data point must correspond to the last connection made by tlsfuzzer.
 
@@ -416,6 +457,192 @@ file:
 
    PYTHONPATH=. python tlsfuzzer/analysis.py -o "/tmp/results"
 
+Generic data analysis
+-----------------------
+
+The basic input format (the ``timing.csv`` file) is intended for data
+from so-called
+`complete block design
+<https://en.wikipedia.org/wiki/Blocking_(statistics)>`_.
+That is, from a series of
+tests, where the system under test is fed data of specific classes, but
+in a way that the tests from specific classes
+are executed in random order.
+
+For example, in RSA decryption test case, the classes could have been
+"decrypts to a message of 32 bytes", "decrypts to a message of 16 bytes",
+and "causes decryption error". Then the CSV file would have three columns
+with values that represent processing times (in seconds) of those ciphertexts.
+
+But the classes can be of any arbitrary tests that we expect the same
+timing behaviour of.
+
+You run analysis of such a file by using the basic command:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/analysis.py -o "/path/to/dir/"
+
+ECDSA signature analysis
+------------------------
+It is possible to analyse ECDSA private key operations (be it signing) with
+respect to the leakage of the random nonce of the singature and then in
+extension the private key. This analysis is based on the
+`Minerva attack <https://minerva.crocs.fi.muni.cz/>`_ research.
+
+For that, using one specific ECDSA key, the test harness needs to collect
+timing information about individual signatures and save those times to a file.
+
+For extraction, we can then use the following command:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/extract.py -o "/output/dir" --raw-data data.bin --raw-sigs sigs.bin --raw-times times.csv --priv-key-ecdsa key.pem
+
+where we have the following files:
+
+``data.bin`` is a binary file either with concatenation of all the data used for
+creation of the signatures (default) or with concatenation of all the hashes
+directly (needs ``--prehashed`` flag).
+
+``sigs.bin`` is a binary file with concatenation all the created signatures
+either in DER ASN.1 encoding (default) or in raw format (needs
+``--sig-format RAW`` to be specified).
+
+``times.csv`` is a CSV file with one column, with values representing the
+processing times for every message in turn. Otherwise there is an option of
+times to be in a binary file with concatenation of all the times (needs
+``--binary`` option that takes the number of bytes each number is encoded with)
+
+``key.pem`` is the private ECDSA key that was used for signing the data.
+
+That will create 4 measurements files:
+
+1. ``measurements.csv`` for the normal analysis of the nonce.
+2. ``measurements-invert.csv`` for the analysis of the modular multiplicative inverse of the nonce.
+3. ``measurements-hamming-weight.csv`` for Hamming weight analysis of the normal nonce.
+4. ``measurements-hamming-weight-invert.csv`` for Hamming weight analysis of the modular multiplicative inverse of the nonce.
+
+Create a new directory for the ``analysis.py`` script to work in, copy one
+of those files there, and rename it to ``measurements.csv`` if not named like that already.
+
+Then you can run the analysis for bit sizes like so:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/analysis.py -o "/dir/with/measurements" --bit-size
+
+And you can run the analysis for Hamming weight like so:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/analysis.py -o "/dir/with/measurements" --Hamming-weight
+
+Repeat for every file.
+
+.. tip::
+
+   For Hamming weight analysis executing the analysis script with
+   ``--minimal-analysis --no-wilcoxon-test --no-le-sign-test --no-sign-test``
+   options will make it run much faster while still providing the most
+   important output: the Skillings-Mack test value.
+
+.. tip::
+
+   For testing the most important TLS implementations or getting some more
+   guidelines you can visit `minerva-toolkit
+   <https://github.com/GeorgePantelakis/minerva-toolkit>`_
+
+ECDH key agreement analysis
+---------------------------
+It is possible to analyse ECDH private key operations (be it secret derivation)
+with respect to the leakage of the random nonce of the derivation and then in
+extension the private key.
+
+For that, using one specific ECDH key, the test harness needs to collect
+timing information about individual derivation values and save those times to
+a file.
+
+For extraction, we can then use the following command:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/extract.py -o "/output/dir" --raw-data data.bin --raw-values values.bin --raw-times times.csv --priv-key-ecdsa key.pem
+
+where ``data.bin`` is a binary file with concatenation of all of the processed
+public keys, ``values.bin`` is a binary file with concatenation of all the
+generated shared secrets, ``times.csv`` is a CSV file with one column, with
+values representing the processing times for every message in turn and
+``key.pem`` is the private ECDSA key that was used for deriving the values.
+
+That will create 2 measurements files:
+
+1. ``measurements.csv`` for the normal analysis of the shared key.
+2. ``measurements-hamming-weight.csv`` for Hamming weight analysis of the shared key.
+
+Create a new directory for the ``analysis.py`` script to work in, copy one
+of those files there, and rename it to ``measurements.csv`` if not named like
+that already.
+
+Then you can run the analysis for bit sizes like so:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/analysis.py -o "/dir/with/measurements" --bit-size
+
+And you can run the analysis for Hamming weight like so:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/analysis.py -o "/dir/with/measurements" --Hamming-weight
+
+.. tip::
+
+   For Hamming weight analysis executing the analysis script with
+   ``--minimal-analysis --no-wilcoxon-test --no-le-sign-test --no-sign-test``
+   options will make it run much faster while still providing the most
+   important output: the Skillings-Mack test value.
+
+RSA key-based analysis
+----------------------
+It is possible to analyse RSA private key operations (be it signing
+or decryption) with respect to the leakage of individual elements of
+the private key (private exponent, primes, etc.).
+
+For that, the test harness needs to perform a single operation with a
+random, unique key, and save the time of the operation to a file.
+
+For extraction, we can then use the following command:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/extract.py -o "/output/dir" --rsa-keys keys.pem --raw-times times.csv
+
+where ``keys.pem`` is a file with concatenation of PKCS#8 PEM encoded keys
+and ``times.csv`` is a CSV file with one column, with values representing
+the processing times for every key in turn.
+
+That will create 6 files, one for each of the parameters of the private key:
+``measurements-d.csv``,  ``measurements-dP.csv``,  ``measurements-dQ.csv``,
+``measurements-p.csv``,  ``measurements-q.csv``, and ``measurements-qInv.csv``.
+
+Create a new directory for the ``analysis.py`` script to work in, copy one
+of those files there, and rename it to ``measurements.csv``.
+
+Then you can run the analysis like so:
+
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/analysis.py -o "/dir/with/measurements" --Hamming-weight
+
+Repeat for every file.
+
+.. tip::
+
+   Executing the analysis script with
+   ``--minimal-analysis --no-wilcoxon-test --no-le-sign-test --no-sign-test``
+   options will make it run much faster while still providing the most
+   important output: the Skillings-Mack test value.
 
 Combining results from multiple runs
 ------------------------------------
@@ -434,9 +661,24 @@ paths to one or more ``timing.csv`` files:
    PYTHONPATH=. python tlsfuzzer/combine.py -o out-dir \
    in_1596892760/timing.csv in_1596892742/timing.csv
 
+Alternatively, you can provide an input filelist containing one input
+file per line:
 
-The ``combine.py`` script also include the ``--long-format`` option for csv
-files that have a long format. The script is expecting a csv file, in which
+.. code:: bash
+
+   PYTHONPATH=. python tlsfuzzer/combine.py -o out-dir \
+   -i csv_filelist
+
+Or passing the filelist through STDIN.
+
+.. code:: bash
+
+   find in_* -name 'timing.csv' -print | \
+   PYTHONPATH=. python tlsfuzzer/combine.py -o out-dir \
+   -i -
+
+The ``combine.py`` script also includes the ``--long-format`` option for CSV
+files that are in the long format. The script is expecting a CSV file, in which
 each row will have 3 values in the format "row id,column id,value".
 
 For example if we have the data:
@@ -448,7 +690,7 @@ Row1             1        2        3
 Row2             4        5        6
 ================ ======== ======== ========
 
-The csv file should be formated as:
+The CSV file should be formated as:
 
 .. code::
 
@@ -549,6 +791,14 @@ of a side channel.
 With the likelihood increasing exponentially with the distance.
 Exact numerical values can be found in ``report.csv``.
 
+For Minerva attack and similar bit-size attacks we also create plots with all
+the nonce sizes to have a more complete view of the potential side channels.
+All the results are in the dir called ``analysis_results`` created during the
+analysis. The plots can be found under the names
+``conf_interval_plot_all_k_sizes_*.png`` and they are split to have at most 10
+nonce sizes at a time. Plots for individual nonces can be found under the
+``k-by-size`` dir. For this type of analysis no ``report.csv`` file is created.
+
 As mentioned previously, the script executes tests in three stages, first
 is the Wilcoxon signed-rank test and sign test between all the samples,
 second is the Friedman test, and finally is the bootstrapping of the
@@ -565,9 +815,11 @@ The sign test is performed in three different ways: the default, used for
 determining presence of the timing side-channel, is the two-sided variant,
 saved in the ``report.csv`` file as the ``Sign test``. The two other ways,
 the ``Sign test less`` and ``Sign test greater`` test the hypothesis that
-the one sample stochastically dominates the other. High p-values here aren't
-meangingful (i.e. you can get a p-value == 1 even if the alternative is not
-statistically significant even at alpha=0.05).
+the one sample stochastically dominates the other. For Minerva attack and
+similar bit-size attacks a ``sign_test.results`` and ``wilcoxon_test.results``
+file is created with the sign test and wilcoxon test results for each nonce
+size. High p-values here aren't meangingful (i.e. you can get a p-value == 1
+even if the alternative is not statistically significant even at alpha=0.05).
 Very low values of a ``Sign test less`` mean that the *second* sample
 is unlikely to be smaller than the *first* sample.
 Those tests are more sensitive than the confidence intervals for median, so
@@ -581,12 +833,15 @@ The code also calculates the
 but as the timings generally don't follow the normal distribution, it severly
 underestimates the difference between samples (it is strongly influenced by
 outliers). The results from it are not taken into account to decide failure of
-the overall timing test.
+the overall timing test. Again for Minerva attack and similar bit-size attacks
+a ``paired_t_test.results`` file is created with the results for each nonce
+size.
 It is useful for testing servers that are far away from the system on which
 the test script is executed.
 
 If the Friedman test fails,
 you should inspect the individual test p-values.
+The Friedman test is not running on bit-size attack analysis
 
 If one particular set of tests consistently scores low when compared to
 other tests (e.g. "very long (96-byte) pre master secret" and
@@ -625,6 +880,15 @@ for the samples themselves (i.e. not the differences between samples).
 You can use this data to estimate the smallest detectable difference between
 samples for a given sample size.
 
+For minerva and bit size attacks there is no ``report.txt`` file. Finally a
+``bootstrap_test.results`` file is created for the bootstrap results for each
+nonce size. If some nonce size has large (typically >0.01) sign test p-value or
+Wilcoxon test p-value (found in respecive files) and the confidence intervals
+of the bootstrap test is small (typically <1ns) for the specific nonce size,
+then we can confirm that no side-channel is present for this nonce size
+otherwise if we have very small small sign test p-value or Wilcoxon test
+p-value (typically <0.00001) then a side-channel is present for this nonce
+size.
 
 Writing new test scripts
 ========================
@@ -673,5 +937,5 @@ from the ``TiminingRunner`` instance in order to launch tcpdump and begin
 iterating over the tests. Provided you were able to install the timing
 dependencies, this will also launch extraction that will process the packet
 capture, and output the timing information associated with the test class into
-a csv file, and analysis that will generate a report with statistical test
+a CSV file, and analysis that will generate a report with statistical test
 results and supporting plots.

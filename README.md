@@ -1,7 +1,6 @@
-[![Build Status](https://github.com/tlsfuzzer/tlsfuzzer/workflows/GitHub%20CI/badge.svg?branch=master)](https://github.com/tlsfuzzer/tlsfuzzer/actions?query=workflow%3A%22GitHub+CI%22+branch%3Amaster)
+[![GitHub CI](https://github.com/tlsfuzzer/tlsfuzzer/actions/workflows/ci.yml/badge.svg)](https://github.com/tlsfuzzer/tlsfuzzer/actions/workflows/ci.yml)
 [![Read the Docs](https://img.shields.io/readthedocs/tlsfuzzer)](https://tlsfuzzer.readthedocs.io/en/latest/)
 [![Coverage Status](https://coveralls.io/repos/tlsfuzzer/tlsfuzzer/badge.svg?branch=master)](https://coveralls.io/r/tlsfuzzer/tlsfuzzer?branch=master)
-[![Code Climate](https://codeclimate.com/github/tlsfuzzer/tlsfuzzer/badges/gpa.svg)](https://codeclimate.com/github/tlsfuzzer/tlsfuzzer)
 
 # tlsfuzzer
 tlsfuzzer is a test suite for SSLv2, SSLv3, TLS 1.0, TLS 1.1, TLS 1.2, and
@@ -25,9 +24,9 @@ directory.
 
 You'll need:
 
- * Python 2.6 or later or Python 3.5 or later
+ * Python 2.6 or later or Python 3.6 or later
  * [tlslite-ng](https://github.com/tlsfuzzer/tlslite-ng)
-   0.8.0-beta1 or later (note that `tlslite` will *not* work and
+   0.8.1 or later (note that `tlslite` will *not* work and
    they conflict with each other)
  * [ecdsa](https://github.com/warner/python-ecdsa)
    python module (dependency of tlslite-ng, should get installed
@@ -78,7 +77,7 @@ Then you can run one of the tests in
 directory, like so:
 
 ```
-PYTHONPATH=. python scripts/test-invalid-compression-methods.py
+scripts/test-invalid-compression-methods.py
 ```
 
 If test has additional requirements, it will output them to console. No errors

@@ -17,7 +17,7 @@ from tlsfuzzer.helpers import sig_algs_to_ids, key_share_gen, psk_ext_gen, \
         flexible_getattr, psk_session_ext_gen, key_share_ext_gen, \
         uniqueness_check, AutoEmptyExtension, protocol_name_to_tuple, \
         client_cert_types_to_ids, ext_names_to_ids, expected_ext_parser, \
-        dict_update_non_present
+        dict_update_non_present, pad_or_truncate_signature
 from tlsfuzzer.runner import ConnectionState
 from tlslite.extensions import KeyShareEntry, PreSharedKeyExtension, \
         PskIdentity, ClientKeyShareExtension
@@ -447,3 +447,38 @@ class TestDictUpdateNotPresent(unittest.TestCase):
             dict_update_non_present(ref, ["duplicated_key"])
 
         self.assertIn("duplicated_key", str(e.exception))
+
+
+class TestPadOrTruncateSignature(unittest.TestCase):
+    def test_with_truncation(self):
+        cal = pad_or_truncate_signature(lambda a, b, c, d: b'xxx000', -3)
+
+        self.assertEqual(cal(None, None, None, None), bytearray(b'xxx'))
+
+    def test_with_pad_byte(self):
+        cal = pad_or_truncate_signature(lambda a, b, c, d: b'xxx', 3, b'0')
+
+        self.assertEqual(cal(None, None, None, None), bytearray(b'xxx000'))
+
+    def test_with_pad_int(self):
+        cal = pad_or_truncate_signature(lambda a, b, c, d: b'xxx', 1, 0)
+
+        self.assertEqual(cal(None, None, None, None), bytearray(b'xxx\x00'))
+
+    def test_wrong_modify_length(self):
+        with self.assertRaises(ValueError) as e:
+            pad_or_truncate_signature(lambda a, b, c, d: b'xxx000', 0)
+
+        self.assertIn("non-zero", str(e.exception))
+
+    def test_pad_byte_specified_for_truncation(self):
+        with self.assertRaises(ValueError) as e:
+            pad_or_truncate_signature(lambda a, b, c, d: b'xxx000', -2, b'0')
+
+        self.assertIn("pad_byte can be specified only", str(e.exception))
+
+    def test_missing_pad_byte(self):
+        with self.assertRaises(ValueError) as e:
+            pad_or_truncate_signature(lambda a, b, c, d: b'xxx000', 1)
+
+        self.assertIn("pad_byte unspecified", str(e.exception))

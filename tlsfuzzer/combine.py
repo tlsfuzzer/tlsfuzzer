@@ -75,6 +75,21 @@ def read_column_based_csv(file_name):
             yield i
 
 
+def read_row_based_textfile(file_name):
+    """
+    Reads a text file, yielding line after line.
+    For file_name being '-' STDIN is processed instead.
+    """
+
+    if file_name == '-':
+        for line in sys.stdin:
+            yield line
+    else:
+        with open(file_name, 'r') as file_r:
+            for line in file_r:
+                yield line
+
+
 def combine(output, inputs):
     """Combine timing.csv or measurements.csv files into a single one."""
     columns = None
@@ -138,14 +153,17 @@ def combine_measurements(output, inputs):
 
 
 def main():
+    input_filelist = None
     output = None
     long_format = False
 
     argv = sys.argv[1:]
-    opts, args = getopt.getopt(argv, "o:", ["help", "long-format"])
+    opts, args = getopt.getopt(argv, "i:o:", ["help", "long-format"])
 
     for opt, arg in opts:
-        if opt == "-o":
+        if opt == "-i":
+            input_filelist = arg
+        elif opt == "-o":
             output = arg
         elif opt == "--long-format":
             long_format = True
@@ -155,6 +173,12 @@ def main():
             sys.exit(0)
 
     inputs = args
+
+    # extend filelist provided as arguments with files from input_filelist
+    if input_filelist:
+        inputs.extend(map(lambda obj: obj.strip(),
+                          read_row_based_textfile(input_filelist)))
+
     if not inputs:
         raise ValueError("No input files provided")
     if not output:

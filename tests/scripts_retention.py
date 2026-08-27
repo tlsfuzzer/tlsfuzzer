@@ -157,7 +157,7 @@ def run_clients(tests, common_args, srv, expected_size, run_only=None):
         script = params["name"]
 
         if run_only is not None and script != run_only:
-            # If the test name doesn't match, count it as skipped 
+            # If the test name doesn't match, count it as skipped
             logger.info("{0}:skipped".format(script))
             skipped += 1
             continue

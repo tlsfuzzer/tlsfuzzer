@@ -9,11 +9,11 @@ from tlslite.messages import ClientHello, ClientKeyExchange, ChangeCipherSpec,\
         Finished, Alert, ApplicationData, Message, Certificate, \
         CertificateVerify, CertificateRequest, ClientMasterKey, \
         ClientFinished, ServerKeyExchange, ServerHello, Heartbeat, \
-        KeyUpdate
+        KeyUpdate, CompressedCertificate
 from tlslite.constants import AlertLevel, AlertDescription, ContentType, \
         ExtensionType, CertificateType, HashAlgorithm, \
         SignatureAlgorithm, CipherSuite, SignatureScheme, TLS_1_3_HRR, \
-        HeartbeatMessageType
+        HeartbeatMessageType, CertificateCompressionAlgorithm, GroupName
 import tlslite.utils.tlshashlib as hashlib
 from tlslite.extensions import TLSExtension, RenegotiationInfoExtension, \
         ClientKeyShareExtension, StatusRequestExtension
@@ -26,6 +26,7 @@ from tlslite.utils.codec import Writer
 from tlslite.utils.cryptomath import getRandomBytes, numBytes, \
     numberToByteArray, bytesToNumber, HKDF_expand_label, secureHMAC, \
     derive_secret
+from tlslite.utils.compression import compression_algo_impls
 from tlslite.keyexchange import KeyExchange
 from tlslite.bufferedsocket import BufferedSocket
 from tlslite.recordlayer import ConnectionState
@@ -35,7 +36,8 @@ from .handshake_helpers import calc_pending_states, curve_name_to_hash_tls13
 from .tree import TreeNode
 import socket
 from functools import partial
-
+from ecdsa import VerifyingKey
+from tlslite.utils import ecc
 
 class Command(TreeNode):
     """Command objects."""
@@ -405,20 +407,32 @@ class RawSocketWriteGenerator(Command):
     :ivar bytearray ~.data: data to send
     :ivar str ~.description: identifier to print when processing of the node
         fails
+    :ivar ~.data_file: The :term:`file object` from which to read the data
+        to send. On node re-execution will read subsequent values, does not
+        rewind the file pointer or close the file. The file must be opened in
+        binary mode.
+    :vartype ~.data_file: :term:`file object`
+    :ivar int data_length: The length of data to read from file, in bytes.
     """
 
-    def __init__(self, data, description=None):
+    def __init__(self, data=None, description=None,
+                 data_file=None, data_length=None):
         """Set the record layer type and payload to send."""
         super(RawSocketWriteGenerator, self).__init__()
         self.data = data
         self.description = description
+        self.data_file = data_file
+        self.data_length = data_length
 
     def __repr__(self):
         """Return human readable representation of the object."""
-        return self._repr(["data", "description"])
+        return self._repr(["data", "description", "data_file",
+                           "data_length"])
 
     def process(self, state):
         """Send the message over the socket."""
+        if self.data_file:
+            self.data = self.data_file.read(self.data_length)
         state.msg_sock._recordSocket.sock.send(self.data)
 
 
@@ -755,6 +769,8 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
     :ivar int encrypted_premaster_length: The length of data to read, in bytes
     :ivar bool random_premaster: whether to use a random premaster value
        or the static default (48 zero bytes)
+    :ivar str ec_point_encoding: the encoding of the
+       ECC point in the key share extension
     """
 
     def __init__(self, cipher=None, version=None, client_version=None,
@@ -765,7 +781,7 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
                  padding_byte=None, reuse_encrypted_premaster=False,
                  encrypted_premaster_file=None,
                  encrypted_premaster_length=None,
-                 random_premaster=False):
+                 random_premaster=False, ec_point_encoding=None,):
         """Set settings of the Client Key Exchange to be sent."""
         super(ClientKeyExchangeGenerator, self).__init__()
         self.cipher = cipher
@@ -788,6 +804,7 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
         self.encrypted_premaster_file = encrypted_premaster_file
         self.encrypted_premaster_length = encrypted_premaster_length
         self.random_premaster = random_premaster
+        self.ec_point_encoding = ec_point_encoding
 
         if encrypted_premaster_file and not encrypted_premaster_length:
             raise ValueError("Must specify the length of data to read from"
@@ -864,6 +881,14 @@ class ClientKeyExchangeGenerator(HandshakeProtocolMessageGenerator):
                                         self.version).createECDH(self.ecdh_Yc)
             else:
                 cke = status.key_exchange.makeClientKeyExchange()
+            if self.ec_point_encoding is not None:
+                ske = status.get_last_message_of_type(ServerKeyExchange)
+                curve_name = GroupName.toRepr(ske.named_curve)
+                curve = ecc.getCurveByName(curve_name)
+                client_public_key = cke.ecdh_Yc
+                verify_key = VerifyingKey.from_string(client_public_key, curve)
+                new_public_key = verify_key.to_string(encoding=self.ec_point_encoding)
+                cke.ecdh_Yc = new_public_key
             status.key['ClientKeyExchange.ecdh_Yc'] = cke.ecdh_Yc
         else:
             raise AssertionError("Unknown cipher/key exchange type")
@@ -978,6 +1003,103 @@ class CertificateGenerator(HandshakeProtocolMessageGenerator):
         return cert
 
 
+class CompressedCertificateGenerator(HandshakeProtocolMessageGenerator):
+    """
+    Generator for TLS handshake protocol CompressedCertificate message.
+
+    :vartype certs: X509CertChain
+    :ivar certs: passed in CertificateGenerator class
+
+    :vartype cert_type: ClientCertificateType
+    :ivar cert_type: passed in CertificateGenerator class
+
+    :vartype version: tuple(int,int)
+    :ivar version: passed in CertificateGenerator class
+
+    :vartype context: bytearray
+    :ivar context: passed in CertificateGenerator class
+
+    :vartype algorithm: CertificateCompressionAlgorithm
+    :ivar algorithm: the compression algorithm that will be used to create the
+    compressed certificate message.
+
+    :vartype compressed_certificate_message: bytearray
+    :ivar compressed_certificate_message: The bytearray that will be used as a
+    payload to generate the compressed certificate message.
+    """
+
+    def __init__(self, certs=None, cert_type=None, version=None, context=None,
+                 algorithm=None, compressed_certificate_message=None,
+                 uncompressed_message_size=None):
+        """Set the compressed certificates to send to server."""
+        super(CompressedCertificateGenerator, self).__init__()
+
+        self.certs = certs
+        self.cert_type = cert_type
+        self.version = version
+        self.context = context
+        self.algorithm = algorithm
+        self.compressed_certificate_message = compressed_certificate_message
+        self.uncompressed_message_size = uncompressed_message_size
+
+    def generate(self, state):
+        """Create a Compressed Certificate message."""
+        if self.version is None:
+            self.version = state.version
+
+        if self.cert_type is None:
+            self.cert_type = CertificateType.x509
+
+        if self.algorithm is None:  # pick one from compress_certificate
+            cr = state.get_last_message_of_type(CertificateRequest)
+            assert cr is not None
+            ext = cr.getExtension(ExtensionType.compress_certificate)
+            assert ext is not None
+            algorithms = ext.algorithms
+
+            if CertificateCompressionAlgorithm.zlib in algorithms:
+                self.algorithm = CertificateCompressionAlgorithm.zlib
+            elif (
+                CertificateCompressionAlgorithm.brotli in algorithms
+                and compression_algo_impls["brotli_compress"]
+            ):
+                self.algorithm = CertificateCompressionAlgorithm.brotli
+            elif (
+                CertificateCompressionAlgorithm.zstd in algorithms
+                and compression_algo_impls["zstd_compress"]
+            ):
+                self.algorithm = CertificateCompressionAlgorithm.zstd
+            else:
+                raise ValueError(
+                    "No matching algorithms in compress_certificate. "
+                    "Algorithms: [{0}]".format(", ".join(
+                        CertificateCompressionAlgorithm.toStr(algo)
+                        for algo in algorithms
+                    ))
+                )
+
+        context = b''
+        if self.context:
+            context = self.context[-1]
+            assert isinstance(context, CertificateRequest)
+            context = context.certificate_request_context
+
+        cert = CompressedCertificate(self.cert_type, version=self.version)
+        cert.create(self.algorithm, self.certs, context=context)
+
+        if self.compressed_certificate_message is not None:
+            cert._compressed_msg = self.compressed_certificate_message
+
+        if self.uncompressed_message_size is not None:
+            cert._uncompressed_msg_len = self.uncompressed_message_size
+
+        if self.context:
+            self.context.append(cert)
+
+        self.msg = cert
+        return cert
+
+
 class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
     """
     Generator for TLS handshake protocol Certificate Verify message.
@@ -1034,12 +1156,18 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
     :vartype private_key: :py:class:`~tlslite.utils.rsakey.RSAKey` or
         :py:class:`~tlslite.utils.ecdsakey.ECDSAKey`
     :ivar private_key: key that will be used for signing the message
+
+    :vartype sig_func: callable
+    :ivar sig_func: Function to call instead of the ``private_key.sign()`` or
+        ``private_key.hashAndSign()`` methods; needs to have the same
+        prototype as those two. Can be used to modify how the signature
+        is calculated or encoded.
     """
 
     def __init__(self, private_key=None, msg_version=None, msg_alg=None,
                  sig_version=None, sig_alg=None, signature=None,
                  rsa_pss_salt_len=None, padding_xors=None, padding_subs=None,
-                 mgf1_hash=None, context=None):
+                 mgf1_hash=None, context=None, sig_func=None):
         """Create object for generating Certificate Verify messages."""
         super(CertificateVerifyGenerator, self).__init__()
         self.private_key = private_key
@@ -1055,6 +1183,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         self.padding_subs = padding_subs
         self.mgf1_hash = mgf1_hash
         self.context = context
+        self.sig_func = sig_func
 
     @staticmethod
     def _sig_alg_for_rsa_key(key_alg, accept_sig_algs, version):
@@ -1092,11 +1221,22 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             # in TLS 1.2 we can mix and match hashes and curves
             return next((i for i in accept_sig_algs
                          if i in ECDSA_SIG_ALL), ECDSA_SIG_ALL[0])
-        # but in TLS 1.3 we need to select a hash that matches our key
-        hash_name = curve_name_to_hash_tls13(key.curve_name)
-        # while it may select one that wasn't advertised by server,
-        # this is better last resort than sending a sha1+rsa sigalg
-        return (getattr(HashAlgorithm, hash_name), SignatureAlgorithm.ecdsa)
+        assert version == (3, 4)
+        if "NIST" in key.curve_name:
+            # but in TLS 1.3 we need to select a hash that matches our key
+            hash_name = curve_name_to_hash_tls13(key.curve_name)
+            # while it may select one that wasn't advertised by server,
+            # this is better last resort than sending a sha1+rsa sigalg
+            return (
+                getattr(HashAlgorithm, hash_name),
+                SignatureAlgorithm.ecdsa
+            )
+        if key.curve_name == "BRAINPOOLP256r1":
+            return SignatureScheme.ecdsa_brainpoolP256r1tls13_sha256
+        if key.curve_name == "BRAINPOOLP384r1":
+            return SignatureScheme.ecdsa_brainpoolP384r1tls13_sha384
+        assert key.curve_name == "BRAINPOOLP512r1"
+        return SignatureScheme.ecdsa_brainpoolP512r1tls13_sha512
 
     @staticmethod
     def _sig_alg_for_dsa_key(accept_sig_algs, version, key):
@@ -1131,7 +1271,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         if key_alg in ("rsa", "rsa-pss"):
             return CertificateVerifyGenerator._sig_alg_for_rsa_key(
                 key_alg, accept_sig_algs, version)
-        if key_alg in ("Ed25519", "Ed448"):
+        if key_alg in ("Ed25519", "Ed448", "mldsa87", "mldsa65", "mldsa44"):
             return CertificateVerifyGenerator._sig_alg_for_eddsa_key(
                 key_alg, accept_sig_algs)
         if key_alg == "dsa":
@@ -1224,7 +1364,18 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         if self.sig_alg:
             # while the argument is called mgf1_hash in ecdsa
             # signatures it's used for the derivation of the nonce
-            self.mgf1_hash = HashAlgorithm.toStr(self.sig_alg[0])
+            if self.sig_alg == \
+                    SignatureScheme.ecdsa_brainpoolP256r1tls13_sha256:
+                self.mgf1_hash = "sha256"
+            elif self.sig_alg == \
+                    SignatureScheme.ecdsa_brainpoolP384r1tls13_sha384:
+                self.mgf1_hash = "sha384"
+            elif self.sig_alg == \
+                    SignatureScheme.ecdsa_brainpoolP512r1tls13_sha512:
+                self.mgf1_hash = "sha512"
+            else:
+                assert self.sig_alg[1] == SignatureAlgorithm.ecdsa
+                self.mgf1_hash = HashAlgorithm.toStr(self.sig_alg[0])
         else:
             # in TLS 1.1 and earlier we do simple sha1 signatures
             self.mgf1_hash = "sha1"
@@ -1280,6 +1431,8 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             raise ValueError("Can't create a signature without "
                              "private key!")
 
+        verify_bytes_sig = self.sig_alg
+
         if self.sig_alg and self.sig_alg[1] == SignatureAlgorithm.ecdsa or\
                 self.private_key.key_type == "ecdsa":
             signature_type = "ecdsa"
@@ -1287,6 +1440,15 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                 SignatureScheme.ed25519, SignatureScheme.ed448) or \
                 self.private_key.key_type in ("Ed25519", "Ed448"):
             signature_type = "eddsa"
+        elif self.sig_alg and self.sig_alg in (
+                SignatureScheme.mldsa87, SignatureScheme.mldsa65,
+                SignatureScheme.mldsa44) or \
+                self.private_key.key_type in ("mldsa87", "mldsa65", "mldsa44"):
+            signature_type = "mldsa"
+            # there are no ML-DSA signatures in TLS 1.2, so tlslite code
+            # can't make them, so we need to fake the way to sign them
+            if self.sig_version <= (3, 3):
+                verify_bytes_sig = SignatureScheme.ed25519
         elif self.sig_alg and self.sig_alg[1] == SignatureAlgorithm.dsa or \
                 self.private_key.key_type == "dsa":
             signature_type = "dsa"
@@ -1305,14 +1467,13 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
         verify_bytes = \
             KeyExchange.calcVerifyBytes(self.sig_version,
                                         handshake_hashes,
-                                        self.sig_alg,
+                                        verify_bytes_sig,
                                         status.key['premaster_secret'],
                                         status.client_random,
                                         status.server_random,
                                         status.prf_name,
                                         key_type=self.private_key.key_type)
-
-        if signature_type == "eddsa":
+        if signature_type in ("eddsa", "mldsa"):
             self.mgf1_hash = "intrinsic"
             self.rsa_pss_salt_len = None
             padding = None
@@ -1337,6 +1498,9 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             padding, old_private_key_op = self._get_rsa_sig_parameters()
             sig_func = self.private_key.sign
 
+        if self.sig_func:
+            sig_func = self.sig_func
+
         try:
             signature = sig_func(verify_bytes,
                                  padding,
@@ -1355,7 +1519,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             signature = bytearray(signature)
             max_byte = len(signature) - 1
             self._normalise_subs_and_xors(max_byte)
-        if signature_type in ("ecdsa", "eddsa", "dsa"):
+        if signature_type in ("ecdsa", "eddsa", "dsa", "mldsa"):
             # but EdDSA signatures are always the same length for given
             # key type, so don't normalise the values for them
             signature = substitute_and_xor(signature, self.padding_subs,
@@ -1772,6 +1936,8 @@ def substitute_and_xor(data, substitutions, xors):
 
     (Method used internally by tlsfuzzer.)
     """
+    if type(data) == bytes:
+        data = bytearray(data)
     if substitutions:
         _apply_function(data, substitutions, lambda a, b: b)
 

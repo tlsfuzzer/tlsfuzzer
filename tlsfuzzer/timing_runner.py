@@ -25,7 +25,7 @@ class TimingRunner:
     def __init__(self, name, tests, out_dir, ip_address, port, interface,
                  affinity=None, skip_extract=False, skip_analysis=False,
                  alpha=None, no_quickack=False, verbose_analysis=False,
-                 delay=None, carriage_return=None):
+                 delay=None, carriage_return=None, summary_only=False):
         """
         Check if tcpdump is present and setup instance parameters.
 
@@ -65,6 +65,7 @@ class TimingRunner:
         self.verbose_analysis = verbose_analysis
         self.delay = delay
         self.carriage_return = carriage_return
+        self.summary_only = summary_only
 
         self.tcpdump_running = True
         self.tcpdump_output = None
@@ -203,8 +204,27 @@ class TimingRunner:
             analysis = Analysis(self.out_dir, alpha=self.alpha,
                                 verbose=self.verbose_analysis,
                                 delay=self.delay,
-                                carriage_return=self.carriage_return)
+                                carriage_return=self.carriage_return,
+                                summary_only=self.summary_only)
             return analysis.generate_report()
+
+        print("Analysis is not available. "
+              "Install required packages to enable.")
+        return 2
+
+    def analyse_bit_sizes(self):
+        """
+        Starts analysis if available
+
+        :return: int 0 for no side channel detected, 1 for side channel
+        detected, 2 unavailable
+        """
+        if self.check_analysis_availability():
+            from tlsfuzzer.analysis import Analysis
+            analysis = Analysis(self.out_dir, alpha=self.alpha,
+                                verbose=self.verbose_analysis,
+                                bit_size_analysis=True)
+            return analysis.analyze_bit_sizes()
 
         print("Analysis is not available. "
               "Install required packages to enable.")

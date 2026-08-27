@@ -6,7 +6,7 @@ import time
 import random
 from functools import partial
 from tlslite.constants import HashAlgorithm, SignatureAlgorithm, \
-        SignatureScheme, ClientCertificateType, ExtensionType
+        SignatureScheme, ClientCertificateType, ExtensionType, CipherSuite
 
 from tlslite.extensions import KeyShareEntry, PreSharedKeyExtension, \
         PskIdentity, ClientKeyShareExtension, SessionTicketExtension
@@ -20,6 +20,7 @@ __all__ = ['sig_algs_to_ids', 'key_share_gen', 'psk_ext_gen',
            'key_share_ext_gen', 'uniqueness_check', 'RSA_SIG_ALL',
            'ECDSA_SIG_ALL', 'RSA_PKCS1_ALL', 'RSA_PSS_PSS_ALL',
            'RSA_PSS_RSAE_ALL', 'ECDSA_SIG_TLS1_3_ALL', 'EDDSA_SIG_ALL',
+           'MLDSA_SIG_ALL',
            'SIG_ALL', 'AutoEmptyExtension', 'client_cert_types_to_ids',
            'session_ticket_ext_gen']
 
@@ -39,7 +40,10 @@ extensions.
 
 
 ECDSA_SIG_ALL = [(getattr(HashAlgorithm, x), SignatureAlgorithm.ecdsa) for x in
-                 ["sha512", "sha384", "sha256", "sha224", "sha1"]]
+                 ["sha512", "sha384", "sha256", "sha224", "sha1"]] + \
+                [SignatureScheme.ecdsa_brainpoolP256r1tls13_sha256,
+                 SignatureScheme.ecdsa_brainpoolP384r1tls13_sha384,
+                 SignatureScheme.ecdsa_brainpoolP512r1tls13_sha512]
 """List of all ECDSA signature algorithms supported by tlsfuzzer,
 as used in ``signature_algorithms`` or ``signature_algorithms_cert``
 extensions.
@@ -67,7 +71,10 @@ made with rsaEncryption (PKCS#1) key."""
 
 ECDSA_SIG_TLS1_3_ALL = [SignatureScheme.ecdsa_secp521r1_sha512,
                         SignatureScheme.ecdsa_secp384r1_sha384,
-                        SignatureScheme.ecdsa_secp256r1_sha256]
+                        SignatureScheme.ecdsa_secp256r1_sha256,
+                        SignatureScheme.ecdsa_brainpoolP256r1tls13_sha256,
+                        SignatureScheme.ecdsa_brainpoolP384r1tls13_sha384,
+                        SignatureScheme.ecdsa_brainpoolP512r1tls13_sha512]
 """
 List of all ECDSA signature algorithms that can be used in TLS 1.3.
 
@@ -86,14 +93,20 @@ DSA_ALL = [(getattr(HashAlgorithm, x), SignatureAlgorithm.dsa) for x in
 List of all DSA signatures
 """
 
+MLDSA_SIG_ALL = [SignatureScheme.mldsa87,
+                 SignatureScheme.mldsa65,
+                 SignatureScheme.mldsa44]
+"""
+List of all pure ML-DSA signatures
+"""
 
-SIG_ALL = RSA_PSS_PSS_ALL + RSA_PSS_RSAE_ALL + RSA_PKCS1_ALL + ECDSA_SIG_ALL +\
-    EDDSA_SIG_ALL + DSA_ALL
+
+SIG_ALL = MLDSA_SIG_ALL + RSA_PSS_PSS_ALL + RSA_PSS_RSAE_ALL + RSA_PKCS1_ALL +\
+    ECDSA_SIG_ALL + EDDSA_SIG_ALL + DSA_ALL
 """List of all signature algorithms supported by tlsfuzzer,
 as used in ``signature_algorithms`` or ``signature_algorithms_cert`` extension.
 
-For now includes only RSA, ECDSA and EdDSA algorithms, will include DSA
-algorithms later on.
+Will include hybrid PQC algorithms and SLH-DSA later.
 
 Sorted in order of strongest to weakest hash.
 """
@@ -150,6 +163,24 @@ def sig_algs_to_ids(names):
             ids.append(getattr(SignatureScheme, name))
 
     return ids
+
+
+def cipher_suite_to_id(name):
+    """
+    Convert a string with a cipher suite name to numerical ID.
+
+    Handles both numerical IDs and names.
+
+    :raises ValueError: when the specified identifier is not defined
+        in ExtensionType and it is not an number
+    """
+    if name[:2] == '0x':
+        return int(name, 16)
+    else:
+        try:
+            return getattr(CipherSuite, name)
+        except AttributeError:
+            return int(name)
 
 
 def _ext_name_to_id(name):
@@ -234,7 +265,7 @@ def key_share_ext_gen(groups):
     return _key_share_ext_gen
 
 
-def key_share_gen(group, version=(3, 4)):
+def key_share_gen(group, version=(3, 4), point_format="uncompressed"):
     """
     Create a random key share for a group of a given id.
 
@@ -243,11 +274,17 @@ def key_share_gen(group, version=(3, 4)):
     :type version: tuple
     :param version: TLS protocol version as a tuple, as encoded on the
         wire
+    :param str point_format: point format for the ECDH key shares,
+        applicable to NIST curves only. Note: only "uncompressed" is
+        actually valid in TLS 1.3. Can be also "compressed", "hybrid", and
+        "raw".
     :rtype: `tlslite.extensions.KeyShareEntry`
     """
     kex = kex_for_group(group, version)
     private = kex.get_random_private_key()
-    share = kex.calc_public_value(private)
+    share = bytearray(kex.calc_public_value(
+        private,
+        point_format=point_format))
     return KeyShareEntry().create(group, share, private)
 
 
@@ -478,14 +515,23 @@ def protocol_name_to_tuple(name):
              "ssl2": (0, 2),
              "sslv3": (3, 0),
              "ssl3": (3, 0),
+             "3.0": (3, 0),
+             "tls 1.0": (3, 1),
              "tlsv1.0": (3, 1),
              "tls1.0": (3, 1),
+             "1.0": (3, 1),
+             "tls 1.1": (3, 2),
              "tlsv1.1": (3, 2),
              "tls1.1": (3, 2),
+             "1.1": (3, 2),
+             "tls 1.2": (3, 3),
              "tlsv1.2": (3, 3),
              "tls1.2": (3, 3),
+             "1.2": (3, 3),
+             "tls 1.3": (3, 4),
              "tlsv1.3": (3, 4),
-             "tls1.3": (3, 4)}
+             "tls1.3": (3, 4),
+             "1.3": (3, 4)}
     val = names.get(name.lower())
     if val:
         return val
@@ -547,3 +593,36 @@ def dict_update_non_present(d, keys, value=None):
                              .format(k))
         d[k] = value
     return d
+
+
+def pad_or_truncate_signature(sig_method, modify, pad_byte=None):
+    """
+    Wrap the signature method and modify the result.
+
+    Allow either truncating a returned signature (by specifying
+    ``modify`` as a negative number) or padding (by specifying a positive
+    number) with the specified ``pad_byte``.
+
+    :param callable sig_method: sign() or hashAndSign() method of a private
+    key object
+    :param int modify: value by how much truncate or pad the signature
+    :param pad_byte: the byte used for padding the signature
+    :return: callable
+    """
+    if modify == 0:
+        raise ValueError("modify needs to be non-zero")
+    if pad_byte is not None and modify < 0:
+        raise ValueError("pad_byte can be specified only "
+                         "for padding operations")
+    if pad_byte is None and modify > 0:
+        raise ValueError("pad_byte unspecified for padding operation")
+
+    if modify > 0:
+        if isinstance(pad_byte, int):
+            pad = bytearray([pad_byte]) * modify
+        else:
+            pad = pad_byte * modify
+        return lambda a, b, c, d: bytearray(sig_method(a, b, c, d) + pad)
+
+    return lambda a, b, c, d: bytearray(sig_method(a, b, c, d))[:modify]
+

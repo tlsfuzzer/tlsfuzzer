@@ -17,16 +17,14 @@ jobs:
             container: centos:6
             python-version: 2.6
           - name: py2.7
-            os: ubuntu-20.04
+            os: ubuntu-22.04
             python-version: 2.7
-          - name: py3.5
-            os: ubuntu-20.04
-            python-version: 3.5
           - name: py3.6
-            os: ubuntu-20.04
+            os: ubuntu-latest
+            container: centos:8
             python-version: 3.6
           - name: py3.7
-            os: ubuntu-latest
+            os: ubuntu-22.04
             python-version: 3.7
           - name: py3.8
             os: ubuntu-latest
@@ -37,6 +35,18 @@ jobs:
           - name: py3.10
             os: ubuntu-latest
             python-version: '3.10'
+          - name: py3.11
+            os: ubuntu-latest
+            python-version: '3.11'
+          - name: py3.12
+            os: ubuntu-latest
+            python-version: '3.12'
+          - name: py3.13
+            os: ubuntu-latest
+            python-version: '3.13'
+          - name: py3.14
+            os: ubuntu-latest
+            python-version: '3.14'
           # also test with extraction tooling installed
           - name: py2.6 with extract
             os: ubuntu-latest
@@ -44,19 +54,16 @@ jobs:
             python-version: 2.6
             opt-deps: ['extract']
           - name: py2.7 with extract
-            os: ubuntu-20.04
+            os: ubuntu-22.04
             python-version: 2.7
             opt-deps: ['extract']
-          - name: py3.5 with extract
-            os: ubuntu-20.04
-            python-version: 3.5
-            opt-deps: ['extract']
           - name: py3.6 with extract
-            os: ubuntu-20.04
+            os: ubuntu-latest
+            container: centos:8
             python-version: 3.6
             opt-deps: ['extract']
           - name: py3.7 with extract
-            os: ubuntu-latest
+            os: ubuntu-22.04
             python-version: 3.7
             opt-deps: ['extract']
           - name: py3.8 with extract
@@ -71,13 +78,30 @@ jobs:
             os: ubuntu-latest
             python-version: '3.10'
             opt-deps: ['extract']
+          - name: py3.11 with extract
+            os: ubuntu-latest
+            python-version: '3.11'
+            opt-deps: ['extract']
+          - name: py3.12 with extract
+            os: ubuntu-latest
+            python-version: '3.12'
+            opt-deps: ['extract']
+          - name: py3.13 with extract
+            os: ubuntu-latest
+            python-version: '3.13'
+            opt-deps: ['extract']
+          - name: py3.14 with extract
+            os: ubuntu-latest
+            python-version: '3.14'
+            opt-deps: ['extract']
           # also test with just analysis tooling installed
           - name: py3.6 with analysis
-            os: ubuntu-20.04
+            os: ubuntu-latest
+            container: centos:8
             python-version: 3.6
             opt-deps: ['analysis']
           - name: py3.7 with analysis
-            os: ubuntu-latest
+            os: ubuntu-22.04
             python-version: 3.7
             opt-deps: ['analysis']
           - name: py3.8 with analysis
@@ -92,13 +116,30 @@ jobs:
             os: ubuntu-latest
             python-version: '3.10'
             opt-deps: ['analysis']
+          - name: py3.11 with analysis
+            os: ubuntu-latest
+            python-version: '3.11'
+            opt-deps: ['analysis']
+          - name: py3.12 with analysis
+            os: ubuntu-latest
+            python-version: '3.12'
+            opt-deps: ['analysis']
+          - name: py3.13 with analysis
+            os: ubuntu-latest
+            python-version: '3.13'
+            opt-deps: ['analysis']
+          - name: py3.14 with analysis
+            os: ubuntu-latest
+            python-version: '3.14'
+            opt-deps: ['analysis']
           # and with both extract and analysis
           - name: py3.6 with extract and analysis
-            os: ubuntu-20.04
+            os: ubuntu-latest
+            container: centos:8
             python-version: 3.6
             opt-deps: ['extract', 'analysis']
           - name: py3.7 with extract and analysis
-            os: ubuntu-latest
+            os: ubuntu-22.04
             python-version: 3.7
             opt-deps: ['extract', 'analysis']
           - name: py3.8 with extract and analysis
@@ -112,8 +153,23 @@ jobs:
           - name: py3.10 with extract and analysis
             os: ubuntu-latest
             python-version: '3.10'
-            # note: codeclimate can be specified in only one environment
-            opt-deps: ['extract', 'analysis', 'codeclimate']
+            opt-deps: ['extract', 'analysis']
+          - name: py3.11 with extract and analysis
+            os: ubuntu-latest
+            python-version: '3.11'
+            opt-deps: ['extract', 'analysis']
+          - name: py3.12 with extract and analysis
+            os: ubuntu-latest
+            python-version: '3.12'
+            opt-deps: ['extract', 'analysis']
+          - name: py3.13 with extract and analysis
+            os: ubuntu-latest
+            python-version: '3.13'
+            opt-deps: ['extract', 'analysis']
+          - name: py3.14 with extract and analysis
+            os: ubuntu-latest
+            python-version: '3.14'
+            opt-deps: ['extract', 'analysis']
     steps:
       - uses: actions/checkout@v2
         if: ${{ !matrix.container }}
@@ -124,8 +180,8 @@ jobs:
         if: ${{ matrix.container }}
         with:
           fetch-depth: 50
-      - name: Ensure dependencies on CentOS
-        if: ${{ matrix.container }}
+      - name: Ensure dependencies on CentOS 6/7
+        if: ${{ matrix.container == 'centos:6' || matrix.container == 'centos:7' }}
         run: |
           ls /etc/yum.repos.d/
           cat /etc/yum.repos.d/CentOS-Base.repo
@@ -154,8 +210,51 @@ jobs:
           yum clean all
           yum repolist all
           yum install -y git make python curl gcc libffi-devel python-devel glibc-devel openssl-devel tcpdump wget
+      - name: Ensure dependencies on CentOS 8
+        if: ${{ matrix.container == 'centos:8' }}
+        run: |
+          ls /etc/yum.repos.d/
+          cat /etc/yum.repos.d/CentOS-Linux-BaseOS.repo
+          cat /etc/yum.repos.d/CentOS-Linux-AppStream.repo
+          cat /etc/yum.repos.d/CentOS-Linux-Extras.repo
+          rm /etc/yum.repos.d/CentOS-Linux-BaseOS.repo
+          rm /etc/yum.repos.d/CentOS-Linux-AppStream.repo
+          rm /etc/yum.repos.d/CentOS-Linux-Extras.repo
+
+          cat > /etc/yum.repos.d/CentOS-Linux-BaseOS.repo <<EOF
+          [BaseOS]
+          name=CentOS Linux $releasever - BaseOS
+          baseurl=https://vault.centos.org/8.5.2111/BaseOS/x86_64/os/
+          gpgcheck=0
+          metadata_expire=-1
+          EOF
+
+          cat > /etc/yum.repos.d/CentOS-Linux-AppStream.repo <<EOF
+          [AppStream]
+          name=CentOS Linux $releasever - AppStream
+          baseurl=https://vault.centos.org/8.5.2111/AppStream/x86_64/os/
+          gpgcheck=0
+          metadata_expire=-1
+          EOF
+
+          cat > /etc/yum.repos.d/CentOS-Linux-Extras.repo <<EOF
+          [Extras]
+          name=CentOS Linux $releasever - Extras
+          baseurl=https://vault.centos.org/8.5.2111/extras/x86_64/os/
+          gpgcheck=0
+          metadata_expire=-1
+          EOF
+
+          echo installing
+          yum clean all
+          yum repolist all
+          yum install -y git make python36 curl gcc libffi-devel python36-devel glibc-devel openssl-devel tcpdump wget which
+          ln -s /usr/libexec/platform-python3.6 /usr/bin/python
+          ln -s /usr/bin/pip3.6 /usr/bin/pip
       - name: Verify git status
         run: |
+          echo $(pwd)
+          ls -al
           git status
           git remote -v
       - name: Ensure we have baseline branch for quality coverage
@@ -166,15 +265,16 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Ensure python 2.7
+      - name: Ensure working pip on python 2.7
         if: matrix.python-version == '2.7'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            python2.7 python2.7-dev python-pip-whl
+          sudo add-apt-repository universe
+          sudo apt-get install -y python2.7 python2.7-dev
+          curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output get-pip.py
           sudo ln -sf python2.7 /usr/bin/python
-          export PYTHONPATH=`echo /usr/share/python-wheels/pip-*py2*.whl`
-          sudo --preserve-env=PYTHONPATH python -m pip install --upgrade pip setuptools wheel
+          sudo python get-pip.py
+          sudo pip install setuptools wheel
           sudo chown -R $USER /usr/local/lib/python2.7
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
@@ -206,8 +306,12 @@ jobs:
         if: ${{ !matrix.container && matrix.python-version != '3.3' }}
         run: sudo apt-get install -y libmpfr-dev libmpc-dev libgmp-dev
       - name: Install gmpy2
-        if: ${{ !matrix.container && matrix.python-version != '3.3' }}
+        if: ${{ !matrix.container && matrix.python-version != '3.3' && matrix.python-version != '3.12' && matrix.python-version != '3.13' && matrix.python-version != '3.14' }}
         run: pip install gmpy2
+      # mainline gmpy2 doesn't compile on py3.12, use pre-release version
+      - name: Install gmpy2 on py3.12
+        if: ${{ !matrix.container && ( matrix.python-version == '3.12' || matrix.python-version == '3.13' || matrix.python.version == '3.14' ) }}
+        run: pip install gmpy2==2.2.0a1
       # m2crypto makes server crash with SIGSEGV (see https://github.com/tlsfuzzer/tlsfuzzer/issues/788)
       # - name: Install M2Crypto dependencies
       #   if: ${{ !matrix.container && matrix.python-version != '3.3' }}
@@ -218,6 +322,12 @@ jobs:
       # - name: Install M2Crypto (py2.6)
       #   if: ${{ matrix.container }}
       #   run: yum install -y m2crypto
+      - name: Install kyber-py dilithium_py on py3.9 and later
+        if: ${{ !matrix.container && matrix.python-version != '2.6' && matrix.python-version != '2.7' && matrix.python-version != '3.6' && matrix.python-version != '3.7' && matrix.python-version != '3.8' }}
+        run: |
+          pip install kyber-py
+          wget https://github.com/GiacomoPope/dilithium-py/archive/56874ed3521d2f1899851e5d8c2b8521ce3bdd1b.zip -O dilithium_py-1.4.0-rc0.zip
+          pip install dilithium_py-1.4.0-rc0.zip
       - name: Install build dependencies (2.6)
         if: ${{ matrix.python-version == '2.6' }}
         run: |
@@ -287,46 +397,37 @@ jobs:
       - name: Install dependencies (2.6)
         if: ${{ matrix.python-version == '2.6' }}
         run: |
-          wget https://files.pythonhosted.org/packages/24/ef/227acba3f6c6ae2152386a0555b7e5f618c34df4ca94f7fe4cb5c37e8208/tlslite-ng-0.8.0b1.tar.gz
-          wget https://files.pythonhosted.org/packages/b4/4c/f8b4ed6c61dff52294f98aaf99053dd979c1b4233d953f371afb0a2977a1/ecdsa-0.18.0b2-py2.py3-none-any.whl
-          pip install tlslite-ng-0.8.0b1.tar.gz ecdsa-0.18.0b2-py2.py3-none-any.whl
+          wget https://files.pythonhosted.org/packages/fa/ee/4480c1978a383cd4ba0dac6af7a27531071393cd624101a26e4aa3dee892/tlslite_ng-0.9.0b2.tar.gz
+          wget https://files.pythonhosted.org/packages/00/e7/ed3243b30d1bec41675b6394a1daae46349dc2b855cb83be846a5a918238/ecdsa-0.19.0-py2.py3-none-any.whl
+          pip install tlslite_ng-0.9.0b2.tar.gz ecdsa-0.19.0-py2.py3-none-any.whl
       - name: Install dependencies
         if: ${{ matrix.python-version != '2.6' }}
         run: pip install -r requirements.txt
       - name: Display installed python package versions
         run: pip list
-      - name: Prepare Codeclimate environment
-        if: ${{ contains(matrix.opt-deps, 'codeclimate') }}
-        env:
-          CC_TEST_REPORTER_ID: ${{ secrets.CC_TEST_REPORTER_ID }}
-        run: |
-          curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
-          chmod +x ./cc-test-reporter
-          ./cc-test-reporter before-build
       - name: Run unit tests (py2.6)
         if: ${{ matrix.python-version == '2.6' }}
-        run: coverage run --branch --source tlsfuzzer -m unittest2 discover
+        run: coverage run --branch --source tlsfuzzer --omit '*/_apps/*' -m unittest2 discover
       - name: Run unit tests (py2.7+)
         if: ${{ matrix.python-version != '2.6' }}
-        run: coverage run --branch --source tlsfuzzer -m unittest discover
+        run: coverage run --branch --source tlsfuzzer --omit '*/_apps/*' -m unittest discover
       - name: Log branch coverage
         run: coverage report -m
-      - name: Publish coverage to CodeClimate
-        if: ${{ contains(matrix.opt-deps, 'codeclimate') }}
-        env:
-          CC_TEST_REPORTER_ID: 1b11fe8cca47f31f58c5d27de82688a26bbcb432bfa3607d561b816489bed9bd
-        run: |
-          coverage xml
-          ./cc-test-reporter after-build
       - name: Publish coverage to Coveralls
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COVERALLS_FLAG_NAME: ${{ matrix.name }}
           COVERALLS_PARALLEL: true
           COVERALLS_SERVICE_NAME: github
-        run: coveralls
+          PY_VERSION: ${{ matrix.python-version }}
+        run: |
+          if [[ $PY_VERSION == "2.6" ]]; then
+            COVERALLS_SKIP_SSL_VERIFY=1 coveralls
+          else
+            coveralls
+          fi
       - name: Ensure that json files include all test scripts
-        run: python tests/verify-scripts-json.py tests/tlslite-ng-random-subset.json tests/tlslite-ng.json
+        run: python tests/verify-scripts-json.py tests/tlslite-ng-random-subset.json tests/tlslite-ng.json tests/tlslite-ng-py3.8.json tests/tlslite-ng-random-subset-py3.8.json
       - name: Verify that all scripts pass against tlslite-ng
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -336,11 +437,11 @@ jobs:
           # as http.server uses `sys_version = "Python/" + sys.version.split()[0]`
           # https://github.com/python/cpython/blob/2c050e52f1ccf5db03819e4ed70690521d67e9fa/Lib/http/server.py#L253
           case $PYTHON_VERSION in
-            2.7 | 3.4 | 3.5 | 3.6 | 3.7 | 3.8 | 3.9)
+            2.7 | 3.7 | 3.8 | 3.9 | 3.14 )
               export REPLY_SIZE=1850
               ;;
-            3.10)
-              export REPLY_SIZE=1851  # Server: SimpleHTTP/0.6 Python/3.10.10
+            3.10 | 3.11 | 3.12 | 3.13 )
+              export REPLY_SIZE=1851  # Server: SimpleHTTP/0.6 Python/3.10.10, SimpleHTTP/0.6 Python/3.11.10 and SimpleHTTP/0.6 Python/3.12.10
               ;;
             nightly)
               export REPLY_SIZE=1852  # Server: SimpleHTTP/0.6 Python/3.10.0a0
@@ -349,7 +450,16 @@ jobs:
               export REPLY_SIZE=1849  # Server: SimpleHTTP/0.6 Python/3.8.6
               ;;
           esac
-          python tests/scripts_retention.py tests/tlslite-ng-random-subset.json `which tls.py` $REPLY_SIZE
+          # kyber-py and dilithium-py library supports only python 3.9 and later
+          case $PYTHON_VERSION in
+            2.6 | 2.7 | 3.6 | 3.7 | 3.8 )
+              export TEST_FILE=tests/tlslite-ng-random-subset-py3.8.json
+              ;;
+            *)
+              export TEST_FILE=tests/tlslite-ng-random-subset.json
+              ;;
+          esac
+          python tests/scripts_retention.py $TEST_FILE `which tls.py` $REPLY_SIZE
       - name: Linter
         # pylint doesn't work on 2.6: https://bitbucket.org/logilab/pylint/issue/390/py26-compatiblity-broken
         if: ${{ matrix.python-version != 2.6 }}
@@ -357,7 +467,7 @@ jobs:
           PYTHON_VERSION: ${{ matrix.python-version }}
         run: |
           opt=""
-          if ! [[ $PYTHON_VERSION == 2.6 || $PYTHON_VERSION == 2.7 || $PYTHON_VERSION == 3.3 || $PYTHON_VERSION == 3.4 || $PYTHON_VERSION == 3.5 ]]; then
+          if ! [[ $PYTHON_VERSION == 2.6 || $PYTHON_VERSION == 2.7 ]]; then
             opt="--compare-branch origin/master"
           fi
           pylint --msg-template="{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" tlsfuzzer > pylint_report.txt || :

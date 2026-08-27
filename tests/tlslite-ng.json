@@ -39,9 +39,6 @@
           "comment": "tlslite-ng doesn't support renegotiation, only session id based resumption is supported"
          },
          {"name" : "test-atypical-padding.py" },
-         {"name" : "test-bleichenbacher-timing.py"},
-         {"name" : "test-bleichenbacher-timing.py",
-          "arguments" : ["--static-enc"]},
          {"name" : "test-bleichenbacher-timing-marvin.py",
           "arguments" : ["--srv-key", "tests/serverX509Key.pem",
                          "--srv-cert", "tests/serverX509Cert.pem"]},
@@ -74,6 +71,7 @@
          {"name" : "test-conversation.py"},
          {"name" : "test-conversation.py",
           "arguments" : ["-d"]},
+         {"name" : "test-cve-2004-0079.py"},
          {"name" : "test-cve-2016-2107.py"},
          {"name" : "test-cve-2016-6309.py"},
          {"name" : "test-cve-2016-7054.py"},
@@ -168,6 +166,7 @@
          {"name" : "test-interleaved-application-data-in-renegotiation.py",
           "comment" : "test requires renegotiation support",
           "exp_pass" : false},
+         {"name" : "test-interleaved-CKE-with-CCS.py"},
          {"name" : "test-invalid-cipher-suites.py"},
          {"name" : "test-invalid-client-hello.py"},
          {"name" : "test-invalid-client-hello-w-record-overflow.py"},
@@ -205,6 +204,7 @@
          {"name" : "test-no-heartbeat.py",
           "comment" : "No support to disable heartbeats in tls.py",
           "exp_pass" : false},
+         {"name" : "test-no-mlkem-in-old-tls.py"},
          {"name" : "test-ocsp-stapling.py",
           "comment" : "test requires OCSP setup",
           "exp_pass" : false},
@@ -313,6 +313,8 @@
                          "--exc", "11",
                          "--exc", "12",
                          "--exc", "23",
+                         "--exc", "27",
+                         "--exc", "34",
                          "--exc", "13172"],
           "comment" : "several tls12 extensions must be excluded, tlslite-ng issue #314"},
          {"name" : "test-tls13-large-number-of-extensions.py",
@@ -320,6 +322,8 @@
                          "empty unassigned extension id 12000"],
           "comment" : "just checks if the --separate option works"},
          {"name" : "test-tls13-legacy-version.py"},
+         {"name" : "test-tls13-mlkem.py",
+          "arguments" : ["--cookie"]},
          {"name" : "test-tls13-multiple-ccs-messages.py",
           "arguments" : ["-x", "second CCS before client finished",
                          "-X", "Handshake(new_session_ticket)",
@@ -330,6 +334,10 @@
                          "-x", "multiple CCS Messages in one TLS record",
                          "-X", "does not match received \"decode_error\""],
           "comment" : "tlslite actually allows multiple CCS messages, but it's not forbidden in TLS 1.3"},
+         {"name" : "test-tls13-no-unknown-groups.py",
+          "arguments" : ["--cookie",
+                         "--groups",
+                         "x25519mlkem768,secp256r1mlkem768,secp384r1mlkem1024,secp256r1,secp384r1,secp521r1,x25519,x448,brainpoolP256r1tls13,brainpoolP384r1tls13,brainpoolP512r1tls13,ffdhe2048,ffdhe3072,ffdhe4096,ffdhe6144,ffdhe8192"]},
          {"name" : "test-tls13-nociphers.py"},
          {"name" : "test-tls13-obsolete-curves.py",
           "arguments" : ["--cookie"]},
@@ -364,7 +372,8 @@
          {"name" : "test-unsupported-curve-fallback.py"},
          {"name" : "test-version-numbers.py"},
          {"name" : "test-x25519.py"},
-         {"name" : "test-zero-length-data.py"}
+         {"name" : "test-zero-length-data.py"},
+         {"name" : "test-tls13-certificate-compression.py"}
      ]
     },
     {"server_command": ["{python}", "-u", "{command}", "server",
@@ -424,27 +433,48 @@
          {"name" : "test-rsa-sigs-on-certificate-verify.py"},
          {"name" : "test-rsa-sigs-on-certificate-verify.py",
           "arguments" : ["-d"]},
-         {"name" : "test-tls13-certificate-request.py"},
+         {"name" : "test-tls13-certificate-request.py",
+          "arguments" : ["-E", "compress_certificate:CR key_share:SH supported_versions:SH",
+                         "-s", "mldsa87 mldsa65 mldsa44 ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]},
          {"name" : "test-tls13-certificate-request.py",
           "comment": "Test with additional extensions",
-          "arguments" : ["-E", "status_request:CH:CT key_share:SH supported_versions:SH"]
+          "arguments" : ["-E", "compress_certificate:CR status_request:CH:CT key_share:SH supported_versions:SH",
+                         "-s", "mldsa87 mldsa65 mldsa44 ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
           },
          {"name" : "test-tls13-certificate-verify.py",
           "arguments" : ["-k", "tests/clientRSAPSSKey.pem",
-                         "-c", "tests/clientRSAPSSCert.pem"]
+                         "-c", "tests/clientRSAPSSCert.pem",
+                         "-s", "mldsa87 mldsa65 mldsa44 ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
           },
-         {"name" : "test-tls13-certificate-verify.py"},
+         {"name" : "test-tls13-certificate-verify.py",
+          "arguments" : ["-s", "mldsa87 mldsa65 mldsa44 ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
+         },
          {"name" : "test-tls13-ecdsa-in-certificate-verify.py",
           "arguments" : ["-k", "tests/serverECKey.pem",
-                         "-c", "tests/serverECCert.pem"]
+                         "-c", "tests/serverECCert.pem",
+                         "-s", "mldsa87 mldsa65 mldsa44 ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
           },
          {"name" : "test-tls13-eddsa-in-certificate-verify.py",
           "arguments" : ["-k", "tests/serverEd25519Key.pem",
-                         "-c", "tests/serverEd25519Cert.pem"]
+                         "-c", "tests/serverEd25519Cert.pem",
+                         "-s", "mldsa87 mldsa65 mldsa44 ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
           },
          {"name" : "test-tls13-eddsa-in-certificate-verify.py",
           "arguments" : ["-k", "tests/serverEd448Key.pem",
-                         "-c", "tests/serverEd448Cert.pem"]
+                         "-c", "tests/serverEd448Cert.pem",
+                         "-s", "mldsa87 mldsa65 mldsa44 ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
+         },
+         {"name" : "test-tls13-mldsa-in-certificate-verify.py",
+          "arguments" : ["-k", "tests/serverMldsa65Key.pem",
+                         "-c", "tests/serverMldsa65Cert.pem",
+                         "-s", "mldsa87 mldsa65 mldsa44 ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
+         },
+         {"name" : "test-tls13-client-certificate-compression.py",
+          "arguments" : ["-k", "tests/clientX509Key.pem",
+                         "-c", "tests/clientX509Cert.pem",
+                         "--skip-bombs",
+                         "--random-fuzz-size", "0",
+                         "--algorithms", "zlib"]
          }
      ]
     },
@@ -461,7 +491,10 @@
          {"name" : "test-dhe-key-share-random.py"},
          {"name" : "test-ecdhe-rsa-key-share-random.py"},
          {"name" : "test-serverhello-random.py"},
-         {"name" : "test-SSLv3-padding.py"}
+         {"name" : "test-SSLv3-padding.py"},
+         {"name" : "test-point-extension.py",
+          "arguments" : ["--ec-point-f", "1:0"]
+         }
      ]
     },
     {"server_command": ["{python}", "-u", "{command}", "server",
@@ -606,7 +639,18 @@
           "comments": "use ECDSA signatures instead of RSA",
           "arguments": ["--ecdsa"]},
          {"name": "test-tls13-conversation.py"},
-         {"name": "test-tls13-ecdsa-support.py"}
+         {"name": "test-tls13-ecdsa-support.py",
+          "comment": "the server doesn't have Brainpool certs enabled",
+          "arguments": ["-x", "Test with ecdsa_brainpoolP256r1tls13_sha256", "-X", "handshake_failure",
+                        "-x", "Test with ecdsa_brainpoolP384r1tls13_sha384", "-X", "handshake_failure",
+                        "-x", "Test with ecdsa_brainpoolP512r1tls13_sha512", "-X", "handshake_failure"]
+         },
+         {"name" : "test-tls13-minerva.py",
+          "arguments": ["-i", "lo",
+                        "--curve", "P-256",
+                        "--repeat", "100",
+                        "--priv-key", "tests/serverECKey.pem",
+                        "--status-newline"]}
      ]
     },
     {"server_command": ["{python}", "-u", "{command}", "server",
@@ -625,6 +669,17 @@
      ]
     },
     {"server_command": ["{python}", "-u", "{command}", "server",
+                "-k", "tests/serverDSAKey.pem",
+                "-c", "tests/serverDSACert.pem",
+                "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "tests" : [
+         {"name": "test-dsa-sig-flexibility.py"}
+     ]
+    },
+    {"server_command": ["{python}", "-u", "{command}", "server",
                 "--reqcert",
                 "-k", "tests/serverDSAKey.pem",
                 "-c", "tests/serverDSACert.pem",
@@ -637,6 +692,87 @@
           "arguments": ["-d",
                         "-k", "tests/clientDSAKey.pem",
                         "-c", "tests/clientDSACert.pem"]}
+     ]
+    },
+    {"server_command": ["{python}", "-u", "{command}", "server",
+                "-k", "tests/serverEd25519Key.pem",
+                "-c", "tests/serverEd25519Cert.pem",
+                "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "tests" : [
+         {"name": "test-tls13-eddsa.py",
+          "arguments": ["-x", "ed448 only",
+                        "-X", "handshake_failure"]}
+     ]
+    },
+    {"server_command": ["{python}", "-u", "{command}", "server",
+                "-k", "tests/serverMldsa65Key.pem",
+                "-c", "tests/serverMldsa65Cert.pem",
+                "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "tests" : [
+         {"name": "test-tls13-conversation.py"}
+     ]
+    },
+    {"server_command": ["{python}", "-u", "{command}", "server",
+                "-k", "tests/serverEd448Key.pem",
+                "-c", "tests/serverEd448Cert.pem",
+                "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "tests" : [
+         {"name": "test-tls13-eddsa.py",
+          "arguments": ["-x", "ed25519 only",
+                        "-X", "handshake_failure"]}
+     ]
+    },
+    {"server_command": ["{python}", "-u", "{command}", "server",
+                "-k", "tests/serverBrainpoolP256r1ECKey.pem",
+                "-c", "tests/serverBrainpoolP256r1ECCert.pem",
+                "--groups",
+                "brainpoolP256r1tls13,brainpoolP384r1tls13,brainpoolP512r1tls13,x25519",
+                "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "tests" : [
+         {"name": "test-tls13-ecdhe-brainpool-curves.py"}
+     ]
+    },
+    {"server_command": ["{python}", "-u", "{command}", "server",
+                "--reqcert",
+                "-k", "tests/serverBrainpoolP256r1ECKey.pem",
+                "-c", "tests/serverBrainpoolP256r1ECCert.pem",
+                "--groups",
+                "brainpoolP256r1tls13,brainpoolP384r1tls13,brainpoolP512r1tls13,x25519",
+                "localhost:4433"],
+     "server_hostname": "localhost",
+     "server_port": 4433,
+     "environment": {"PYTHONPATH": "."},
+     "tests" : [
+         {"name": "test-tls13-ecdsa-brainpool-in-certificate-verify.py",
+          "arguments": ["-n", "0",
+                        "-k", "tests/serverBrainpoolP256r1ECKey.pem",
+                        "-c", "tests/serverBrainpoolP256r1ECCert.pem",
+                        "-s", "mldsa87 mldsa65 mldsa44 ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
+         },
+         {"name": "test-tls13-ecdsa-brainpool-in-certificate-verify.py",
+          "arguments": ["-n", "0",
+                        "-k", "tests/serverBrainpoolP384r1ECKey.pem",
+                        "-c", "tests/serverBrainpoolP384r1ECCert.pem",
+                        "-s", "mldsa87 mldsa65 mldsa44 ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
+         },
+         {"name": "test-tls13-ecdsa-brainpool-in-certificate-verify.py",
+          "arguments": ["-n", "0",
+                        "-k", "tests/serverBrainpoolP512r1ECKey.pem",
+                        "-c", "tests/serverBrainpoolP512r1ECCert.pem",
+                        "-s", "mldsa87 mldsa65 mldsa44 ed25519 ed448 ecdsa_brainpoolP512r1tls13_sha512 ecdsa_brainpoolP384r1tls13_sha384 ecdsa_brainpoolP256r1tls13_sha256 ecdsa_secp521r1_sha512 ecdsa_secp384r1_sha384 ecdsa_secp256r1_sha256 rsa_pss_rsae_sha512 rsa_pss_pss_sha512 rsa_pss_rsae_sha384 rsa_pss_pss_sha384 rsa_pss_rsae_sha256 rsa_pss_pss_sha256"]
+         }
      ]
     }
 ]

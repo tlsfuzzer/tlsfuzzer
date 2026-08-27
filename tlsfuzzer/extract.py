@@ -11,13 +11,20 @@ import csv
 import time
 import math
 from os import remove
-from os.path import join, splitext, getsize
+from os.path import join, splitext, getsize, exists
 from collections import defaultdict
 from socket import inet_aton, gethostbyname, gaierror, error
+import multiprocessing as mp
+try:
+    # the Python 3.14 default changed to spawn, which drops global variables
+    # which we need for passing around the data
+    mp.set_start_method('fork', force=True)
+except (RuntimeError, AttributeError):
+    pass
 from threading import Thread, Event
 import hashlib
 import tempfile
-from random import choice
+from random import choice, sample
 import ecdsa
 import pandas as pd
 import numpy as np
@@ -29,19 +36,17 @@ from tlsfuzzer.utils.statics import WARM_UP
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.utils.progress_report import progress_report
-from tlslite.utils.cryptomath import bytesToNumber
+from tlsfuzzer.utils.compat import bit_count
+from tlslite.utils.cryptomath import bytesToNumber, numberToByteArray
+from tlslite.utils.python_key import Python_Key
+from tlsfuzzer.utils.compat import bit_count
+from tlslite.utils.compat import bit_length
 
 try:
     from itertools import izip
 except ImportError: # will be 3.x series
     izip = zip
 
-if sys.version_info >= (3, 10):
-    def bit_count(n):
-        return n.bit_count()
-else:
-    def bit_count(n):
-        return bin(n).count("1")
 
 WAIT_FOR_FIRST_BARE_MAX_VALUE = 0
 WAIT_FOR_NON_BARE_MAX_VALUE = 1
@@ -69,33 +74,79 @@ def help_msg():
     print("                capture file parsing only)")
     print(" --status-delay num How often to print the status line.")
     print(" --status-newline Use newline instead of carriage return for")
-    print("                printing status line.")
-    print(" --raw-data FILE Read the data used for signing from an external")
-    print("                file. The file must be in binary format.")
-    print(" --data-size num The size of data used for each signature.")
+    print("                printing status line. Useful when redirecting")
+    print("                standard output to a file.")
+    print(" --raw-data FILE Read the data used for processing from an")
+    print("                external file. The file must be in binary format.")
+    print("                Used for ECDSA and ECDH data processing.")
+    print(" --data-size num The size of each data used for processing.")
+    print(" --prehashed    Specifies that the data on the file are already")
+    print("                hashed. Canceled by hash-func option.")
+    print("                Used for ECDSA data processing.")
     print(" --raw-sigs FILE Read the signatures from an external file.")
     print("                The file must be in binary format.")
+    print("                Used for ECDSA data processing.")
+    print(" --sig-format [DER|RAW] Specifies the format of the signatures in")
+    print("                the binary file, 'DER' or 'RAW'. Default DER.")
+    print("                Used for ECDSA data processing.")
+    print(" --raw-values FILE Read the values from an external file.")
+    print("                The file must be in binary format.")
+    print("                Used for ECDH timing data.")
+    print(" --value-size num Override the size of each value. By default the")
+    print("                script will try to calculate it.")
+    print(" --value-endianness endian What endianness to use for the")
+    print("                interpretation of the values, 'little' or 'big',")
+    print("                with big being the default")
     print(" --priv-key-ecdsa FILE Read the ecdsa private key from PEM file.")
     print(" --clock-frequency freq Assume that the times in the file are not")
     print("                specified in seconds but rather in clock cycles of")
-    print("                a clock running at requency 'freq' specified in")
+    print("                a clock running at frequency 'freq' specified in")
     print("                MHz. Use when the clock source are the raw reads")
     print("                from the Time Stamp Counter register or similar.")
     print(" --hash-func func Specifies the hash function to use for")
     print("                extracting the k value. The function should be")
     print("                available in hashlib module. The default function")
     print("                is sha256.")
+    print(" --skip-invert  Skipping the creation of inverse of K value")
+    print("                measurement files.")
+    print("                ECDSA analysis only")
+    print(" --rsa-keys FILE Analyse the times based on RSA private keys")
+    print("                values. Creates separate measurements.csv files")
+    print("                for the d, p, q, dP, dQ, and qInv values.")
+    print("                Contents must be concatenated PKCS#8 PEM keys.")
+    print(" --ml-kem-keys FILE Analyse the time based on ML-KEM key and")
+    print("                ciphertexts.")
+    print(" --workers num  Number of worker processes to use for")
+    print("                parallelizable computation. More workers")
+    print("                will finish analysis faster, but will require")
+    print("                more memory to do so. By default: number of")
+    print("                threads available on the system (`os.cpu_count()`)")
+    print(" --max-bit-size num Override the max bit size used in the creation")
+    print("                of the tuples. By default the script will try to")
+    print("                calculate it. Used only in the bit size extraction")
     print(" --verbose      Print's a more verbose output.")
     print(" --help         Display this message")
     print("")
-    print("When extracting data from a capture file, specifying the capture")
-    print("file, host and port is necessary.")
+    print("'logfile' is the file that specifies the order in which probes")
+    print("were executed (usually named 'log.csv').")
+    print("")
+    print("When extracting data from a packet capture file, specifying the")
+    print("capture file, host and port is necessary.")
+    print("")
     print("When using the external timing source, only it, and the always")
     print("required options: logfile and output dir are necessary.")
+    print("")
     print("When doing signature extraction, data file, data size, signatures")
     print("file, and one private key are necessary.")
+    print("")
     print("For ECDSA signatures, the hash function used for the extraction of")
     print("K depends on the private key's curve size.")
+    print("")
+    print("When doing ECDH secret extraction, data file, data size, values")
+    print("file, and one private key are necessary.")
+    print("")
+    print("When doing RSA key extraction, RSA private keys, raw times,")
+    print("and output dir are necessary.")
 
 
 def main():
@@ -114,12 +165,22 @@ def main():
     carriage_return = None
     data = None
     data_size = None
+    prehashed = False
     sigs = None
+    sig_format = "DER"
+    values = None
+    value_size = None
+    value_endianness = 'big'
     priv_key = None
     key_type = None
     freq = None
     hash_func_name = None
+    invert = True
+    rsa_keys = None
+    workers = None
+    max_bit_size = None
     verbose = False
+    ml_kem_keys = None
 
     argv = sys.argv[1:]
 
@@ -131,8 +192,13 @@ def main():
                                ["help", "raw-times=", "binary=", "endian=",
                                 "no-quickack", "status-delay=",
                                 "status-newline", "raw-data=", "data-size=",
-                                "raw-sigs=", "priv-key-ecdsa=",
-                                "clock-frequency=", "hash-func=", "verbose"])
+                                "prehashed", "raw-sigs=", "sig-format=",
+                                "raw-values=", "value-size=",
+                                "value-endianness=", "priv-key-ecdsa=",
+                                "clock-frequency=", "hash-func=",
+                                "skip-invert", "workers=", "rsa-keys=",
+                                "max-bit-size=", "ml-kem-keys=",
+                                "verbose"])
     for opt, arg in opts:
         if opt == '-l':
             logfile = arg
@@ -162,12 +228,26 @@ def main():
             data = arg
         elif opt == "--data-size":
             data_size = int(arg)
+        elif opt == "--prehashed":
+            prehashed = True
         elif opt == "--raw-sigs":
             sigs = arg
+        elif opt == "--sig-format":
+            sig_format = arg
+        elif opt == "--raw-values":
+            values = arg
+        elif opt == "--value-size":
+            value_size = int(arg)
+        elif opt == "--value-endianness":
+            value_endianness = arg
+        elif opt == "--rsa-keys":
+            rsa_keys = arg
+        elif opt == "--ml-kem-keys":
+            ml_kem_keys = arg
         elif opt == "--priv-key-ecdsa":
             priv_key = arg
             if not key_type:
-                key_type = "ecdsa"
+                key_type = "ec"
             else:
                 raise ValueError(
                     "Can't specify more than one private key.")
@@ -177,6 +257,12 @@ def main():
             freq = float(arg) * 1e6
         elif opt == "--hash-func":
             hash_func_name = arg
+        elif opt == "--skip-invert":
+            invert = False
+        elif opt == "--workers":
+            workers = int(arg)
+        elif opt == "--max-bit-size":
+            max_bit_size = int(arg)
         elif opt == "--help":
             help_msg()
             sys.exit(0)
@@ -201,21 +287,35 @@ def main():
         raise ValueError(
             "Only 'little' and 'big' endianess supported")
 
-    if not all([any([logfile, sigs]), output]):
+    if not all([any([logfile, sigs, rsa_keys, ml_kem_keys, values]), output]):
         raise ValueError(
-            "Specifying either logfile or raw sigs and output is mandatory")
+            "Specifying either logfile, rsa keys, raw sigs or raw values "
+            "and output is mandatory")
 
     if capture and not all([logfile, output, ip_address, port]):
         raise ValueError("Some arguments are missing!")
 
-    if any([sigs, priv_key]) \
-       and not all([raw_times, data, data_size, sigs, priv_key]):
+    if sigs and not all([raw_times, data, data_size, sigs, priv_key]):
         raise ValueError(
-            "When doing signature extraction, times file, data file, \
-data size, signatures file and one private key are necessary.")
+            "When doing signature extraction, times file, data file, "
+            "data size, signatures file and one private key are necessary.")
+
+    if values and not ml_kem_keys and \
+            not all([priv_key, raw_times, data]):
+        raise ValueError(
+            "When doing ECDH secret extraction, times file, data file, "
+            "secrets file, and one private key are necessary.")
+
+    if ml_kem_keys and not all([values, raw_times, logfile]):
+        raise ValueError(
+            "When doing ML-KEM secret extraction, raw values, times, "
+            "and logile are necessary.")
 
     if hash_func_name == None:
-        hash_func = hashlib.sha256
+        if prehashed:
+            hash_func = None
+        else:
+            hash_func = hashlib.sha256
     else:
         try:
             hash_func = getattr(hashlib, hash_func_name)
@@ -234,15 +334,106 @@ data size, signatures file and one private key are necessary.")
         delay=delay, carriage_return=carriage_return,
         data=data, data_size=data_size, sigs=sigs, priv_key=priv_key,
         key_type=key_type, frequency=freq, hash_func=hash_func,
-        verbose=verbose
+        workers=workers, verbose=verbose, rsa_keys=rsa_keys,
+        sig_format=sig_format, values=values, value_size=value_size,
+        value_endianness=value_endianness, max_bit_size=max_bit_size,
+        ml_kem_keys=ml_kem_keys
     )
     extract.parse()
 
-    if all([raw_times, data, data_size, sigs, priv_key]):
-        extract.process_and_create_multiple_csv_files({
-            "measurements.csv": "k-size",
-            "measurements-invert.csv": "invert-k-size",
-        })
+    if any([sigs, values]) and all([raw_times, data, priv_key]):
+        files = {
+            "measurements.csv": "k-size" if not values else "size",
+            "measurements-hamming-weight.csv": "hamming-weight"
+        }
+
+        if invert and not values:
+            file_list = list(files.keys())
+
+            for file in file_list:
+                invert_file_name = file.split(".")[0] + '-invert.csv'
+                files[invert_file_name] = "invert-" + files[file]
+
+        extract.process_and_create_multiple_csv_files(
+            files, ecdh=(values is not None))
+
+    if rsa_keys:
+        extract.process_rsa_keys()
+
+    if ml_kem_keys:
+        extract.process_ml_kem_keys()
+
+
+class LongFormatCSVBlocker(object):
+    """
+    Class to write data into CSV file in long format with automatic blocking.
+
+    Blocking in this context refers to blocks in statistical sense, as in
+    "incomplete block design" of an experiment.
+
+    It will take classified data point by point and then write them out to
+    a file when the amount of data fills up a pre-set window.
+
+    ``duplicate`` specifies the group that must be present and, if there are
+    multiple values in that group, it will write random two of them (used
+    for max bit size of a variable for bit-size analysis)
+    """
+    def __init__(self, filename, window=10, duplicate=None):
+        self.filename = filename
+        self.window = window
+        self._file = open(filename, "w")
+        self.data_points_dropped = 0
+        self._block_no = 0
+        self._data_in_window = defaultdict(list)
+        self._datapoints_in_window = 0
+        self.duplicate = duplicate
+
+    def _write_out_window(self):
+        # write out data only if there's data from at least two groups
+        if len(self._data_in_window) > 1:
+            # when duplicate is specified, write a window only if there is a
+            # value from that group, and provide two measurements from it, if
+            # possible
+            if self.duplicate is not None:
+                if self.duplicate in self._data_in_window:
+                    v = self._data_in_window.pop(self.duplicate)
+                    if len(v) > 1:
+                        self.data_points_dropped += len(v) - 2
+                        # randomise the order when there are two values too
+                        v = sample(v, 2)
+                    for i in v:
+                        self._file.write("{0},{1},{2}\n".format(
+                            self._block_no, self.duplicate, i))
+                else:
+                    # when the baseline is missing, drop all measurements
+                    # from the window
+                    self.data_points_dropped += self._datapoints_in_window
+                    self._data_in_window = defaultdict(list)
+                    self._datapoints_in_window = 0
+                    return
+
+            for k, v in self._data_in_window.items():
+                self.data_points_dropped += len(v) - 1
+                selected = choice(v)
+                self._file.write("{0},{1},{2}\n".format(
+                    self._block_no, k, selected))
+            self._block_no += 1
+        else:
+            self.data_points_dropped += self._datapoints_in_window
+
+        self._data_in_window = defaultdict(list)
+        self._datapoints_in_window = 0
+
+    def add(self, group, value):
+        self._data_in_window[group].append(value)
+        self._datapoints_in_window += 1
+        if self._datapoints_in_window >= self.window:
+            self._write_out_window()
+
+    def close(self):
+        """Write out any left over data and close the file."""
+        self._write_out_window()
+        self._file.close()
 
 
 class Extract:
@@ -255,7 +446,10 @@ class Extract:
                  binary=None, endian='little', no_quickack=False, delay=None,
                  carriage_return=None, data=None, data_size=None, sigs=None,
                  priv_key=None, key_type=None, frequency=None,
-                 hash_func=hashlib.sha256, verbose=False, fin_as_resp=False):
+                 hash_func=hashlib.sha256, workers=None, verbose=False,
+                 fin_as_resp=False, rsa_keys=None, sig_format="DER",
+                 values=None, value_size=None, value_endianness="little",
+                 max_bit_size=None, ml_kem_keys=None):
         """
         Initialises instance and sets up class name generator from log.
 
@@ -264,17 +458,28 @@ class Extract:
         :param str output: Directory where to output results
         :param str ip_address: TLS server ip address
         :param int port: TLS server port
-        :param str data: Name of file with data used for signing
-        :param int data_size: Size of data used for each signature
-        :param str sigs: Signature filename
+        :param str data: Name of file with data used for processing
+        :param int data_size: Size of each data used for processing
+        :param str sigs: Name of file with the signatures
+        :param str sig_format: The format the signatures have, DER and RAW
+            formats are supported
+        :param str values: Name of file with the values
+        :param int values_size: Size of each value
+        :param int values_endianness: endianess for the interpretation of the
+            values
         :param str priv_key: Private key filename
-        :param str key_type: The type of the private key
-        :param int binary: number of bytes per timing from raw times file
-        :param str endian: endianess of the read numbers
+        :param str key_type: The type of the private key, for now only "ec" is
+            supported
+        :param int binary: Number of bytes per timing from raw times file
+        :param str endian: Endianess of the read numbers
         :param bool no_quickack: If True, don't expect QUICKACK to be in use
         :param float delay: How often to print the status line.
         :param str carriage_return: What chacarter to use as status line end.
-        :param bool fin_as_resp: consider the server FIN packet to be the
+        :param func hash_func: The hash function that will be used for hashing
+            the message in bit size analysis. None for prehashed data.
+        :param int workers: The amount of parallel workers to be used.
+        :param bool verbose: Prints a more verbose output
+        :param bool fin_as_resp: Consider the server FIN packet to be the
             response to previous client query
         """
         self.capture = capture
@@ -308,10 +513,11 @@ class Extract:
         self.data = data
         self.data_size = data_size
         self.sigs = sigs
-        self.key_type = key_type
+        self.r_or_s_size = None
         self.frequency = frequency
         self.measurements_csv = measurements_csv
-        self.hash_func = hash_func
+        self.hash_func = hash_func  # None if data are already hashed
+        self.workers = workers
         self.verbose = verbose
         self._total_measurements = None
         self._measurements_fp = None
@@ -325,6 +531,19 @@ class Extract:
         self._row = 0
         self._max_value = None
         self._fin_as_resp = fin_as_resp
+        self.rsa_keys = rsa_keys
+        self._temp_HWI_name = None
+        self.values = values
+        self.value_size = value_size
+        self.value_endianness = value_endianness
+        self.max_bit_size = max_bit_size
+        self.ml_kem_keys = ml_kem_keys
+
+        if sig_format not in ["DER", "RAW"]:
+            raise ValueError(
+                "Unknown signature format {0}. ".format(sigs_format) +
+                "Please use 'DER' or 'RAW'."
+            )
 
         if data and data_size:
             try:
@@ -333,9 +552,11 @@ class Extract:
                 self._total_measurements = None
 
         self.priv_key = None
-        if key_type == "ecdsa":
+        if key_type == "ec":
             with open(priv_key, 'r') as f:
                 self.priv_key = ecdsa.SigningKey.from_pem(f.read())
+            if sig_format == 'RAW':
+                self.r_or_s_size = self.priv_key.baselen
 
         # set up class names generator
         self.log = log
@@ -672,11 +893,19 @@ class Extract:
                 (syn, syn_ack, ack, c_msgs, c_msgs_acks, s_msgs, s_msgs_acks,
                     srv_fin, clnt_fin, ack_for_fin) = self.pckt_times.pop(0)
 
-                row = [
-                    syn - self._previous_lst_msg,
-                    syn_ack - syn,
-                    ack - syn_ack,
-                ]
+                if self._previous_lst_msg is None:
+                    row = [
+                        0,
+                        syn_ack - syn,
+                        ack - syn_ack,
+                    ]
+                else:
+                    row = [
+                        syn - self._previous_lst_msg,
+                        syn_ack - syn,
+                        ack - syn_ack,
+                    ]
+
                 prv_ack = ack
                 for c_msg, c_msg_ack, s_msg, s_msg_ack in zip(
                         c_msgs, c_msgs_acks.values(),
@@ -777,41 +1006,52 @@ class Extract:
             writer.writerow(columns)
 
     def _get_data_from_binary_file(
-            self, filename, data_size, convert_to_int=False
+            self, filename, data_size, convert_to_int=False, endian=None
         ):
         """
         Iterator. Reading raw bytes of data_size from a binary file. Can also
         convert the data to int.
         """
+        if not endian:
+            endian = self.endian
+
         with open(filename, "rb") as data_fp:
             data = data_fp.read(data_size)
             while data:
                 if convert_to_int:
-                    data = bytesToNumber(data, endian=self.endian)
+                    data = bytesToNumber(data, endian=endian)
                 yield data
                 data = data_fp.read(data_size)
 
-    def _get_data_from_csv_file(self, filename, convert_to_float=False):
+    def _get_data_from_csv_file(self, filename, col_name=None,
+                                convert_to_float=False, convert_to_int=False):
         """
         Iterator. Reading data from a csv file. Can also convert the data to
-        float.
+        float or to integer.
         """
+        if not col_name:
+            col_name = self.col_name
+
         with open(filename, "r") as data_fp:
             reader = csv.reader(data_fp)
             columns = next(reader)
             column = 0
 
-            if len(columns) > 1 and self.col_name is None:
-                raise ValueError("Multiple columns in raw_times file and "
-                    "no column name specified!")
+            if len(columns) > 1 and col_name is None:
+                raise ValueError(
+                    "Multiple columns in {0} and ".format(filename) +
+                    "no column name specified!"
+                )
 
-            if self.col_name:
-                column = columns.index(self.col_name)
+            if col_name:
+                column = columns.index(col_name)
 
             for row in reader:
                 data = row[column]
                 if convert_to_float:
                     data = float(data)
+                if convert_to_int:
+                    data = int(data)
                 yield data
 
     def _divide_by_frequency(self, value_iter):
@@ -819,15 +1059,16 @@ class Extract:
         for value in value_iter:
             yield value / self.frequency
 
-    def _get_time_from_file(self):
+    def _get_time_from_file(self, filename=None):
         """Iterator. Read the times from file provided"""
         if self.binary:
             times_iter = self._get_data_from_binary_file(
-                self.raw_times, self.binary, convert_to_int=True
+                self.raw_times, filename if filename else self.binary,
+                convert_to_int=True
             )
         else:
             times_iter = self._get_data_from_csv_file(
-                self.raw_times, convert_to_float=True
+                filename if filename else self.raw_times, convert_to_float=True
             )
 
         if self.frequency:
@@ -835,14 +1076,26 @@ class Extract:
 
         return times_iter
 
-    def _ecdsa_get_signature_from_file(self):
-        """Iterator. Read the signatures from file provided"""
-        with open(self.sigs, "rb") as sigs_fp:
+    def _ecdsa_get_raw_signature_from_file_pointer(self, filename):
+        """Iterator. Read the raw signatures from file provided"""
+        with open(filename, "rb") as sigs_fp:
+            r_and_s = sigs_fp.read(self.r_or_s_size * 2)
+            while r_and_s:
+                if len(r_and_s) != 2 * self.r_or_s_size:
+                    raise ValueError(
+                        "There was an error in parsing signatures. " +
+                        "Incomplete r or s values in binary file.")
+                yield r_and_s
+                r_and_s = sigs_fp.read(self.r_or_s_size * 2)
+
+    def _ecdsa_get_der_signature_from_file_pointer(self, filename):
+        """Iterator. Read the DER signatures from file provided"""
+        with open(filename, "rb") as sigs_fp:
             sig = sigs_fp.read(1)
             while sig:
                 if not ecdsa.der.is_sequence(sig):
-                    raise \
-                        ValueError("There was an error in parsing signatures.")
+                    raise ValueError(
+                        "There was an error in parsing signatures.")
                 length_bytes = sigs_fp.read(1)
                 sig_length = 0
                 try:
@@ -852,8 +1105,8 @@ class Extract:
                     try:
                         sig_length = ecdsa.der.read_length(length_bytes)[0]
                     except ecdsa.UnexpectedDER:
-                        raise \
-                            ValueError("Couldn't read size of a signature.")
+                        raise ValueError(
+                            "Couldn't read size of a signature.")
                 sig_data = sigs_fp.read(sig_length)
                 if sig_length != len(sig_data):
                     raise \
@@ -862,49 +1115,62 @@ class Extract:
                 yield sig
                 sig = sigs_fp.read(1)
 
-    def _ecdsa_message_to_int(self):
+    def _ecdsa_get_signature_from_file(self, filename=None):
+        """Iterator. Read the signatures from file provided"""
+        filename = filename if filename else self.sigs
+        if self.r_or_s_size:
+            return self._ecdsa_get_raw_signature_from_file_pointer(filename)
+        else:
+            return self._ecdsa_get_der_signature_from_file_pointer(filename)
+
+    def _ecdsa_message_to_int(self, filename=None):
         """Iterator. Hashes the message used and converts it to int."""
-        data_iter = self._get_data_from_binary_file(self.data, self.data_size)
+        data_iter = self._get_data_from_binary_file(
+            filename if filename else self.data, self.data_size
+        )
 
         for msg in data_iter:
-            hashed = self.hash_func(msg).digest()
-            hashed = hashed[: self.priv_key.curve.baselen]
+            if self.hash_func:
+                hashed = self.hash_func(msg).digest()
+                hashed = hashed[: self.priv_key.curve.baselen]
+            else:
+                hashed = msg
             number = int.from_bytes(hashed, 'big')
             max_length = ecdsa.util.bit_length(self.priv_key.curve.order)
             length = len(hashed) * 8
             number >>= max(0, length - max_length)
             yield number
 
-    def _ecdsa_calculate_k(self):
+    def _ecdsa_calculate_k(self, sig_and_hashed):
         """Iterator. Calculated the K value from a singature."""
-        sigs_iter = self._ecdsa_get_signature_from_file()
-        hashed_iter = self._ecdsa_message_to_int()
-        times_iter = self._get_time_from_file()
+        try:
+            sig, hashed = sig_and_hashed
+        except ValueError:
+            raise ValueError(
+                "Signature or hash not provided."
+            )
 
         n_value = self.priv_key.curve.order
         g_value = self.priv_key.curve.generator
 
-        with open(join(self.output, "k-time-map.csv"), "w") as out_fp:
-            for sig, hashed, time_value in \
-                    izip(sigs_iter, hashed_iter, times_iter):
-                r_value, s_value = ecdsa.util.sigdecode_der(
-                        sig, n_value
-                    )
-                k_value = (
-                    (hashed + (
-                        r_value * self.priv_key.privkey.secret_multiplier
-                    ))
-                    * ecdsa.ecdsa.numbertheory.inverse_mod(s_value, n_value)
-                    ) % n_value
-                kxg = (k_value * g_value).to_affine().x()
+        if self.r_or_s_size:
+            r_value, s_value = ecdsa.util.sigdecode_string(sig, n_value)
+        else:
+            r_value, s_value = ecdsa.util.sigdecode_der(sig, n_value)
 
-                if kxg == r_value:
-                    out_fp.write("{0},{1}\n".format(k_value, time_value))
-                    yield k_value
-                else:
-                    raise ValueError(
-                        "Failed to calculate k from given signatures."
-                    )
+        k_value = (
+            (hashed + (
+                r_value * self.priv_key.privkey.secret_multiplier
+            ))
+            * ecdsa.ecdsa.numbertheory.inverse_mod(s_value, n_value)
+            ) % n_value
+        kxg = (k_value * g_value).to_affine().x()
+
+        if kxg == r_value:
+            return k_value
+        else:
+            raise ValueError(
+                "Failed to calculate k from given signatures.")
 
     def _convert_to_bit_size(self, value_iter):
         """Iterator. Convert a value to the bit length of it."""
@@ -919,33 +1185,129 @@ class Extract:
     def _calculate_invert_k(self, value_iter):
         """Iterator. It will calculate the invert K."""
         n_value = self.priv_key.curve.order
-        for value in value_iter:
-            yield ecdsa.ecdsa.numbertheory.inverse_mod(value, n_value)
+
+        if self._temp_HWI_name and not exists(self._temp_HWI_name):
+            with open(self._temp_HWI_name, "w") as fp:
+                fp.write("{0}\n".format("invert_K_bit_count"))
+                for value in value_iter:
+                    invert = ecdsa.ecdsa.numbertheory.inverse_mod(
+                        value, n_value)
+                    invert_bit_count = bit_count(invert)
+                    fp.write("{0}\n".format(invert_bit_count))
+                    yield invert
+        else:
+            for value in value_iter:
+                invert = ecdsa.ecdsa.numbertheory.inverse_mod(value, n_value)
+                yield invert
 
     def ecdsa_iter(self, return_type="k-size"):
         """
         Iterator. Iterator to use for signatures signed by ECDSA private key.
         """
-        k_iter = self._ecdsa_calculate_k()
+        k_map_filename = join(self.output, "ecdsa-k-time-map.csv")
+        sigs_iter = self._ecdsa_get_signature_from_file()
+        hashed_iter = self._ecdsa_message_to_int()
+        times_iter = self._get_time_from_file()
 
-        if return_type == "k-size":
+        if not exists(k_map_filename):
+            if self.verbose:
+                print("[i] Creating ecdsa-k-time-map.csv file...")
+
+            progress = None
+            status = [0]
+            if self.verbose and self._total_measurements:
+                status = [0, self._total_measurements, Event()]
+                kwargs = {}
+                kwargs['unit'] = ' signatures'
+                kwargs['prefix'] = 'decimal'
+                kwargs['delay'] = self.delay
+                kwargs['end'] = self.carriage_return
+                progress = Thread(target=progress_report, args=(status,),
+                                kwargs=kwargs)
+                progress.start()
+
+            try:
+                with open(k_map_filename, "w") as fp:
+                    with mp.Pool(self.workers) as pool:
+                        k_iter = pool.imap(
+                            self._ecdsa_calculate_k,
+                            izip(sigs_iter, hashed_iter), 10000
+                        )
+
+                        fp.write("k_value,time\n")
+
+                        for k_value, time_value in izip(k_iter, times_iter):
+                            fp.write("{0},{1}\n".format(k_value, time_value))
+                            status[0] += 1
+            finally:
+                if progress:
+                    status[2].set()
+                    progress.join()
+                    print()
+
+        k_iter = self._get_data_from_csv_file(
+            k_map_filename, col_name="k_value", convert_to_int=True
+        )
+
+        if "invert" in return_type:
+            if ("hamming-weight" in return_type and self._temp_HWI_name
+                    and exists(self._temp_HWI_name)):
+                return self._get_data_from_csv_file(
+                    filename=self._temp_HWI_name
+                )
+            else:
+                k_iter = self._calculate_invert_k(k_iter)
+
+        if "k-size" in return_type:
             k_wrap_iter = self._convert_to_bit_size(k_iter)
-        elif return_type == "invert-k-size":
-            k_wrap_iter = self._convert_to_bit_size(
-                self._calculate_invert_k(k_iter)
-            )
-        elif return_type == "hamming-weight":
+        elif "hamming-weight" in return_type:
             k_wrap_iter = self._convert_to_hamming_weight(k_iter)
         else:
             raise ValueError(
-                "Iterator return must be k-size, invert-k-size or hamming-weight."
+                "Iterator return must be "
+                "k-size[-invert] or hamming-weight[-invert]"
             )
 
         return k_wrap_iter
 
     def ecdsa_max_value(self):
-        """Returns the max K size depending on the ECDSA private key"""
+        """Returns the max K size in BITS depending on the ECDSA private key"""
         return ecdsa.util.bit_length(self.priv_key.curve.order)
+
+    def ecdh_iter(self, return_type="size"):
+        """
+        Iterator. Iterator to use for secret created by ECDH private keys.
+        """
+        secret_iter = self._get_data_from_binary_file(
+            self.values,
+            self.value_size if self.value_size else self.ecdh_max_value(),
+            convert_to_int=True, endian=self.value_endianness)
+
+        if "invert" in return_type and self.verbose:
+            print("[w] Invert is not supported in ECDH. Skipping...")
+            return None
+
+        if "size" in return_type:
+            secret_wrap_iter = self._convert_to_bit_size(secret_iter)
+        elif "hamming-weight" in return_type:
+            secret_wrap_iter = self._convert_to_hamming_weight(secret_iter)
+        else:
+            raise ValueError(
+                "Iterator return must be k-size or hamming-weight"
+            )
+
+        return secret_wrap_iter
+
+    def ecdh_max_value(self, bits=False):
+        """
+        Returns the max shared secret size in BYTES depending on the ECDH
+        private key.
+        """
+        if bits:
+            return ecdsa.util.bit_length(self.priv_key.curve.curve.p())
+        else:
+            return int(
+                (ecdsa.util.bit_length(self.priv_key.curve.curve.p()) + 7) / 8)
 
     def _create_and_write_line(self):
         """
@@ -982,16 +1344,16 @@ class Extract:
                     self._measurements_dropped += num_of_values - 1
 
         for size in final_choices:
-            ranom_choice = choice(['before', 'after'])
+            random_choice = choice(['before', 'after'])
 
-            if ranom_choice not in final_choices[size]:
-                if ranom_choice == 'before':
-                    ranom_choice = 'after'
+            if random_choice not in final_choices[size]:
+                if random_choice == 'before':
+                    random_choice = 'after'
                 else:
-                    ranom_choice = 'before'
+                    random_choice = 'before'
 
-            self._line_to_write[size] = final_choices[size][ranom_choice]
-            self._selections[size][ranom_choice] += 1
+            self._line_to_write[size] = final_choices[size][random_choice]
+            self._selections[size][random_choice] += 1
 
         line = ""
         for size in self._line_to_write:
@@ -1049,7 +1411,7 @@ class Extract:
                         )
 
                     if len(row) / 2 > self._max_tuple_size:
-                        self._max_tuple_size = len(row) / 2
+                        self._max_tuple_size = len(row) // 2
 
                 if state != WAIT_FOR_SECOND_BARE_MAX_VALUE and len(row) == 2:
                     if state == WAIT_FOR_NON_BARE_MAX_VALUE:
@@ -1079,21 +1441,21 @@ class Extract:
         remove(temp_file_path)
 
         if self.verbose:
-            print('Added {0:,} {1}-sized sanity entries.'.format(
-                sanity_entries_count, self._max_value
+            print('[i] {0}-bit-sized sanity entries: {1:,}'.format(
+                self._max_value, sanity_entries_count
             ))
 
-    def _check_for_iter_left_overs(self, iterator, desc=''):
-        left_overs = []
+    def _check_for_iter_left_overs(
+            self, iterator, desc='Left-overs on iterator:'):
+        left_overs_counter = 0
         for item in iterator:
-            left_overs.append(item)
-        if len(left_overs) > 0 and self.verbose:
-            if desc:
-                print(desc)
-            else:
-                print("Left-overs on iterator:")
-            for item in left_overs:
+            left_overs_counter += 1
+            if self.verbose:
                 print(item)
+
+        if left_overs_counter > 0:
+            if self.verbose:
+                print(desc + " {0}".format(left_overs_counter))
 
             raise ValueError("There are some extra values that are not used.")
 
@@ -1101,10 +1463,13 @@ class Extract:
             self, values_iter, comparing_value
             ):
         """
-        Processing all the measurements from the given files and
-        creates a randomized measurement file with tuples associating
-        the max values with non max values.
+        Processing all the nonces and associated time measurements from the
+        given files and creates a randomized measurement file with tuples
+        associating the max values with non max values.
         """
+        if not all([values_iter, comparing_value]):
+            return
+
         self._measurements_fp = open(
             join(self.output, self.measurements_csv), "w"
         )
@@ -1120,11 +1485,16 @@ class Extract:
         self._measurements_dropped = 0
         self._selections = defaultdict(lambda: defaultdict(lambda: 0))
         self._row = 0
-        self._max_value = comparing_value
+        self._max_value = \
+            self.max_bit_size if self.max_bit_size else comparing_value
 
         time_iter = self._get_time_from_file()
 
+        if self.verbose:
+            print("[i] Creating {0} file...".format(self.measurements_csv))
+
         progress = None
+        status = [0]
         if self.verbose and self._total_measurements:
             status = [0, self._total_measurements, Event()]
             kwargs = {}
@@ -1137,11 +1507,8 @@ class Extract:
             progress.start()
 
         try:
-            i = 0
             for value, time_value in izip(values_iter, time_iter):
-                if progress:
-                    status[0] = i
-                    i += 1
+                status[0] += 1
 
                 # The idea here is that every value != comparing_value chooses
                 # randomly to pair with the comparing_value before or with
@@ -1164,8 +1531,8 @@ class Extract:
                         }
                 else:
                     if self._next_line is not None:
-                        ranom_choice = choice([0, 1])
-                        if ranom_choice == 0:
+                        random_choice = choice([0, 1])
+                        if random_choice == 0:
                             line = self._current_line
                         else:
                             line = self._next_line
@@ -1209,35 +1576,197 @@ class Extract:
         if self.verbose:
             if self._total_measurements:
                 print(
-                    'There was {0} measurements that have been dropped. ({1:.2f}%)'
+                    '[i] Measurements that have been dropped: {0:,} ({1:.2f}%)'
                     .format(
                         self._measurements_dropped,
-                        (
-                            self._measurements_dropped * 100
-                        ) / self._total_measurements
-                    ))
-            print('The biggest tuple in file is of size {0}.'.format(
-                int(self._max_tuple_size)
-            ))
-            print('{0} rows was written.'.format(self._row))
+                        (self._measurements_dropped * 100)
+                        / self._total_measurements
+                    )
+                )
+            print(
+                '[i] Biggest tuple size in file: {0}\n'
+                    .format(self._max_tuple_size) +
+                '[i] Written rows: {0:,}'.format(max(0, self._row))
+            )
+
+        self._measurements_fp.close()
+
+    def _write_hamming_weight_line(self, row, line_to_write):
+        """
+        Takes one or more possible Hamming weight values for each key value,
+        selecting one in random for each key and writes the created line into
+        the measurements file.
+        """
+        measurements_dropped = 0
+
+        for key in line_to_write:
+            measurements_dropped += len(line_to_write[key]) - 1
+            line_to_write[key] = choice(line_to_write[key])
+            self._measurements_fp.write("{0},{1},{2}\n".format(
+                row, key, line_to_write[key]))
+
+        return measurements_dropped
+
+    def process_measurements_and_create_hamming_csv_file(
+            self, values_iter, items_in_tuple = 20):
+        """
+        Processing all the nonces and associated time measurements from the
+        given files and creates a file with tuples associating the Hamming
+        weight of the nonces.
+        """
+        if not values_iter:
+            return
+
+        self._measurements_fp = open(
+            join(self.output, self.measurements_csv), "w"
+        )
+
+        line_to_write = defaultdict(list)
+        items_buffered = 0
+        row = 0
+        measurements_dropped = 0
+        min_tuple_size = items_in_tuple
+        last_tuple_size = 0
+
+        time_iter = self._get_time_from_file()
+
+        if self.verbose:
+            print("[i] Creating {0} file...".format(self.measurements_csv))
+
+        progress = None
+        status = [0]
+        if self.verbose and self._total_measurements:
+            status = [0, self._total_measurements, Event()]
+            kwargs = {}
+            kwargs['unit'] = ' signatures'
+            kwargs['prefix'] = 'decimal'
+            kwargs['delay'] = self.delay
+            kwargs['end'] = self.carriage_return
+            progress = Thread(target=progress_report, args=(status,),
+                            kwargs=kwargs)
+            progress.start()
+
+        try:
+            for value, time_value in izip(values_iter, time_iter):
+                status[0] += 1
+
+                line_to_write[value].append(time_value)
+                items_buffered += 1
+
+                if items_buffered == items_in_tuple:
+                    line_measurements_drop = self._write_hamming_weight_line(
+                        row, line_to_write
+                    )
+
+                    min_tuple_size = min(
+                        len(line_to_write.keys()), min_tuple_size)
+                    measurements_dropped += line_measurements_drop
+                    row += 1
+                    line_to_write = defaultdict(list)
+                    items_buffered = 0
+        finally:
+            if progress:
+                status[2].set()
+                progress.join()
+                print()
+
+        if items_buffered > 0:
+            line_measurements_drop = self._write_hamming_weight_line(
+                row, line_to_write
+            )
+
+            last_tuple_size = len(line_to_write.keys())
+            measurements_dropped += line_measurements_drop
+            row += 1
+
+        self._check_for_iter_left_overs(values_iter)
+        self._check_for_iter_left_overs(time_iter)
+
+        if self.verbose:
+            if self._total_measurements:
+                print(
+                    '[i] Measurements that have been dropped: {0:,} ({1:.2f}%)'
+                    .format(
+                        measurements_dropped,
+                        (measurements_dropped * 100)
+                        / self._total_measurements
+                    )
+                )
+
+            if last_tuple_size > 0:
+                print(
+                    '[i] Smallest non-last tuple size in file: {0}\n'
+                        .format(min_tuple_size) +
+                    '[i] Last tuple size in file: {0}'.format(last_tuple_size)
+                )
+            else:
+                print(
+                    '[i] Smallest tuple size in file: {0}'
+                        .format(min_tuple_size)
+                )
+
+            print('[i] Written rows: {0:,}'.format(row))
 
         self._measurements_fp.close()
 
     def process_and_create_multiple_csv_files(self, files = {
-        "measurements.csv": "k-size"
-    }):
+        "measurements.csv": "k-size",
+    }, ecdh = False):
         original_measuremments_csv = self.measurements_csv
+        skipped_h_weight_invert = False
+        h_weight_invert_file = None
+        h_weight_invert_mode = None
+
+        if ecdh:
+            self._total_measurements = int(
+                getsize(self.data) / ((2 * self.ecdh_max_value()) + 1))
+            for file in files:
+                self.measurements_csv = file
+
+                if "hamming-weight" in files[file]:
+                    self.process_measurements_and_create_hamming_csv_file(
+                        self.ecdh_iter(return_type=files[file])
+                    )
+                else:
+                    self.process_measurements_and_create_csv_file(
+                        self.ecdh_iter(return_type=files[file]),
+                        self.ecdh_max_value(bits=True)
+                    )
+            return
+
+        if exists(join(self.output, "ecdsa-k-time-map.csv")):
+            remove(join(self.output, "ecdsa-k-time-map.csv"))
+
+        for file, mode in files.items():
+            if "hamming-weight" in mode and "invert" in mode:
+                skipped_h_weight_invert = True
+                h_weight_invert_file = file
+                h_weight_invert_mode = mode
+                self._temp_HWI_name = join(self.output, "tmp_HWI_values.csv")
 
         for file in files:
-            if self.verbose:
-                print("Creating {0} file...".format(file))
-
-
             self.measurements_csv = file
 
-            self.process_measurements_and_create_csv_file(
-                self.ecdsa_iter(return_type=files[file]), self.ecdsa_max_value()
+            if "hamming-weight" in files[file]:
+                if "invert" in files[file]:
+                    continue
+
+                self.process_measurements_and_create_hamming_csv_file(
+                    self.ecdsa_iter(return_type=files[file])
+                )
+            else:
+                self.process_measurements_and_create_csv_file(
+                    self.ecdsa_iter(return_type=files[file]),
+                    self.ecdsa_max_value()
+                )
+
+        if skipped_h_weight_invert:
+            self.measurements_csv = h_weight_invert_file
+            self.process_measurements_and_create_hamming_csv_file(
+                self.ecdsa_iter(return_type=h_weight_invert_mode)
             )
+            remove(self._temp_HWI_name)
+            self._temp_HWI_name = None
 
         self.measurements_csv = original_measuremments_csv
 
@@ -1261,6 +1790,291 @@ class Extract:
             return inet_aton(ip)
         except gaierror:
             raise Exception("Hostname is not an IPv4 or a reachable hostname")
+
+    def _read_private_key(self, file):
+        lines = []
+        while True:
+            line = file.readline()
+            # empty line still has '\n', only EOF is an empty string
+            if not line:
+                return None
+            line = line.strip()
+            if line == "-----BEGIN PRIVATE KEY-----":
+                lines.append(line)
+                break
+        while True:
+            line = file.readline()
+            if not line:
+                raise ValueError("Truncated private key file!")
+            line = line.strip()
+            if line == "-----BEGIN PRIVATE KEY-----":
+                raise ValueError("Inconsistent private key file!")
+            lines.append(line)
+            if line == "-----END PRIVATE KEY-----":
+                break
+
+        one_pem_key = "\n".join(lines)
+
+        return Python_Key.parsePEM(one_pem_key)
+
+    def process_rsa_keys(self):
+        # list of values for the Hamming weight of d, p, q, dP, dQ, qInv
+        values = []
+        times = []
+        max_len = 20
+
+        tuple_num = 0
+
+        value_names = ('d', 'p', 'q', 'dP', 'dQ', 'qInv')
+
+        rsa_keys = None
+        measurements = dict((i, None) for i in value_names)
+
+        times_iterator = self._get_time_from_file()
+
+        try:
+            rsa_keys = open(self.rsa_keys, "rt")
+            for i in value_names:
+                f_name = join(self.output, 'measurements-' + i + '.csv')
+                measurements[i] = open(f_name, 'wt')
+
+            while True:
+                # read an RSA private key
+                key = self._read_private_key(rsa_keys)
+                if key:
+                    # extract Hamming weights of the private key parameters
+                    values.append(dict((i, bit_count(getattr(key, i)))
+                                       for i in
+                                       value_names))
+                    times.append(next(times_iterator))
+
+                # once we have few measurements collect them into tuples
+                # and write to files
+                if len(values) >= max_len or (not key and times):
+                    for v_n in value_names:
+                        keys = set(v[v_n] for v in values)
+                        size_and_time = sorted(zip(
+                            (v[v_n] for v in values), times))
+
+                        for k in sorted(keys):
+                            to_select = [i for i in size_and_time if i[0] == k]
+                            # since sometimes for the same key we can have
+                            # multiple values, write a randomly selected one
+                            selected = choice(to_select)
+                            measurements[v_n].write("{0},{1},{2}\n".format(
+                                tuple_num, selected[0], selected[1]))
+
+                    values = []
+                    times = []
+                    tuple_num += 1
+
+                if not key:
+                    break
+
+        finally:
+            if rsa_keys:
+                rsa_keys.close()
+            for i in value_names:
+                if measurements[i]:
+                    measurements[i].close()
+
+    def _parse_pem_ml_kem_key(self, dk_pem):
+        from kyber_py.ml_kem.pkcs import dk_from_pem
+
+        kem, dk, _, _ = dk_from_pem(dk_pem)
+
+        return kem, dk
+
+    def _read_ml_kem_key(self, file):
+        lines = []
+        while True:
+            line = file.readline()
+            # empty line still has '\n', only EOF is an empty string
+            if not line:
+                return None
+            line = line.strip()
+            if line == "-----BEGIN PRIVATE KEY-----":
+                lines.append(line)
+                break
+        while True:
+            line = file.readline()
+            if not line:
+                raise ValueError("Truncated private key file!")
+            line = line.strip()
+            if line == "-----BEGIN PRIVATE KEY-----":
+                raise ValueError("Inconsistent private key file!")
+            lines.append(line)
+            if line == "-----END PRIVATE KEY-----":
+                break
+
+        one_pem_key = "\n".join(lines)
+
+        return self._parse_pem_ml_kem_key(one_pem_key)
+
+    def _ml_kem_k_pke_decrypt_with_intermediates(self, kem, dk_pke, c, values):
+        n = kem.k * kem.du * 32
+        c1, c2 = c[:n], c[n:]
+
+        u = kem.M.decode_vector(c1, kem.k, kem.du).decompress(kem.du)
+        v = kem.R.decode(c2, kem.dv).decompress(kem.dv)
+        s_hat = kem.M.decode_vector(dk_pke, kem.k, 12, is_ntt=True)
+
+        u_hat = u.to_ntt()
+        s_hat_dot_u_hat = s_hat.dot(u_hat)
+        values['hw-s-hat-dot-u-hat'] = sum(bit_count(i) for i in s_hat_dot_u_hat.coeffs)
+        values['bit-size-s-hat-dot-u-hat'] = sum(bit_length(i) for i in s_hat_dot_u_hat)
+        w = v - (s_hat_dot_u_hat).from_ntt()
+
+        values['hw-w'] = sum(bit_count(i) for i in w.coeffs)
+        values['bit-size-w'] = sum(bit_length(i) for i in w.coeffs)
+        values['bit-size-min-w'] = min(bit_length(i) for i in w.coeffs)
+
+        m = w.compress(1).encode(1)
+
+        return m
+
+    def _ml_kem_decaps_with_intermediates(self, kem, dk, c):
+        """
+        Perform ML-KEM decapsulation
+
+        :return: tuple with the result of decapsulation and metadata of
+        intermediate values of the algorithm.
+        """
+        values = dict()
+
+        if len(c) != 32 * (kem.du * kem.k + kem.dv):
+            raise ValueError("wrong ciphertext length")
+        if len(dk) != kem._dk_size():
+            raise ValueError("wrong decapsulation key length")
+
+        dk_pke = dk[0:384 * kem.k]
+        ek_pke = dk[384 * kem.k : 768 * kem.k + 32]
+        h = dk[768 * kem.k + 32 : 768 * kem.k + 64]
+        z = dk[768 * kem.k + 64 :]
+        m_prime = self._ml_kem_k_pke_decrypt_with_intermediates(
+            kem, dk_pke, c, values)
+
+        values['hw-m-prime'] = bit_count(bytesToNumber(m_prime))
+
+        K_prime, r_prime = kem._G(m_prime + h)
+
+        values['hw-r-prime'] = bit_count(bytesToNumber(r_prime))
+
+        K_bar = kem._J(z + c)
+
+        c_prime = kem._k_pke_encrypt(ek_pke, m_prime, r_prime)
+
+        values['hw-c-prime'] = bit_count(bytesToNumber(c_prime))
+
+        values['hd-c-c-prime'] = bit_count(bytesToNumber(c) ^ bytesToNumber(c_prime))
+
+        for i, a, b in zip(range(len(c)), c, c_prime):
+            if a != b:
+                break
+        else:
+            i = -1
+        values['first-diff-c-c-prime'] = i
+        diff = -1
+        for i, a, b in zip(range(len(c)), c, c_prime):
+            if a != b:
+                diff = i
+        values['last-diff-c-c-prime'] = diff
+
+        if c == c_prime:
+            return K_prime, values
+        else:
+            return K_bar, values
+
+    def process_ml_kem_keys(self):
+        """
+        Extract intermediate data from ML-KEM ciphertexts.
+
+        Requires the ``ml_kem_keys`` instance variable to be set,
+        will create long format CSV files with some metadata of intermediate
+        values in the decapsulation algorithm in the output directory.
+        """
+        ml_kem_keys = None
+        ciphertexts = None
+
+        times_iterator = self._get_time_from_file()
+
+        progress = None
+
+        try:
+            ml_kem_keys = open(self.ml_kem_keys, "rt")
+
+            kem, key = self._read_ml_kem_key(ml_kem_keys)
+
+            value_size = 32 * (kem.du * kem.k + kem.dv)
+
+            # names of statistics we are collecting together with the
+            # parameters for how the blocking window should be done
+            value_names = {
+                'hw-m-prime': {'window': 17},
+                'hw-r-prime': {'window': 17},
+                'hw-w': {'window': 30},
+                'bit-size-w': {'window': 30},  # a _sum_ of bit sizes
+                'hw-s-hat-dot-u-hat': {'window': 30},
+                'bit-size-s-hat-dot-u-hat': {'window': 30},  # sum of bit sizes
+                'bit-size-min-w': {'window': 5, 'duplicate': 0},
+                'hw-c-prime': {'window': 30},
+                'hd-c-c-prime': {'window': 17},  # uncertain
+                'first-diff-c-c-prime': {'window': 5, 'duplicate': 0},
+                'last-diff-c-c-prime': {'window': 5, 'duplicate': value_size-1},
+            }
+
+            measurements = dict()
+
+            for i, k in value_names.items():
+                f_name = join(self.output, "measurements-{0}.csv".format(i))
+                measurements[i] = LongFormatCSVBlocker(f_name, **k)
+
+            ciphertexts = open(self.values, "rb")
+
+            ciphertexts.seek(0, 2)
+            exp_len = ciphertexts.tell()
+            ciphertexts.seek(0, 0)
+            status = [0, exp_len, Event()]
+            if self.verbose:
+                kwargs = {}
+                kwargs['unit'] = 'B'
+                kwargs['prefix'] = 'binary'
+                kwargs['delay'] = self.delay
+                kwargs['end'] = self.carriage_return
+                progress = Thread(target=progress_report, args=(status,),
+                                  kwargs=kwargs)
+                progress.start()
+
+            while True:
+                ciphertext = ciphertexts.read(value_size)
+                status[0] = ciphertexts.tell()
+
+                if not ciphertext:
+                    break
+                else:
+                    ss, v = self._ml_kem_decaps_with_intermediates(
+                        kem, key, ciphertext)
+
+                    # TODO compare the the gotten shared secret with the
+                    # expected value
+
+                    v_time = next(times_iterator)
+                    for v_k, v_v in v.items():
+                        measurements[v_k].add(v_v, v_time)
+        finally:
+            status[2].set()
+            if self.verbose:
+                progress.join()
+            print()
+
+            if ml_kem_keys:
+                ml_kem_keys.close()
+            if ciphertexts:
+                ciphertexts.close()
+
+            for i in measurements.values():
+                if i:
+                    i.close()
 
 
 if __name__ == '__main__':

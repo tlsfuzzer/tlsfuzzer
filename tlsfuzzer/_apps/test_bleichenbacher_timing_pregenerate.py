@@ -1,11 +1,13 @@
 # Author: Jan Koscielniak, (c) 2020
+# Author: Hubert Kario, (c) 2020-2022
 # Released under Gnu GPL v2.0, see LICENSE file for details
 """Bleichenbacher attack reproducer with timing side-channel check"""
 from __future__ import print_function
 import traceback
 import sys
 import getopt
-from itertools import chain
+import os
+from itertools import chain, repeat
 from random import sample
 
 from tlsfuzzer.runner import Runner
@@ -27,9 +29,11 @@ from tlslite.extensions import SNIExtension, SignatureAlgorithmsCertExtension,\
 from tlsfuzzer.utils.lists import natural_sort_keys
 from tlsfuzzer.utils.ordered_dict import OrderedDict
 from tlsfuzzer.helpers import SIG_ALL, RSA_PKCS1_ALL
+from tlsfuzzer.utils.statics import WARM_UP
+from tlsfuzzer.utils.log import Log
 
 
-version = 16
+version = 7
 
 
 def help_msg():
@@ -67,8 +71,12 @@ def help_msg():
     print("                /tmp by default")
     print(" --repeat rep   How many timing samples should be gathered for each test")
     print("                100 by default")
-    print(" --no-safe-renego  Allow the server not to support safe")
-    print("                renegotiation extension")
+    print(" --require-safe-renego Require the server to support safe renegotiation")
+    print("                extension. If any --require-* is used, they must specify")
+    print("                all extensions sent by server")
+    print(" --require-sni  Require the server to echo server name extension.")
+    print("                If any --require-* is used, they must specify all")
+    print("                extensions sent by the server")
     print(" --no-sni       do not send server name extension.")
     print("                Sends extension by default if the hostname is a")
     print("                valid DNS name, not an IP address")
@@ -79,15 +87,25 @@ def help_msg():
     print("                timing signal weaker or stronger depending on implementation.")
     print("                By default ciphertexts that have padding will be randomised.")
     print(" --test-set     Execute a pre-selected subset of tests.")
-    print("                Available: 'raw decrypted value'")
+    print("                Available: 'raw decrypted value', 'Hamming weight'")
+    print(" --bit-sets     List of numerical values for Hamming weight tests,")
+    print("                separated by spaces. Default: '0x01 0x02 0x04'")
+    print(" --alpha num    Acceptable probability of a false positive. Default:")
+    print("                1e-5")
+    print(" --no-quickack  Don't assume that QUICKACK is in use.")
+    print(" --verbose-analysis Enable verbose progress of analysis.")
+    print(" --status-delay num How often to print the status line. Default: 2.0 seconds")
+    print(" --status-newline Use a newline for line end instead of carriage return.")
+    print(" --summary-only Print summary result only, don't print pairwise results")
+    print(" --no-alert     Don't expect the server to send an alert before closing connection.")
     print(" --help         this message")
 
 
-def build_conn_graph(host, port, cipher, cln_extensions,
-                     srv_extensions, client_key_exchange_generator,
-                     level, alert):
-    """ Build a connection graph """
-    conversation = Connect(host, port)
+def build_conn_graph(host, port, timeout, cipher, cln_extensions,
+                     srv_extensions, client_key_exchange_generator, level,
+                     alert, no_alert):
+    """ Reuse the same block as a function, to simplify code """
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -102,11 +120,11 @@ def build_conn_graph(host, port, cipher, cln_extensions,
     node = node.add_child(FinishedGenerator())
     node = node.add_child(TCPBufferingDisable())
     node = node.add_child(TCPBufferingFlush())
-    node = node.add_child(ExpectAlert(level,
-                                      alert))
+    if not no_alert:
+        node = node.add_child(ExpectAlert(level, alert))
     node.add_child(ExpectClose())
 
-    return (conversation, node)
+    return (conversation)
 
 
 def main():
@@ -117,9 +135,10 @@ def main():
     run_exclude = set()
     expected_failures = {}
     last_exp_tmp = None
+    timeout = 1.0
     alert = AlertDescription.bad_record_mac
     level = AlertLevel.fatal
-    srv_extensions = {ExtensionType.renegotiation_info: None}
+    srv_extensions = dict()
     no_sni = False
     repetitions = 100
     interface = None
@@ -129,17 +148,36 @@ def main():
     affinity = None
     reuse_rsa_ciphertext = False
     test_set = None
+    bit_sets = (0x01, 0x02, 0x04)
+    # how many random bytes to include in the randomised Hamming tests
+    random_bytes = 8
+    alpha = 1e-5
+    no_quickack = False
+    verbose_analysis = False
+    delay = None
+    carriage_return = None
+    no_alert = False
+    summary_only = False
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv,
                                "h:p:e:x:X:t:n:a:l:l:o:i:C:",
                                ["help",
-                                "no-safe-renego",
+                                "require-safe-renego",
+                                "require-sni",
                                 "no-sni",
                                 "repeat=",
                                 "cpu-list=",
                                 "static-enc",
-                                "test-set="])
+                                "test-set=",
+                                "bit-sets=",
+                                "alpha=",
+                                "no-quickack",
+                                "verbose-analysis",
+                                "status-delay=",
+                                "status-newline",
+                                "summary-only",
+                                "no-alert"])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -177,8 +215,10 @@ def main():
             outdir = arg
         elif opt == "--repeat":
             repetitions = int(arg)
-        elif opt == "--no-safe-renego":
-            srv_extensions = None
+        elif opt == "--require-safe-renego":
+            srv_extensions[ExtensionType.renegotiation_info] = None
+        elif opt == "--require-sni":
+            srv_extensions[ExtensionType.server_name] = None
         elif opt == "--no-sni":
             no_sni = True
         elif opt == "--cpu-list":
@@ -190,6 +230,25 @@ def main():
             sys.exit(0)
         elif opt == "--test-set":
             test_set = arg
+        elif opt == "--bit-sets":
+            bit_sets = set(
+                int(i, 16) if i[:2] == '0x' else int(i)
+                for i in arg.split(" ")
+            )
+        elif opt == "--alpha":
+            alpha = float(arg)
+        elif opt == "--no-quickack":
+            no_quickack = True
+        elif opt == "--verbose-analysis":
+            verbose_analysis = True
+        elif opt == "--status-delay":
+            delay = float(arg)
+        elif opt == "--summary-only":
+            summary_only = True
+        elif opt == "--status-newline":
+            carriage_return = '\n'
+        elif opt == "--no-alert":
+            no_alert = True
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -197,6 +256,11 @@ def main():
         run_only = set(args)
     else:
         run_only = None
+
+    if not srv_extensions:
+        # None for extensions means "expect RFC compliant behaviour for the
+        # ClientHello sent"
+        srv_extensions = None
 
     if run_only and test_set:
         raise ValueError("Can't specify test set and individual tests together")
@@ -234,6 +298,20 @@ def main():
                 "too short PKCS padding - 8 bytes",
                 "very short PKCS padding (40 bytes short)",
             ))
+    elif test_set == 'Hamming weight':
+        run_only = set((
+            "control - fuzzed pre master secret 1",
+            "control - fuzzed pre master secret 2",
+            "control - fuzzed pre master secret 3",
+            "very low Hamming weight RSA plaintext",
+            "very high Hamming weight RSA plaintext",
+        ))
+        for place in ('high', 'low'):
+            run_only |= set(
+                "low Hamming weight RSA plaintext - {0} - {1}"
+                .format(hex(bit_set), place)
+                for bit_set in bit_sets
+            )
     elif test_set is not None:
         raise ValueError("Unrecognised test set name: {0}".format(test_set))
 
@@ -252,8 +330,9 @@ def main():
         exit(1)
 
     conversations = OrderedDict()
+    generators = OrderedDict()
 
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -275,18 +354,21 @@ def main():
     node = node.add_child(ExpectClose())
     conversations["sanity"] = conversation
 
-    runner = Runner(conversation)
-    try:
-        runner.run()
-    except Exception as exp:
-        # Exception means the server rejected the ciphersuite
-        print("Failing on {0} because server does not support it. ".format(CipherSuite.ietfNames[cipher]))
-        print(20 * '=')
-        exit(1)
+    if not run_only or len(run_only) != 1:
+        runner = Runner(conversation)
+        try:
+            runner.run()
+            server_cert_state = runner.state
+        except Exception as exp:
+            print(traceback.format_exc())
+            # Exception means the server rejected the ciphersuite
+            print("Failing on {0} because server does not support it. ".format(CipherSuite.ietfNames[cipher]))
+            print(20 * '=')
+            exit(1)
 
     # check if a certain number doesn't trip up the server
     # (essentially a second sanity test)
-    conversation = Connect(host, port)
+    conversation = Connect(host, port, timeout=timeout)
     node = conversation
     ciphers = [cipher]
     node = node.add_child(ClientHelloGenerator(ciphers,
@@ -313,7 +395,7 @@ def main():
     for i in range(1, 4):
         # create a CKE with PMS the runner doesn't know/use
         # (benchmark to measure other tests to)
-        conversation = Connect(host, port)
+        conversation = Connect(host, port, timeout=timeout)
         node = conversation
         ciphers = [cipher]
         node = node.add_child(ClientHelloGenerator(ciphers,
@@ -336,247 +418,314 @@ def main():
             padding_xors=padding_xors,
             premaster_secret=bytearray([0] * 46),
             reuse_encrypted_premaster=reuse_rsa_ciphertext))
+        cke_node = node
         node = node.add_child(ChangeCipherSpecGenerator())
         node = node.add_child(FinishedGenerator())
         node = node.add_child(TCPBufferingDisable())
         node = node.add_child(TCPBufferingFlush())
-        node = node.add_child(ExpectAlert(level,
-                                          alert))
+        if not no_alert:
+            node = node.add_child(ExpectAlert(level,
+                                              alert))
         node.add_child(ExpectClose())
 
         conversations["control - fuzzed pre master secret {0}".format(i)] =\
             conversation
+        generators["control - fuzzed pre master secret {0}".format(i)] = \
+            cke_node
 
     # set 2nd byte of padding to 3 (invalid value)
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                padding_subs={1: 3},
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
+        padding_subs={1: 3},
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["set PKCS#1 padding type to 3"] = conversation
+    generators["set PKCS#1 padding type to 3"] = client_key_exchange_generator
 
     # set 2nd byte of padding to 1 (signing)
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                padding_subs={1: 1},
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
+        padding_subs={1: 1},
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["set PKCS#1 padding type to 1"] = conversation
+    generators["set PKCS#1 padding type to 1"] = client_key_exchange_generator
 
     # use the padding for signing (type 1)
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                padding_subs={1: 1},
-                                                padding_byte=0xff,
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
+        padding_subs={1: 1},
+        padding_byte=0xff,
+        random_premaster=True,
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["use PKCS#1 padding type 1"] = conversation
+    generators["use PKCS#1 padding type 1"] = client_key_exchange_generator
 
     # test early zero in random data
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                padding_subs={4: 0},
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
+        padding_subs={4: 0},
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["zero byte in random padding"] = conversation
+    generators["zero byte in random padding"] = client_key_exchange_generator
 
     # check if early padding separator is detected
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                padding_subs={-2: 0},
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
+        padding_subs={-2: 0},
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["zero byte in last byte of random padding"] = conversation
+    generators["zero byte in last byte of random padding"] = client_key_exchange_generator
 
     # check if separator without any random padding is detected
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                padding_subs={2: 0},
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(padding_subs={2: 0},
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["zero byte in first byte of random padding"] = conversation
+    generators["zero byte in first byte of random padding"] = client_key_exchange_generator
 
-    # check if invalid first byte of encoded value is correctly detected
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                padding_subs={0: 1},
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    # check if invalid first byte of encoded value is correctly detecte
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(padding_subs={0: 1},
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["invalid version number in padding"] = conversation
+    generators["invalid version number in padding"] = client_key_exchange_generator
 
     # check if no null separator in padding is detected
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                padding_subs={-1: 1},
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(padding_subs={-1: 1},
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["no null separator in padding"] = conversation
+    generators["no null separator in padding"] = client_key_exchange_generator
 
     # check if no null separator in padding is detected
     # but with PMS bytes set to non-zero
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                padding_subs={-1: 1},
-                                                premaster_secret=bytearray([3, 3]),
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(padding_subs={-1: 1},
+                                   premaster_secret=bytearray([3, 3]),
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["no null separator in encrypted value"] = conversation
+    generators["no null separator in encrypted value"] = client_key_exchange_generator
 
     # completely random plaintext
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                padding_subs={-1: 0xaf,
-                                                            0: 0x27,
-                                                            1: 0x09},
-                                                premaster_secret=bytearray([3, 3]),
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(padding_subs={-1: 0xaf, 0: 0x27, 1: 0x09},
+                                   premaster_secret=bytearray([3, 3]),
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["random plaintext"] = conversation
+    generators["random plaintext"] = client_key_exchange_generator
 
     # check if too short PMS is detected
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                premaster_secret=bytearray([1, 1]),
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(premaster_secret=bytearray([1, 1]),
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["two byte long PMS (TLS version only)"] = conversation
+    generators["two byte long PMS (TLS version only)"] = client_key_exchange_generator
 
     # check if no encrypted payload is detected
     # the TLS version is always set, so we mask the real padding separator
     # and set the last byte of PMS to 0
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                padding_subs={-1: 1},
-                                                premaster_secret=bytearray([1, 1, 0]),
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(padding_subs={-1: 1},
+                                   premaster_secret=bytearray([1, 1, 0]),
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["no encrypted value"] = conversation
+    generators["no encrypted value"] = client_key_exchange_generator
 
     # check if too short encrypted payload is detected
+
     # the TLS version is always set, so we mask the real padding separator
     # and set the last byte of PMS to 0
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                padding_subs={-1: 1},
-                                                premaster_secret=bytearray([1, 1, 0, 3]),
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    client_key_exchange_generator = \
+        ClientKeyExchangeGenerator(padding_subs={-1: 1},
+                                   premaster_secret=bytearray([1, 1, 0, 3]),
+                                   reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["one byte encrypted value"] = conversation
+    generators["one byte encrypted value"] = client_key_exchange_generator
 
     # check if too short PMS is detected
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                premaster_secret=bytearray([0] * 47),
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
+        premaster_secret=bytearray([0] * 47),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["too short (47-byte) pre master secret"] = conversation
+    generators["too short (47-byte) pre master secret"] = client_key_exchange_generator
 
     # check if too short PMS is detected
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                premaster_secret=bytearray([0] * 4),
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
+        premaster_secret=bytearray([0] * 4),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["very short (4-byte) pre master secret"] = conversation
+    generators["very short (4-byte) pre master secret"] = client_key_exchange_generator
 
     # check if too long PMS is detected
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                premaster_secret=bytearray([0] * 49),
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
+        premaster_secret=bytearray([0] * 49),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["too long (49-byte) pre master secret"] = conversation
+    generators["too long (49-byte) pre master secret"] = client_key_exchange_generator
 
     # check if very long PMS is detected
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                premaster_secret=bytearray([0] * 124),
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
+        premaster_secret=bytearray([0] * 124),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["very long (124-byte) pre master secret"] = conversation
+    generators["very long (124-byte) pre master secret"] = client_key_exchange_generator
 
-    # very long (96-byte) pre master secret
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                premaster_secret=bytearray([0] * 96),
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    #
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
+        premaster_secret=bytearray([0] * 96),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["very long (96-byte) pre master secret"] = conversation
+    generators["very long (96-byte) pre master secret"] = client_key_exchange_generator
 
     # check if wrong TLS version number is rejected
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                client_version=(2, 2),
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
+        client_version=(2, 2),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["wrong TLS version (2, 2) in pre master secret"] = conversation
+    generators["wrong TLS version (2, 2) in pre master secret"] = client_key_exchange_generator
 
     # check if wrong TLS version number is rejected
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                client_version=(0, 0),
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
+        client_version=(0, 0),
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["wrong TLS version (0, 0) in pre master secret"] = conversation
+    generators["wrong TLS version (0, 0) in pre master secret"] = client_key_exchange_generator
 
     for rep in range(4 if reuse_rsa_ciphertext else 1):
         for i in [1, 4, 8]:
             # check if too short PKCS padding is detected
+
             # move the start of the padding forward, essentially encrypting two 0 bytes
             # at the beginning of the padding, but since those are transformed into a number
             # their existence is lost and it just like the padding was too small
-
             padding_subs = {}
             for j in range(1, 1+i):
                 padding_subs[j] = 0
             padding_subs[i+1] = 2
 
-            (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                                    srv_extensions,
-                                                    ClientKeyExchangeGenerator(
-                                                        padding_subs=padding_subs,
-                                                        reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                                    level, alert)
+            client_key_exchange_generator = ClientKeyExchangeGenerator(
+                padding_subs=padding_subs,
+                reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+            (conversation) = build_conn_graph(host, port, timeout,
+                                              cipher, cln_extensions,
+                                              srv_extensions,
+                                              client_key_exchange_generator,
+                                              level, alert, no_alert)
 
             suffix = ""
             if reuse_rsa_ciphertext:
@@ -584,21 +733,27 @@ def main():
 
             conversations["too short PKCS padding - {0} bytes{1}"
                 .format(i, suffix)] = conversation
+            generators["too short PKCS padding - {0} bytes{1}"
+                .format(i, suffix)] = client_key_exchange_generator
 
     for j in range(4 if reuse_rsa_ciphertext else 1):
         # check if very short PKCS padding doesn't have a different behaviour
+
         # move the start of the padding 40 bytes towards LSB
         subs = {}
         for i in range(41):
             subs[i] = 0
         subs[41] = 2
 
-        (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                                srv_extensions,
-                                                ClientKeyExchangeGenerator(
-                                                    padding_subs=subs,
-                                                    reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                                level, alert)
+        client_key_exchange_generator = ClientKeyExchangeGenerator(
+            padding_subs=subs,
+            reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+        (conversation) = build_conn_graph(host, port, timeout,
+                                          cipher, cln_extensions,
+                                          srv_extensions,
+                                          client_key_exchange_generator,
+                                          level, alert, no_alert)
 
         suffix = ""
         if reuse_rsa_ciphertext:
@@ -606,59 +761,89 @@ def main():
 
         conversations["very short PKCS padding (40 bytes short){0}"
             .format(suffix)] = conversation
+        generators["very short PKCS padding (40 bytes short){0}"
+            .format(suffix)] = client_key_exchange_generator
 
     # check if too long PKCS padding is detected
+
     # move the start of the padding backward, essentially encrypting no 0 bytes
     # at the beginning of the padding, but since those are transformed into a number
     # its lack is lost and it just like the padding was too big
 
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                padding_subs={0: 2},
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
+        padding_subs={0: 2},
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["too long PKCS padding"] = conversation
+    generators["too long PKCS padding"] = client_key_exchange_generator
 
     # test for Hamming weight sensitivity:
     # very low Hamming weight:
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                padding_byte=0,
-                                                client_version=(0, 0),
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
+        padding_byte=0,
+        client_version=(0, 0),
+        random_premaster=True,
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["very low Hamming weight RSA plaintext"] = conversation
+    generators["very low Hamming weight RSA plaintext"] = client_key_exchange_generator
 
     # low Hamming weight:
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                padding_subs={-1: 1},
-                                                padding_byte=1,
-                                                client_version=(1, 1),
-                                                premaster_secret=bytearray([1]*48),
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+    for place in ('high', 'low'):
+        for bit_set in bit_sets:
+            if place == "high":
+                subs = dict(chain(
+                    [(-1, bit_set)],
+                    ((i, -2) for i in range(2, 2 + random_bytes))))
+            else:
+                subs = dict(
+                     (i, -1) for i in range(-1, -1 - random_bytes, -1))
 
-    conversations["low Hamming weight RSA plaintext"] = conversation
+            client_key_exchange_generator = ClientKeyExchangeGenerator(
+                padding_subs=subs,
+                padding_byte=bit_set,
+                client_version=(bit_set, bit_set),
+                premaster_secret=bytearray(),
+                reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+            (conversation) = build_conn_graph(host, port, timeout,
+                                              cipher, cln_extensions,
+                                              srv_extensions,
+                                              client_key_exchange_generator,
+                                              level, alert, no_alert)
+
+            conversations["low Hamming weight RSA plaintext - {0} - {1}"
+                          .format(hex(bit_set), place)] = conversation
+            generators["low Hamming weight RSA plaintext - {0} - {1}"
+                       .format(hex(bit_set), place)] = client_key_exchange_generator
 
     # test for Hamming weight sensitivity:
     # very high Hamming weight:
-    (conversation, node) = build_conn_graph(host, port, cipher, cln_extensions,
-                                            srv_extensions,
-                                            ClientKeyExchangeGenerator(
-                                                padding_subs={-1: 0xff},
-                                                padding_byte=0xff,
-                                                client_version=(0xff, 0xff),
-                                                premaster_secret=bytearray([0xff]*48),
-                                                reuse_encrypted_premaster=reuse_rsa_ciphertext),
-                                            level, alert)
+
+    client_key_exchange_generator = ClientKeyExchangeGenerator(
+        padding_subs={-1: 0xff},
+        padding_byte=0xff,
+        client_version=(0xff, 0xff),
+        random_premaster=True,
+        reuse_encrypted_premaster=reuse_rsa_ciphertext)
+
+    (conversation) = build_conn_graph(host, port, timeout,
+                                      cipher, cln_extensions, srv_extensions,
+                                      client_key_exchange_generator, level,
+                                      alert, no_alert)
 
     conversations["very high Hamming weight RSA plaintext"] = conversation
+    generators["very high Hamming weight RSA plaintext"] = client_key_exchange_generator
 
     # run the conversation
     good = 0
@@ -673,18 +858,24 @@ def main():
     # make sure that sanity test is run first and last
     # to verify that server was running and kept running throughout
     sanity_tests = [('sanity', conversations['sanity'])]
+    run_sanity = True
     if run_only:
-        if num_limit > len(run_only):
-            num_limit = len(run_only)
-        regular_tests = [(k, v) for k, v in conversations.items() if k in run_only]
+        if len(run_only) == 1 and 'sanity' in run_only:
+            run_sanity = False
+            regular_tests = sanity_tests
+        else:
+            if not 'sanity' in run_only:
+                run_sanity = False
+            regular_tests = [(k, v) for k, v in conversations.items() if
+                             k in run_only and (k != 'sanity')]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
                          (k != 'sanity') and k not in run_exclude]
-    if num_limit < len(conversations):
-        sampled_tests = sample(regular_tests, min(num_limit, len(regular_tests)))
+    sampled_tests = sample(regular_tests, min(num_limit, len(regular_tests)))
+    if run_sanity:
+        ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
     else:
-        sampled_tests = regular_tests
-    ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)
+        ordered_tests = sampled_tests
 
     print("Running tests for {0}".format(CipherSuite.ietfNames[cipher]))
 
@@ -735,7 +926,7 @@ Client Key Exchange messages in RSA key exchange.
 When executed with `-i` it will also verify that different errors
 are rejected in the same amount of time; it checks for timing
 sidechannel.
-The script executes tests without \"sanity\" in name multiple
+The script executes tests without "sanity" in name multiple
 times to estimate server response time.
 
 Quick reminder: when encrypting a value using PKCS#1 v1.5 standard
@@ -750,7 +941,7 @@ significant byte:
   For signatures the bytes must equal 0xff
 - one zero byte that acts as separator between padding and
   encrypted value
-- one or more bytes that are the encrypted value, for TLS it must
+- zero, one, or more bytes that are the encrypted value, for TLS it must
   be 48 bytes long and the first two bytes need to equal the
   TLS version advertised in Client Hello
 
@@ -814,17 +1005,26 @@ place where the timing leak happens:
 - plaintext with specific Hamming weights, start with 0x00 and 0x02 bytes
   but then switch to special plaintext, differences here suggest a leak
   happening in the maths library:
-  - 'very low Hamming weight RSA plaintext' - padding, TLS version and PMS
-    are all zero bytes
+  - 'very low Hamming weight RSA plaintext' - padding, TLS version are all zero
+    bytes, PMS is random
   - 'very high Hamming weight RSA plaintext' - padding, padding separator, TLS
-    version and PMS are all 0xff bytes
-  - 'use PKCS#1 padding type 1' - here the padding will be all 0xff bytes
-  - 'low Hamming weight RSA plaintext' - padding, padding separator, TLS
-    version and PMS are all 0x01 bytes""")
+    version are all 0xff bytes, PMS is random bytes
+  - 'use PKCS#1 padding type 1' - here the padding will be all 0xff bytes, the
+    PMS will be random
+  - 'low Hamming weight RSA plaintext - 0xXX - high' - padding, padding
+    separator, TLS version and PMS are all set to the specified value, with
+    the exception of the first 8 bytes of padding, which are random non-zero
+    values
+  - 'low Hamming weight RSA plaintext - 0xXX - low' - padding, padding
+    separator, TLS version and PMS are all set to the specified value, with
+    the exception of the last 8 bytes of PMS, which are random values""")
     print(20 * '=')
     print("version: {0}".format(version))
     print(20 * '=')
-    print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
+    if run_sanity:
+        print("TOTAL: {0}".format(len(sampled_tests) + 2 * len(sanity_tests)))
+    else:
+        print("TOTAL: {0}".format(len(sampled_tests)))
     print("SKIP: {0}".format(len(run_exclude.intersection(conversations.keys()))))
     print("PASS: {0}".format(good))
     print("XFAIL: {0}".format(xfail))
@@ -843,26 +1043,123 @@ place where the timing leak happens:
     elif timing:
         # if regular tests passed, run timing collection and analysis
         if TimingRunner.check_tcpdump():
+            tests = [('generic', None)]
+
             timing_runner = TimingRunner("{0}_v{1}_{2}".format(
                                             sys.argv[0],
                                             version,
                                             CipherSuite.ietfNames[cipher]),
-                                         sampled_tests,
+                                         tests,
                                          outdir,
                                          host,
                                          port,
                                          interface,
-                                         affinity)
+                                         affinity,
+                                         skip_extract=True,
+                                         alpha=alpha,
+                                         no_quickack=no_quickack,
+                                         verbose_analysis=verbose_analysis,
+                                         delay=delay,
+                                         carriage_return=carriage_return,
+                                         summary_only=summary_only)
+            print("Pre-generating pre-master secret values...")
+
+            with open(
+                os.path.join(timing_runner.out_dir, 'pms_values.bin'),
+                "wb"
+            ) as pms_file:
+                # create a real order of tests to run
+                log = Log(os.path.join(timing_runner.out_dir, "real_log.csv"))
+                actual_tests = []
+                node_dict = {}
+                for c_name, c_test in sampled_tests:
+                    if run_only and c_name not in run_only or \
+                            c_name in run_exclude:
+                        continue
+                    if not c_name.startswith("sanity"):
+                        actual_tests.append(c_name)
+                        node_dict[c_name] = generators[c_name]
+
+                log.start_log(actual_tests)
+                for _ in range(repetitions):
+                    log.shuffle_new_run()
+                log.write()
+                log.read_log()
+                test_classes = log.get_classes()
+                queries = chain(repeat(0, WARM_UP), log.iterate_log())
+
+                exp_key_size = \
+                    (len(server_cert_state.get_server_public_key()) + 7) // 8
+
+                # generate the PMS values
+                for executed, index in enumerate(queries):
+                    g_name = test_classes[index]
+                    g_node = node_dict[g_name]
+
+                    res = g_node.generate(server_cert_state)
+                    assert len(res.encryptedPreMasterSecret) == exp_key_size, \
+                        len(res.encryptedPreMasterSecret)
+
+                    pms_file.write(res.encryptedPreMasterSecret)
+
+
+            # fake the set of tests to run so it's just one
+            pms_file = open(
+                os.path.join(timing_runner.out_dir, 'pms_values.bin'),
+                "rb"
+            )
+
+            conversation = Connect(host, port, timeout=timeout)
+            node = conversation
+            ciphers = [cipher]
+            node = node.add_child(ClientHelloGenerator(ciphers,
+                                                       extensions=cln_extensions))
+            node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+
+            node = node.add_child(ExpectCertificate())
+            node = node.add_child(ExpectServerHelloDone())
+            node = node.add_child(TCPBufferingEnable())
+            node = node.add_child(ClientKeyExchangeGenerator(
+                encrypted_premaster_file=pms_file,
+                encrypted_premaster_length=exp_key_size
+                ))
+            node = node.add_child(ChangeCipherSpecGenerator())
+            node = node.add_child(FinishedGenerator())
+            node = node.add_child(TCPBufferingDisable())
+            node = node.add_child(TCPBufferingFlush())
+            if not no_alert:
+                node = node.add_child(ExpectAlert(level,
+                                                  alert))
+            node.add_child(ExpectClose())
+
+            tests[:] = [('generic', conversation)]
+
             print("Running timing tests...")
-            timing_runner.generate_log(run_only, run_exclude, repetitions)
+            timing_runner.generate_log(
+                ['generic'], [],
+                repetitions * len(actual_tests))
             ret_val = timing_runner.run()
+            if ret_val != 0:
+                print("run failed")
+                sys.exit(ret_val)
+            os.remove(os.path.join(timing_runner.out_dir, 'log.csv'))
+            os.rename(
+                os.path.join(timing_runner.out_dir, 'real_log.csv'),
+                os.path.join(timing_runner.out_dir, 'log.csv')
+            )
+            if not timing_runner.extract(fin_as_resp=no_alert):
+                ret_val = 2
+            else:
+                ret_val = timing_runner.analyse()
+
             if ret_val == 0:
                 print("No statistically significant difference detected")
             elif ret_val == 1:
                 print("Statisticaly significant difference detected at alpha="
-                      "0.05")
+                      "{0}".format(alpha))
             else:
-                print("Statistical analysis exited with {0}".format(ret_val))
+                print("Error: Statistical analysis exited with {0}".format(ret_val))
+            sys.exit(ret_val)
         else:
             print("Could not run timing tests because tcpdump is not present!")
             sys.exit(1)
