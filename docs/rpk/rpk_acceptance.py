@@ -131,8 +131,8 @@ def main():
                 check("peer is reachable", True)
         except OSError as exc:
             check("peer is reachable", False, str(exc))
-        print("     (a full handshake check belongs in the Penzzer module, which")
-        print("      is the consumer - see README.md section 7)")
+        print("     (a full handshake check belongs in the conversation script")
+        print("      that calls these generators - see README.md section 7)")
 
     print()
     if FAILURES:

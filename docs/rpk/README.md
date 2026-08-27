@@ -9,48 +9,29 @@ and section 6 says why that half is not being asked for.
 
 > **Status: landed 2026-08-27.** Section 5 is implemented in
 > `tlsfuzzer/helpers.py` and `rpk_acceptance.py` passes all five offline checks.
-> Sections 1 to 6 are kept as the rationale for the shape of the change; section
-> 8 is what remains, and it is Penzzer-side.
+> Sections 1 to 6 are kept as the rationale for the shape of the change.
 
-## 1. What Penzzer needs it for
+## 1. The test case this is for
 
-`src/tool/modules/ssl_tls/rpk_signature_algorithms_cert.py` builds a ClientHello
-that solicits raw public keys and also sends `signature_algorithms_cert`. The
-pairing is the point: a peer answering with a raw public key has no certificate
-to choose a signature algorithm for, while `signature_algorithms_cert`
-(RFC 8446 s:4.2.3) is precisely a constraint on certificates, so the peer has to
-decide what a constraint on an absent thing means.
+A ClientHello that solicits raw public keys and also sends
+`signature_algorithms_cert`. The pairing is the point: a peer answering with a
+raw public key has no certificate to choose a signature algorithm for, while
+`signature_algorithms_cert` (RFC 8446 s:4.2.3) is precisely a constraint on
+certificates, so the peer has to decide what a constraint on an absent thing
+means.
 
 That shape is CVE-2026-14457 in OpenSSL, fixed in 3.6.4 / 3.5.8 / 3.4.7 / 4.0.2,
 where a server with RPK enabled and only a private key configured dereferences
-the certificate it does not have. The module is not written against OpenSSL - it
+the certificate it does not have. The probe is not written against OpenSSL - it
 is written against the protocol, and any RPK-capable peer is a target.
 
-## 2. Why the fork rather than Penzzer
+## 2. Why this belongs in helpers.py
 
-Two measurements, both taken 2026-08-27 against the tree.
-
-**Naming an extension is the convention in the 151 modules in
-`src/tool/modules/ssl_tls/`.** alpn, server_name, early_data - all
-`ExtensionType.*`. 5 of the 151 files do pass a bare number to
-`TLSExtension(extType=...)`, so this is a convention rather than a rule, and it
-is worth being exact about what those 5 are doing:
-
-| file | why the number is bare |
-| --- | --- |
-| `extensions.py`, `large_hello.py` | deliberately unassigned numbers (80, 90, 65283) - the point is that they are *not* real extensions |
-| `client_compatibility.py` | verbatim replay of captured ClientHellos, raw cipher lists and raw extension bodies alike |
-| `lengths.py` | `extType=1` beside `ExtensionType.max_fragment_length` as the dict key on the same line |
-| `record_size_limit.py` | bare `ext[1]`, for a constant tlslite does name |
-
-Only the last is squarely a raw assigned number where a name existed, and it is
-one line in one file. A Penzzer-side `SERVER_CERTIFICATE_TYPE = 20` would be a
-real, assigned extension number that is named *nowhere* - not in tlslite, not in
-tlsfuzzer - defined in the consumer rather than in the library that owns protocol
-constants. `CLAUDE.md`'s related-repositories rule calls that a competing copy
-and asks for a fork change instead.
-
-The stronger half of the argument is the next paragraph, not this one.
+Because writing it anywhere else means a caller carrying `SERVER_CERTIFICATE_TYPE
+= 20` of its own: a real, assigned extension number that is named *nowhere* -
+not in tlslite, not in tlsfuzzer - defined in calling code rather than in the
+library that owns protocol constants. Every such caller would need its own copy,
+and they would drift.
 
 **`helpers.py` already owns this exact class of thing:** `key_share_gen`,
 `key_share_ext_gen`, `psk_ext_gen`, `session_ticket_ext_gen`. An extension
@@ -182,12 +163,12 @@ new pair in the naming family they belong to (`key_share_ext_gen`,
 chain with a bare `SubjectPublicKeyInfo`, and neither tlslite nor tlsfuzzer
 parses that. Implementing it would mean putting `ExtensionType` members and a
 Certificate parser into tlsfuzzer, one layer below where they belong, and that is
-the competing-copy problem this whole document exists to avoid - only pointed at
-tlslite instead of at Penzzer.
+the same competing-copy problem section 2 exists to avoid - only pointed at
+tlslite instead.
 
 The right home is **tlslite-ng upstream**, and upstream's own "fix these
-constants" comment suggests they would take it. Until then the Penzzer module
-stops at the ServerHello, which is far enough: a peer that cannot choose its
+constants" comment suggests they would take it. Until then a conversation stops
+at the ServerHello, which is far enough: a peer that cannot choose its
 credential never gets that far.
 
 So this ask covers the **sending** half only. That is the half the test case
@@ -224,17 +205,14 @@ drops the key along with the certificate. Reproducing it needs a purpose-built
 server calling `SSL_CTX_use_PrivateKey()` and not `SSL_CTX_use_certificate()`.
 Not built, and not required for this ask.
 
-## 8. Sequencing
+## 8. Environment
 
-Penzzer cannot land its side until the fork change ships and `requirements.txt`
-moves to a commit carrying it, or the module's import fails. So the fork goes
-first.
+One trap worth recording, because it looks like a repository problem and is not.
+A venv holding tlslite-ng 0.8.2 fails at **import** of `tlsfuzzer.runner` with
+`AttributeError: type object 'SignatureScheme' has no attribute 'mldsa87'`,
+raised from `helpers.py` line 96 - so every test fails, not only the new ones.
 
-**Nothing else is in the way.** An earlier draft of this section reported the
-venv broken - `AttributeError: type object 'SignatureScheme' has no attribute
-'mldsa87'` at import of `tlsfuzzer.runner`, from `helpers.py` line 96 meeting an
-installed tlslite-ng 0.8.2. That was an environment that had drifted from the
-pin, not a repository problem. `requirements.txt` pins `tlslite-ng==0.9.0b2`,
-which defines `mldsa87 = (9, 6)`; installing it makes `tlsfuzzer.runner` import
-and the full unit suite pass (1015 tests, 0 failures, verified 2026-08-27). No
-pin needs to move.
+That is an environment that has drifted from the pin. `requirements.txt` pins
+`tlslite-ng==0.9.0b2`, which defines `mldsa87 = (9, 6)`; installing it makes
+`tlsfuzzer.runner` import and the full unit suite pass (1030 tests, 0 failures,
+verified 2026-08-27). No pin needs to move.
