@@ -55,6 +55,26 @@ class TestConnectionState(unittest.TestCase):
         state.get_server_public_key()
         self.assertTrue(cert_list.getEndEntityPublicKey.called)
 
+    def test_get_server_public_key_uses_last_certificate(self):
+        state = ConnectionState()
+
+        first = messages.Certificate(constants.CertificateType.x509)
+        first_chain = mock.MagicMock(spec=X509CertChain)
+        first_chain.x509List = []
+        first.create(first_chain)
+
+        second = messages.Certificate(constants.CertificateType.x509)
+        second_chain = mock.MagicMock(spec=X509CertChain)
+        second_chain.x509List = []
+        second.create(second_chain)
+
+        state.handshake_messages.append(first)
+        state.handshake_messages.append(second)
+
+        state.get_server_public_key()
+        self.assertFalse(first_chain.getEndEntityPublicKey.called)
+        self.assertTrue(second_chain.getEndEntityPublicKey.called)
+
     def test_get_last_message_of_type(self):
         state = ConnectionState()
         msg = messages.ServerHello()
