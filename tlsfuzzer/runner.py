@@ -10,41 +10,94 @@ from tlslite.handshakehashes import HandshakeHashes
 from tlslite.errors import TLSAbruptCloseError
 from tlslite.constants import ContentType, HandshakeType, AlertLevel, \
         AlertDescription, SSL2HandshakeType, CipherSuite, TLS_1_3_HRR
-from tlslite.utils.codec import Parser
-from .expect import ExpectClose, ExpectNoMessage
+from .expect import ExpectClose, ExpectNoMessage, ExpectAlert
 
 class ConnectionState(object):
-    """
-    Keeps state information of the connection.
 
-    Currently just session ID and connection state, but will be extended
-    to allow resumption, etc.
+    """
+    Keeps the TLS connection state for sending of messages
+
+    :ivar ~tlslite.messagesocket.MessageSocket msg_sock: message level
+        abstraction for TLS Record Socket
+
+    :ivar handshake_hashes: all handshake messages hashed
+
+    :ivar handshake_messages: all hadshake messages exchanged between peers
+
+    :ivar key: various computed cryptographic keys, hashes and secrets related
+        to handshake and record layer
+
+        ``premaster_secret`` - premaster secret from TLS 1.2 and earlier
+
+        ``client finished handshake hashes`` -
+        :py:class:`~tlslite.handshakehashes.HandshakeHashes` object that has
+        the handshake hashes of last handshake (the only Handshake in TLS 1.3)
+        up to and including the client Finished; used for post-handshake
+        authentication
     """
 
     def __init__(self):
         """Prepare object for keeping connection state"""
-        # variable holding the session ID of the client
-        self.session_id = bytearray(0)
-        # variable holding the session ID of the server
-        self.server_session_id = bytearray(0)
-        # variable holding the master secret of the session
-        self.master_secret = bytearray(0)
-        # variable holding the extended master secret of the session
-        self.extended_master_secret = False
-        # variable holding the cipher suite of the session
-        self.cipher = None
-        # variable holding the version of the session
-        self.version = None
-        # variable holding the handshake hashes
+        self.msg_sock = None
+
+        # cipher negotiated in connection
+        self.cipher = 0
+
+        # version proposed in client hello
+        self.client_version = (3, 3)
+
+        # version negotiated in connection
+        self.version = (3, 3)
+
+        # hashes of all handshake messages exchanged so far
         self.handshake_hashes = HandshakeHashes()
-        # variable holding the handshake messages
+
+        # hash of all messages exchanged up to Certificate Verify, if CV was
+        # used on connection
+        self.certificate_verify_handshake_hashes = None
+
+        # all handshake messages exchanged so far
         self.handshake_messages = []
-        # variable holding the client random
-        self.client_random = None
-        # variable holding the server random
-        self.server_random = None
-        # variable holding the resumption master secret
-        self.resumption_master_secret = None
+
+        # are we a client or server side of connection (influences just the
+        # way encryption and MAC keys are calculated)
+        self.client = True
+
+        # calculated value for premaster secret
+        self.key = {}
+        self.key['premaster_secret'] = bytearray(0)
+
+        self.key['client handshake traffic secret'] = bytearray(0)
+
+        # negotiated value for master secret
+        self.key['master_secret'] = bytearray(0)
+
+        # random values shared by peers
+        self.server_random = bytearray(0)
+        self.client_random = bytearray(0)
+
+        # session ID set by server
+        self.session_id = bytearray(0)
+
+        # Finished message data for secure renegotiation
+        self.key['client_verify_data'] = bytearray(0)
+        self.key['server_verify_data'] = bytearray(0)
+
+        # Whether we are currently resuming a previously negotiated session
+        self.resuming = False
+
+        # variable holding the intermediate state for DHE (and similar) key
+        # exchanges
+        self.key_exchange = None
+
+        # Whether the session we're currently using is using extended master
+        # secret calculation defined in RFC 7627
+        self.extended_master_secret = False
+
+        # Whether the session we're currently using is using
+        # EncryptThenMAC extension defined in RFC 7366
+        self.encrypt_then_mac = False
+
         # list of tickets received from the server
         self.session_tickets = []
 
@@ -179,25 +232,63 @@ class Runner(object):
                                 raise AssertionError(
                                     "Unexpected closure from peer")
                     msg = Message(header.type, parser.bytes)
-                    if node.is_expect():
-                        node.process(self.state, msg)
-                    else:
-                        raise AssertionError("Node is neither command, expect "
-                                             "nor generator")
+                    old_node = node
+
+                    node = next((proc for proc in node.get_all_siblings()
+                                 if proc.is_match(msg)), None)
+                    if node is None:
+                        raise AssertionError("Unexpected message from peer: " +
+                                             guess_response(\
+                                                 msg.contentType,
+                                                 msg.write(),
+                                                 isinstance(header,
+                                                            RecordHeader2)))
+
+                    node.process(self.state, msg)
+
+                    node = node.child
+                    continue
                 elif node.is_generator():
-                    # generate message
+                    # send message to peer
                     msg = node.generate(self.state)
-                    if msg is not None:
-                        self.state.msg_sock.sendMessageBlocking(msg)
+                    try:
+                        # sendMessageBlocking is buffered and fragmenting
+                        # that means that 0-length messages would get lost
+                        # so send them directly through record layer
+                        if msg.write():
+                            if node.queue:
+                                self.state.msg_sock.queueMessageBlocking(msg)
+                            else:
+                                self.state.msg_sock.sendMessageBlocking(msg)
+                        else:
+                            for _ in self.state.msg_sock.sendRecord(msg):
+                                # make the method into a blocking one
+                                pass
+                    except socket.error:
+                        close_node = next(
+                            (n for n in node.get_all_siblings()
+                             if isinstance(n, (ExpectClose, ExpectAlert))),
+                            None)
+                        if close_node:
+                            node = close_node.child
+                            continue
+                        else:
+                            raise AssertionError("Unexpected closure from peer")
+                    # allow generators to perform actions after the message
+                    # was sent like updating handshake hashes
+                    node.post_send(self.state)
+
                     node = node.child
                     continue
                 else:
-                    raise AssertionError("Node is neither command, expect "
-                                         "nor generator")
-                node = node.child
-        except AssertionError as e:
-            print("Error encountered while processing node {0} "
-                  "(child: {1}) with last message being: {2}".format(
-                      node, node.child if node else None, msg))
-            print("Error while processing")
+                    raise AssertionError("Unknown decision tree node")
+        except:
+            if self.state.msg_sock:
+                self.state.msg_sock.sock.close()
+            # TODO put into a log
+            if node is None:
+                node = old_node
+            print("Error encountered while processing node " + str(node) +
+                  " (child: " + str(node.child) + ") with last message " +
+                  "being: " + repr(msg))
             raise
