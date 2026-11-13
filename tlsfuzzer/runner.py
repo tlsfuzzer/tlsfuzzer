@@ -126,10 +126,15 @@ class ConnectionState(object):
         return 32
 
     def get_server_public_key(self):
-        """Extract server public key from server Certificate message"""
-        certificates = (msg for msg in self.handshake_messages if\
-                        isinstance(msg, (Certificate)))
-        cert_message = next(certificates)
+        """Extract server public key from the last server Certificate message.
+
+        Uses the most recent Certificate message so that resumption and
+        multi-handshake conversations pick the certificate that applies to
+        the current handshake rather than an earlier one.
+        """
+        cert_message = self.get_last_message_of_type(Certificate)
+        if cert_message is None:
+            raise StopIteration("No Certificate message in handshake_messages")
         return cert_message.cert_chain.getEndEntityPublicKey()
 
     def get_last_message_of_type(self, msg_type):
