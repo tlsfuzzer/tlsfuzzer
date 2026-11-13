@@ -2690,6 +2690,111 @@ class TestCertificateVerifyGeneratorMLDSA(unittest.TestCase):
             msg.signature, verif_bytes,
             "", "sha256"))
 
+    def test_generate_with_hashmldsa_and_no_cert_req_in_tls1_3(self):
+        from dilithium_py.ml_dsa.default_parameters import \
+                HASH_ML_DSA_65_WITH_SHA512
+        priv_key = self.priv_key
+
+        cert_ver_g = CertificateVerifyGenerator(priv_key,
+                                                sig_alg="HashML-DSA")
+        state = ConnectionState()
+        state.version = (3, 4)
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertTrue(msg.signature)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.mldsa65)
+
+        verif_bytes = KeyExchange.calcVerifyBytes(
+                (3, 4),
+                state.handshake_hashes,
+                constants.SignatureScheme.mldsa65,
+                b'',
+                b'',
+                b'',
+                "sha256")
+
+        self.assertFalse(priv_key.hashAndVerify(
+            msg.signature, verif_bytes,
+            "", "sha256"))
+        self.assertTrue(HASH_ML_DSA_65_WITH_SHA512.verify(
+            priv_key.public_key, verif_bytes, msg.signature))
+
+    def test_generate_with_hashmldsa44_and_no_cert_req_in_tls1_3(self):
+        from dilithium_py.ml_dsa.default_parameters import \
+                HASH_ML_DSA_44_WITH_SHA512
+        from dilithium_py.ml_dsa.default_parameters import ML_DSA_44
+        from tlslite.utils.python_mldsakey import Python_MLDSAKey
+        pub_key, priv_key = ML_DSA_44.keygen()
+        priv_key = Python_MLDSAKey((ML_DSA_44, pub_key),
+                                   (ML_DSA_44, priv_key))
+
+        cert_ver_g = CertificateVerifyGenerator(priv_key,
+                                                sig_alg="HashML-DSA")
+        state = ConnectionState()
+        state.version = (3, 4)
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertTrue(msg.signature)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.mldsa44)
+
+        verif_bytes = KeyExchange.calcVerifyBytes(
+                (3, 4),
+                state.handshake_hashes,
+                constants.SignatureScheme.mldsa44,
+                b'',
+                b'',
+                b'',
+                "sha256")
+
+        self.assertFalse(priv_key.hashAndVerify(
+            msg.signature, verif_bytes,
+            "", "sha256"))
+        self.assertTrue(HASH_ML_DSA_44_WITH_SHA512.verify(
+            priv_key.public_key, verif_bytes, msg.signature))
+
+    def test_generate_with_hashmldsa_and_no_cert_req_in_tls1_3_with_xors(self):
+        from dilithium_py.ml_dsa.default_parameters import \
+                HASH_ML_DSA_65_WITH_SHA512
+        priv_key = self.priv_key
+
+        cert_ver_g = CertificateVerifyGenerator(priv_key,
+                                                padding_xors={0: 0xff},
+                                                sig_alg="HashML-DSA")
+        state = ConnectionState()
+        state.version = (3, 4)
+
+        msg = cert_ver_g.generate(state)
+
+        self.assertIsNotNone(msg)
+        self.assertTrue(msg.signature)
+        self.assertEqual(msg.signatureAlgorithm,
+                         constants.SignatureScheme.mldsa65)
+
+        verif_bytes = KeyExchange.calcVerifyBytes(
+                (3, 4),
+                state.handshake_hashes,
+                constants.SignatureScheme.mldsa65,
+                b'',
+                b'',
+                b'',
+                "sha256")
+
+        self.assertFalse(priv_key.hashAndVerify(
+            msg.signature, verif_bytes,
+            "", "sha256"))
+        sig = msg.signature
+        self.assertFalse(HASH_ML_DSA_65_WITH_SHA512.verify(
+            priv_key.public_key, verif_bytes, sig))
+        sig[0] ^= 0xff
+        self.assertTrue(HASH_ML_DSA_65_WITH_SHA512.verify(
+            priv_key.public_key, verif_bytes, sig))
+
     def test_generate_with_xors(self):
         priv_key = self.priv_key
         cert_ver_g = CertificateVerifyGenerator(priv_key,

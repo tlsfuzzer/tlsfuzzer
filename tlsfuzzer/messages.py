@@ -38,6 +38,12 @@ import socket
 from functools import partial
 from ecdsa import VerifyingKey
 from tlslite.utils import ecc
+from tlslite.utils.compat import ML_DSA_AVAILABLE
+if ML_DSA_AVAILABLE:
+    from dilithium_py.ml_dsa import (HASH_ML_DSA_44_WITH_SHA512,
+                                     HASH_ML_DSA_65_WITH_SHA512,
+                                     HASH_ML_DSA_87_WITH_SHA512)
+
 
 class Command(TreeNode):
     """Command objects."""
@@ -1126,10 +1132,14 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
       for the signature (overrides msg_version, but just for the signature).
       Equal to msg_version by default.
 
-    :vartype sig_alg: tuple(int,int)
+    :vartype sig_alg: tuple(int,int) or str()
     :ivar sig_alg: hash and signature algorithm to be used for creating the
-      signature in the message. Equal to msg_alg by default. Requires the
-      ``sig_version`` to be set to at least TLSv1.2 to be effective.
+      signature in the message. Equal to msg_alg by default.
+      It's also possible to specify HashML-DSA with sha512 by specifying
+      the name ``HashML-DSA``. The specific variant of HashML-DSA used depends
+      on the provided private key.
+      Requires the ``sig_version`` to be set to at least TLSv1.2 to be
+      effective.
 
     :vartype signature: bytearray
     :ivar signature: bytes to sent as the signature of the message
@@ -1440,6 +1450,10 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
                 SignatureScheme.ed25519, SignatureScheme.ed448) or \
                 self.private_key.key_type in ("Ed25519", "Ed448"):
             signature_type = "eddsa"
+        elif self.sig_alg == "HashML-DSA":
+            signature_type = "hashmldsa"
+            # we just need to tell tlslite code that we want intrinsic hash
+            verify_bytes_sig = SignatureScheme.mldsa44
         elif self.sig_alg and self.sig_alg in (
                 SignatureScheme.mldsa87, SignatureScheme.mldsa65,
                 SignatureScheme.mldsa44) or \
@@ -1479,6 +1493,22 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             padding = None
             old_private_key_op = None
             sig_func = self.private_key.hashAndSign
+        elif signature_type == "hashmldsa":
+            self.mgf1_hash = "intrinsic"
+            self.rsa_pss_salt_len = None
+            padding = None
+            old_private_key_op = None
+            def temp_sig_func(data, _, _1, _2):
+                if self.private_key.key_type == "mldsa44":
+                    mldsa = HASH_ML_DSA_44_WITH_SHA512
+                elif self.private_key.key_type == "mldsa65":
+                    mldsa = HASH_ML_DSA_65_WITH_SHA512
+                elif self.private_key.key_type == "mldsa87":
+                    mldsa = HASH_ML_DSA_87_WITH_SHA512
+                else:
+                    raise ValueError("HashML-DSA requires ML-DSA key")
+                return mldsa.sign(self.private_key.private_key, data)
+            sig_func = temp_sig_func
         elif signature_type == "ecdsa":
             self._get_ecdsa_sig_parameters()
             padding = None
@@ -1519,7 +1549,7 @@ class CertificateVerifyGenerator(HandshakeProtocolMessageGenerator):
             signature = bytearray(signature)
             max_byte = len(signature) - 1
             self._normalise_subs_and_xors(max_byte)
-        if signature_type in ("ecdsa", "eddsa", "dsa", "mldsa"):
+        if signature_type in ("ecdsa", "eddsa", "dsa", "mldsa", "hashmldsa"):
             # but EdDSA signatures are always the same length for given
             # key type, so don't normalise the values for them
             signature = substitute_and_xor(signature, self.padding_subs,

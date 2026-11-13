@@ -1,4 +1,4 @@
-# Author: Alicja Kario, (c) 2025
+# Author: Alicja Kario, (c) 2025-2026
 # Released under Gnu GPL v2.0, see LICENSE file for details
 """Test of ML-DSA in CertificateVerify"""
 
@@ -40,7 +40,7 @@ from tlslite.x509 import X509
 from tlslite.x509certchain import X509CertChain
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -298,7 +298,7 @@ def main():
 
     conversations["check sigalgs in cert request"] = conversation
 
-    # verify that an ECDSA signature with mismatched message hash fails
+    # verify that an ML-DSA signature with mismatched message hash fails
     if private_key.key_type == "mldsa87":
         sig_alg = SignatureScheme.mldsa87
         msg_alg = SignatureScheme.mldsa65
@@ -388,6 +388,49 @@ def main():
             SignatureScheme.toStr(msg_alg))] = \
             conversation
 
+    # Verify that HashML-DSA is rejected irrespective of SignatureScheme
+    # advertised
+    for msg_alg in SIG_ALL:
+        sig_alg = getattr(SignatureScheme, private_key.key_type)
+        alert_desc = AlertDescription.illegal_parameter
+        if sig_alg == msg_alg:
+            alert_desc = AlertDescription.decrypt_error
+
+        conversation = Connect(hostname, port)
+        node = conversation
+        ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+        ext = {}
+        groups = [GroupName.secp256r1]
+        ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+        ext[ExtensionType.supported_versions] = \
+            SupportedVersionsExtension().create([(3, 4), (3, 3)])
+        ext[ExtensionType.supported_groups] = \
+            SupportedGroupsExtension().create(groups)
+        ext[ExtensionType.signature_algorithms] = \
+            SignatureAlgorithmsExtension().create(sig_algs)
+        ext[ExtensionType.signature_algorithms_cert] = \
+            SignatureAlgorithmsCertExtension().create(
+                MLDSA_SIG_ALL + ECDSA_SIG_ALL + RSA_SIG_ALL + EDDSA_SIG_ALL)
+        node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+        node = node.add_child(ExpectServerHello())
+        node = node.add_child(ExpectChangeCipherSpec())
+        node = node.add_child(ExpectEncryptedExtensions())
+        node = node.add_child(ExpectCertificateRequest())
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectCertificateVerify())
+        node = node.add_child(ExpectFinished())
+        node = node.add_child(CertificateGenerator(X509CertChain([cert])))
+        node = node.add_child(CertificateVerifyGenerator(
+            private_key, sig_alg="HashML-DSA", msg_alg=msg_alg))
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ExpectAlert(
+            AlertLevel.fatal, alert_desc))
+        node.add_child(ExpectClose())
+
+        conversations["check HashML-DSA signature advertised as {0}".format(
+            SignatureScheme.toStr(msg_alg))] = \
+            conversation
 
     # check that fuzzed signatures are rejected
     for pos in range(siglen):
