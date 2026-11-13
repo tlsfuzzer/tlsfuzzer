@@ -2832,6 +2832,26 @@ class Analysis(object):
 
         return [i for i, _ in group_counts[-5:]], all_unique_pairs
 
+    def _test_with_single_group_side_channel(self, name_bin, group):
+        sm_p_values = {}
+
+        tmp_file = name_bin + ".tmp"
+        self._hamming_weight_report += "Skillings-Mack test p-value after "
+        self._hamming_weight_report += "introducing a side-channel of:\n"
+
+        for time in [10, 1, 0.1]:
+            shutil.copyfile(name_bin, tmp_file)
+            self._add_value_to_group(tmp_file, group, time * 1e-9)
+            p_value = self.skillings_mack_test(tmp_file)
+            sm_p_values[time] = p_value
+            self._hamming_weight_report += "\t{0}ns: {1}\n".format(
+                time, p_value)
+            if self.verbose:
+                print("[i] {0}ns: {1}".format(time, p_value))
+            os.remove(tmp_file)
+
+        return sm_p_values
+
     def _analyse_weight_pairs(self, pairs):
         out_dir = self.output
         output_files = dict()
@@ -3055,20 +3075,8 @@ class Analysis(object):
 
         sm_p_values = {}
         if skillings_mack_p_value > 1e-5:
-            tmp_file = name_bin + ".tmp"
-            self._hamming_weight_report += "Skillings-Mack test p-value after "
-            self._hamming_weight_report += "introducing a side-channel of:\n"
-
-            for time in [10, 1, 0.1]:
-                shutil.copyfile(name_bin, tmp_file)
-                self._add_value_to_group(tmp_file, most_common[0], time * 1e-9)
-                p_value = self.skillings_mack_test(tmp_file)
-                sm_p_values[time] = p_value
-                self._hamming_weight_report += "\t{0}ns: {1}\n".format(
-                    time, p_value)
-                if self.verbose:
-                    print("[i] {0}ns: {1}".format(time, p_value))
-                os.remove(tmp_file)
+            sm_p_values = self._test_with_single_group_side_channel(
+                name_bin, most_common[0])
 
         self._analyse_weight_pairs(pairs)
 
