@@ -435,7 +435,7 @@ size and the timing that was needed to sign the data.""")
                     data_size=data_size,
                     sigs=join(timing_outdir, sigs_file),
                     priv_key=priv_key_file,
-                    key_type="ecdsa",
+                    key_type="ec",
                     verbose=verbose,
                     hash_func=None  # The data are already hashed.
                 )
