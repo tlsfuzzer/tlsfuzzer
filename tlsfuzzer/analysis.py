@@ -110,6 +110,10 @@ def help_msg():
  --bit-size-desired-ci num The desired amount of ns (or lower) that the CIs
                    should have after the analysis up to recognition size
                    option. Used only with smart analysis. Default 1 ns.
+ --max-ci num      Specify the max acceptable CI range. If the CI that observed
+                   is larger in the larger set then it will abord with an
+                   exception.
+                   Only relevant to bit size and hamming weight analysis.
  --measurements    Specifies the measurements file name that should be
                    analyzed.
                    The file must be present in the output dir. This flag only
@@ -145,6 +149,7 @@ def main():
     measurements_filename = "measurements.csv"
     skip_sanity = False
     hamming_weight_analysis = False
+    max_ci = None
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "o:",
                                ["help", "no-ecdf-plot", "no-scatter-plot",
@@ -170,6 +175,7 @@ def main():
                                 "skip-sanity",
                                 "Hamming-weight",
                                 "summary-only",
+                                "max-ci=",
                                 "verbose"])
 
     for opt, arg in opts:
@@ -236,6 +242,8 @@ def main():
             measurements_filename = arg
         elif opt == "--skip-sanity":
             skip_sanity = True
+        elif opt == "--max-ci":
+            max_ci = float(arg)
 
     if output:
         analysis = Analysis(output, ecdf_plot, scatter_plot, conf_int_plot,
@@ -245,7 +253,7 @@ def main():
                             smart_analysis, bit_size_desired_ci,
                             measurements_filename, skip_sanity, wilcoxon_test,
                             t_test, sign_test, box_plot, box_test,
-                            le_sign_test, sample_stats, summary_only)
+                            le_sign_test, sample_stats, summary_only, max_ci)
 
         ret = analysis.generate_report(
             bit_size=bit_size_analysis,
@@ -269,7 +277,7 @@ class Analysis(object):
                  measurements_filename="measurements.csv", skip_sanity=False,
                  run_wilcoxon_test=True, run_t_test=True, run_sign_test=True,
                  draw_box_plot=True, run_box_test=True, run_le_sign_test=True,
-                 gen_sample_stats=True, summary_only=False):
+                 gen_sample_stats=True, summary_only=False, max_ci=None):
         self.verbose = verbose
         self.summary_only = summary_only
         self.output = output
@@ -295,6 +303,7 @@ class Analysis(object):
         self.carriage_return = carriage_return
         self.measurements_filename = measurements_filename
         self.skip_sanity = skip_sanity
+        self.max_ci = max_ci
 
         if bit_size_analysis and smart_bit_size_analysis:
             self._bit_size_data_limit = 100000  # staring amount of samples
@@ -2656,6 +2665,31 @@ class Analysis(object):
                         bootstraping_results[method] = (
                             exact_values[method], calc_quant[1] - calc_quant[0]
                         )
+
+                # Early fail if not the required CI
+                if self.max_ci and k_size != max_k_size:
+                    if self.verbose:
+                        print("[i] Checking if CI would be as requested.")
+                    smallest_ci = min(
+                        bootstraping_results["trim_mean_05"][1],
+                        bootstraping_results["trim_mean_45"][1]
+                    )
+                    message = (
+                        "Calculated CI {0:.2e} is more than requested CI {1}."
+                            .format(smallest_ci, self.max_ci)
+                    )
+                    if self.max_ci < smallest_ci:
+                        needed_data = int((smallest_ci / self.max_ci) ** 2) + 1
+                        with open(join(out_dir, "report.txt"), "w") as fp:
+                            fp.write(
+                                message + "\n" +
+                                "You will need at least {0}x "
+                                    .format(needed_data) +
+                                "more data to achieve your goal.\n"
+                            )
+                        raise Warning(message)
+                    self.max_ci = None
+
                 if len(self._bit_size_bootstraping) < 10:
                     self._bit_size_bootstraping[k_size] = bootstraping_results
 
@@ -2848,14 +2882,15 @@ class Analysis(object):
                 join(out_dir, "analysis_results", "wilcoxon_test.results"),
                 "w", encoding="utf-8")
         try:
+            pair_len = len([i for i in pairs if i != 'slope'])
             if any((self.run_sign_test, self.run_wilcoxon_test,
                     self.run_t_test, self.draw_conf_interval_plot,
                     self.draw_ecdf_plot)):
-                for base_group, test_group in \
-                        sorted(i for i in pairs if i != 'slope'):
+                for i, (base_group, test_group) in \
+                        enumerate(sorted(i for i in pairs if i != 'slope')):
                     if self.verbose:
-                        print("Running test for {0}-{1}..."
-                              .format(base_group, test_group))
+                        print("Running test for {0}-{1}... ({2}/{3})"
+                              .format(base_group, test_group, i + 1, pair_len))
 
                     self.output = join(
                         out_dir,
@@ -2919,10 +2954,10 @@ class Analysis(object):
                 print("[i] " + rel_t_test_text)
 
             # conf_interval_plot is disabled by the draw_conf_interval_plot
-            old_conf_interval = self.draw_conf_interval_plot
+            old_draw_conf_interval_plot = self.draw_conf_interval_plot
             self.draw_conf_interval_plot = True
             self.conf_interval_plot()
-            self.draw_conf_interval_plot = old_conf_interval
+            self.draw_conf_interval_plot = old_draw_conf_interval_plot
 
         finally:
             self.output = out_dir
@@ -3069,6 +3104,54 @@ class Analysis(object):
                 if self.verbose:
                     print("[i] {0}ns: {1}".format(time, p_value))
                 os.remove(tmp_file)
+
+        # Early fail if not the required CI
+        if self.max_ci:
+            if self.verbose:
+                print("[i] Checking if CI would be as requested.")
+            most_common_pair = ((most_common[0], most_common[1])
+                if (most_common[0], most_common[1]) in pairs
+                else (most_common[1], most_common[0]))
+            old_output = self.output
+            self.output = join(
+                self.output,
+                "analysis_results/by-pair-sizes/"
+                "{0:04d}-{1:04d}"
+                    .format(most_common_pair[0], most_common_pair[1]))
+            data = self.load_data()
+            self.class_names = list(data)
+            self.conf_interval_plot()
+            methods = ["trim_mean_05", "trim_mean_45"]
+            smallest_ci = 10
+            for method in methods:
+                with open(join(self.output, "bootstrapped_{0}.csv".format(method)),
+                            "r", encoding='utf-8') as fp:
+                    boots = [
+                        float(x) for x in fp if x != "1-0\n"
+                    ]
+
+                quantile = np.quantile(boots, [0.025, 0.975, 0.5])
+                if smallest_ci > quantile[1] - quantile[0]:
+                    smallest_ci = quantile[1] - quantile[0]
+            if smallest_ci > self.max_ci:
+                message = (
+                    "Calculated CI {0:.2e} is more than requested CI {1}."
+                        .format(smallest_ci, self.max_ci)
+                )
+                needed_data = int((smallest_ci / self.max_ci) ** 2) + 1
+                report_file = join(
+                    old_output,
+                    "analysis_results/report.Hamming_weight.txt"
+                )
+                with open(report_file, "w") as fp:
+                    fp.write(
+                        message + "\n" +
+                        "You will need at least {0}x "
+                            .format(needed_data) +
+                        "more data to achieve your goal.\n"
+                    )
+                raise Warning(message)
+            self.output = old_output
 
         self._analyse_weight_pairs(pairs)
 
