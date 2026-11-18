@@ -30,6 +30,8 @@ from itertools import combinations, repeat, chain
 import os
 import time
 import random
+import tempfile
+import statistics
 
 import numpy as np
 from scipy import stats
@@ -50,7 +52,7 @@ TestPair = namedtuple('TestPair', 'index1  index2')
 mpl.use('Agg')
 
 
-VERSION = 9
+VERSION = 10
 
 
 _diffs = None
@@ -255,6 +257,107 @@ def main():
         return ret
     else:
         raise ValueError("Missing -o option!")
+
+
+def _slope_writer_process(queue, slope_path):
+    """Dedicated process for writing slope data."""
+    os.makedirs(slope_path, exist_ok=True)
+    with open(join(slope_path, "timing.csv"), "w") as f:
+        f.write("lower,higher\n")
+        while True:
+            chunk = queue.get()
+            if chunk is None:  # Sentinel value to terminate
+                break
+            # Writing large batches is significantly faster than line-by-line
+            f.writelines(chunk)
+
+
+def _worker_process(worker_id, name, start_idx, end_idx, most_common, output_dir, slope_queue):
+    """Worker process that parses a chunk of the memmap and buffers writes."""
+    start_time = time.time()
+
+    # Re-open the memmap locally for this process to ensure thread/process safety
+    data = np.memmap(name,
+                     dtype=[('block', 'i8'), ('group', 'i4'), ('value', 'f8')],
+                     mode='r')[start_idx:end_idx]
+
+    time_of_slope = 0.0
+    time_of_pairs = 0.0
+    all_pairs = set()
+
+    BUFFER_LIMIT = 50000
+    pair_buffers = defaultdict(list)
+    slope_buffer = []
+
+    def flush_pair(pair_key):
+        """Flushes an individual pair's buffer to disk."""
+        base_group, compared_group = pair_key
+        pair_path = join(output_dir, "analysis_results", "by-pair-sizes",
+                         f"{base_group:04d}-{compared_group:04d}")
+        os.makedirs(pair_path, exist_ok=True)
+
+        # Write to a worker-specific file to avoid lock contention
+        file_path = join(pair_path, f"timing_{worker_id}.csv")
+        with open(file_path, "a") as f:
+            f.writelines(pair_buffers[pair_key])
+        pair_buffers[pair_key].clear()
+
+    # Fast iteration through blocks
+    idx = 0
+    total_len = len(data)
+
+    while idx < total_len:
+        current_block = data['block'][idx]
+        block_start = idx
+
+        # Find the end of the current block
+        while idx < total_len and data['block'][idx] == current_block:
+            idx += 1
+        block_end = idx
+
+        # Extract block data
+        b_groups = data['group'][block_start:block_end]
+        b_values = data['value'][block_start:block_end]
+        block_vals = dict(zip(b_groups, b_values))
+
+        # --- SLOPE LOGIC ---
+        t_temp = time.time()
+        sorted_items = sorted(block_vals.items())
+        i = iter(sorted_items)
+        for (_, val1), (_, val2) in zip(i, i):
+            slope_buffer.append(f"{val1},{val2}\n")
+
+        if len(slope_buffer) >= BUFFER_LIMIT:
+            slope_queue.put(slope_buffer)
+            slope_buffer = []
+        time_of_slope += time.time() - t_temp
+
+        # --- PAIRWISE LOGIC ---
+        t_temp = time.time()
+        intersect = most_common.intersection(b_groups)
+        for base_group in intersect:
+            base_value = block_vals[base_group]
+            for compared_group, compared_value in block_vals.items():
+                if base_group == compared_group:
+                    continue
+
+                pair = (base_group, compared_group)
+                all_pairs.add(pair)
+                pair_buffers[pair].append(f"{base_value},{compared_value}\n")
+
+                if len(pair_buffers[pair]) >= BUFFER_LIMIT:
+                    flush_pair(pair)
+
+        time_of_pairs += time.time() - t_temp
+
+    # Flush remaining buffers
+    if slope_buffer:
+        slope_queue.put(slope_buffer)
+    for pair in list(pair_buffers.keys()):
+        if pair_buffers[pair]:
+            flush_pair(pair)
+
+    return time_of_slope, time_of_pairs, all_pairs
 
 
 class Analysis(object):
@@ -910,45 +1013,135 @@ class Analysis(object):
                    )
 
     @staticmethod
-    def _cent_tend_of_random_sample(reps=100):
+    def _sample_memory_efficient(data):
+        """
+        implement an equivalent of
+        ```
+        out_data = np.random.choice(data, replace=True, size=len(data
+        out_data.sort()
+        ```
+        that assumes sorted data on input
+        """
+        sample_size = len(data)
+        bin_size = int(math.sqrt(len(data)))
+        num_bins = (sample_size + bin_size - 1) // bin_size
+
+        bin_sizes = np.repeat(np.int64(bin_size), sample_size // bin_size)
+        if sample_size % bin_size:
+            bin_sizes = np.append(bin_sizes, np.int64(sample_size % bin_size))
+        assert len(bin_sizes) == num_bins
+        bin_idx = np.cumsum(bin_sizes)
+
+        # sample bins (how many values to pull from every bin)
+        bin_populations = np.zeros(num_bins, dtype=np.int64)
+
+        for count in bin_sizes:
+            subsample = np.random.randint(0, sample_size, count)
+            subsample //= bin_size
+            bin_populations += np.bincount(subsample, minlength=num_bins)
+
+        assert sum(bin_populations) == sample_size
+
+        out_idx = np.cumsum(bin_populations)
+
+        # then sample from every chunk
+        start_idx = 0
+        out_start = 0
+        for end_idx, out_end, out_sample_size in zip(bin_idx, out_idx, bin_populations):
+            sample_idxs = np.random.randint(0, end_idx - start_idx, size=out_sample_size)
+            sample_count = np.bincount(sample_idxs, minlength=end_idx - start_idx)
+            sample = np.repeat(data[start_idx:end_idx], sample_count)
+
+            yield sample
+
+            start_idx = end_idx
+            out_start = out_end
+
+    @staticmethod
+    def _cent_tend_of_random_sample(args):
         """
         Calculate mean, median, trimmed means (5%, 25%, 45%) and trimean with
         bootstrapping.
         """
+        reps, file_name, dir_name = args
         ret = []
-        global _diffs
-        diffs = _diffs
+        data = np.memmap(file_name, dtype=np.float64, mode="r", order="C")
+
+        data_size = len(data)
+
+        median1_idx = (data_size - 1) // 2
+        median2_idx = (data_size - 1 + 1) // 2
+
+        trim_mean_5_start_idx = int(0.05 * data_size)
+        trim_mean_5_stop_idx = data_size - trim_mean_5_start_idx
+
+        trim_mean_25_start_idx = int(0.25 * data_size)
+        trim_mean_25_stop_idx = data_size - trim_mean_25_start_idx
+
+        trim_mean_45_start_idx = int(0.45 * data_size)
+        trim_mean_45_stop_idx = data_size - trim_mean_45_start_idx
 
         for _ in range(reps):
-            boot = np.random.choice(diffs, replace=True, size=len(diffs))
+            mean_sum = []
+            trim_mean_5_sum = []
+            trim_mean_25_sum = []
+            trim_mean_45_sum = []
+            start_idx = 0
+            for sample in Analysis._sample_memory_efficient(data):
+                sample_len = len(sample)
+                end_idx = start_idx + sample_len
+                mean_sum.append(np.sum(sample))
 
-            q1, median, q3 = np.quantile(boot, [0.25, 0.5, 0.75])
+                if median1_idx >= start_idx and median1_idx < end_idx:
+                    median1 = sample[median1_idx - start_idx]
+                if median2_idx >= start_idx and median2_idx < end_idx:
+                    median2 = sample[median2_idx - start_idx]
+
+                a = max(0, min(sample_len, trim_mean_5_start_idx - start_idx))
+                b = min(sample_len, max(0, trim_mean_5_stop_idx - start_idx))
+                trim_mean_5_subsample = sample[a:b]
+                trim_mean_5_sum.append(np.sum(trim_mean_5_subsample))
+
+                a = max(0, min(sample_len, trim_mean_25_start_idx - start_idx))
+                b = min(sample_len, max(0, trim_mean_25_stop_idx - start_idx))
+                trim_mean_25_subsample = sample[a:b]
+                trim_mean_25_sum.append(np.sum(trim_mean_25_subsample))
+
+                a = max(0, min(sample_len, trim_mean_45_start_idx - start_idx))
+                b = min(sample_len, max(0, trim_mean_45_stop_idx - start_idx))
+                trim_mean_45_subsample = sample[a:b]
+                trim_mean_45_sum.append(np.sum(trim_mean_45_subsample))
+
+                start_idx = end_idx
+
+            q1, q3 = 0, 1
+            median = (median1 + median2) / 2
             # use tuple instead of a dict because tuples are much quicker
             # to instantiate
-            ret.append((np.mean(boot, 0),
+            ret.append((np.sum(mean_sum) / data_size,
                         median,
-                        stats.trim_mean(boot, 0.05, 0),
-                        stats.trim_mean(boot, 0.25, 0),
-                        stats.trim_mean(boot, 0.45, 0),
+                        np.sum(trim_mean_5_sum) / (trim_mean_5_stop_idx - trim_mean_5_start_idx),
+                        np.sum(trim_mean_25_sum) / (trim_mean_25_stop_idx - trim_mean_25_start_idx),
+                        np.sum(trim_mean_45_sum) / (trim_mean_45_stop_idx - trim_mean_45_start_idx),
                         (q1+2*median+q3)/4))
         return ret
 
-    @staticmethod
-    def _import_diffs(diffs):
-        global _diffs
-        _diffs = diffs
-
     def _bootstrap_differences(self, pair, reps=5000, status=None):
         """Return a list of bootstrapped central tendencies of differences."""
-        # don't pickle the diffs as they are read-only, use a global to pass
-        # it to workers
-        global _diffs
         # because the samples are not independent, we calculate mean of
         # differences not a difference of means
         data = self.load_data()
         index1, index2 = pair
         _diffs = data.iloc[:, index2] -\
             data.iloc[:, index1]
+
+        diff_bin_path = join(self.output, "timing_diff.bin")
+        diff_bin = np.memmap(diff_bin_path, dtype=np.float64,
+                             mode="w+", shape=(len(_diffs), ), order="C")
+        diff_bin[:] = _diffs[:]
+        _diffs = None
+        diff_bin.sort()
+        diff_bin.flush()
 
         job_count = os.cpu_count() * 4
         job_size = max(reps // job_count, 1)
@@ -958,8 +1151,7 @@ class Analysis(object):
 
         ret = dict((k, list()) for k in keys)
 
-        with mp.Pool(self.workers, initializer=self._import_diffs,
-                     initargs=(_diffs,)) as pool:
+        with mp.Pool(self.workers) as pool:
             # while it's accessing a protected member of a python class,
             # it's a). been there for a long time (at least 2.7) and
             # b). it's because of a bug in multiprocessing module itself:
@@ -969,7 +1161,11 @@ class Analysis(object):
 
             cent_tend = pool.imap_unordered(
                 self._cent_tend_of_random_sample,
-                chain(repeat(job_size, reps // job_size), [reps % job_size]))
+                zip(chain(repeat(job_size, reps // job_size), [reps % job_size]),
+                    repeat(diff_bin_path),
+                    repeat(self.output),
+                )
+            )
 
             for values in cent_tend:
                 # handle reps % job_size == 0
@@ -986,7 +1182,8 @@ class Analysis(object):
                 self._check_if_workers_are_alive(workers)
             # pylint: enable=protected-access
 
-        _diffs = None
+        os.remove(diff_bin_path)
+
         return ret
 
     def _calc_exact_values(self, diff):
@@ -2718,119 +2915,192 @@ class Analysis(object):
             yield block_values
 
     def _add_value_to_group(self, name, group, diff):
-        data = self._read_hamming_weight_data(name, mode="r+")
+        all_data = self._read_hamming_weight_data(name, mode="r+")
         try:
-            groups = data['group']
-            values = data['value']
-            values[groups == group] += diff
+            for data in np.split(all_data,
+                                 range(10000000,
+                                       len(all_data['group']),
+                                       10000000)):
+                groups = data['group']
+                values = data['value']
+                values[groups == group] += diff
         finally:
             del data
+
+    def _worker_add_value_to_group(self, args):
+        name, group, diff = args
+        return self._add_value_to_group(name, group, diff)
 
     def _split_data_to_pairwise(self, name):
         if self.verbose:
             start_time = time.time()
-            print("[i] Splitting up data to pairwise directories")
+            print("[i] Splitting up data to pairwise directories (Multiprocessing)")
+
+        num_workers = self.workers
+        if num_workers is None:
+            num_workers = mp.cpu_count()
 
         data = self._read_hamming_weight_data(name)
-        all_pairs = set()
-        try:
-            pair_writers = dict()
 
-            unique_vals, unique_counts = np.unique(data['group'],
-                                                   return_counts=True)
-            group_counts = list((i, j)
-                                for i, j
-                                in zip(unique_vals, unique_counts))
-            group_counts = sorted(group_counts,
-                                  key=lambda x: x[1])
-            most_common = set(i for i, j in group_counts[-5:])
-            top_200_most_common = set(i for i, j in group_counts[-200:])
+        # Determine group counts
+        unique_vals, unique_counts = np.unique(data['group'], return_counts=True)
+        group_counts = sorted(zip(unique_vals, unique_counts), key=lambda x: x[1])
+        most_common = set(i for i, j in group_counts[-5:])
 
-            slope_path = join(self.output,
-                              "analysis_results/by-pair-sizes/slope")
-            os.makedirs(slope_path, exist_ok=True)
+        # Determine chunk boundaries dynamically without loading the whole array to RAM
+        total_len = len(data)
+        chunk_indices = [0]
 
-            pair_writers['slope'] = open(
-                    join(slope_path, "timing.csv"), "w")
-            pair_writers['slope'].write(
-                    "lower,higher\n")
+        for i in range(1, num_workers):
+            idx = total_len * i // num_workers
+            if idx >= total_len:
+                break
+            # Step forward until the block ID changes so we don't split a block
+            target_block = data['block'][idx]
+            while idx < total_len and data['block'][idx] == target_block:
+                idx += 1
+            chunk_indices.append(idx)
+        chunk_indices.append(total_len)
 
-            for block_vals in self._read_tuples(data):
-                # save data to estimate the slope of the time to Hamming weight
-                # dependency (if there is no dependency then the slope will
-                # be 0
-                i = iter(sorted(block_vals.items()))
-                for lower, higher in zip(i, i):
-                    pair_writers['slope'].write(
-                        "{0},{1}\n".format(lower[1], higher[1]))
-
-                # create pairwise comparisons graphs only for the most common
-                # groups, skip blocks that have only uncommon groups in them
-                for base_group in most_common.intersection(block_vals.keys()):
-                    base_value = block_vals[base_group]
-                    for compared_group, compared_value in block_vals.items():
-                        if base_group == compared_group:
-                            continue
-
-                        pair = (base_group, compared_group)
-                        all_pairs.add(pair)
-                        pair_path = join(
-                            self.output,
-                            "analysis_results/by-pair-sizes/"
-                            "{0:04d}-{1:04d}".format(
-                                base_group, compared_group))
-                        # since we can have a lot of groups, we should keep open
-                        # only the files for most common groups and open all the
-                        # other ones on demand
-                        if compared_group in top_200_most_common:
-                            if pair not in pair_writers:
-                                try:
-                                    os.makedirs(pair_path)
-                                except FileExistsError:
-                                    # ignore error, overwrite the file
-                                    pass
-                                pair_writers[pair] = open(
-                                    join(pair_path, "timing.csv"), "w")
-                                pair_writers[pair].write(
-                                    "{0},{1}\n".format(base_group,
-                                                       compared_group))
-
-                            pair_writers[pair].write(
-                                "{0},{1}\n".format(base_value, compared_value))
-                        else:
-                            pair_path_file = join(pair_path, "timing.csv")
-                            try:
-                                os.makedirs(pair_path)
-                                # if it exists, it will raise an exception
-                                # otherwise we put the header in
-                                with open(pair_path_file, "w") as f:
-                                    f.write(
-                                        "{0},{1}\n".format(base_group,
-                                                           compared_group))
-                            except FileExistsError:
-                                pass
-                            with open(pair_path_file, "a") as f:
-                                f.write("{0},{1}\n".format(
-                                    base_value, compared_value))
-
-
-        finally:
-            del data
-            for writer in pair_writers.values():
-                writer.close()
+        # Deduplicate indices in case workers got squeezed at the end
+        chunk_indices = sorted(list(set(chunk_indices)))
 
         if self.verbose:
-            print("[i] Splitting up data to pairwise directories done in {:.3}s".format(
-                time.time() - start_time))
+            print(f"[i] Pairwise preparation and chunking done: {time.time() - start_time:.3f}s")
 
-        # for pairwise tests we just need it one-way, but we need to preserve the order
-        # in the tuple
+        slope_path = join(self.output, "analysis_results/by-pair-sizes/slope")
+        manager = mp.Manager()
+        slope_queue = manager.Queue()
+
+        # Start dedicated slope writer
+        slope_writer = mp.Process(target=_slope_writer_process, args=(slope_queue, slope_path))
+        slope_writer.start()
+
+        # Execute workers
+        pool_args = []
+        for w_id in range(len(chunk_indices) - 1):
+            pool_args.append((
+                w_id, name, chunk_indices[w_id], chunk_indices[w_id+1],
+                most_common, self.output, slope_queue
+            ))
+
+        with mp.Pool(processes=num_workers) as pool:
+            results = pool.starmap(_worker_process, pool_args)
+
+        # Signal slope writer to finish and wait for it
+        slope_queue.put(None)
+        slope_writer.join()
+
+        # Aggregate metrics
+        time_of_slope = sum(r[0] for r in results)
+        time_of_pairs = sum(r[1] for r in results)
+        all_pairs = set().union(*(r[2] for r in results))
+
+        # Merge worker-specific CSV files into single timing.csv files
+        if self.verbose:
+            print("[i] Merging temporary worker files...")
+
+        for base_group, compared_group in all_pairs:
+            pair_path = join(self.output, "analysis_results/by-pair-sizes",
+                             f"{base_group:04d}-{compared_group:04d}")
+            final_file = join(pair_path, "timing.csv")
+
+            with open(final_file, "w") as outfile:
+                outfile.write(f"{base_group},{compared_group}\n")
+                # Append all worker files and delete them
+                for w_id in range(num_workers):
+                    temp_file = join(pair_path, f"timing_{w_id}.csv")
+                    if os.path.exists(temp_file):
+                        with open(temp_file, "r") as infile:
+                            outfile.write(infile.read())
+                        os.remove(temp_file)
+
+        if self.verbose:
+            print(f"[i] Splitting up slope: {time_of_slope:.3f}s (Aggregated CPU time)")
+            print(f"[i] Splitting up pairs: {time_of_pairs:.3f}s (Aggregated CPU time)")
+            print(f"[i] Splitting up data done in {time.time() - start_time:.3f}s")
+
         all_unique_pairs = set()
         for i in all_pairs:
             if (i[1], i[0]) not in all_unique_pairs:
                 all_unique_pairs.add(i)
 
-        return [i for i, _ in group_counts[-5:]], all_unique_pairs
+        return [i for i, _ in group_counts[-5:]], all_unique_pairs, unique_vals
+
+    def _test_with_single_group_side_channel(self, name_bin, group):
+        sm_p_values = {}
+
+        tmp_file = name_bin + ".tmp"
+        self._hamming_weight_report += "Skillings-Mack test p-value after "
+        self._hamming_weight_report += "introducing a side-channel of:\n"
+
+        for time in [10, 1, 0.1]:
+            shutil.copyfile(name_bin, tmp_file)
+            self._add_value_to_group(tmp_file, group, time * 1e-9)
+            p_value = self.skillings_mack_test(tmp_file)
+            sm_p_values[time] = p_value
+            self._hamming_weight_report += "\t{0}ns: {1}\n".format(
+                time, p_value)
+            if self.verbose:
+                print("[i] {0}ns: {1}".format(time, p_value))
+            os.remove(tmp_file)
+
+        self._hamming_weight_report += "\n"
+
+        return sm_p_values
+
+    def _test_with_systemic_side_channel(self, name_bin, all_groups):
+        sm_p_values = {}
+
+        groups = []
+        for i in all_groups:
+            try:
+                val = int(i)
+                if val >= 0:
+                    groups.append(val)
+            except ValueError:
+                pass
+
+        if not groups:
+            print("[w] No groups can be turned into non-negative integers")
+
+        # since we might not introduce a side-channel to some groups, the
+        # introduced side-channel needs to be 0 on average
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Starting to calculate median of groups")
+        median = statistics.median(groups)
+        if self.verbose:
+            print("[i] Calculating median done in {:.3}s".format(
+                  time.time() - start_time))
+
+        tmp_file = name_bin + ".tmp"
+        self._hamming_weight_report += ("Skillings-Mack test p-value after "
+             "introducing a systemic side-channel of:\n")
+
+        for mod_time in [10, 1, 0.1, 0.01]:
+            if self.verbose:
+                start_time = time.time()
+                print("[i] Starting file modification for {0}ns/bit side-channel".format(mod_time))
+            shutil.copyfile(name_bin, tmp_file)
+            with mp.Pool(processes=self.workers) as pool:
+                for i in pool.imap_unordered(
+                        self._worker_add_value_to_group,
+                        zip(repeat(tmp_file),
+                            groups,
+                            ((i - median) * mod_time * 1e-9 for i in groups))):
+                    pass
+            if self.verbose:
+                print("[i] File modified in {:.3}s".format(time.time() - start_time))
+            p_value = self.skillings_mack_test(tmp_file)
+            sm_p_values[mod_time] = p_value
+            self._hamming_weight_report += "\t{0}ns/bit: {1}\n".format(
+                mod_time, p_value)
+            if self.verbose:
+                print("[i] {0}ns/bit: {1}".format(mod_time, p_value))
+            os.remove(tmp_file)
+
+        return sm_p_values
 
     def _analyse_weight_pairs(self, pairs):
         out_dir = self.output
@@ -3051,24 +3321,16 @@ class Analysis(object):
         self._hamming_weight_report += "Skillings-Mack test p-value: {0}\n"\
             .format(skillings_mack_p_value)
 
-        most_common, pairs = self._split_data_to_pairwise(name_bin)
+        most_common, pairs, all_groups = self._split_data_to_pairwise(name_bin)
 
         sm_p_values = {}
+        sys_sm_p_values = {}
         if skillings_mack_p_value > 1e-5:
-            tmp_file = name_bin + ".tmp"
-            self._hamming_weight_report += "Skillings-Mack test p-value after "
-            self._hamming_weight_report += "introducing a side-channel of:\n"
+            sm_p_values = self._test_with_single_group_side_channel(
+                name_bin, most_common[0])
 
-            for time in [10, 1, 0.1]:
-                shutil.copyfile(name_bin, tmp_file)
-                self._add_value_to_group(tmp_file, most_common[0], time * 1e-9)
-                p_value = self.skillings_mack_test(tmp_file)
-                sm_p_values[time] = p_value
-                self._hamming_weight_report += "\t{0}ns: {1}\n".format(
-                    time, p_value)
-                if self.verbose:
-                    print("[i] {0}ns: {1}".format(time, p_value))
-                os.remove(tmp_file)
+            sys_sm_p_values = self._test_with_systemic_side_channel(
+                name_bin, all_groups)
 
         self._analyse_weight_pairs(pairs)
 
@@ -3080,6 +3342,11 @@ class Analysis(object):
                     print(("[i] Sample large enough to detect {0} ns "
                            "difference: {1}").format(
                                time, sm_p_values[time] < 1e-9))
+            if len(sys_sm_p_values.keys()) is not None:
+                for time in sys_sm_p_values:
+                    print(("[i] Sample large enough to detect {0} ns/bit "
+                           "difference: {1}").format(
+                               time, sys_sm_p_values[time] < 1e-9))
 
         if skillings_mack_p_value < self.alpha:
             return 1
