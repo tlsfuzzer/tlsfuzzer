@@ -179,10 +179,10 @@ def main():
             if not 'sanity' in run_only:
                 run_sanity = False
             regular_tests = [(k, v) for k, v in conversations.items() if
-                             k in run_only and k.startswith('sanity')]
+                             k in run_only and not k.startswith('sanity')]
     else:
         regular_tests = [(k, v) for k, v in conversations.items() if
-                         k.startswith('sanity') and k not in run_exclude]
+                         not k.startswith('sanity') and k not in run_exclude]
     sampled_tests = sample(regular_tests, min(num_limit, len(regular_tests)))
     if run_sanity:
         ordered_tests = chain(sanity_tests, sampled_tests, sanity_tests)

@@ -376,7 +376,8 @@
          {"name" : "test-version-numbers.py"},
          {"name" : "test-x25519.py"},
          {"name" : "test-zero-length-data.py"},
-         {"name" : "test-tls13-certificate-compression.py"}
+         {"name" : "test-tls13-certificate-compression.py"},
+         {"name" : "test-tls13-aead-ciphertext-sorter-than-tag.py"}
      ]
     },
     {"server_command": ["{python}", "-u", "{command}", "server",
