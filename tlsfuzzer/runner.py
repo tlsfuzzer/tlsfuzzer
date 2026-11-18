@@ -277,7 +277,7 @@ class Runner(object):
                     continue
                 else:
                     raise AssertionError("Unknown decision tree node")
-        except:
+        except Exception:
             if self.state.msg_sock:
                 self.state.msg_sock.sock.close()
             # TODO put into a log
