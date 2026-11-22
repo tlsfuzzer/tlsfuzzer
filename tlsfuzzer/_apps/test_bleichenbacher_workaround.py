@@ -24,7 +24,7 @@ from tlslite.extensions import SNIExtension
 from tlsfuzzer.utils.lists import natural_sort_keys
 
 
-version = 4
+version = 5
 
 
 def help_msg():
@@ -57,6 +57,9 @@ def help_msg():
     print(" --no-sni       do not send server name extension.")
     print("                Sends extension by default if the hostname is a")
     print("                valid DNS name, not an IP address")
+    print(" --key-size bits size of the server's RSA key in bits, used to")
+    print("                generate probes with encrypted values of all possible")
+    print("                lengths (CVE-2012-5081), 2048 by default")
     print(" --help         this message")
 
 
@@ -73,11 +76,13 @@ def main():
     level = AlertLevel.fatal
     srv_extensions = {ExtensionType.renegotiation_info:None}
     no_sni = False
+    key_size = 2048
 
     argv = sys.argv[1:]
     opts, args = getopt.getopt(argv, "h:p:e:x:X:t:n:a:l:", ["help",
                                                         "no-safe-renego",
-                                                        "no-sni"])
+                                                        "no-sni",
+                                                        "key-size="])
     for opt, arg in opts:
         if opt == '-h':
             host = arg
@@ -107,6 +112,8 @@ def main():
             srv_extensions = None
         elif opt == "--no-sni":
             no_sni = True
+        elif opt == "--key-size":
+            key_size = int(arg)
         else:
             raise ValueError("Unknown option: {0}".format(opt))
 
@@ -145,6 +152,39 @@ def main():
     node = node.add_child(ExpectClose())
 
     conversations["sanity"] = conversation
+
+    # CVE-2012-5081: check that the server doesn't behave differently
+    # depending on the length of the encrypted value (the message inside
+    # an otherwise correct PKCS#1 v1.5 padding)
+    # the padding needs to be at least 8 bytes long, so together with the
+    # 3 constant bytes the longest message for a k-byte modulus is k-11 bytes
+    for pms_len in range(0, (key_size + 7) // 8 - 11 + 1):
+        if pms_len == 48:
+            # that's a correctly formatted pre master secret, checked
+            # by the sanity test
+            continue
+        conversation = Connect(host, port)
+        node = conversation
+        ciphers = list(CipherSuite.certSuites)
+        node = node.add_child(ClientHelloGenerator(ciphers,
+                                                   extensions=cln_extensions))
+        node = node.add_child(ExpectServerHello(extensions=srv_extensions))
+        node = node.add_child(ExpectCertificate())
+        node = node.add_child(ExpectServerHelloDone())
+        node = node.add_child(TCPBufferingEnable())
+        node = node.add_child(ClientKeyExchangeGenerator(
+            premaster_secret=bytearray([1] * pms_len)))
+        node = node.add_child(ChangeCipherSpecGenerator())
+        node = node.add_child(FinishedGenerator())
+        node = node.add_child(ApplicationDataGenerator(bytearray(b"GET / HTTP/1.0\r\n\r\n")))
+        node = node.add_child(TCPBufferingDisable())
+        node = node.add_child(TCPBufferingFlush())
+        node = node.add_child(ExpectAlert(level,
+                                          alert))
+        node.add_child(ExpectClose())
+
+        conversations["{0} byte long encrypted value".format(pms_len)] = \
+            conversation
 
     for cipher in CipherSuite.certSuites:
         conversation = Connect(host, port)
