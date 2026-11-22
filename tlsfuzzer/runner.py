@@ -5,7 +5,8 @@
 from __future__ import print_function
 
 import socket
-from tlslite.messages import Message, Certificate, RecordHeader2
+from tlslite.messages import Message, Certificate, RecordHeader2, \
+        ServerHello
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.errors import TLSAbruptCloseError
 from tlslite.constants import ContentType, HandshakeType, AlertLevel, \
@@ -126,10 +127,23 @@ class ConnectionState(object):
         return 32
 
     def get_server_public_key(self):
-        """Extract server public key from server Certificate message"""
-        certificates = (msg for msg in self.handshake_messages if\
-                        isinstance(msg, (Certificate)))
-        cert_message = next(certificates)
+        """
+        Extract server public key from server Certificate message
+
+        Uses the Certificate the server sent in the most recent handshake
+        that included one: the first Certificate after a ServerHello is the
+        server's, a later one in the same handshake is the client's.
+        """
+        cert_message = None
+        new_handshake = True
+        for msg in self.handshake_messages:
+            if isinstance(msg, ServerHello):
+                new_handshake = True
+            elif new_handshake and isinstance(msg, Certificate):
+                cert_message = msg
+                new_handshake = False
+        if cert_message is None:
+            raise StopIteration("No server Certificate message")
         return cert_message.cert_chain.getEndEntityPublicKey()
 
     def get_last_message_of_type(self, msg_type):

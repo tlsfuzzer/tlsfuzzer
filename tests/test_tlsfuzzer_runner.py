@@ -55,6 +55,55 @@ class TestConnectionState(unittest.TestCase):
         state.get_server_public_key()
         self.assertTrue(cert_list.getEndEntityPublicKey.called)
 
+    @staticmethod
+    def _certificate():
+        msg = messages.Certificate(constants.CertificateType.x509)
+        cert_list = mock.MagicMock(spec=X509CertChain)
+        cert_list.x509List = []
+        msg.create(cert_list)
+        return msg
+
+    def test_get_server_public_key_from_last_handshake(self):
+        state = ConnectionState()
+        first_cert = self._certificate()
+        second_cert = self._certificate()
+
+        state.handshake_messages.append(messages.ServerHello())
+        state.handshake_messages.append(first_cert)
+        state.handshake_messages.append(messages.ServerHello())
+        state.handshake_messages.append(second_cert)
+
+        key = state.get_server_public_key()
+
+        self.assertIs(key, second_cert.cert_chain.getEndEntityPublicKey())
+        self.assertFalse(first_cert.cert_chain.getEndEntityPublicKey.called)
+
+    def test_get_server_public_key_ignores_client_certificate(self):
+        state = ConnectionState()
+        server_cert = self._certificate()
+        client_cert = self._certificate()
+
+        state.handshake_messages.append(messages.ServerHello())
+        state.handshake_messages.append(server_cert)
+        state.handshake_messages.append(client_cert)
+
+        key = state.get_server_public_key()
+
+        self.assertIs(key, server_cert.cert_chain.getEndEntityPublicKey())
+        self.assertFalse(client_cert.cert_chain.getEndEntityPublicKey.called)
+
+    def test_get_server_public_key_after_resumed_handshake(self):
+        state = ConnectionState()
+        server_cert = self._certificate()
+
+        state.handshake_messages.append(messages.ServerHello())
+        state.handshake_messages.append(server_cert)
+        state.handshake_messages.append(messages.ServerHello())
+
+        key = state.get_server_public_key()
+
+        self.assertIs(key, server_cert.cert_chain.getEndEntityPublicKey())
+
     def test_get_last_message_of_type(self):
         state = ConnectionState()
         msg = messages.ServerHello()
