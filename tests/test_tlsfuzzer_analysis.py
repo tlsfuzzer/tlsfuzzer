@@ -22,6 +22,7 @@ try:
     import pandas as pd
     import numpy as np
     import multiprocessing as mp
+    from scipy import stats
 except ImportError:
     failed_import = True
 
@@ -688,6 +689,49 @@ class TestFriedmanNegative(unittest.TestCase):
         result = friedman_result.get()
 
         self.assertTrue(result > 1e-6)
+
+
+@unittest.skipIf(failed_import,
+                 "Could not import analysis. Skipping related tests.")
+class TestFriedmanMatchesScipy(unittest.TestCase):
+    def run_friedman(self, timings):
+        mock_read_csv = mock.Mock()
+        mock_read_csv.return_value = timings
+        with mock.patch("tlsfuzzer.analysis.Analysis.load_data",
+                        mock_read_csv):
+            analysis = Analysis("/tmp")
+            friedman_result = mp.Queue()
+            analysis.friedman_test(friedman_result)
+            return friedman_result.get()
+
+    def test_friedman_without_ties(self):
+        np.random.seed(1234)
+        timings = pd.DataFrame(data={
+            'A': np.random.normal(size=5000),
+            'B': np.random.normal(size=5000),
+            'C': np.random.normal(loc=0.05, size=5000),
+            'D': np.random.normal(size=5000),
+        })
+
+        result = self.run_friedman(timings)
+
+        _, expected = stats.friedmanchisquare(
+            *(timings.iloc[:, i] for i in range(timings.shape[1])))
+        self.assertAlmostEqual(result, expected, delta=expected * 1e-9)
+
+    def test_friedman_with_ties(self):
+        np.random.seed(4321)
+        timings = pd.DataFrame(data={
+            'A': np.random.randint(0, 5, size=3000).astype(float),
+            'B': np.random.randint(0, 5, size=3000).astype(float),
+            'C': np.random.randint(0, 6, size=3000).astype(float),
+        })
+
+        result = self.run_friedman(timings)
+
+        _, expected = stats.friedmanchisquare(
+            *(timings.iloc[:, i] for i in range(timings.shape[1])))
+        self.assertAlmostEqual(result, expected, delta=expected * 1e-9)
 
 
 @unittest.skipIf(failed_import,

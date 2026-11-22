@@ -54,6 +54,7 @@ VERSION = 9
 
 
 _diffs = None
+_friedman_data = None
 _DATA = None
 
 
@@ -601,13 +602,47 @@ class Analysis(object):
                 alternative, time.time()-start_time))
         return ret
 
+    @staticmethod
+    def _import_friedman_data(data):
+        global _friedman_data
+        _friedman_data = data
+
+    # skip the coverage for this method as it doesn't have conditional
+    # statements and is tested by friedman_test() coverage (we don't see it
+    # because coverage can't handle multiprocessing)
+    @staticmethod
+    def _friedman_test_worker(bounds):  # pragma: no cover
+        """
+        Calculate the partial sums needed for the Friedman test.
+
+        Returns sums of ranks of every column in the slice of data and
+        the sum of tie corrections (t^3 - t for every group of t tied
+        values in a row) for the rows in the slice.
+        """
+        start, end = bounds
+        chunk = np.asarray(_friedman_data[start:end], dtype=np.float64)
+        min_ranks = stats.rankdata(chunk, method="min", axis=1)
+        max_ranks = stats.rankdata(chunk, method="max", axis=1)
+        # average rank of tied values is the mean of min and max rank
+        rank_sums = np.sum(min_ranks + max_ranks, axis=0) / 2
+        # every one of the t values in a group of ties contributes
+        # t^2 - 1, so the whole group contributes t^3 - t
+        tie_sizes = max_ranks - min_ranks + 1
+        ties = np.sum(tie_sizes * tie_sizes - 1)
+        return rank_sums, ties
+
     def friedman_test(self, result):
         """
         Test all classes using Friedman chi-square test.
 
-        Note, as the scipy stats package uses a chisquare approximation, the
+        Uses multiprocessing for calculation.
+
+        Note, as the test uses a chisquare approximation, the
         test results are valid only when we have more than 10 samples.
         """
+        # don't pickle the data as it's read-only, use a global to pass
+        # it to workers
+        global _friedman_data
         if self.verbose:
             start_time = time.time()
             print("[i] Starting Friedman test")
@@ -615,8 +650,46 @@ class Analysis(object):
         if len(self.class_names) < 3:
             result.put(None)
             return
-        _, pval = stats.friedmanchisquare(
-            *(data.iloc[:, i] for i in range(len(self.class_names))))
+        _friedman_data = data.values
+        n, k = _friedman_data.shape
+
+        # limit the memory use of every worker to few dozen megabytes
+        chunk_size = max(1, min(n // (os.cpu_count() * 4),
+                                1024 * 1024 // k))
+
+        rank_sums = np.zeros(k, dtype=np.float64)
+        ties = 0.0
+
+        with mp.Pool(self.workers, initializer=self._import_friedman_data,
+                     initargs=(_friedman_data,)) as pool:
+            # while it's accessing a protected member of a python class,
+            # it's a). been there for a long time (at least 2.7) and
+            # b). it's because of a bug in multiprocessing module itself:
+            # https://github.com/python/cpython/issues/96062
+            # pylint: disable=protected-access
+            workers = set(pool._pool)
+
+            chunks = pool.imap_unordered(
+                self._friedman_test_worker,
+                _slices(n, chunk_size))
+
+            for chunk_rank_sums, chunk_ties in chunks:
+                rank_sums += chunk_rank_sums
+                ties += chunk_ties
+
+                workers.update(pool._pool)
+                self._check_if_workers_are_alive(workers)
+            # pylint: enable=protected-access
+
+        _friedman_data = None
+
+        # same calculation as in scipy.stats.friedmanchisquare()
+        correction = 1 - ties / float(k * (k * k - 1) * n)
+        ssbn = np.sum(rank_sums ** 2)
+        chisq = (12.0 / (k * n * (k + 1)) * ssbn - 3 * n * (k + 1)) / \
+            correction
+        pval = stats.chi2.sf(chisq, k - 1)
+
         if self.verbose:
             print("[i] Friedman test done in {:.3}s".format(
                 time.time()-start_time))
@@ -2007,9 +2080,8 @@ class Analysis(object):
             )
             self._bit_size_write_summary(verdict, skillings_mack_pvalue)
         else:
-            # the Friedman test is fairly long running, non-multithreadable
-            # and with fairly limited memory use, so run it in background
-            # unconditionally
+            # the Friedman test is fairly long running and with fairly
+            # limited memory use, so run it in background unconditionally
             friedman_result = mp.Queue()
             friedman_process = mp.Process(target=self.friedman_test,
                                           args=(friedman_result, ))
