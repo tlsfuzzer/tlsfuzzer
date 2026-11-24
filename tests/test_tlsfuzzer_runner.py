@@ -22,12 +22,15 @@ import tlslite.constants as constants
 from tlslite.x509certchain import X509CertChain
 from tlslite.errors import TLSAbruptCloseError
 import socket
+from binascii import hexlify
 
 
 if sys.version_info < (3, 0):
     BUILTIN_PRINT = "__builtin__.print"
+    BUILTIN_OPEN = "__builtin__.open"
 else:
     BUILTIN_PRINT = "builtins.print"
+    BUILTIN_OPEN = "builtins.open"
 
 
 class TestConnectionState(unittest.TestCase):
@@ -107,12 +110,72 @@ class TestConnectionState(unittest.TestCase):
 
         self.assertEqual(state.prf_size, 48)
 
+    def test_sslkeylogfile_default_is_false(self):
+        state = ConnectionState()
+
+        self.assertFalse(state.sslkeylogfile)
+
+    @mock.patch(BUILTIN_OPEN)
+    def test_log_ssl_key_disabled(self, mock_file):
+        state = ConnectionState()
+        state.client_random = bytearray(b'\x00' * 32)
+
+        state.log_ssl_key('CLIENT_RANDOM', bytearray(b'\x01' * 48))
+
+        mock_file.assert_not_called()
+
+    @mock.patch(BUILTIN_OPEN, new_callable=mock.mock_open)
+    def test_log_ssl_key_enabled(self, mock_file):
+        state = ConnectionState()
+        state.sslkeylogfile = True
+        state.client_random = bytearray(range(32))
+        secret = bytearray(range(48))
+
+        state.log_ssl_key('CLIENT_RANDOM', secret)
+
+        mock_file.assert_called_once_with(
+            file='sslkeylogfile.log', mode='a', encoding='utf-8')
+        handle = mock_file()
+        written = handle.write.call_args[0][0]
+        parts = written.strip().split(' ')
+        self.assertEqual(len(parts), 3)
+        self.assertEqual(parts[0], 'CLIENT_RANDOM')
+        self.assertEqual(parts[1], hexlify(bytes(state.client_random)).decode('ascii'))
+        self.assertEqual(parts[2], hexlify(bytes(secret)).decode('ascii'))
+
+    @mock.patch(BUILTIN_OPEN, new_callable=mock.mock_open)
+    def test_log_ssl_key_appends(self, mock_file):
+        state = ConnectionState()
+        state.sslkeylogfile = True
+        state.client_random = bytearray(b'\xaa' * 32)
+        secret1 = bytearray(b'\xbb' * 48)
+        secret2 = bytearray(b'\xcc' * 32)
+
+        state.log_ssl_key('CLIENT_RANDOM', secret1)
+        state.log_ssl_key('CLIENT_HANDSHAKE_TRAFFIC_SECRET', secret2)
+
+        self.assertEqual(mock_file.call_count, 2)
+        handle = mock_file()
+        writes = handle.write.call_args_list
+        self.assertIn('CLIENT_RANDOM', writes[0][0][0])
+        self.assertIn('CLIENT_HANDSHAKE_TRAFFIC_SECRET', writes[1][0][0])
+
 
 class TestRunner(unittest.TestCase):
     def test___init__(self):
         runner = Runner(None)
 
         self.assertIsNotNone(runner.state)
+
+    def test___init___sslkeylogfile_default(self):
+        runner = Runner(None)
+
+        self.assertFalse(runner.state.sslkeylogfile)
+
+    def test___init___sslkeylogfile_enabled(self):
+        runner = Runner(None, sslkeylogfile=True)
+
+        self.assertTrue(runner.state.sslkeylogfile)
 
     @mock.patch(BUILTIN_PRINT)
     def test_run_with_unknown_type(self, mock_print):

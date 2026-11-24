@@ -5,6 +5,7 @@
 from __future__ import print_function
 
 import socket
+from binascii import hexlify
 from tlslite.messages import Message, Certificate, RecordHeader2
 from tlslite.handshakehashes import HandshakeHashes
 from tlslite.errors import TLSAbruptCloseError
@@ -105,6 +106,9 @@ class ConnectionState(object):
         self._peer_record_size_limit = None
         self._our_record_size_limit = None
 
+        # SSLKEYLOGFILE support
+        self.sslkeylogfile = False
+
     @property
     def prf_name(self):
         """Return the name of the PRF used for session.
@@ -124,6 +128,27 @@ class ConnectionState(object):
         if self.cipher in CipherSuite.sha384PrfSuites:
             return 48
         return 32
+
+    def log_ssl_key(self, label, secret):
+        """Log a TLS secret to sslkeylogfile.log in NSS Key Log format.
+
+        Does nothing if sslkeylogfile is False.
+
+        :param label: the key log label (e.g. 'CLIENT_RANDOM')
+        :type label: str
+        :param secret: the secret to log
+        :type secret: bytearray
+        """
+        if not self.sslkeylogfile:
+            return
+        # In Python2 the bytearray.hex() is not available, so the hexlify used.
+        # Additionally, in Python2 hexlify doesn't accept bytearray,
+        # but bytes(bytearray(...))
+        client_random_hex = hexlify(bytes(self.client_random)).decode('ascii')
+        secret_hex = hexlify(bytes(secret)).decode('ascii')
+        line = "{0} {1} {2}\n".format(label, client_random_hex, secret_hex)
+        with open(file='sslkeylogfile.log', mode='a', encoding="utf-8") as f:
+            f.write(line)
 
     def get_server_public_key(self):
         """Extract server public key from server Certificate message"""
@@ -174,10 +199,11 @@ def guess_response(content_type, data, ssl2=False):
 class Runner(object):
     """Test if sending a set of commands returns expected values"""
 
-    def __init__(self, conversation):
+    def __init__(self, conversation, sslkeylogfile=False):
         """Link conversation with runner"""
         self.conversation = conversation
         self.state = ConnectionState()
+        self.state.sslkeylogfile = sslkeylogfile
 
     def run(self):
         """Execute conversation"""

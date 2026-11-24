@@ -371,6 +371,34 @@ vulnerable behaviour in which the server sometimes sends the correct alert and
 sometimes closes the connection would *not* be detected, reporting a false
 negative to the user.
 
+SSLKEYLOGFILE
+=============
+
+tlsfuzzer supports logging TLS secrets in the [SSLKEYLOGFILE Format](https://www.ietf.org/id/draft-ietf-tls-keylogfile-05.txt),
+which can be used by [Wireshark](https://www.wireshark.org/) to decrypt
+captured TLS traffic.
+
+To enable key logging, pass `sslkeylogfile=True` when creating the `Runner`:
+
+```python
+runner = Runner(conversation, sslkeylogfile=True)
+```
+
+When enabled, the secrets are written to a file called `sslkeylogfile.log`
+in the current working directory (the directory from the test script was run).
+The file is created automatically on the first write and subsequent runs
+append to it.
+
+For TLS 1.2 and earlier, the file will contain `CLIENT_RANDOM` lines with
+the master secret. For TLS 1.3, it will contain
+`CLIENT_HANDSHAKE_TRAFFIC_SECRET`, `SERVER_HANDSHAKE_TRAFFIC_SECRET`,
+`CLIENT_TRAFFIC_SECRET_0`, `SERVER_TRAFFIC_SECRET_0`, and `EXPORTER_SECRET`
+lines.
+
+To use the generated file with Wireshark, go to
+*Edit > Preferences > Protocols > TLS* and set the *(Pre)-Master-Secret log
+filename* to the path of the `sslkeylogfile.log` file.
+
 Test specific notes
 ===================
 
