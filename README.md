@@ -26,7 +26,7 @@ You'll need:
 
  * Python 2.6 or later or Python 3.6 or later
  * [tlslite-ng](https://github.com/tlsfuzzer/tlslite-ng)
-   0.8.1 or later (note that `tlslite` will *not* work and
+   0.9.0b2 or later (note that `tlslite` will *not* work and
    they conflict with each other)
  * [ecdsa](https://github.com/warner/python-ecdsa)
    python module (dependency of tlslite-ng, should get installed

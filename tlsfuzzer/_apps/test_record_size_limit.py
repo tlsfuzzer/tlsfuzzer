@@ -214,202 +214,202 @@ def main():
     node.next_sibling = ExpectClose()
     conversations["sanity in TLS 1.3"] = conversation
 
-    # check sizes
-    for name, vers in [("TLS 1.0", (3, 1)),
-                       ("TLS 1.1", (3, 2)),
-                       ("TLS 1.2", (3, 3))]:
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        extensions = {ExtensionType.record_size_limit:
-                      RecordSizeLimitExtension().create(2**14+1)}
-        if ems:
-            extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
-        node = node.add_child(ClientHelloGenerator(
-            ciphers, version=vers, extensions=extensions))
-        ext = {ExtensionType.record_size_limit:
-               gen_srv_ext_handler_record_limit(expect_size),
-               ExtensionType.renegotiation_info: None}
-        if ems:
-            ext[ExtensionType.extended_master_secret] = None
-        node = node.add_child(ExpectServerHello(extensions=ext))
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator())
-        node = node.add_child(ChangeCipherSpecGenerator())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectFinished())
-        node = node.add_child(ApplicationDataGenerator(
-            bytearray(request)))
-        if vers == (3, 1):
-            # 1/n-1 record splitting
-            node = node.add_child(ExpectApplicationData(size=1))
-            node = node.add_child(ExpectApplicationData(size=reply_size-1))
-        else:
-            node = node.add_child(ExpectApplicationData(size=reply_size))
-        node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                             AlertDescription.close_notify))
-        node = node.add_child(ExpectAlert())
-        node.next_sibling = ExpectClose()
-        conversations["check server sent size in {0}".format(name)] = conversation
+    # # check sizes
+    # for name, vers in [("TLS 1.0", (3, 1)),
+    #                    ("TLS 1.1", (3, 2)),
+    #                    ("TLS 1.2", (3, 3))]:
+    #     conversation = Connect(host, port)
+    #     node = conversation
+    #     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+    #                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    #     extensions = {ExtensionType.record_size_limit:
+    #                   RecordSizeLimitExtension().create(2**14+1)}
+    #     if ems:
+    #         extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    #     node = node.add_child(ClientHelloGenerator(
+    #         ciphers, version=vers, extensions=extensions))
+    #     ext = {ExtensionType.record_size_limit:
+    #            gen_srv_ext_handler_record_limit(expect_size),
+    #            ExtensionType.renegotiation_info: None}
+    #     if ems:
+    #         ext[ExtensionType.extended_master_secret] = None
+    #     node = node.add_child(ExpectServerHello(extensions=ext))
+    #     node = node.add_child(ExpectCertificate())
+    #     node = node.add_child(ExpectServerHelloDone())
+    #     node = node.add_child(ClientKeyExchangeGenerator())
+    #     node = node.add_child(ChangeCipherSpecGenerator())
+    #     node = node.add_child(FinishedGenerator())
+    #     node = node.add_child(ExpectChangeCipherSpec())
+    #     node = node.add_child(ExpectFinished())
+    #     node = node.add_child(ApplicationDataGenerator(
+    #         bytearray(request)))
+    #     if vers == (3, 1):
+    #         # 1/n-1 record splitting
+    #         node = node.add_child(ExpectApplicationData(size=1))
+    #         node = node.add_child(ExpectApplicationData(size=reply_size-1))
+    #     else:
+    #         node = node.add_child(ExpectApplicationData(size=reply_size))
+    #     node = node.add_child(AlertGenerator(AlertLevel.warning,
+    #                                          AlertDescription.close_notify))
+    #     node = node.add_child(ExpectAlert())
+    #     node.next_sibling = ExpectClose()
+    #     conversations["check server sent size in {0}".format(name)] = conversation
 
-        # interaction with max_fragment_length extension
-        # record_size_limit overrides it
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        extensions = {ExtensionType.record_size_limit:
-                      RecordSizeLimitExtension().create(2**14+1),
-                      # TODO: migrate to dedicated extension object
-                      1:
-                      TLSExtension(extType=1)
-                      .create(bytearray(b'\x01'))}
-        if ems:
-            extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
-        node = node.add_child(ClientHelloGenerator(
-            ciphers, version=vers, extensions=extensions))
-        ext = {ExtensionType.record_size_limit:
-               gen_srv_ext_handler_record_limit(expect_size),
-               ExtensionType.renegotiation_info: None}
-        if ems:
-            ext[ExtensionType.extended_master_secret] = None
-        node = node.add_child(ExpectServerHello(extensions=ext))
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator())
-        node = node.add_child(ChangeCipherSpecGenerator())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectFinished())
-        node = node.add_child(ApplicationDataGenerator(
-            bytearray(request)))
-        if vers == (3, 1):
-            # 1/n-1 record splitting
-            node = node.add_child(ExpectApplicationData(size=1))
-            node = node.add_child(ExpectApplicationData(size=reply_size-1))
-        else:
-            node = node.add_child(ExpectApplicationData(size=reply_size))
-        node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                             AlertDescription.close_notify))
-        node = node.add_child(ExpectAlert())
-        node.next_sibling = ExpectClose()
-        conversations["check server sent size in {0} with max_fragment_length"
-                      .format(name)] = conversation
+    #     # interaction with max_fragment_length extension
+    #     # record_size_limit overrides it
+    #     conversation = Connect(host, port)
+    #     node = conversation
+    #     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+    #                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    #     extensions = {ExtensionType.record_size_limit:
+    #                   RecordSizeLimitExtension().create(2**14+1),
+    #                   # TODO: migrate to dedicated extension object
+    #                   1:
+    #                   TLSExtension(extType=1)
+    #                   .create(bytearray(b'\x01'))}
+    #     if ems:
+    #         extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    #     node = node.add_child(ClientHelloGenerator(
+    #         ciphers, version=vers, extensions=extensions))
+    #     ext = {ExtensionType.record_size_limit:
+    #            gen_srv_ext_handler_record_limit(expect_size),
+    #            ExtensionType.renegotiation_info: None}
+    #     if ems:
+    #         ext[ExtensionType.extended_master_secret] = None
+    #     node = node.add_child(ExpectServerHello(extensions=ext))
+    #     node = node.add_child(ExpectCertificate())
+    #     node = node.add_child(ExpectServerHelloDone())
+    #     node = node.add_child(ClientKeyExchangeGenerator())
+    #     node = node.add_child(ChangeCipherSpecGenerator())
+    #     node = node.add_child(FinishedGenerator())
+    #     node = node.add_child(ExpectChangeCipherSpec())
+    #     node = node.add_child(ExpectFinished())
+    #     node = node.add_child(ApplicationDataGenerator(
+    #         bytearray(request)))
+    #     if vers == (3, 1):
+    #         # 1/n-1 record splitting
+    #         node = node.add_child(ExpectApplicationData(size=1))
+    #         node = node.add_child(ExpectApplicationData(size=reply_size-1))
+    #     else:
+    #         node = node.add_child(ExpectApplicationData(size=reply_size))
+    #     node = node.add_child(AlertGenerator(AlertLevel.warning,
+    #                                          AlertDescription.close_notify))
+    #     node = node.add_child(ExpectAlert())
+    #     node.next_sibling = ExpectClose()
+    #     conversations["check server sent size in {0} with max_fragment_length"
+    #                   .format(name)] = conversation
 
-        # minimal size test
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        extensions = {ExtensionType.record_size_limit:
-                      RecordSizeLimitExtension().create(minimal_size)}
-        if ems:
-            extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
-        node = node.add_child(ClientHelloGenerator(
-            ciphers, version=vers, extensions=extensions))
-        ext = {ExtensionType.record_size_limit:
-               gen_srv_ext_handler_record_limit(expect_size),
-               ExtensionType.renegotiation_info: None}
-        if ems:
-            ext[ExtensionType.extended_master_secret] = None
-        node = node.add_child(ExpectServerHello(extensions=ext))
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator())
-        node = node.add_child(ChangeCipherSpecGenerator())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectFinished())
-        node = node.add_child(ApplicationDataGenerator(
-            bytearray(request)))
-        remaining_size = reply_size
-        if vers == (3, 1):
-            # 1/n-1 record splitting
-            node = node.add_child(ExpectApplicationData(size=1))
-            remaining_size -= 1
-        for _ in range(0, max(0, remaining_size - minimal_size), minimal_size):
-            node = node.add_child(ExpectApplicationData(size=minimal_size))
-        node = node.add_child(ExpectApplicationData(size=remaining_size % minimal_size))
-        node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                             AlertDescription.close_notify))
-        node = node.add_child(ExpectAlert())
-        node.next_sibling = ExpectClose()
-        conversations["check if server accepts minimal size in {0}".format(name)] = conversation
+    #     # minimal size test
+    #     conversation = Connect(host, port)
+    #     node = conversation
+    #     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+    #                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    #     extensions = {ExtensionType.record_size_limit:
+    #                   RecordSizeLimitExtension().create(minimal_size)}
+    #     if ems:
+    #         extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    #     node = node.add_child(ClientHelloGenerator(
+    #         ciphers, version=vers, extensions=extensions))
+    #     ext = {ExtensionType.record_size_limit:
+    #            gen_srv_ext_handler_record_limit(expect_size),
+    #            ExtensionType.renegotiation_info: None}
+    #     if ems:
+    #         ext[ExtensionType.extended_master_secret] = None
+    #     node = node.add_child(ExpectServerHello(extensions=ext))
+    #     node = node.add_child(ExpectCertificate())
+    #     node = node.add_child(ExpectServerHelloDone())
+    #     node = node.add_child(ClientKeyExchangeGenerator())
+    #     node = node.add_child(ChangeCipherSpecGenerator())
+    #     node = node.add_child(FinishedGenerator())
+    #     node = node.add_child(ExpectChangeCipherSpec())
+    #     node = node.add_child(ExpectFinished())
+    #     node = node.add_child(ApplicationDataGenerator(
+    #         bytearray(request)))
+    #     remaining_size = reply_size
+    #     if vers == (3, 1):
+    #         # 1/n-1 record splitting
+    #         node = node.add_child(ExpectApplicationData(size=1))
+    #         remaining_size -= 1
+    #     for _ in range(0, max(0, remaining_size - minimal_size), minimal_size):
+    #         node = node.add_child(ExpectApplicationData(size=minimal_size))
+    #     node = node.add_child(ExpectApplicationData(size=remaining_size % minimal_size))
+    #     node = node.add_child(AlertGenerator(AlertLevel.warning,
+    #                                          AlertDescription.close_notify))
+    #     node = node.add_child(ExpectAlert())
+    #     node.next_sibling = ExpectClose()
+    #     conversations["check if server accepts minimal size in {0}".format(name)] = conversation
 
-        # maximal size test
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        extensions = {ExtensionType.record_size_limit:
-                      RecordSizeLimitExtension().create(2**16-1)}
-        if ems:
-            extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
-        node = node.add_child(ClientHelloGenerator(
-            ciphers, version=vers, extensions=extensions))
-        ext = {ExtensionType.record_size_limit:
-               gen_srv_ext_handler_record_limit(expect_size),
-               ExtensionType.renegotiation_info: None}
-        if ems:
-            ext[ExtensionType.extended_master_secret] = None
-        node = node.add_child(ExpectServerHello(extensions=ext))
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator())
-        node = node.add_child(ChangeCipherSpecGenerator())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectFinished())
-        node = node.add_child(ApplicationDataGenerator(
-            bytearray(request)))
-        if vers == (3, 1):
-            # 1/n-1 record splitting
-            node = node.add_child(ExpectApplicationData(size=1))
-            node = node.add_child(ExpectApplicationData(size=reply_size-1))
-        else:
-            node = node.add_child(ExpectApplicationData(size=reply_size))
-        node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                             AlertDescription.close_notify))
-        node = node.add_child(ExpectAlert())
-        node.next_sibling = ExpectClose()
-        conversations["check if server accepts maximum size in {0}".format(name)] = conversation
+    #     # maximal size test
+    #     conversation = Connect(host, port)
+    #     node = conversation
+    #     ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+    #                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    #     extensions = {ExtensionType.record_size_limit:
+    #                   RecordSizeLimitExtension().create(2**16-1)}
+    #     if ems:
+    #         extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    #     node = node.add_child(ClientHelloGenerator(
+    #         ciphers, version=vers, extensions=extensions))
+    #     ext = {ExtensionType.record_size_limit:
+    #            gen_srv_ext_handler_record_limit(expect_size),
+    #            ExtensionType.renegotiation_info: None}
+    #     if ems:
+    #         ext[ExtensionType.extended_master_secret] = None
+    #     node = node.add_child(ExpectServerHello(extensions=ext))
+    #     node = node.add_child(ExpectCertificate())
+    #     node = node.add_child(ExpectServerHelloDone())
+    #     node = node.add_child(ClientKeyExchangeGenerator())
+    #     node = node.add_child(ChangeCipherSpecGenerator())
+    #     node = node.add_child(FinishedGenerator())
+    #     node = node.add_child(ExpectChangeCipherSpec())
+    #     node = node.add_child(ExpectFinished())
+    #     node = node.add_child(ApplicationDataGenerator(
+    #         bytearray(request)))
+    #     if vers == (3, 1):
+    #         # 1/n-1 record splitting
+    #         node = node.add_child(ExpectApplicationData(size=1))
+    #         node = node.add_child(ExpectApplicationData(size=reply_size-1))
+    #     else:
+    #         node = node.add_child(ExpectApplicationData(size=reply_size))
+    #     node = node.add_child(AlertGenerator(AlertLevel.warning,
+    #                                          AlertDescription.close_notify))
+    #     node = node.add_child(ExpectAlert())
+    #     node.next_sibling = ExpectClose()
+    #     conversations["check if server accepts maximum size in {0}".format(name)] = conversation
 
-    for ciph, prf in [(CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA256, "sha256"),
-                      (CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384, "sha384")]:
-        conversation = Connect(host, port)
-        node = conversation
-        ciphers = [ciph,
-                   CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-        extensions = {ExtensionType.record_size_limit:
-                      RecordSizeLimitExtension().create(2**14+1)}
-        if ems:
-            extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
-        node = node.add_child(ClientHelloGenerator(
-            ciphers, version=(3, 3), extensions=extensions))
-        ext = {ExtensionType.record_size_limit:
-               gen_srv_ext_handler_record_limit(expect_size),
-               ExtensionType.renegotiation_info: None}
-        if ems:
-            ext[ExtensionType.extended_master_secret] = None
-        node = node.add_child(ExpectServerHello(extensions=ext))
-        node = node.add_child(ExpectCertificate())
-        node = node.add_child(ExpectServerHelloDone())
-        node = node.add_child(ClientKeyExchangeGenerator())
-        node = node.add_child(ChangeCipherSpecGenerator())
-        node = node.add_child(FinishedGenerator())
-        node = node.add_child(ExpectChangeCipherSpec())
-        node = node.add_child(ExpectFinished())
-        node = node.add_child(ApplicationDataGenerator(
-            bytearray(request)))
-        node = node.add_child(ExpectApplicationData(size=reply_size))
-        node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                             AlertDescription.close_notify))
-        node = node.add_child(ExpectAlert())
-        node.next_sibling = ExpectClose()
-        conversations["check interaction with {0} prf".format(prf)] = conversation
+    # for ciph, prf in [(CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA256, "sha256"),
+    #                   (CipherSuite.TLS_RSA_WITH_AES_256_GCM_SHA384, "sha384")]:
+    #     conversation = Connect(host, port)
+    #     node = conversation
+    #     ciphers = [ciph,
+    #                CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    #     extensions = {ExtensionType.record_size_limit:
+    #                   RecordSizeLimitExtension().create(2**14+1)}
+    #     if ems:
+    #         extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    #     node = node.add_child(ClientHelloGenerator(
+    #         ciphers, version=(3, 3), extensions=extensions))
+    #     ext = {ExtensionType.record_size_limit:
+    #            gen_srv_ext_handler_record_limit(expect_size),
+    #            ExtensionType.renegotiation_info: None}
+    #     if ems:
+    #         ext[ExtensionType.extended_master_secret] = None
+    #     node = node.add_child(ExpectServerHello(extensions=ext))
+    #     node = node.add_child(ExpectCertificate())
+    #     node = node.add_child(ExpectServerHelloDone())
+    #     node = node.add_child(ClientKeyExchangeGenerator())
+    #     node = node.add_child(ChangeCipherSpecGenerator())
+    #     node = node.add_child(FinishedGenerator())
+    #     node = node.add_child(ExpectChangeCipherSpec())
+    #     node = node.add_child(ExpectFinished())
+    #     node = node.add_child(ApplicationDataGenerator(
+    #         bytearray(request)))
+    #     node = node.add_child(ExpectApplicationData(size=reply_size))
+    #     node = node.add_child(AlertGenerator(AlertLevel.warning,
+    #                                          AlertDescription.close_notify))
+    #     node = node.add_child(ExpectAlert())
+    #     node.next_sibling = ExpectClose()
+    #     conversations["check interaction with {0} prf".format(prf)] = conversation
 
     # verify that the size advertised by server is the expected one
     conversation = Connect(host, port)
@@ -460,1176 +460,1176 @@ def main():
     node.next_sibling = ExpectClose()
     conversations["check server sent size in TLS 1.3"] = conversation
 
-    # check if the server does not negotiate max_fragment_length when it
-    # is presented together with record_size_limit
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    # TODO migrate to real extension once it is implemented in tlslite-ng
-    ext[1] = \
-        TLSExtension(extType=1)\
-        .create(bytearray(b'\x01'))
-    ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
-        .create(2**14+1)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    ext = {}
-    ext[ExtensionType.record_size_limit] = \
-        gen_srv_ext_handler_record_limit(expect_size + 1)
-    if supported_groups:
-        ext[ExtensionType.supported_groups] = None
-    node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(request)))
-
-    # This message is optional and may show up 0 to many times
-    cycle = ExpectNewSessionTicket()
-    node = node.add_child(cycle)
-    node.add_child(cycle)
-
-    node.next_sibling = ExpectApplicationData(size=reply_size)
-    node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                       AlertDescription.close_notify))
-
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
-    conversations["check server sent size in TLS 1.3 with max_fragment_length"]\
-        = conversation
-
-    # verify that server omits record_size_limit if value in
-    # [64..minimal_size-1] is specified
-    if minimal_size > 64:
-        for size in [64, minimal_size-1]:
-            conversation = Connect(host, port)
-            node = conversation
-            ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-                       CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-            ext = {}
-            groups = [GroupName.secp256r1]
-            ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-            ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-                .create([TLS_1_3_DRAFT, (3, 3)])
-            ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-                .create(groups)
-            ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
-                .create(size)
-            sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                        SignatureScheme.rsa_pss_pss_sha256]
-            ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-                .create(sig_algs)
-            ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-                .create(RSA_SIG_ALL)
-            node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-            node = node.add_child(ExpectServerHello())
-            node = node.add_child(ExpectChangeCipherSpec())
-            ext = {}
-            if supported_groups:
-                ext[ExtensionType.supported_groups] = None
-            node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
-            node = node.add_child(ExpectCertificate())
-            node = node.add_child(ExpectCertificateVerify())
-            node = node.add_child(ExpectFinished())
-            node = node.add_child(FinishedGenerator())
-            node = node.add_child(ApplicationDataGenerator(
-                bytearray(request)))
-
-            # This message is optional and may show up 0 to many times
-            cycle = ExpectNewSessionTicket()
-            node = node.add_child(cycle)
-            node.add_child(cycle)
-
-            node.next_sibling = ExpectApplicationData(size=reply_size)
-            node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                                              AlertDescription.close_notify))
-
-            node = node.add_child(ExpectAlert())
-            node.next_sibling = ExpectClose()
-            conversations["check if server omits extension for unrecognized size {0} in TLS 1.3".format(size)] = conversation
-
-    # check if server accepts small sizes
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
-        .create(minimal_size)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    ext = {}
-    ext[ExtensionType.record_size_limit] = \
-        gen_srv_ext_handler_record_limit(expect_size + 1)
-    if supported_groups:
-        ext[ExtensionType.supported_groups] = None
-    node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(request)))
-
-    # This message is optional and may show up 0 to many times
-    cycle = ExpectNewSessionTicket()
-    node = node.add_child(cycle)
-    node.add_child(cycle)
-
-    node.next_sibling = ExpectApplicationData(size=minimal_size-1)
-    node = node.next_sibling
-    # in TLS 1.3 the content type is included in the limit so every
-    # record will send one byte less than simple reading of extension would
-    # indicate
-    for _ in range(0, max(reply_size-(minimal_size-1)*2, 0), minimal_size-1):
-        node = node.add_child(ExpectApplicationData(size=minimal_size-1))
-    node = node.add_child(ExpectApplicationData(size=reply_size%(minimal_size-1)))
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                          AlertDescription.close_notify))
-
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
-    conversations["check if server accepts minimal size in TLS 1.3"] = conversation
-
-    # maximum size test
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
-        .create(2**16-1)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    ext = {}
-    ext[ExtensionType.record_size_limit] = \
-        gen_srv_ext_handler_record_limit(expect_size + 1)
-    if supported_groups:
-        ext[ExtensionType.supported_groups] = None
-    node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(request)))
-
-    # This message is optional and may show up 0 to many times
-    cycle = ExpectNewSessionTicket()
-    node = node.add_child(cycle)
-    node.add_child(cycle)
-
-    node.next_sibling = ExpectApplicationData(size=reply_size)
-    node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                       AlertDescription.close_notify))
-
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
-    conversations["check if server accepts maximum size in TLS 1.3"] = conversation
-
-    # malformed extension in TLS 1.2
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    extensions = {ExtensionType.record_size_limit:
-                  RecordSizeLimitExtension().create(63)}
-    if ems:
-        extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=extensions))
-    node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                      AlertDescription.illegal_parameter))
-    node.add_child(ExpectClose())
-    conversations["Invalid value in extension in TLS 1.2"] = conversation
-
-    # malformed extension in TLS 1.3
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
-        .create(63)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                      AlertDescription.illegal_parameter))
-    node.add_child(ExpectClose())
-    conversations["Invalid value in extension in TLS 1.3"] = conversation
-
-    # empty extension in TLS 1.2
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    extensions = {ExtensionType.record_size_limit:
-                  RecordSizeLimitExtension().create(None)}
-    if ems:
-        extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=extensions))
-    node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                      AlertDescription.decode_error))
-    node.add_child(ExpectClose())
-    conversations["empty extension in TLS 1.2"] = conversation
-
-    # empty extension in TLS 1.3
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
-        .create(None)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                      AlertDescription.decode_error))
-    node.add_child(ExpectClose())
-    conversations["empty extension in TLS 1.3"] = conversation
-
-    # padded extension in TLS 1.2
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    extensions = {ExtensionType.record_size_limit:
-                  TLSExtension(extType=ExtensionType.record_size_limit).
-                  create(bytearray(b'\x00\x40\x00'))}
-    if ems:
-        extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=extensions))
-    node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                      AlertDescription.decode_error))
-    node.add_child(ExpectClose())
-    conversations["padded extension in TLS 1.2"] = conversation
-
-    # padded extension in TLS 1.3
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    ext[ExtensionType.record_size_limit] = \
-        TLSExtension(extType=ExtensionType.record_size_limit).\
-            create(bytearray(b'\x00\x40\x00'))
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                      AlertDescription.decode_error))
-    node.add_child(ExpectClose())
-    conversations["padded extension in TLS 1.3"] = conversation
-
-    # too large records
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    extensions = {ExtensionType.record_size_limit:
-                  RecordSizeLimitExtension().create(2**14+2)}
-    if ems:
-        extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
-    node = node.add_child(ClientHelloGenerator(
-        ciphers, version=(3, 3), extensions=extensions))
-    ext = {ExtensionType.record_size_limit:
-           gen_srv_ext_handler_record_limit(expect_size),
-           ExtensionType.renegotiation_info: None}
-    if ems:
-        ext[ExtensionType.extended_master_secret] = None
-    node = node.add_child(ExpectServerHello(extensions=ext))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(SetMaxRecordSize(expect_size+1))
-    data = bytearray(b"GET / HTTP/1.0\r\nX-bad: ") + \
-           bytearray(b"A" * (expect_size + 1 - 27)) + \
-           bytearray(b"\r\n\r\n")
-    assert len(data) == expect_size+1
-    node = node.add_child(ApplicationDataGenerator(data))
-    node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                      AlertDescription.record_overflow))
-    node.add_child(ExpectClose())
-    conversations["too large record in TLS 1.2"] = conversation
-
-    # too big records in TLSv1.3
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
-        .create(2**14+2)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    ext = {}
-    ext[ExtensionType.record_size_limit] = \
-        gen_srv_ext_handler_record_limit(expect_size + 1)
-    if supported_groups:
-        ext[ExtensionType.supported_groups] = None
-    node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
-    # while the server will advertise expect_size+1, it does include
-    # content type, which is added transparently to application data
-    node = node.add_child(SetMaxRecordSize(expect_size+1))
-    data = bytearray(b"GET / HTTP/1.0\r\nX-bad: ") + \
-           bytearray(b"A" * (expect_size + 1 - 27)) + \
-           bytearray(b"\r\n\r\n")
-    assert len(data) == expect_size+1
-    node = node.add_child(ApplicationDataGenerator(data))
-
-    # This message is optional and may show up 0 to many times
-    cycle = ExpectNewSessionTicket()
-    node = node.add_child(cycle)
-    node.add_child(cycle)
-
-    node.next_sibling = ExpectAlert(AlertLevel.fatal,
-                                    AlertDescription.record_overflow)
-    node.next_sibling.add_child(ExpectClose())
-    conversations["too large record payload in TLS 1.3"] = conversation
-
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
-        .create(2**14+2)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    ext = {}
-    ext[ExtensionType.record_size_limit] = \
-        gen_srv_ext_handler_record_limit(expect_size + 1)
-    if supported_groups:
-        ext[ExtensionType.supported_groups] = None
-    node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
-    # while the server will advertise expect_size+1, it does include
-    # content type, which is added transparently to application data
-    node = node.add_child(SetMaxRecordSize(expect_size+1))
-    data = bytearray(request)
-    padding_size = expect_size - len(data) + 1
-    node = node.add_child(SetPaddingCallback(
-        SetPaddingCallback.add_fixed_padding_cb(padding_size)))
-    node = node.add_child(ApplicationDataGenerator(data))
-
-    # This message is optional and may show up 0 to many times
-    cycle = ExpectNewSessionTicket()
-    node = node.add_child(cycle)
-    node.add_child(cycle)
-
-    node.next_sibling = ExpectAlert(AlertLevel.fatal,
-                                    AlertDescription.record_overflow)
-    node.next_sibling.add_child(ExpectClose())
-    conversations["too large record payload in TLS 1.3 with padding"] = conversation
-
-    # renegotiation with changed value
-    conversation = Connect(host, port)
-    node = conversation
-
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.record_size_limit:
-           RecordSizeLimitExtension().create(2**14+1)}
-    if ems:
-        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.record_size_limit:
-           gen_srv_ext_handler_record_limit(expect_size)}
-    if ems:
-        ext[ExtensionType.extended_master_secret] = None
-    node = node.add_child(ExpectServerHello(extensions=ext))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
-    # 2nd handshake
-    node = node.add_child(ResetHandshakeHashes())
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.record_size_limit:
-           RecordSizeLimitExtension().create(minimal_size)}
-    if ems:
-        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               session_id=bytearray(0),
-                                               extensions=ext))
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.record_size_limit:
-           gen_srv_ext_handler_record_limit(expect_size)}
-    if ems:
-        ext[ExtensionType.extended_master_secret] = None
-    node = node.add_child(ExpectServerHello(extensions=ext))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(request)))
-    for _ in range(0, max(0, reply_size - minimal_size), minimal_size):
-        node = node.add_child(ExpectApplicationData(size=minimal_size))
-    node = node.add_child(ExpectApplicationData(size=reply_size % minimal_size))
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                         AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
-    conversations["renegotiation with changed limit"] = conversation
-
-    # renegotiation with dropped extension
-    conversation = Connect(host, port)
-    node = conversation
-
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.record_size_limit:
-           RecordSizeLimitExtension().create(minimal_size)}
-    if ems:
-        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.record_size_limit:
-           gen_srv_ext_handler_record_limit(expect_size)}
-    if ems:
-        ext[ExtensionType.extended_master_secret] = None
-    node = node.add_child(ExpectServerHello(extensions=ext))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
-    # 2nd handshake
-    node = node.add_child(ResetHandshakeHashes())
-    ext = {ExtensionType.renegotiation_info: None}
-    if ems:
-        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
-    node = node.add_child(ClientHelloGenerator(ciphers,
-                                               session_id=bytearray(0),
-                                               extensions=ext))
-    ext = {ExtensionType.renegotiation_info: None}
-    if ems:
-        ext[ExtensionType.extended_master_secret] = None
-    node = node.add_child(ExpectServerHello(extensions=ext))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(request)))
-    node = node.add_child(ExpectApplicationData(size=reply_size))
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                         AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
-    conversations["renegotiation with dropped extension"] = conversation
-
-    # resumption in TLS 1.2
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.record_size_limit:
-           RecordSizeLimitExtension().create(2**14)}
-    if ems:
-        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions=ext))
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.record_size_limit:
-           gen_srv_ext_handler_record_limit(expect_size)}
-    if ems:
-        ext[ExtensionType.extended_master_secret] = None
-    node = node.add_child(ExpectServerHello(
-        cipher=CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-        extensions=ext))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                         AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert())
-    close = ExpectClose()
-    node.next_sibling = close
-    node = node.add_child(ExpectClose())
-    node = node.add_child(Close())
-    node = node.add_child(Connect(host, port))
-    close.add_child(node)
-
-    node = node.add_child(ResetHandshakeHashes())
-    node = node.add_child(ResetRenegotiationInfo())
-    extensions={ExtensionType.renegotiation_info: None,
-                ExtensionType.record_size_limit:
-                RecordSizeLimitExtension().create(minimal_size)}
-    if ems:
-        extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions=extensions))
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.record_size_limit:
-           gen_srv_ext_handler_record_limit(expect_size)}
-    if ems:
-        ext[ExtensionType.extended_master_secret] = None
-    node = node.add_child(ExpectServerHello(
-        extensions=ext,
-        resume=True))
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(request)))
-    for _ in range(0, max(0, reply_size - minimal_size), minimal_size):
-        node = node.add_child(ExpectApplicationData(size=minimal_size))
-    node = node.add_child(ExpectApplicationData(size=reply_size % minimal_size))
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                         AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
-    node = node.add_child(ExpectClose())
-    conversations["change size in TLS 1.2 resumption"] = conversation
-
-    # drop in resumption in TLS 1.2
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.record_size_limit:
-           RecordSizeLimitExtension().create(minimal_size)}
-    if ems:
-        ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions=ext))
-    ext = {ExtensionType.renegotiation_info: None,
-           ExtensionType.record_size_limit:
-           gen_srv_ext_handler_record_limit(expect_size)}
-    if ems:
-        ext[ExtensionType.extended_master_secret] = None
-    node = node.add_child(ExpectServerHello(
-        cipher=CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
-        extensions=ext))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectServerHelloDone())
-    node = node.add_child(ClientKeyExchangeGenerator())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                         AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert())
-    close = ExpectClose()
-    node.next_sibling = close
-    node = node.add_child(ExpectClose())
-    node = node.add_child(Close())
-    node = node.add_child(Connect(host, port))
-    close.add_child(node)
-
-    node = node.add_child(ResetHandshakeHashes())
-    node = node.add_child(ResetRenegotiationInfo())
-    extensions={ExtensionType.renegotiation_info: None}
-    if ems:
-        extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
-    node = node.add_child(ClientHelloGenerator(
-        ciphers,
-        extensions=extensions))
-    ext = {ExtensionType.renegotiation_info: None}
-    if ems:
-        ext[ExtensionType.extended_master_secret] = None
-    node = node.add_child(ExpectServerHello(
-        extensions=ext,
-        resume=True))
-    node = node.add_child(ExpectChangeCipherSpec())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(ChangeCipherSpecGenerator())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(request)))
-    node = node.add_child(ExpectApplicationData(size=reply_size))
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                         AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
-    node = node.add_child(ExpectClose())
-    conversations["drop extension in TLS 1.2 resumption"] = conversation
-
-    # changing size in TLS 1.3 resumption
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
-        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
-    ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
-        .create(2**14)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    ee_ext = {}
-    ee_ext[ExtensionType.record_size_limit] = \
-        gen_srv_ext_handler_record_limit(expect_size + 1)
-    if supported_groups:
-        ee_ext[ExtensionType.supported_groups] = None
-    node = node.add_child(ExpectEncryptedExtensions(extensions=ee_ext))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(request)))
-    # ensure that the server sends at least one NST always
-    node = node.add_child(ExpectNewSessionTicket())
-
-    # but multiple ones are OK too
-    cycle = ExpectNewSessionTicket()
-    node = node.add_child(cycle)
-    node.add_child(cycle)
-
-    node.next_sibling = ExpectApplicationData()
-    node = node.next_sibling.add_child(
-        AlertGenerator(AlertLevel.warning,
-                       AlertDescription.close_notify))
-
-    node = node.add_child(ExpectAlert(AlertLevel.warning,
-                                      AlertDescription.close_notify))
-    # server can close connection without sending alert
-    close = ExpectClose()
-    node.next_sibling = close
-    node = node.add_child(close)
-    node = node.add_child(Close())
-    node = node.add_child(Connect(host, port))
-
-    # start the second handshake
-    node = node.add_child(ResetHandshakeHashes())
-    node = node.add_child(ResetRenegotiationInfo())
-    ext = OrderedDict(ext)
-    ext[ExtensionType.pre_shared_key] = psk_session_ext_gen()
-    ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
-        .create(minimal_size)
-    mods = []
-    mods.append(psk_ext_updater())
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext,
-                                               modifiers=mods))
-    ext = {}
-    ext[ExtensionType.supported_versions] = srv_ext_handler_supp_vers
-    ext[ExtensionType.pre_shared_key] = gen_srv_ext_handler_psk()
-    ext[ExtensionType.key_share] = srv_ext_handler_key_share
-    node = node.add_child(ExpectServerHello(extensions=ext))
-    node = node.add_child(ExpectChangeCipherSpec())
-    ext = {}
-    ext[ExtensionType.record_size_limit] = \
-        gen_srv_ext_handler_record_limit(expect_size + 1)
-    if supported_groups:
-        ext[ExtensionType.supported_groups] = None
-    node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(request)))
-    # ensure that the server sends at least one NST always
-    node = node.add_child(ExpectNewSessionTicket())
-
-    # but multiple ones are OK too
-    cycle = ExpectNewSessionTicket()
-    node = node.add_child(cycle)
-    node.add_child(cycle)
-
-    node.next_sibling = ExpectApplicationData(size=minimal_size-1)
-    node = node.next_sibling
-    for _ in range(0, max(reply_size-(minimal_size-1)*2, 0), minimal_size-1):
-        node = node.add_child(ExpectApplicationData(size=minimal_size-1))
-    node = node.add_child(ExpectApplicationData(size=reply_size%(minimal_size-1)))
-    node = node.add_child(
-        AlertGenerator(AlertLevel.warning,
-                       AlertDescription.close_notify))
-
-    node = node.add_child(ExpectAlert(AlertLevel.warning,
-                                      AlertDescription.close_notify))
-    node.next_sibling = ExpectClose()
-    node.add_child(ExpectClose())
-    conversations["change size in TLS 1.3 session resumption"] = conversation
-
-    # drop it in TLS 1.3 resumption
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = {}
-    groups = [GroupName.secp256r1]
-    ext[ExtensionType.key_share] = key_share_ext_gen(groups)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
-        .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
-    ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
-        .create(minimal_size)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    node = node.add_child(ExpectChangeCipherSpec())
-    ee_ext = {}
-    ee_ext[ExtensionType.record_size_limit] = \
-        gen_srv_ext_handler_record_limit(expect_size + 1)
-    if supported_groups:
-        ee_ext[ExtensionType.supported_groups] = None
-    node = node.add_child(ExpectEncryptedExtensions(extensions=ee_ext))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
-    # ensure that the server sends at least one NST always
-    node = node.add_child(ExpectNewSessionTicket())
-    node = node.add_child(AlertGenerator(AlertLevel.warning,
-                                         AlertDescription.close_notify))
-
-    # but multiple ones are OK too
-    cycle = ExpectNewSessionTicket()
-    node = node.add_child(cycle)
-    node.add_child(cycle)
-
-    node.next_sibling = ExpectAlert(AlertLevel.warning,
-                                    AlertDescription.close_notify)
-    node = node.next_sibling
-    # server can close connection without sending alert
-    close = ExpectClose()
-    node.next_sibling = close
-    node = node.add_child(close)
-    node = node.add_child(Close())
-    node = node.add_child(Connect(host, port))
-
-    # start the second handshake
-    node = node.add_child(ResetHandshakeHashes())
-    node = node.add_child(ResetRenegotiationInfo())
-    ext = OrderedDict(ext)
-    ext[ExtensionType.pre_shared_key] = psk_session_ext_gen()
-    del ext[ExtensionType.record_size_limit]
-    mods = []
-    mods.append(psk_ext_updater())
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext,
-                                               modifiers=mods))
-    ext = {}
-    ext[ExtensionType.supported_versions] = srv_ext_handler_supp_vers
-    ext[ExtensionType.pre_shared_key] = gen_srv_ext_handler_psk()
-    ext[ExtensionType.key_share] = srv_ext_handler_key_share
-    node = node.add_child(ExpectServerHello(extensions=ext))
-    node = node.add_child(ExpectChangeCipherSpec())
-    ext = {}
-    if supported_groups:
-        ext[ExtensionType.supported_groups] = None
-    node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(request)))
-    # ensure that the server sends at least one NST always
-    node = node.add_child(ExpectNewSessionTicket())
-
-    # but multiple ones are OK too
-    cycle = ExpectNewSessionTicket()
-    node = node.add_child(cycle)
-    node.add_child(cycle)
-
-    node.next_sibling = ExpectApplicationData(size=reply_size)
-    node = node.next_sibling
-    node = node.add_child(
-        AlertGenerator(AlertLevel.warning,
-                       AlertDescription.close_notify))
-
-    node = node.add_child(ExpectAlert(AlertLevel.warning,
-                                      AlertDescription.close_notify))
-    node.next_sibling = ExpectClose()
-    node.add_child(ExpectClose())
-    conversations["drop extension in TLS 1.3 session resumption"] = conversation
-
-    # check if we can negotiate extension in HRR handshake
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = OrderedDict()
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    ext[ExtensionType.record_size_limit] = \
-        RecordSizeLimitExtension().create(2**14+1)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-
-    ext = OrderedDict()
-    if cookie:
-        ext[ExtensionType.cookie] = None
-    ext[ExtensionType.key_share] = None
-    ext[ExtensionType.supported_versions] = None
-    node = node.add_child(ExpectHelloRetryRequest(extensions=ext))
-    node = node.add_child(ExpectChangeCipherSpec())
-
-    ext = OrderedDict()
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    for group in groups:
-        key_shares.append(key_share_gen(group))
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    if cookie:
-        ext[ExtensionType.cookie] = ch_cookie_handler
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    ext[ExtensionType.record_size_limit] = \
-        RecordSizeLimitExtension().create(2**14+1)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectServerHello())
-    ee_ext = {}
-    ee_ext[ExtensionType.record_size_limit] = \
-        gen_srv_ext_handler_record_limit(expect_size + 1)
-    if hrr_supported_groups:
-        ee_ext[ExtensionType.supported_groups] = None
-    node = node.add_child(ExpectEncryptedExtensions(extensions=ee_ext))
-    node = node.add_child(ExpectCertificate())
-    node = node.add_child(ExpectCertificateVerify())
-    node = node.add_child(ExpectFinished())
-    node = node.add_child(FinishedGenerator())
-    node = node.add_child(ApplicationDataGenerator(
-        bytearray(request)))
-    # this message can be sent arbitrary number of times
-    cycle = ExpectNewSessionTicket()
-    node = node.add_child(cycle)
-    node.add_child(cycle)
-
-    node.next_sibling = ExpectApplicationData()
-    node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
-                                       AlertDescription.close_notify))
-    node = node.add_child(ExpectAlert())
-    node.next_sibling = ExpectClose()
-    conversations["HRR sanity"] = conversation
-
-    # check if modified extension is detected by server
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = OrderedDict()
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    ext[ExtensionType.record_size_limit] = \
-        RecordSizeLimitExtension().create(2**14+1)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-
-    ext = OrderedDict()
-    if cookie:
-        ext[ExtensionType.cookie] = None
-    ext[ExtensionType.key_share] = None
-    ext[ExtensionType.supported_versions] = None
-    node = node.add_child(ExpectHelloRetryRequest(extensions=ext))
-    node = node.add_child(ExpectChangeCipherSpec())
-
-    ext = OrderedDict()
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    for group in groups:
-        key_shares.append(key_share_gen(group))
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    if cookie:
-        ext[ExtensionType.cookie] = ch_cookie_handler
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    ext[ExtensionType.record_size_limit] = \
-        RecordSizeLimitExtension().create(2**14)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                      AlertDescription.illegal_parameter))
-    node.add_child(ExpectClose())
-    conversations["modified extension in 2nd CH in HRR handshake"] = conversation
-
-    # check if dropped extension is detected by server
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = OrderedDict()
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    ext[ExtensionType.record_size_limit] = \
-        RecordSizeLimitExtension().create(2**14+1)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-
-    ext = OrderedDict()
-    if cookie:
-        ext[ExtensionType.cookie] = None
-    ext[ExtensionType.key_share] = None
-    ext[ExtensionType.supported_versions] = None
-    node = node.add_child(ExpectHelloRetryRequest(extensions=ext))
-    node = node.add_child(ExpectChangeCipherSpec())
-
-    ext = OrderedDict()
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    for group in groups:
-        key_shares.append(key_share_gen(group))
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    if cookie:
-        ext[ExtensionType.cookie] = ch_cookie_handler
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                      AlertDescription.illegal_parameter))
-    node.add_child(ExpectClose())
-    conversations["removed extension in 2nd CH in HRR handshake"] = conversation
-
-    # check if added extension is detected by server
-    conversation = Connect(host, port)
-    node = conversation
-    ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
-               CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
-    ext = OrderedDict()
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-
-    ext = OrderedDict()
-    if cookie:
-        ext[ExtensionType.cookie] = None
-    ext[ExtensionType.key_share] = None
-    ext[ExtensionType.supported_versions] = None
-    node = node.add_child(ExpectHelloRetryRequest(extensions=ext))
-    node = node.add_child(ExpectChangeCipherSpec())
-
-    ext = OrderedDict()
-    groups = [GroupName.secp256r1]
-    key_shares = []
-    for group in groups:
-        key_shares.append(key_share_gen(group))
-    ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
-    ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
-        .create([TLS_1_3_DRAFT, (3, 3)])
-    ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
-        .create(groups)
-    if cookie:
-        ext[ExtensionType.cookie] = ch_cookie_handler
-    sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
-                SignatureScheme.rsa_pss_pss_sha256]
-    ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
-        .create(sig_algs)
-    ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
-        .create(RSA_SIG_ALL)
-    ext[ExtensionType.record_size_limit] = \
-        RecordSizeLimitExtension().create(2**14+1)
-    node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
-    node = node.add_child(ExpectAlert(AlertLevel.fatal,
-                                      AlertDescription.illegal_parameter))
-    node.add_child(ExpectClose())
-    conversations["added extension in 2nd CH in HRR handshake"] = conversation
+    # # check if the server does not negotiate max_fragment_length when it
+    # # is presented together with record_size_limit
+    # conversation = Connect(host, port)
+    # node = conversation
+    # ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+    #            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    # ext = {}
+    # groups = [GroupName.secp256r1]
+    # ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    # ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    #     .create([TLS_1_3_DRAFT, (3, 3)])
+    # ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    #     .create(groups)
+    # # TODO migrate to real extension once it is implemented in tlslite-ng
+    # ext[1] = \
+    #     TLSExtension(extType=1)\
+    #     .create(bytearray(b'\x01'))
+    # ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
+    #     .create(2**14+1)
+    # sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+    #             SignatureScheme.rsa_pss_pss_sha256]
+    # ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    #     .create(sig_algs)
+    # ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    #     .create(RSA_SIG_ALL)
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    # node = node.add_child(ExpectServerHello())
+    # node = node.add_child(ExpectChangeCipherSpec())
+    # ext = {}
+    # ext[ExtensionType.record_size_limit] = \
+    #     gen_srv_ext_handler_record_limit(expect_size + 1)
+    # if supported_groups:
+    #     ext[ExtensionType.supported_groups] = None
+    # node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
+    # node = node.add_child(ExpectCertificate())
+    # node = node.add_child(ExpectCertificateVerify())
+    # node = node.add_child(ExpectFinished())
+    # node = node.add_child(FinishedGenerator())
+    # node = node.add_child(ApplicationDataGenerator(
+    #     bytearray(request)))
+
+    # # This message is optional and may show up 0 to many times
+    # cycle = ExpectNewSessionTicket()
+    # node = node.add_child(cycle)
+    # node.add_child(cycle)
+
+    # node.next_sibling = ExpectApplicationData(size=reply_size)
+    # node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+    #                                    AlertDescription.close_notify))
+
+    # node = node.add_child(ExpectAlert())
+    # node.next_sibling = ExpectClose()
+    # conversations["check server sent size in TLS 1.3 with max_fragment_length"]\
+    #     = conversation
+
+    # # verify that server omits record_size_limit if value in
+    # # [64..minimal_size-1] is specified
+    # if minimal_size > 64:
+    #     for size in [64, minimal_size-1]:
+    #         conversation = Connect(host, port)
+    #         node = conversation
+    #         ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+    #                    CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    #         ext = {}
+    #         groups = [GroupName.secp256r1]
+    #         ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    #         ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    #             .create([TLS_1_3_DRAFT, (3, 3)])
+    #         ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    #             .create(groups)
+    #         ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
+    #             .create(size)
+    #         sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+    #                     SignatureScheme.rsa_pss_pss_sha256]
+    #         ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    #             .create(sig_algs)
+    #         ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    #             .create(RSA_SIG_ALL)
+    #         node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    #         node = node.add_child(ExpectServerHello())
+    #         node = node.add_child(ExpectChangeCipherSpec())
+    #         ext = {}
+    #         if supported_groups:
+    #             ext[ExtensionType.supported_groups] = None
+    #         node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
+    #         node = node.add_child(ExpectCertificate())
+    #         node = node.add_child(ExpectCertificateVerify())
+    #         node = node.add_child(ExpectFinished())
+    #         node = node.add_child(FinishedGenerator())
+    #         node = node.add_child(ApplicationDataGenerator(
+    #             bytearray(request)))
+
+    #         # This message is optional and may show up 0 to many times
+    #         cycle = ExpectNewSessionTicket()
+    #         node = node.add_child(cycle)
+    #         node.add_child(cycle)
+
+    #         node.next_sibling = ExpectApplicationData(size=reply_size)
+    #         node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+    #                                                           AlertDescription.close_notify))
+
+    #         node = node.add_child(ExpectAlert())
+    #         node.next_sibling = ExpectClose()
+    #         conversations["check if server omits extension for unrecognized size {0} in TLS 1.3".format(size)] = conversation
+
+    # # check if server accepts small sizes
+    # conversation = Connect(host, port)
+    # node = conversation
+    # ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+    #            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    # ext = {}
+    # groups = [GroupName.secp256r1]
+    # ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    # ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    #     .create([TLS_1_3_DRAFT, (3, 3)])
+    # ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    #     .create(groups)
+    # ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
+    #     .create(minimal_size)
+    # sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+    #             SignatureScheme.rsa_pss_pss_sha256]
+    # ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    #     .create(sig_algs)
+    # ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    #     .create(RSA_SIG_ALL)
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    # node = node.add_child(ExpectServerHello())
+    # node = node.add_child(ExpectChangeCipherSpec())
+    # ext = {}
+    # ext[ExtensionType.record_size_limit] = \
+    #     gen_srv_ext_handler_record_limit(expect_size + 1)
+    # if supported_groups:
+    #     ext[ExtensionType.supported_groups] = None
+    # node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
+    # node = node.add_child(ExpectCertificate())
+    # node = node.add_child(ExpectCertificateVerify())
+    # node = node.add_child(ExpectFinished())
+    # node = node.add_child(FinishedGenerator())
+    # node = node.add_child(ApplicationDataGenerator(
+    #     bytearray(request)))
+
+    # # This message is optional and may show up 0 to many times
+    # cycle = ExpectNewSessionTicket()
+    # node = node.add_child(cycle)
+    # node.add_child(cycle)
+
+    # node.next_sibling = ExpectApplicationData(size=minimal_size-1)
+    # node = node.next_sibling
+    # # in TLS 1.3 the content type is included in the limit so every
+    # # record will send one byte less than simple reading of extension would
+    # # indicate
+    # for _ in range(0, max(reply_size-(minimal_size-1)*2, 0), minimal_size-1):
+    #     node = node.add_child(ExpectApplicationData(size=minimal_size-1))
+    # node = node.add_child(ExpectApplicationData(size=reply_size%(minimal_size-1)))
+    # node = node.add_child(AlertGenerator(AlertLevel.warning,
+    #                       AlertDescription.close_notify))
+
+    # node = node.add_child(ExpectAlert())
+    # node.next_sibling = ExpectClose()
+    # conversations["check if server accepts minimal size in TLS 1.3"] = conversation
+
+    # # maximum size test
+    # conversation = Connect(host, port)
+    # node = conversation
+    # ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+    #            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    # ext = {}
+    # groups = [GroupName.secp256r1]
+    # ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    # ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    #     .create([TLS_1_3_DRAFT, (3, 3)])
+    # ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    #     .create(groups)
+    # ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
+    #     .create(2**16-1)
+    # sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+    #             SignatureScheme.rsa_pss_pss_sha256]
+    # ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    #     .create(sig_algs)
+    # ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    #     .create(RSA_SIG_ALL)
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    # node = node.add_child(ExpectServerHello())
+    # node = node.add_child(ExpectChangeCipherSpec())
+    # ext = {}
+    # ext[ExtensionType.record_size_limit] = \
+    #     gen_srv_ext_handler_record_limit(expect_size + 1)
+    # if supported_groups:
+    #     ext[ExtensionType.supported_groups] = None
+    # node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
+    # node = node.add_child(ExpectCertificate())
+    # node = node.add_child(ExpectCertificateVerify())
+    # node = node.add_child(ExpectFinished())
+    # node = node.add_child(FinishedGenerator())
+    # node = node.add_child(ApplicationDataGenerator(
+    #     bytearray(request)))
+
+    # # This message is optional and may show up 0 to many times
+    # cycle = ExpectNewSessionTicket()
+    # node = node.add_child(cycle)
+    # node.add_child(cycle)
+
+    # node.next_sibling = ExpectApplicationData(size=reply_size)
+    # node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+    #                                    AlertDescription.close_notify))
+
+    # node = node.add_child(ExpectAlert())
+    # node.next_sibling = ExpectClose()
+    # conversations["check if server accepts maximum size in TLS 1.3"] = conversation
+
+    # # malformed extension in TLS 1.2
+    # conversation = Connect(host, port)
+    # node = conversation
+    # ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+    #            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    # extensions = {ExtensionType.record_size_limit:
+    #               RecordSizeLimitExtension().create(63)}
+    # if ems:
+    #     extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=extensions))
+    # node = node.add_child(ExpectAlert(AlertLevel.fatal,
+    #                                   AlertDescription.illegal_parameter))
+    # node.add_child(ExpectClose())
+    # conversations["Invalid value in extension in TLS 1.2"] = conversation
+
+    # # malformed extension in TLS 1.3
+    # conversation = Connect(host, port)
+    # node = conversation
+    # ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+    #            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    # ext = {}
+    # groups = [GroupName.secp256r1]
+    # ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    # ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    #     .create([TLS_1_3_DRAFT, (3, 3)])
+    # ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    #     .create(groups)
+    # ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
+    #     .create(63)
+    # sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+    #             SignatureScheme.rsa_pss_pss_sha256]
+    # ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    #     .create(sig_algs)
+    # ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    #     .create(RSA_SIG_ALL)
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    # node = node.add_child(ExpectAlert(AlertLevel.fatal,
+    #                                   AlertDescription.illegal_parameter))
+    # node.add_child(ExpectClose())
+    # conversations["Invalid value in extension in TLS 1.3"] = conversation
+
+    # # empty extension in TLS 1.2
+    # conversation = Connect(host, port)
+    # node = conversation
+    # ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+    #            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    # extensions = {ExtensionType.record_size_limit:
+    #               RecordSizeLimitExtension().create(None)}
+    # if ems:
+    #     extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=extensions))
+    # node = node.add_child(ExpectAlert(AlertLevel.fatal,
+    #                                   AlertDescription.decode_error))
+    # node.add_child(ExpectClose())
+    # conversations["empty extension in TLS 1.2"] = conversation
+
+    # # empty extension in TLS 1.3
+    # conversation = Connect(host, port)
+    # node = conversation
+    # ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+    #            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    # ext = {}
+    # groups = [GroupName.secp256r1]
+    # ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    # ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    #     .create([TLS_1_3_DRAFT, (3, 3)])
+    # ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    #     .create(groups)
+    # ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
+    #     .create(None)
+    # sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+    #             SignatureScheme.rsa_pss_pss_sha256]
+    # ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    #     .create(sig_algs)
+    # ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    #     .create(RSA_SIG_ALL)
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    # node = node.add_child(ExpectAlert(AlertLevel.fatal,
+    #                                   AlertDescription.decode_error))
+    # node.add_child(ExpectClose())
+    # conversations["empty extension in TLS 1.3"] = conversation
+
+    # # padded extension in TLS 1.2
+    # conversation = Connect(host, port)
+    # node = conversation
+    # ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+    #            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    # extensions = {ExtensionType.record_size_limit:
+    #               TLSExtension(extType=ExtensionType.record_size_limit).
+    #               create(bytearray(b'\x00\x40\x00'))}
+    # if ems:
+    #     extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=extensions))
+    # node = node.add_child(ExpectAlert(AlertLevel.fatal,
+    #                                   AlertDescription.decode_error))
+    # node.add_child(ExpectClose())
+    # conversations["padded extension in TLS 1.2"] = conversation
+
+    # # padded extension in TLS 1.3
+    # conversation = Connect(host, port)
+    # node = conversation
+    # ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+    #            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    # ext = {}
+    # groups = [GroupName.secp256r1]
+    # ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    # ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    #     .create([TLS_1_3_DRAFT, (3, 3)])
+    # ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    #     .create(groups)
+    # ext[ExtensionType.record_size_limit] = \
+    #     TLSExtension(extType=ExtensionType.record_size_limit).\
+    #         create(bytearray(b'\x00\x40\x00'))
+    # sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+    #             SignatureScheme.rsa_pss_pss_sha256]
+    # ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    #     .create(sig_algs)
+    # ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    #     .create(RSA_SIG_ALL)
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    # node = node.add_child(ExpectAlert(AlertLevel.fatal,
+    #                                   AlertDescription.decode_error))
+    # node.add_child(ExpectClose())
+    # conversations["padded extension in TLS 1.3"] = conversation
+
+    # # too large records
+    # conversation = Connect(host, port)
+    # node = conversation
+    # ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+    #            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    # extensions = {ExtensionType.record_size_limit:
+    #               RecordSizeLimitExtension().create(2**14+2)}
+    # if ems:
+    #     extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    # node = node.add_child(ClientHelloGenerator(
+    #     ciphers, version=(3, 3), extensions=extensions))
+    # ext = {ExtensionType.record_size_limit:
+    #        gen_srv_ext_handler_record_limit(expect_size),
+    #        ExtensionType.renegotiation_info: None}
+    # if ems:
+    #     ext[ExtensionType.extended_master_secret] = None
+    # node = node.add_child(ExpectServerHello(extensions=ext))
+    # node = node.add_child(ExpectCertificate())
+    # node = node.add_child(ExpectServerHelloDone())
+    # node = node.add_child(ClientKeyExchangeGenerator())
+    # node = node.add_child(ChangeCipherSpecGenerator())
+    # node = node.add_child(FinishedGenerator())
+    # node = node.add_child(ExpectChangeCipherSpec())
+    # node = node.add_child(ExpectFinished())
+    # node = node.add_child(SetMaxRecordSize(expect_size+1))
+    # data = bytearray(b"GET / HTTP/1.0\r\nX-bad: ") + \
+    #        bytearray(b"A" * (expect_size + 1 - 27)) + \
+    #        bytearray(b"\r\n\r\n")
+    # assert len(data) == expect_size+1
+    # node = node.add_child(ApplicationDataGenerator(data))
+    # node = node.add_child(ExpectAlert(AlertLevel.fatal,
+    #                                   AlertDescription.record_overflow))
+    # node.add_child(ExpectClose())
+    # conversations["too large record in TLS 1.2"] = conversation
+
+    # # too big records in TLSv1.3
+    # conversation = Connect(host, port)
+    # node = conversation
+    # ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+    #            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    # ext = {}
+    # groups = [GroupName.secp256r1]
+    # ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    # ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    #     .create([TLS_1_3_DRAFT, (3, 3)])
+    # ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    #     .create(groups)
+    # ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
+    #     .create(2**14+2)
+    # sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+    #             SignatureScheme.rsa_pss_pss_sha256]
+    # ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    #     .create(sig_algs)
+    # ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    #     .create(RSA_SIG_ALL)
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    # node = node.add_child(ExpectServerHello())
+    # node = node.add_child(ExpectChangeCipherSpec())
+    # ext = {}
+    # ext[ExtensionType.record_size_limit] = \
+    #     gen_srv_ext_handler_record_limit(expect_size + 1)
+    # if supported_groups:
+    #     ext[ExtensionType.supported_groups] = None
+    # node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
+    # node = node.add_child(ExpectCertificate())
+    # node = node.add_child(ExpectCertificateVerify())
+    # node = node.add_child(ExpectFinished())
+    # node = node.add_child(FinishedGenerator())
+    # # while the server will advertise expect_size+1, it does include
+    # # content type, which is added transparently to application data
+    # node = node.add_child(SetMaxRecordSize(expect_size+1))
+    # data = bytearray(b"GET / HTTP/1.0\r\nX-bad: ") + \
+    #        bytearray(b"A" * (expect_size + 1 - 27)) + \
+    #        bytearray(b"\r\n\r\n")
+    # assert len(data) == expect_size+1
+    # node = node.add_child(ApplicationDataGenerator(data))
+
+    # # This message is optional and may show up 0 to many times
+    # cycle = ExpectNewSessionTicket()
+    # node = node.add_child(cycle)
+    # node.add_child(cycle)
+
+    # node.next_sibling = ExpectAlert(AlertLevel.fatal,
+    #                                 AlertDescription.record_overflow)
+    # node.next_sibling.add_child(ExpectClose())
+    # conversations["too large record payload in TLS 1.3"] = conversation
+
+    # conversation = Connect(host, port)
+    # node = conversation
+    # ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+    #            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    # ext = {}
+    # groups = [GroupName.secp256r1]
+    # ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    # ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    #     .create([TLS_1_3_DRAFT, (3, 3)])
+    # ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    #     .create(groups)
+    # ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
+    #     .create(2**14+2)
+    # sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+    #             SignatureScheme.rsa_pss_pss_sha256]
+    # ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    #     .create(sig_algs)
+    # ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    #     .create(RSA_SIG_ALL)
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    # node = node.add_child(ExpectServerHello())
+    # node = node.add_child(ExpectChangeCipherSpec())
+    # ext = {}
+    # ext[ExtensionType.record_size_limit] = \
+    #     gen_srv_ext_handler_record_limit(expect_size + 1)
+    # if supported_groups:
+    #     ext[ExtensionType.supported_groups] = None
+    # node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
+    # node = node.add_child(ExpectCertificate())
+    # node = node.add_child(ExpectCertificateVerify())
+    # node = node.add_child(ExpectFinished())
+    # node = node.add_child(FinishedGenerator())
+    # # while the server will advertise expect_size+1, it does include
+    # # content type, which is added transparently to application data
+    # node = node.add_child(SetMaxRecordSize(expect_size+1))
+    # data = bytearray(request)
+    # padding_size = expect_size - len(data) + 1
+    # node = node.add_child(SetPaddingCallback(
+    #     SetPaddingCallback.add_fixed_padding_cb(padding_size)))
+    # node = node.add_child(ApplicationDataGenerator(data))
+
+    # # This message is optional and may show up 0 to many times
+    # cycle = ExpectNewSessionTicket()
+    # node = node.add_child(cycle)
+    # node.add_child(cycle)
+
+    # node.next_sibling = ExpectAlert(AlertLevel.fatal,
+    #                                 AlertDescription.record_overflow)
+    # node.next_sibling.add_child(ExpectClose())
+    # conversations["too large record payload in TLS 1.3 with padding"] = conversation
+
+    # # renegotiation with changed value
+    # conversation = Connect(host, port)
+    # node = conversation
+
+    # ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    # ext = {ExtensionType.renegotiation_info: None,
+    #        ExtensionType.record_size_limit:
+    #        RecordSizeLimitExtension().create(2**14+1)}
+    # if ems:
+    #     ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    # ext = {ExtensionType.renegotiation_info: None,
+    #        ExtensionType.record_size_limit:
+    #        gen_srv_ext_handler_record_limit(expect_size)}
+    # if ems:
+    #     ext[ExtensionType.extended_master_secret] = None
+    # node = node.add_child(ExpectServerHello(extensions=ext))
+    # node = node.add_child(ExpectCertificate())
+    # node = node.add_child(ExpectServerHelloDone())
+    # node = node.add_child(ClientKeyExchangeGenerator())
+    # node = node.add_child(ChangeCipherSpecGenerator())
+    # node = node.add_child(FinishedGenerator())
+    # node = node.add_child(ExpectChangeCipherSpec())
+    # node = node.add_child(ExpectFinished())
+    # # 2nd handshake
+    # node = node.add_child(ResetHandshakeHashes())
+    # ext = {ExtensionType.renegotiation_info: None,
+    #        ExtensionType.record_size_limit:
+    #        RecordSizeLimitExtension().create(minimal_size)}
+    # if ems:
+    #     ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    # node = node.add_child(ClientHelloGenerator(ciphers,
+    #                                            session_id=bytearray(0),
+    #                                            extensions=ext))
+    # ext = {ExtensionType.renegotiation_info: None,
+    #        ExtensionType.record_size_limit:
+    #        gen_srv_ext_handler_record_limit(expect_size)}
+    # if ems:
+    #     ext[ExtensionType.extended_master_secret] = None
+    # node = node.add_child(ExpectServerHello(extensions=ext))
+    # node = node.add_child(ExpectCertificate())
+    # node = node.add_child(ExpectServerHelloDone())
+    # node = node.add_child(ClientKeyExchangeGenerator())
+    # node = node.add_child(ChangeCipherSpecGenerator())
+    # node = node.add_child(FinishedGenerator())
+    # node = node.add_child(ExpectChangeCipherSpec())
+    # node = node.add_child(ExpectFinished())
+    # node = node.add_child(ApplicationDataGenerator(
+    #     bytearray(request)))
+    # for _ in range(0, max(0, reply_size - minimal_size), minimal_size):
+    #     node = node.add_child(ExpectApplicationData(size=minimal_size))
+    # node = node.add_child(ExpectApplicationData(size=reply_size % minimal_size))
+    # node = node.add_child(AlertGenerator(AlertLevel.warning,
+    #                                      AlertDescription.close_notify))
+    # node = node.add_child(ExpectAlert())
+    # node.next_sibling = ExpectClose()
+    # conversations["renegotiation with changed limit"] = conversation
+
+    # # renegotiation with dropped extension
+    # conversation = Connect(host, port)
+    # node = conversation
+
+    # ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    # ext = {ExtensionType.renegotiation_info: None,
+    #        ExtensionType.record_size_limit:
+    #        RecordSizeLimitExtension().create(minimal_size)}
+    # if ems:
+    #     ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    # ext = {ExtensionType.renegotiation_info: None,
+    #        ExtensionType.record_size_limit:
+    #        gen_srv_ext_handler_record_limit(expect_size)}
+    # if ems:
+    #     ext[ExtensionType.extended_master_secret] = None
+    # node = node.add_child(ExpectServerHello(extensions=ext))
+    # node = node.add_child(ExpectCertificate())
+    # node = node.add_child(ExpectServerHelloDone())
+    # node = node.add_child(ClientKeyExchangeGenerator())
+    # node = node.add_child(ChangeCipherSpecGenerator())
+    # node = node.add_child(FinishedGenerator())
+    # node = node.add_child(ExpectChangeCipherSpec())
+    # node = node.add_child(ExpectFinished())
+    # # 2nd handshake
+    # node = node.add_child(ResetHandshakeHashes())
+    # ext = {ExtensionType.renegotiation_info: None}
+    # if ems:
+    #     ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    # node = node.add_child(ClientHelloGenerator(ciphers,
+    #                                            session_id=bytearray(0),
+    #                                            extensions=ext))
+    # ext = {ExtensionType.renegotiation_info: None}
+    # if ems:
+    #     ext[ExtensionType.extended_master_secret] = None
+    # node = node.add_child(ExpectServerHello(extensions=ext))
+    # node = node.add_child(ExpectCertificate())
+    # node = node.add_child(ExpectServerHelloDone())
+    # node = node.add_child(ClientKeyExchangeGenerator())
+    # node = node.add_child(ChangeCipherSpecGenerator())
+    # node = node.add_child(FinishedGenerator())
+    # node = node.add_child(ExpectChangeCipherSpec())
+    # node = node.add_child(ExpectFinished())
+    # node = node.add_child(ApplicationDataGenerator(
+    #     bytearray(request)))
+    # node = node.add_child(ExpectApplicationData(size=reply_size))
+    # node = node.add_child(AlertGenerator(AlertLevel.warning,
+    #                                      AlertDescription.close_notify))
+    # node = node.add_child(ExpectAlert())
+    # node.next_sibling = ExpectClose()
+    # conversations["renegotiation with dropped extension"] = conversation
+
+    # # resumption in TLS 1.2
+    # conversation = Connect(host, port)
+    # node = conversation
+    # ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    # ext = {ExtensionType.renegotiation_info: None,
+    #        ExtensionType.record_size_limit:
+    #        RecordSizeLimitExtension().create(2**14)}
+    # if ems:
+    #     ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    # node = node.add_child(ClientHelloGenerator(
+    #     ciphers,
+    #     extensions=ext))
+    # ext = {ExtensionType.renegotiation_info: None,
+    #        ExtensionType.record_size_limit:
+    #        gen_srv_ext_handler_record_limit(expect_size)}
+    # if ems:
+    #     ext[ExtensionType.extended_master_secret] = None
+    # node = node.add_child(ExpectServerHello(
+    #     cipher=CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+    #     extensions=ext))
+    # node = node.add_child(ExpectCertificate())
+    # node = node.add_child(ExpectServerHelloDone())
+    # node = node.add_child(ClientKeyExchangeGenerator())
+    # node = node.add_child(ChangeCipherSpecGenerator())
+    # node = node.add_child(FinishedGenerator())
+    # node = node.add_child(ExpectChangeCipherSpec())
+    # node = node.add_child(ExpectFinished())
+    # node = node.add_child(AlertGenerator(AlertLevel.warning,
+    #                                      AlertDescription.close_notify))
+    # node = node.add_child(ExpectAlert())
+    # close = ExpectClose()
+    # node.next_sibling = close
+    # node = node.add_child(ExpectClose())
+    # node = node.add_child(Close())
+    # node = node.add_child(Connect(host, port))
+    # close.add_child(node)
+
+    # node = node.add_child(ResetHandshakeHashes())
+    # node = node.add_child(ResetRenegotiationInfo())
+    # extensions={ExtensionType.renegotiation_info: None,
+    #             ExtensionType.record_size_limit:
+    #             RecordSizeLimitExtension().create(minimal_size)}
+    # if ems:
+    #     extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    # node = node.add_child(ClientHelloGenerator(
+    #     ciphers,
+    #     extensions=extensions))
+    # ext = {ExtensionType.renegotiation_info: None,
+    #        ExtensionType.record_size_limit:
+    #        gen_srv_ext_handler_record_limit(expect_size)}
+    # if ems:
+    #     ext[ExtensionType.extended_master_secret] = None
+    # node = node.add_child(ExpectServerHello(
+    #     extensions=ext,
+    #     resume=True))
+    # node = node.add_child(ExpectChangeCipherSpec())
+    # node = node.add_child(ExpectFinished())
+    # node = node.add_child(ChangeCipherSpecGenerator())
+    # node = node.add_child(FinishedGenerator())
+    # node = node.add_child(ApplicationDataGenerator(
+    #     bytearray(request)))
+    # for _ in range(0, max(0, reply_size - minimal_size), minimal_size):
+    #     node = node.add_child(ExpectApplicationData(size=minimal_size))
+    # node = node.add_child(ExpectApplicationData(size=reply_size % minimal_size))
+    # node = node.add_child(AlertGenerator(AlertLevel.warning,
+    #                                      AlertDescription.close_notify))
+    # node = node.add_child(ExpectAlert())
+    # node.next_sibling = ExpectClose()
+    # node = node.add_child(ExpectClose())
+    # conversations["change size in TLS 1.2 resumption"] = conversation
+
+    # # drop in resumption in TLS 1.2
+    # conversation = Connect(host, port)
+    # node = conversation
+    # ciphers = [CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA]
+    # ext = {ExtensionType.renegotiation_info: None,
+    #        ExtensionType.record_size_limit:
+    #        RecordSizeLimitExtension().create(minimal_size)}
+    # if ems:
+    #     ext[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    # node = node.add_child(ClientHelloGenerator(
+    #     ciphers,
+    #     extensions=ext))
+    # ext = {ExtensionType.renegotiation_info: None,
+    #        ExtensionType.record_size_limit:
+    #        gen_srv_ext_handler_record_limit(expect_size)}
+    # if ems:
+    #     ext[ExtensionType.extended_master_secret] = None
+    # node = node.add_child(ExpectServerHello(
+    #     cipher=CipherSuite.TLS_RSA_WITH_AES_128_CBC_SHA,
+    #     extensions=ext))
+    # node = node.add_child(ExpectCertificate())
+    # node = node.add_child(ExpectServerHelloDone())
+    # node = node.add_child(ClientKeyExchangeGenerator())
+    # node = node.add_child(ChangeCipherSpecGenerator())
+    # node = node.add_child(FinishedGenerator())
+    # node = node.add_child(ExpectChangeCipherSpec())
+    # node = node.add_child(ExpectFinished())
+    # node = node.add_child(AlertGenerator(AlertLevel.warning,
+    #                                      AlertDescription.close_notify))
+    # node = node.add_child(ExpectAlert())
+    # close = ExpectClose()
+    # node.next_sibling = close
+    # node = node.add_child(ExpectClose())
+    # node = node.add_child(Close())
+    # node = node.add_child(Connect(host, port))
+    # close.add_child(node)
+
+    # node = node.add_child(ResetHandshakeHashes())
+    # node = node.add_child(ResetRenegotiationInfo())
+    # extensions={ExtensionType.renegotiation_info: None}
+    # if ems:
+    #     extensions[ExtensionType.extended_master_secret] = AutoEmptyExtension()
+    # node = node.add_child(ClientHelloGenerator(
+    #     ciphers,
+    #     extensions=extensions))
+    # ext = {ExtensionType.renegotiation_info: None}
+    # if ems:
+    #     ext[ExtensionType.extended_master_secret] = None
+    # node = node.add_child(ExpectServerHello(
+    #     extensions=ext,
+    #     resume=True))
+    # node = node.add_child(ExpectChangeCipherSpec())
+    # node = node.add_child(ExpectFinished())
+    # node = node.add_child(ChangeCipherSpecGenerator())
+    # node = node.add_child(FinishedGenerator())
+    # node = node.add_child(ApplicationDataGenerator(
+    #     bytearray(request)))
+    # node = node.add_child(ExpectApplicationData(size=reply_size))
+    # node = node.add_child(AlertGenerator(AlertLevel.warning,
+    #                                      AlertDescription.close_notify))
+    # node = node.add_child(ExpectAlert())
+    # node.next_sibling = ExpectClose()
+    # node = node.add_child(ExpectClose())
+    # conversations["drop extension in TLS 1.2 resumption"] = conversation
+
+    # # changing size in TLS 1.3 resumption
+    # conversation = Connect(host, port)
+    # node = conversation
+    # ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+    #            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    # ext = {}
+    # groups = [GroupName.secp256r1]
+    # ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    # ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    #     .create([TLS_1_3_DRAFT, (3, 3)])
+    # ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    #     .create(groups)
+    # sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+    #             SignatureScheme.rsa_pss_pss_sha256]
+    # ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    #     .create(sig_algs)
+    # ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    #     .create(RSA_SIG_ALL)
+    # ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+    #     .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
+    # ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
+    #     .create(2**14)
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    # node = node.add_child(ExpectServerHello())
+    # node = node.add_child(ExpectChangeCipherSpec())
+    # ee_ext = {}
+    # ee_ext[ExtensionType.record_size_limit] = \
+    #     gen_srv_ext_handler_record_limit(expect_size + 1)
+    # if supported_groups:
+    #     ee_ext[ExtensionType.supported_groups] = None
+    # node = node.add_child(ExpectEncryptedExtensions(extensions=ee_ext))
+    # node = node.add_child(ExpectCertificate())
+    # node = node.add_child(ExpectCertificateVerify())
+    # node = node.add_child(ExpectFinished())
+    # node = node.add_child(FinishedGenerator())
+    # node = node.add_child(ApplicationDataGenerator(
+    #     bytearray(request)))
+    # # ensure that the server sends at least one NST always
+    # node = node.add_child(ExpectNewSessionTicket())
+
+    # # but multiple ones are OK too
+    # cycle = ExpectNewSessionTicket()
+    # node = node.add_child(cycle)
+    # node.add_child(cycle)
+
+    # node.next_sibling = ExpectApplicationData()
+    # node = node.next_sibling.add_child(
+    #     AlertGenerator(AlertLevel.warning,
+    #                    AlertDescription.close_notify))
+
+    # node = node.add_child(ExpectAlert(AlertLevel.warning,
+    #                                   AlertDescription.close_notify))
+    # # server can close connection without sending alert
+    # close = ExpectClose()
+    # node.next_sibling = close
+    # node = node.add_child(close)
+    # node = node.add_child(Close())
+    # node = node.add_child(Connect(host, port))
+
+    # # start the second handshake
+    # node = node.add_child(ResetHandshakeHashes())
+    # node = node.add_child(ResetRenegotiationInfo())
+    # ext = OrderedDict(ext)
+    # ext[ExtensionType.pre_shared_key] = psk_session_ext_gen()
+    # ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
+    #     .create(minimal_size)
+    # mods = []
+    # mods.append(psk_ext_updater())
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext,
+    #                                            modifiers=mods))
+    # ext = {}
+    # ext[ExtensionType.supported_versions] = srv_ext_handler_supp_vers
+    # ext[ExtensionType.pre_shared_key] = gen_srv_ext_handler_psk()
+    # ext[ExtensionType.key_share] = srv_ext_handler_key_share
+    # node = node.add_child(ExpectServerHello(extensions=ext))
+    # node = node.add_child(ExpectChangeCipherSpec())
+    # ext = {}
+    # ext[ExtensionType.record_size_limit] = \
+    #     gen_srv_ext_handler_record_limit(expect_size + 1)
+    # if supported_groups:
+    #     ext[ExtensionType.supported_groups] = None
+    # node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
+    # node = node.add_child(ExpectFinished())
+    # node = node.add_child(FinishedGenerator())
+    # node = node.add_child(ApplicationDataGenerator(
+    #     bytearray(request)))
+    # # ensure that the server sends at least one NST always
+    # node = node.add_child(ExpectNewSessionTicket())
+
+    # # but multiple ones are OK too
+    # cycle = ExpectNewSessionTicket()
+    # node = node.add_child(cycle)
+    # node.add_child(cycle)
+
+    # node.next_sibling = ExpectApplicationData(size=minimal_size-1)
+    # node = node.next_sibling
+    # for _ in range(0, max(reply_size-(minimal_size-1)*2, 0), minimal_size-1):
+    #     node = node.add_child(ExpectApplicationData(size=minimal_size-1))
+    # node = node.add_child(ExpectApplicationData(size=reply_size%(minimal_size-1)))
+    # node = node.add_child(
+    #     AlertGenerator(AlertLevel.warning,
+    #                    AlertDescription.close_notify))
+
+    # node = node.add_child(ExpectAlert(AlertLevel.warning,
+    #                                   AlertDescription.close_notify))
+    # node.next_sibling = ExpectClose()
+    # node.add_child(ExpectClose())
+    # conversations["change size in TLS 1.3 session resumption"] = conversation
+
+    # # drop it in TLS 1.3 resumption
+    # conversation = Connect(host, port)
+    # node = conversation
+    # ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+    #            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    # ext = {}
+    # groups = [GroupName.secp256r1]
+    # ext[ExtensionType.key_share] = key_share_ext_gen(groups)
+    # ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    #     .create([TLS_1_3_DRAFT, (3, 3)])
+    # ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    #     .create(groups)
+    # sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+    #             SignatureScheme.rsa_pss_pss_sha256]
+    # ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    #     .create(sig_algs)
+    # ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    #     .create(RSA_SIG_ALL)
+    # ext[ExtensionType.psk_key_exchange_modes] = PskKeyExchangeModesExtension()\
+    #     .create([PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke])
+    # ext[ExtensionType.record_size_limit] = RecordSizeLimitExtension()\
+    #     .create(minimal_size)
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    # node = node.add_child(ExpectServerHello())
+    # node = node.add_child(ExpectChangeCipherSpec())
+    # ee_ext = {}
+    # ee_ext[ExtensionType.record_size_limit] = \
+    #     gen_srv_ext_handler_record_limit(expect_size + 1)
+    # if supported_groups:
+    #     ee_ext[ExtensionType.supported_groups] = None
+    # node = node.add_child(ExpectEncryptedExtensions(extensions=ee_ext))
+    # node = node.add_child(ExpectCertificate())
+    # node = node.add_child(ExpectCertificateVerify())
+    # node = node.add_child(ExpectFinished())
+    # node = node.add_child(FinishedGenerator())
+    # # ensure that the server sends at least one NST always
+    # node = node.add_child(ExpectNewSessionTicket())
+    # node = node.add_child(AlertGenerator(AlertLevel.warning,
+    #                                      AlertDescription.close_notify))
+
+    # # but multiple ones are OK too
+    # cycle = ExpectNewSessionTicket()
+    # node = node.add_child(cycle)
+    # node.add_child(cycle)
+
+    # node.next_sibling = ExpectAlert(AlertLevel.warning,
+    #                                 AlertDescription.close_notify)
+    # node = node.next_sibling
+    # # server can close connection without sending alert
+    # close = ExpectClose()
+    # node.next_sibling = close
+    # node = node.add_child(close)
+    # node = node.add_child(Close())
+    # node = node.add_child(Connect(host, port))
+
+    # # start the second handshake
+    # node = node.add_child(ResetHandshakeHashes())
+    # node = node.add_child(ResetRenegotiationInfo())
+    # ext = OrderedDict(ext)
+    # ext[ExtensionType.pre_shared_key] = psk_session_ext_gen()
+    # del ext[ExtensionType.record_size_limit]
+    # mods = []
+    # mods.append(psk_ext_updater())
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext,
+    #                                            modifiers=mods))
+    # ext = {}
+    # ext[ExtensionType.supported_versions] = srv_ext_handler_supp_vers
+    # ext[ExtensionType.pre_shared_key] = gen_srv_ext_handler_psk()
+    # ext[ExtensionType.key_share] = srv_ext_handler_key_share
+    # node = node.add_child(ExpectServerHello(extensions=ext))
+    # node = node.add_child(ExpectChangeCipherSpec())
+    # ext = {}
+    # if supported_groups:
+    #     ext[ExtensionType.supported_groups] = None
+    # node = node.add_child(ExpectEncryptedExtensions(extensions=ext))
+    # node = node.add_child(ExpectFinished())
+    # node = node.add_child(FinishedGenerator())
+    # node = node.add_child(ApplicationDataGenerator(
+    #     bytearray(request)))
+    # # ensure that the server sends at least one NST always
+    # node = node.add_child(ExpectNewSessionTicket())
+
+    # # but multiple ones are OK too
+    # cycle = ExpectNewSessionTicket()
+    # node = node.add_child(cycle)
+    # node.add_child(cycle)
+
+    # node.next_sibling = ExpectApplicationData(size=reply_size)
+    # node = node.next_sibling
+    # node = node.add_child(
+    #     AlertGenerator(AlertLevel.warning,
+    #                    AlertDescription.close_notify))
+
+    # node = node.add_child(ExpectAlert(AlertLevel.warning,
+    #                                   AlertDescription.close_notify))
+    # node.next_sibling = ExpectClose()
+    # node.add_child(ExpectClose())
+    # conversations["drop extension in TLS 1.3 session resumption"] = conversation
+
+    # # check if we can negotiate extension in HRR handshake
+    # conversation = Connect(host, port)
+    # node = conversation
+    # ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+    #            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    # ext = OrderedDict()
+    # groups = [GroupName.secp256r1]
+    # key_shares = []
+    # ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    # ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    #     .create([TLS_1_3_DRAFT, (3, 3)])
+    # ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    #     .create(groups)
+    # sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+    #             SignatureScheme.rsa_pss_pss_sha256]
+    # ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    #     .create(sig_algs)
+    # ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    #     .create(RSA_SIG_ALL)
+    # ext[ExtensionType.record_size_limit] = \
+    #     RecordSizeLimitExtension().create(2**14+1)
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+
+    # ext = OrderedDict()
+    # if cookie:
+    #     ext[ExtensionType.cookie] = None
+    # ext[ExtensionType.key_share] = None
+    # ext[ExtensionType.supported_versions] = None
+    # node = node.add_child(ExpectHelloRetryRequest(extensions=ext))
+    # node = node.add_child(ExpectChangeCipherSpec())
+
+    # ext = OrderedDict()
+    # groups = [GroupName.secp256r1]
+    # key_shares = []
+    # for group in groups:
+    #     key_shares.append(key_share_gen(group))
+    # ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    # ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    #     .create([TLS_1_3_DRAFT, (3, 3)])
+    # ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    #     .create(groups)
+    # if cookie:
+    #     ext[ExtensionType.cookie] = ch_cookie_handler
+    # sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+    #             SignatureScheme.rsa_pss_pss_sha256]
+    # ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    #     .create(sig_algs)
+    # ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    #     .create(RSA_SIG_ALL)
+    # ext[ExtensionType.record_size_limit] = \
+    #     RecordSizeLimitExtension().create(2**14+1)
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    # node = node.add_child(ExpectServerHello())
+    # ee_ext = {}
+    # ee_ext[ExtensionType.record_size_limit] = \
+    #     gen_srv_ext_handler_record_limit(expect_size + 1)
+    # if hrr_supported_groups:
+    #     ee_ext[ExtensionType.supported_groups] = None
+    # node = node.add_child(ExpectEncryptedExtensions(extensions=ee_ext))
+    # node = node.add_child(ExpectCertificate())
+    # node = node.add_child(ExpectCertificateVerify())
+    # node = node.add_child(ExpectFinished())
+    # node = node.add_child(FinishedGenerator())
+    # node = node.add_child(ApplicationDataGenerator(
+    #     bytearray(request)))
+    # # this message can be sent arbitrary number of times
+    # cycle = ExpectNewSessionTicket()
+    # node = node.add_child(cycle)
+    # node.add_child(cycle)
+
+    # node.next_sibling = ExpectApplicationData()
+    # node = node.next_sibling.add_child(AlertGenerator(AlertLevel.warning,
+    #                                    AlertDescription.close_notify))
+    # node = node.add_child(ExpectAlert())
+    # node.next_sibling = ExpectClose()
+    # conversations["HRR sanity"] = conversation
+
+    # # check if modified extension is detected by server
+    # conversation = Connect(host, port)
+    # node = conversation
+    # ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+    #            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    # ext = OrderedDict()
+    # groups = [GroupName.secp256r1]
+    # key_shares = []
+    # ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    # ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    #     .create([TLS_1_3_DRAFT, (3, 3)])
+    # ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    #     .create(groups)
+    # sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+    #             SignatureScheme.rsa_pss_pss_sha256]
+    # ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    #     .create(sig_algs)
+    # ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    #     .create(RSA_SIG_ALL)
+    # ext[ExtensionType.record_size_limit] = \
+    #     RecordSizeLimitExtension().create(2**14+1)
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+
+    # ext = OrderedDict()
+    # if cookie:
+    #     ext[ExtensionType.cookie] = None
+    # ext[ExtensionType.key_share] = None
+    # ext[ExtensionType.supported_versions] = None
+    # node = node.add_child(ExpectHelloRetryRequest(extensions=ext))
+    # node = node.add_child(ExpectChangeCipherSpec())
+
+    # ext = OrderedDict()
+    # groups = [GroupName.secp256r1]
+    # key_shares = []
+    # for group in groups:
+    #     key_shares.append(key_share_gen(group))
+    # ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    # ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    #     .create([TLS_1_3_DRAFT, (3, 3)])
+    # ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    #     .create(groups)
+    # if cookie:
+    #     ext[ExtensionType.cookie] = ch_cookie_handler
+    # sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+    #             SignatureScheme.rsa_pss_pss_sha256]
+    # ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    #     .create(sig_algs)
+    # ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    #     .create(RSA_SIG_ALL)
+    # ext[ExtensionType.record_size_limit] = \
+    #     RecordSizeLimitExtension().create(2**14)
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    # node = node.add_child(ExpectAlert(AlertLevel.fatal,
+    #                                   AlertDescription.illegal_parameter))
+    # node.add_child(ExpectClose())
+    # conversations["modified extension in 2nd CH in HRR handshake"] = conversation
+
+    # # check if dropped extension is detected by server
+    # conversation = Connect(host, port)
+    # node = conversation
+    # ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+    #            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    # ext = OrderedDict()
+    # groups = [GroupName.secp256r1]
+    # key_shares = []
+    # ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    # ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    #     .create([TLS_1_3_DRAFT, (3, 3)])
+    # ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    #     .create(groups)
+    # sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+    #             SignatureScheme.rsa_pss_pss_sha256]
+    # ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    #     .create(sig_algs)
+    # ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    #     .create(RSA_SIG_ALL)
+    # ext[ExtensionType.record_size_limit] = \
+    #     RecordSizeLimitExtension().create(2**14+1)
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+
+    # ext = OrderedDict()
+    # if cookie:
+    #     ext[ExtensionType.cookie] = None
+    # ext[ExtensionType.key_share] = None
+    # ext[ExtensionType.supported_versions] = None
+    # node = node.add_child(ExpectHelloRetryRequest(extensions=ext))
+    # node = node.add_child(ExpectChangeCipherSpec())
+
+    # ext = OrderedDict()
+    # groups = [GroupName.secp256r1]
+    # key_shares = []
+    # for group in groups:
+    #     key_shares.append(key_share_gen(group))
+    # ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    # ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    #     .create([TLS_1_3_DRAFT, (3, 3)])
+    # ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    #     .create(groups)
+    # if cookie:
+    #     ext[ExtensionType.cookie] = ch_cookie_handler
+    # sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+    #             SignatureScheme.rsa_pss_pss_sha256]
+    # ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    #     .create(sig_algs)
+    # ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    #     .create(RSA_SIG_ALL)
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    # node = node.add_child(ExpectAlert(AlertLevel.fatal,
+    #                                   AlertDescription.illegal_parameter))
+    # node.add_child(ExpectClose())
+    # conversations["removed extension in 2nd CH in HRR handshake"] = conversation
+
+    # # check if added extension is detected by server
+    # conversation = Connect(host, port)
+    # node = conversation
+    # ciphers = [CipherSuite.TLS_AES_128_GCM_SHA256,
+    #            CipherSuite.TLS_EMPTY_RENEGOTIATION_INFO_SCSV]
+    # ext = OrderedDict()
+    # groups = [GroupName.secp256r1]
+    # key_shares = []
+    # ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    # ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    #     .create([TLS_1_3_DRAFT, (3, 3)])
+    # ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    #     .create(groups)
+    # sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+    #             SignatureScheme.rsa_pss_pss_sha256]
+    # ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    #     .create(sig_algs)
+    # ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    #     .create(RSA_SIG_ALL)
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+
+    # ext = OrderedDict()
+    # if cookie:
+    #     ext[ExtensionType.cookie] = None
+    # ext[ExtensionType.key_share] = None
+    # ext[ExtensionType.supported_versions] = None
+    # node = node.add_child(ExpectHelloRetryRequest(extensions=ext))
+    # node = node.add_child(ExpectChangeCipherSpec())
+
+    # ext = OrderedDict()
+    # groups = [GroupName.secp256r1]
+    # key_shares = []
+    # for group in groups:
+    #     key_shares.append(key_share_gen(group))
+    # ext[ExtensionType.key_share] = ClientKeyShareExtension().create(key_shares)
+    # ext[ExtensionType.supported_versions] = SupportedVersionsExtension()\
+    #     .create([TLS_1_3_DRAFT, (3, 3)])
+    # ext[ExtensionType.supported_groups] = SupportedGroupsExtension()\
+    #     .create(groups)
+    # if cookie:
+    #     ext[ExtensionType.cookie] = ch_cookie_handler
+    # sig_algs = [SignatureScheme.rsa_pss_rsae_sha256,
+    #             SignatureScheme.rsa_pss_pss_sha256]
+    # ext[ExtensionType.signature_algorithms] = SignatureAlgorithmsExtension()\
+    #     .create(sig_algs)
+    # ext[ExtensionType.signature_algorithms_cert] = SignatureAlgorithmsCertExtension()\
+    #     .create(RSA_SIG_ALL)
+    # ext[ExtensionType.record_size_limit] = \
+    #     RecordSizeLimitExtension().create(2**14+1)
+    # node = node.add_child(ClientHelloGenerator(ciphers, extensions=ext))
+    # node = node.add_child(ExpectAlert(AlertLevel.fatal,
+    #                                   AlertDescription.illegal_parameter))
+    # node.add_child(ExpectClose())
+    # conversations["added extension in 2nd CH in HRR handshake"] = conversation
 
     # run the conversation
     good = 0

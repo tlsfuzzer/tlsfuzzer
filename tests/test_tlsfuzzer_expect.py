@@ -3,6 +3,9 @@
 
 from __future__ import print_function
 
+from tlslite.utils.pem import dePem
+from tlslite.x509 import Credential, DelegatedCredential
+
 try:
     import unittest2 as unittest
 except ImportError:
@@ -38,7 +41,8 @@ from tlslite.constants import ContentType, HandshakeType, ExtensionType, \
         AlertLevel, AlertDescription, ClientCertificateType, HashAlgorithm, \
         SignatureAlgorithm, CipherSuite, CertificateType, SSL2HandshakeType, \
         SSL2ErrorDescription, GroupName, CertificateStatusType, ECPointFormat,\
-        SignatureScheme, TLS_1_3_HRR, HeartbeatMode, \
+        SignatureScheme, TLS_1_3_HRR, TLS_1_3_BRAINPOOL_SIG_SCHEMES, \
+        HeartbeatMode, \
         TLS_1_1_DOWNGRADE_SENTINEL, TLS_1_2_DOWNGRADE_SENTINEL, \
         HeartbeatMessageType, KeyUpdateMessageType, \
         CertificateCompressionAlgorithm
@@ -48,7 +52,7 @@ from tlslite.messages import Message, ServerHello, CertificateRequest, \
         Finished, EncryptedExtensions, NewSessionTicket, Heartbeat, \
         KeyUpdate, HelloRequest, ServerHelloDone, NewSessionTicket1_0, \
         CompressedCertificate
-from tlslite.extensions import SNIExtension, TLSExtension, \
+from tlslite.extensions import DelegatedCredentialCertExtension, DelegatedCredentialExtension, SNIExtension, TLSExtension, \
         SupportedGroupsExtension, ALPNExtension, ECPointFormatsExtension, \
         NPNExtension, ServerKeyShareExtension, ClientKeyShareExtension, \
         SrvSupportedVersionsExtension, SupportedVersionsExtension, \
@@ -57,10 +61,16 @@ from tlslite.extensions import SNIExtension, TLSExtension, \
         HeartbeatExtension, StatusRequestExtension, \
         CompressedCertificateExtension
 from tlslite.utils.keyfactory import parsePEMKey
+from tlslite.utils.rsakey import RSAKey
+from tlslite.utils.ecdsakey import ECDSAKey
+from tlslite.utils.eddsakey import EdDSAKey
+from tlslite.utils.ecc import curve_name_to_hash_name
+from tlslite.utils import tlshashlib as hashlib
 from tlslite.x509certchain import X509CertChain, X509
 from tlslite.extensions import SNIExtension, SignatureAlgorithmsExtension
 from tlslite.keyexchange import DHE_RSAKeyExchange, ECDHE_RSAKeyExchange
-from tlslite.errors import TLSIllegalParameterException, TLSDecryptionFailed
+from tlslite.errors import TLSIllegalParameterException, TLSDecryptionFailed, \
+        TLSUnexpectedMessage
 from tlsfuzzer.runner import ConnectionState
 from tlslite.extensions import RenegotiationInfoExtension, \
         RecordSizeLimitExtension
@@ -867,6 +877,175 @@ srv_raw_mldsa87_key = str(
     "-----END PRIVATE KEY-----\n"
     )
 
+
+srv_raw_brainpool_P256r1EC_certificate = str(
+"-----BEGIN CERTIFICATE-----\n"
+"MIIBfTCCASSgAwIBAgIUdcPtlDRLVcVmWcQ3V31oeAXDS1UwCgYIKoZIzj0EAwIw\n"
+"FDESMBAGA1UEAwwJbG9jYWxob3N0MB4XDTIwMTAyMjE5NTQzNloXDTMwMTAyMDE5\n"
+"NTQzNlowFDESMBAGA1UEAwwJbG9jYWxob3N0MFowFAYHKoZIzj0CAQYJKyQDAwII\n"
+"AQEHA0IABAJ7rqWzCX/dPvyygGHSay+KSoyatGdA4/mciwqar+GdmwSWTzB9l0R3\n"
+"I4/rpCZ+Ri7CemspDWiZSYmZSMn3HESjUzBRMB0GA1UdDgQWBBT7XD/anl1lj1RP\n"
+"LVFQlaeWiC2nvjAfBgNVHSMEGDAWgBT7XD/anl1lj1RPLVFQlaeWiC2nvjAPBgNV\n"
+"HRMBAf8EBTADAQH/MAoGCCqGSM49BAMCA0cAMEQCIAj6K/bwKOM26tKSNcLHPIr+\n"
+"XWZmSjaBCcaHeLuZcX8RAiBb6QIWftn0txlVwcNEay8d69XFJD1obZmKO4gxGe4K\n"
+"gQ==\n"
+"-----END CERTIFICATE-----\n"
+)
+
+
+srv_raw_brainpool_P256r1EC_key = str(
+"-----BEGIN EC PRIVATE KEY-----\n"
+"MHgCAQEEIH0gSdkrNpsObfPorvjAmllMjBXy9x9pnJ8vwmY7s9n/oAsGCSskAwMC\n"
+"CAEBB6FEA0IABAJ7rqWzCX/dPvyygGHSay+KSoyatGdA4/mciwqar+GdmwSWTzB9\n"
+"l0R3I4/rpCZ+Ri7CemspDWiZSYmZSMn3HEQ=\n"
+"-----END EC PRIVATE KEY-----\n"
+)
+
+
+srv_raw_brainpool_P384r1EC_certificate = str(
+"-----BEGIN CERTIFICATE-----\n"
+"MIIBvTCCAUSgAwIBAgIUPG1vSTSQmFemI8UU7EhB6tLSDmUwCgYIKoZIzj0EAwIw\n"
+"FDESMBAGA1UEAwwJbG9jYWxob3N0MB4XDTIwMTAyMjIxMTAyOFoXDTMwMTAyMDIx\n"
+"MTAyOFowFDESMBAGA1UEAwwJbG9jYWxob3N0MHowFAYHKoZIzj0CAQYJKyQDAwII\n"
+"AQELA2IABECMinC3tQTHVKMyUu5CPqDeq3VS9EuGuiP+5U6rzDto/eW/av1PGa0i\n"
+"hThpbl3YUIQB/670LMBj9LIZE45py5nbGdSTl593j8f8BvMzK0h9gPlqjp+rx297\n"
+"u8+C+qZoH6NTMFEwHQYDVR0OBBYEFGrfLfFHE9VToCpWErYcETRg7D8kMB8GA1Ud\n"
+"IwQYMBaAFGrfLfFHE9VToCpWErYcETRg7D8kMA8GA1UdEwEB/wQFMAMBAf8wCgYI\n"
+"KoZIzj0EAwIDZwAwZAIwNmu55BssK8gA093oUmKl9md2mc90RpEr5jWdxNj7gQJU\n"
+"QVumzJ9wVcJKmMah6hTRAjAC3mRQ7/gIdetJDMHRWECKhRhv9x42KdkCZFYR/o03\n"
+"q7CXY9Zb0VRk5fn2Prfb2MU=\n"
+"-----END CERTIFICATE-----\n"
+)
+
+
+srv_raw_brainpool_P384r1EC_key = str(
+"-----BEGIN EC PRIVATE KEY-----\n"
+"MIGoAgEBBDAYnSS9f9KTYKoFQoxWmVdmAwUOTlK6hcj73SrBeLHq/AtaAMAklNGv\n"
+"M/Lf0iTbm8+gCwYJKyQDAwIIAQELoWQDYgAEQIyKcLe1BMdUozJS7kI+oN6rdVL0\n"
+"S4a6I/7lTqvMO2j95b9q/U8ZrSKFOGluXdhQhAH/rvQswGP0shkTjmnLmdsZ1JOX\n"
+"n3ePx/wG8zMrSH2A+WqOn6vHb3u7z4L6pmgf\n"
+"-----END EC PRIVATE KEY-----\n"
+)
+
+
+srv_raw_brainpool_P512r1EC_certificate = str(
+    "-----BEGIN CERTIFICATE-----\n"
+    "MIICAjCCAWagAwIBAgIUFgWkgS+N65P1N20PV1aABz2g62cwCgYIKoZIzj0EAwIw\n"
+    "FDESMBAGA1UEAwwJbG9jYWxob3N0MB4XDTIwMTAyMjIxMTA1OFoXDTMwMTAyMDIx\n"
+    "MTA1OFowFDESMBAGA1UEAwwJbG9jYWxob3N0MIGbMBQGByqGSM49AgEGCSskAwMC\n"
+    "CAEBDQOBggAEeB8B7ZJPBeo2Dn1J5u3IZ6r4SX7256TZRGCdbakwqq/CM8bCRxL2\n"
+    "aR1lg1CKnV/MzpVkwdRyOw7ArLyDv38PaiU2vLxmpLqftcUPfhQqnDabfB+TLaoJ\n"
+    "Mzaphp4Ry9sPl6Rne0d+TKYAAIJm2VovcpL8THgeJX4SkXVxUTuU+FGjUzBRMB0G\n"
+    "A1UdDgQWBBSY5cFYRVDd4uI47QW9EGcztkFgjzAfBgNVHSMEGDAWgBSY5cFYRVDd\n"
+    "4uI47QW9EGcztkFgjzAPBgNVHRMBAf8EBTADAQH/MAoGCCqGSM49BAMCA4GJADCB\n"
+    "hQJAN7IS6Gff8Sc+tBz5U3EmKmM/epQX8SHiah2qkza+Qli5MblOY9JP7qaDBEiR\n"
+    "FCxzOXgW+PyyN6nXBNpcCGTNtwJBAKrF0UXRpb7ayHkWZ0DNRYEhGxYtbc/nhwHv\n"
+    "ODc6CjTi4qDrSoZZNWGU/JADelB48b9E6gW54vcpUFT1WgLbgyo=\n"
+    "-----END CERTIFICATE-----\n"
+)
+
+
+srv_raw_brainpool_P512r1EC_key = str(
+    "-----BEGIN EC PRIVATE KEY-----\n"
+    "MIHaAgEBBEAcA+aaUOXU1dX/R0BnzGkLs88hB507uszFBmWussX7HylhsbNTToxW\n"
+    "F8H5HC5dZEnIKFLQStSpI3z7pcVyaGb4oAsGCSskAwMCCAEBDaGBhQOBggAEeB8B\n"
+    "7ZJPBeo2Dn1J5u3IZ6r4SX7256TZRGCdbakwqq/CM8bCRxL2aR1lg1CKnV/MzpVk\n"
+    "wdRyOw7ArLyDv38PaiU2vLxmpLqftcUPfhQqnDabfB+TLaoJMzaphp4Ry9sPl6Rn\n"
+    "e0d+TKYAAIJm2VovcpL8THgeJX4SkXVxUTuU+FE=\n"
+    "-----END EC PRIVATE KEY-----\n"
+)
+
+
+srv_raw_ed25519_dc_key = str(
+    "-----BEGIN PRIVATE KEY-----\n"
+    "MC4CAQAwBQYDK2VwBCIEIFajH10bzWhDcoBJrsW6jiYo3ylXsRgFU5+D7r7tEQYq\n"
+    "-----END PRIVATE KEY-----\n"
+    )
+
+
+srv_raw_ed25519_dc_pub = str(
+    "-----BEGIN PUBLIC KEY-----\n"
+    "MCowBQYDK2VwAyEAL6CqmAUFNuo83QD2RX226fO2aDAkAuWFJCKuy+b41Xk=\n"
+    "-----END PUBLIC KEY-----\n"
+)
+
+
+srv_raw_pss_dc_key = str(
+    "-----BEGIN PRIVATE KEY-----\n"
+    "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\n"
+    "xkuZ/MLKTnNrjaomqwuu+SQl2AG8qw==\n"
+    "-----END PRIVATE KEY-----\n"
+)
+
+
+srv_raw_pss_dc_pub = str(
+    "-----BEGIN PUBLIC KEY-----\n"
+    "MIIB1jBBBgkqhkiG9w0BAQowNKAPMA0GCWCGSAFlAwQCAQUAoRwwGgYJKoZIhvcN\n"
+    "AQEIMA0GCWCGSAFlAwQCAQUAogMCASADggGPADCCAYoCggGBAOhpDwHmiRU9V139\n"
+    "qgHJDoK1wNc0ytlhQTRiedgtidmwcV53V6Vh6iIA558NkijwSh5bMpfrItvSHYIT\n"
+    "apHGx7GaY/8WgqpLwUR86m7FHa2svqapEY7kndW1SAcJ82JAeg5BHtl6UabzDNLb\n"
+    "fYOjOVvb0kSGMQysEXUJtfrKuGj+4u9FFeVj0r8BROY0Boj0Bv0mwXTcsmGId0VL\n"
+    "ktkompg/gzQHtQuZ0Y+Mv/3iq9H3ZHVtc6HPuqCmIE+c3aRS0YJE0j+dxVvmfyh7\n"
+    "fgeRs+4beld/1rPNDQDN85cT3LAJOnUBZ4E3CValXZjoE2UZ0O61fkIIGQjiQEsR\n"
+    "t1gpLyUJ1lU14Y+IisKT4bjOFZ6aQruukBqEW4Pgk4TaW1vqoI92MQxY/l0Da0Lc\n"
+    "3IAZoaiHNqLSRhBCk8rBO4AAih7xpKIFabQmbgqRrcU/fUQUKngz+EGQGs+jaZnn\n"
+    "8siStBpaqA8fb1sXlhF+Sy0R4ShHt9DPyVVuhDDH+Vy9gVkVgQIDAQAB\n"
+    "-----END PUBLIC KEY-----\n"
+)
+
+
+srv_raw_secp256r1_dc_key = str(
+    "-----BEGIN EC PRIVATE KEY-----\n"
+    "MHcCAQEEICoYrVLXYhVaS1vk4SIh2xXSN+AJg4nOHMeh8M9PTlxcoAoGCCqGSM49\n"
+    "AwEHoUQDQgAEL6e6bEBlJIwvz13t6xn+dNoG/NgteGDM3pKpnq37b5cLuBxfBjLK\n"
+    "2P2GY5D3XFTixrwj7cTPt/ZpKetVaCAp3A==\n"
+    "-----END EC PRIVATE KEY-----\n"
+)
+
+
+srv_raw_secp256r1_dc_pub = str(
+    "-----BEGIN PUBLIC KEY-----\n"
+    "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEL6e6bEBlJIwvz13t6xn+dNoG/Ngt\n"
+    "eGDM3pKpnq37b5cLuBxfBjLK2P2GY5D3XFTixrwj7cTPt/ZpKetVaCAp3A==\n"
+    "-----END PUBLIC KEY-----\n"
+)
 
 class TestExpect(unittest.TestCase):
     def test___init__(self):
@@ -3248,6 +3427,302 @@ class TestExpectCertificateVerify(unittest.TestCase):
 
         self.assertIn("verification failed", str(exc.exception))
 
+
+class TestExpectCertificateVerifyWithDelegatedCredential(unittest.TestCase):
+    delegated_cred = [(srv_raw_ed25519_dc_key, srv_raw_ed25519_dc_pub, SignatureScheme.ed25519),
+                      (srv_raw_pss_dc_key, srv_raw_pss_dc_pub, SignatureScheme.rsa_pss_pss_sha256),
+                      (srv_raw_secp256r1_dc_key, srv_raw_secp256r1_dc_pub, SignatureScheme.ecdsa_secp256r1_sha256)]
+
+    def _update_cert_with_dc(
+        self,
+        cert,
+        private_key,
+        sig_alg,
+        dc_pub_byte,
+        dc_sig_scheme,
+        valid_time=0,
+    ):
+        cred = Credential(subject_public_key_info=dc_pub_byte)
+        cert_bytes = cert.certificate_list[0].certificate.bytes
+        cred_raw_bytes = Credential.marshal(valid_time,
+                                            dc_sig_scheme,
+                                            dc_pub_byte)
+        cred = Credential(valid_time=valid_time,
+                          dc_cert_verify_algorithm=dc_sig_scheme,
+                          subject_public_key_info=dc_pub_byte,
+                          bytes=cred_raw_bytes)
+
+        bytes_to_sign = DelegatedCredential.compute_certificate_dc_sig_context(
+            cert_bytes,
+            cred.bytes,
+            sig_alg)
+        signature = self._create_signature(bytes_to_sign, sig_alg, private_key)
+        delegated_credential = DelegatedCredential(
+            cred=cred,
+            algorithm=sig_alg,
+            signature=signature
+        )
+        del_cred_ext = DelegatedCredentialCertExtension().create(delegated_credential)
+        cert.certificate_list[0].extensions.append(del_cred_ext)
+        return cert
+
+    def _build_state(self):
+        state = ConnectionState()
+        state.cipher = CipherSuite.TLS_AES_128_GCM_SHA256
+        state.version = (3, 4)
+        return state
+
+    def _create_signature(self, context, sig_alg, private_key):
+        scheme = SignatureScheme.toRepr(sig_alg)
+        if sig_alg in (SignatureScheme.ed25519, SignatureScheme.ed448):
+            hashName = "intrinsic"
+            padType = None
+            saltLen = None
+            sig_func = private_key.hashAndSign
+            ver_func = private_key.hashAndVerify
+        elif isinstance(sig_alg, tuple) and sig_alg[1] == SignatureAlgorithm.ecdsa:
+            hashName = HashAlgorithm.toRepr(sig_alg[0])
+            padType = None
+            saltLen = None
+            sig_func = private_key.hashAndSign
+            ver_func = private_key.hashAndVerify
+        elif sig_alg in TLS_1_3_BRAINPOOL_SIG_SCHEMES:
+            hashName = SignatureScheme.getHash(scheme)
+            padType = None
+            saltLen = None
+            sig_func = private_key.hashAndSign
+            ver_func = private_key.hashAndVerify
+        else:
+            padType = SignatureScheme.getPadding(scheme)
+            hashName = SignatureScheme.getHash(scheme)
+            saltLen = getattr(hashlib, hashName)().digest_size
+            sig_func = private_key.hashAndSign
+            ver_func = private_key.hashAndVerify
+
+        signature = sig_func(context,
+                             padType,
+                             hashName,
+                             saltLen)
+        if not ver_func(signature, context,
+                        padType,
+                        hashName,
+                        saltLen):
+            raise ValueError("Signature verification failed")
+
+        return signature
+
+    def _create_cert_verify(self, cert, priv_key, dc_priv_key, dc_pub_key,
+                            scheme, dc_scheme):
+        state = self._build_state()
+
+        cert = Certificate(CertificateType.x509, (3, 4)).create(
+            X509CertChain([X509().parse(cert)]))
+        private_key = parsePEMKey(priv_key, private=True)
+        dc_private_key = parsePEMKey(dc_priv_key, private=True)
+        dc_pub_byte = dePem(dc_pub_key, "PUBLIC KEY")
+
+        cert = self._update_cert_with_dc(
+            cert,
+            private_key,
+            scheme,
+            dc_pub_byte,
+            dc_scheme
+        )
+
+        client_hello = ClientHello()
+        ext = SignatureAlgorithmsExtension().create([scheme])
+        client_hello.extensions = [ext]
+        client_hello.extensions.append(
+            DelegatedCredentialExtension().create([dc_scheme]))
+        state.handshake_messages.append(client_hello)
+        state.handshake_messages.append(cert)
+
+        hh_digest = state.handshake_hashes.digest('sha256')
+        self.assertEqual(state.prf_name, "sha256")
+        signature_context = bytearray(b'\x20' * 64 +
+                                      b'TLS 1.3, server CertificateVerify' +
+                                      b'\x00') + hh_digest
+        signature = self._create_signature(signature_context, dc_scheme, dc_private_key)
+        cert_verify = CertificateVerify((3, 4)).create(signature, dc_scheme)
+        return state, cert_verify
+
+    def test_process_with_delegated_credential_ed25519(self):
+        for value in self.delegated_cred:
+            priv_key_dc, pub_key_dc, sig_cheme_dc = value
+            exp = ExpectCertificateVerify()
+            state, cert_verify = self._create_cert_verify(srv_raw_ed25519_certificate,
+                                                    srv_raw_ed25519_key,
+                                                    priv_key_dc,
+                                                    pub_key_dc,
+                                                    SignatureScheme.ed25519,
+                                                    sig_cheme_dc)
+            exp.process(state, cert_verify)
+
+    def test_process_with_delegated_credential_ed448(self):
+        for value in self.delegated_cred:
+            priv_key_dc, pub_key_dc, sig_cheme_dc = value
+            exp = ExpectCertificateVerify()
+            state, cert_verify = self._create_cert_verify(srv_raw_ed448_certificate,
+                                                srv_raw_ed448_key,
+                                                priv_key_dc,
+                                                pub_key_dc,
+                                                SignatureScheme.ed448,
+                                                sig_cheme_dc)
+            exp.process(state, cert_verify)
+
+    def test_process_with_delegated_credential_ecdsa(self):
+        for value in self.delegated_cred:
+            priv_key_dc, pub_key_dc, sig_cheme_dc = value
+            exp = ExpectCertificateVerify()
+            state, cert_verify = self._create_cert_verify(srv_raw_ecdsa_certificate,
+                                                srv_raw_ecdsa_key,
+                                                priv_key_dc,
+                                                pub_key_dc,
+                                                SignatureScheme.ecdsa_secp256r1_sha256,
+                                                sig_cheme_dc)
+            exp.process(state, cert_verify)
+
+    def test_process_with_delegated_credential_rsa_pss(self):
+        for value in self.delegated_cred:
+            priv_key_dc, pub_key_dc, sig_cheme_dc = value
+            exp = ExpectCertificateVerify()
+            state, cert_verify = self._create_cert_verify(srv_raw_pss_certificate,
+                                                srv_raw_pss_key,
+                                                priv_key_dc,
+                                                pub_key_dc,
+                                                SignatureScheme.rsa_pss_pss_sha256,
+                                                sig_cheme_dc)
+            exp.process(state, cert_verify)
+
+    def test_process_with_delegated_credential_P256r1EC(self):
+        for value in self.delegated_cred:
+            priv_key_dc, pub_key_dc, sig_cheme_dc = value
+            exp = ExpectCertificateVerify()
+            state, cert_verify = self._create_cert_verify(srv_raw_brainpool_P256r1EC_certificate,
+                                                srv_raw_brainpool_P256r1EC_key,
+                                                priv_key_dc,
+                                                pub_key_dc,
+                                                SignatureScheme.ecdsa_brainpoolP256r1tls13_sha256,
+                                                sig_cheme_dc)
+            exp.process(state, cert_verify)
+
+    def test_process_with_delegated_credential_P384r1EC(self):
+        for value in self.delegated_cred:
+            priv_key_dc, pub_key_dc, sig_cheme_dc = value
+            exp = ExpectCertificateVerify()
+            state, cert_verify = self._create_cert_verify(srv_raw_brainpool_P384r1EC_certificate,
+                                                srv_raw_brainpool_P384r1EC_key,
+                                                priv_key_dc,
+                                                pub_key_dc,
+                                                SignatureScheme.ecdsa_brainpoolP384r1tls13_sha384,
+                                                sig_cheme_dc)
+            exp.process(state, cert_verify)
+
+    def test_process_with_delegated_credential_P512r1EC(self):
+        for value in self.delegated_cred:
+            priv_key_dc, pub_key_dc, sig_cheme_dc = value
+            exp = ExpectCertificateVerify()
+            state, cert_verify = self._create_cert_verify(srv_raw_brainpool_P512r1EC_certificate,
+                                                srv_raw_brainpool_P512r1EC_key,
+                                                priv_key_dc,
+                                                pub_key_dc,
+                                                SignatureScheme.ecdsa_brainpoolP512r1tls13_sha512,
+                                                sig_cheme_dc)
+            exp.process(state, cert_verify)
+
+
+    def test_process_with_duplicate_delegated_credentials(self):
+        exp = ExpectCertificateVerify()
+
+        state = self._build_state()
+
+        cert = Certificate(CertificateType.x509, (3, 4)).create(
+            X509CertChain([X509().parse(srv_raw_ed25519_certificate)]))
+        private_key = parsePEMKey(srv_raw_ed25519_key, private=True)
+        dc_private_key = parsePEMKey(srv_raw_ed25519_dc_key, private=True)
+        dc_pub_byte = dePem(srv_raw_ed25519_dc_pub, "PUBLIC KEY")
+
+        cert = self._update_cert_with_dc(
+            cert,
+            private_key,
+            SignatureScheme.ed25519,
+            dc_pub_byte,
+            SignatureScheme.ed25519
+        )
+        del_cred_ext = cert.certificate_list[0].extensions[-1]
+        cert.certificate_list[0].extensions.append(del_cred_ext)
+
+        client_hello = ClientHello()
+        ext = SignatureAlgorithmsExtension().create([SignatureScheme.ed25519])
+        client_hello.extensions = [ext]
+        client_hello.extensions.append(
+            DelegatedCredentialExtension().create([SignatureScheme.ed25519]))
+        state.handshake_messages.append(client_hello)
+        state.handshake_messages.append(cert)
+
+        hh_digest = state.handshake_hashes.digest('sha256')
+        self.assertEqual(state.prf_name, "sha256")
+        signature_context = bytearray(b'\x20' * 64 +
+                                      b'TLS 1.3, server CertificateVerify' +
+                                      b'\x00') + hh_digest
+        sig = dc_private_key.hashAndSign(
+            signature_context,
+            None,
+            None,
+            None
+        )
+        scheme = SignatureScheme.ed25519
+        cer_verify = CertificateVerify((3, 4)).create(sig, scheme)
+
+        with self.assertRaises(TLSIllegalParameterException) as exc:
+            exp.process(state, cer_verify)
+
+        self.assertIn("multiple delegated credentials extensions",
+                      str(exc.exception))
+
+    def test_process_with_delegated_credential_client_unsupported(self):
+        exp = ExpectCertificateVerify()
+
+        state = self._build_state()
+
+        cert = Certificate(CertificateType.x509, (3, 4)).create(
+            X509CertChain([X509().parse(srv_raw_ed25519_certificate)]))
+        private_key = parsePEMKey(srv_raw_ed25519_key, private=True)
+        dc_private_key = parsePEMKey(srv_raw_ed25519_dc_key, private=True)
+        dc_pub_byte = dePem(srv_raw_ed25519_dc_pub, "PUBLIC KEY")
+
+        cert = self._update_cert_with_dc(
+            cert,
+            private_key,
+            SignatureScheme.ed25519,
+            dc_pub_byte,
+            SignatureScheme.ed25519
+        )
+
+        client_hello = ClientHello()
+        ext = SignatureAlgorithmsExtension().create([SignatureScheme.ed25519])
+        client_hello.extensions = [ext]
+        state.handshake_messages.append(client_hello)
+        state.handshake_messages.append(cert)
+
+        hh_digest = state.handshake_hashes.digest('sha256')
+        self.assertEqual(state.prf_name, "sha256")
+        signature_context = bytearray(b'\x20' * 64 +
+                                      b'TLS 1.3, server CertificateVerify' +
+                                      b'\x00') + hh_digest
+        sig = dc_private_key.hashAndSign(
+            signature_context,
+            None,
+            None,
+            None
+        )
+        scheme = SignatureScheme.ed25519
+        cer_verify = CertificateVerify((3, 4)).create(sig, scheme)
+
+        with self.assertRaises(TLSUnexpectedMessage) as exc:
+            exp.process(state, cer_verify)
+
+        self.assertIn("client does not support it", str(exc.exception))
 
 class TestExpectCertificateStatus(unittest.TestCase):
     def test___init__(self):
