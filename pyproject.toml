@@ -2,5 +2,10 @@
 requires = [
   # Essentials:
   "setuptools >= 64",
+
+  # Plugins:
+  "setuptools-scm [toml] >= 8",
 ]
 build-backend = "setuptools.build_meta"  # must be set always
+
+[tool.setuptools_scm]
