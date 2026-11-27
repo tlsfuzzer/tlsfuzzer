@@ -2001,7 +2001,7 @@ class Analysis(object):
             self._k_sizes_totals(name_bin)
 
             skillings_mack_pvalue = self.skillings_mack_test(name_bin)
-            ret_val = self.analyze_bit_sizes()
+            ret_val = self._analyze_bit_sizes()
             difference, verdict = self._bit_size_come_to_verdict(
                 ret_val, skillings_mack_pvalue
             )
@@ -2478,6 +2478,14 @@ class Analysis(object):
             )
 
     def analyze_bit_sizes(self):
+        name = join(self.output, self.measurements_filename)
+        name_bin = self._remove_suffix(name, '.csv') + '.bin'
+        self._long_format_to_binary(name, name_bin)
+        self._k_sizes_totals(name_bin)
+
+        return self._analyze_bit_sizes()
+
+    def _analyze_bit_sizes(self):
         """
         Analyses K bit-sizes and creates the plots and the test result files
         which are placed in an analysis_results directory in the output folder.
