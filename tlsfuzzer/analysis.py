@@ -30,9 +30,11 @@ from itertools import combinations, repeat, chain
 import os
 import time
 import random
+import statistics
 
 import numpy as np
 from scipy import stats
+from scipy import sparse
 import pandas as pd
 import matplotlib as mpl
 from matplotlib.figure import Figure
@@ -50,7 +52,7 @@ TestPair = namedtuple('TestPair', 'index1  index2')
 mpl.use('Agg')
 
 
-VERSION = 9
+VERSION = 10
 
 
 _diffs = None
@@ -2726,13 +2728,69 @@ class Analysis(object):
         finally:
             del data
 
+    def _write_pair_to_file(self, args):
+        (base_group, compared_group), data, lock = args
+
+        sparse_data = sparse.csc_array((data['value'],
+                                        (data['block'], data['group'])))
+        pair_path = join(
+            self.output,
+            "analysis_results/by-pair-sizes/"
+            "{0:04d}-{1:04d}".format(
+                base_group, compared_group))
+        pair_path_file = join(pair_path, "timing.csv")
+        try:
+            os.makedirs(pair_path)
+            # if it exists, it will raise an exception
+            # otherwise we put the header in
+            with open(pair_path_file, "w") as f:
+                f.write(
+                    "{0},{1}\n".format(base_group,
+                                       compared_group))
+        except FileExistsError:
+            pass
+        data_to_write = \
+            sparse_data[
+                        np.ix_(
+                            np.intersect1d(sparse_data[:,(base_group,)].indices,
+                                           sparse_data[:,(compared_group,)].indices),
+                            [base_group, compared_group])
+                        ].toarray()
+        with lock:
+            with open(pair_path_file, "a") as f:
+                np.savetxt(f, data_to_write, delimiter=",")
+
+    def _read_shared_hamming_weight_data(self, measurements_bin_path, mode="r"):
+        blocks = SharedMemmap(measurements_bin_path,
+                              dtype=[('block', np.dtype('i8')),
+                                     ('group', np.dtype('i4')),
+                                     ('value', np.dtype('f8'))],
+                              mode=mode,
+                              column="block")
+        groups = SharedMemmap(measurements_bin_path,
+                              dtype=[('block', np.dtype('i8')),
+                                     ('group', np.dtype('i4')),
+                                     ('value', np.dtype('f8'))],
+                              mode=mode,
+                              column="group")
+        values = SharedMemmap(measurements_bin_path,
+                              dtype=[('block', np.dtype('i8')),
+                                     ('group', np.dtype('i4')),
+                                     ('value', np.dtype('f8'))],
+                              mode=mode,
+                              column="value")
+
+        return dict([("block", blocks), ("group", groups), ("value", values)])
+
     def _split_data_to_pairwise(self, name):
         if self.verbose:
             start_time = time.time()
             print("[i] Splitting up data to pairwise directories")
 
-        data = self._read_hamming_weight_data(name)
+        data = self._read_shared_hamming_weight_data(name)
         all_pairs = set()
+        time_of_pairs = 0.0
+        time_of_slope = 0.0
         try:
             pair_writers = dict()
 
@@ -2755,7 +2813,37 @@ class Analysis(object):
             pair_writers['slope'].write(
                     "lower,higher\n")
 
+            if self.verbose:
+                print("[i]  Pariwise preparation: {:.3}s".format(
+                    time.time() - start_time))
+
+            start_temp = time.time()
+
+            # create pairwise comparisons graphs only for the most common
+            # groups, skip blocks that have only uncommon groups in them
+            group_pairs = []
+            for group_pair in combinations(unique_vals, 2):
+                if group_pair[0] in most_common:
+                    base_group, compared_group = group_pair
+                elif group_pair[1] in most_common:
+                    compared_group, base_group = group_pair
+                else:
+                    continue
+                group_pairs.append((base_group, compared_group))
+            with mp.Manager() as manager:
+                lock = manager.Lock()
+                with mp.Pool(self.workers) as pool:
+
+                    for i in pool.imap_unordered(
+                        self._write_pair_to_file,
+                        zip(group_pairs, repeat(data), repeat(lock))
+                    ):
+                        pass
+
+            time_of_pairs += time.time() - start_temp
+
             for block_vals in self._read_tuples(data):
+                start_temp = time.time()
                 # save data to estimate the slope of the time to Hamming weight
                 # dependency (if there is no dependency then the slope will
                 # be 0
@@ -2764,62 +2852,15 @@ class Analysis(object):
                     pair_writers['slope'].write(
                         "{0},{1}\n".format(lower[1], higher[1]))
 
-                # create pairwise comparisons graphs only for the most common
-                # groups, skip blocks that have only uncommon groups in them
-                for base_group in most_common.intersection(block_vals.keys()):
-                    base_value = block_vals[base_group]
-                    for compared_group, compared_value in block_vals.items():
-                        if base_group == compared_group:
-                            continue
-
-                        pair = (base_group, compared_group)
-                        all_pairs.add(pair)
-                        pair_path = join(
-                            self.output,
-                            "analysis_results/by-pair-sizes/"
-                            "{0:04d}-{1:04d}".format(
-                                base_group, compared_group))
-                        # since we can have a lot of groups, we should keep open
-                        # only the files for most common groups and open all the
-                        # other ones on demand
-                        if compared_group in top_200_most_common:
-                            if pair not in pair_writers:
-                                try:
-                                    os.makedirs(pair_path)
-                                except FileExistsError:
-                                    # ignore error, overwrite the file
-                                    pass
-                                pair_writers[pair] = open(
-                                    join(pair_path, "timing.csv"), "w")
-                                pair_writers[pair].write(
-                                    "{0},{1}\n".format(base_group,
-                                                       compared_group))
-
-                            pair_writers[pair].write(
-                                "{0},{1}\n".format(base_value, compared_value))
-                        else:
-                            pair_path_file = join(pair_path, "timing.csv")
-                            try:
-                                os.makedirs(pair_path)
-                                # if it exists, it will raise an exception
-                                # otherwise we put the header in
-                                with open(pair_path_file, "w") as f:
-                                    f.write(
-                                        "{0},{1}\n".format(base_group,
-                                                           compared_group))
-                            except FileExistsError:
-                                pass
-                            with open(pair_path_file, "a") as f:
-                                f.write("{0},{1}\n".format(
-                                    base_value, compared_value))
-
-
+                time_of_slope += time.time() - start_temp
         finally:
             del data
             for writer in pair_writers.values():
                 writer.close()
 
         if self.verbose:
+            print("[i]  Splitting up slope: {:.3}s".format(time_of_slope))
+            print("[i]  Splitting up pairs: {:.3}s".format(time_of_pairs))
             print("[i] Splitting up data to pairwise directories done in {:.3}s".format(
                 time.time() - start_time))
 
@@ -2830,7 +2871,78 @@ class Analysis(object):
             if (i[1], i[0]) not in all_unique_pairs:
                 all_unique_pairs.add(i)
 
-        return [i for i, _ in group_counts[-5:]], all_unique_pairs
+        return [i for i, _ in group_counts[-5:]], all_unique_pairs, unique_vals
+
+    def _test_with_single_group_side_channel(self, name_bin, group):
+        sm_p_values = {}
+
+        tmp_file = name_bin + ".tmp"
+        self._hamming_weight_report += "Skillings-Mack test p-value after "
+        self._hamming_weight_report += "introducing a side-channel of:\n"
+
+        for time in [10, 1, 0.1]:
+            shutil.copyfile(name_bin, tmp_file)
+            self._add_value_to_group(tmp_file, group, time * 1e-9)
+            p_value = self.skillings_mack_test(tmp_file)
+            sm_p_values[time] = p_value
+            self._hamming_weight_report += "\t{0}ns: {1}\n".format(
+                time, p_value)
+            if self.verbose:
+                print("[i] {0}ns: {1}".format(time, p_value))
+            os.remove(tmp_file)
+
+        self._hamming_weight_report += "\n"
+
+        return sm_p_values
+
+    def _test_with_systemic_side_channel(self, name_bin, all_groups):
+        sm_p_values = {}
+
+        groups = []
+        for i in all_groups:
+            try:
+                val = int(i)
+                if val >= 0:
+                    groups.append(val)
+            except ValueError:
+                pass
+
+        if not groups:
+            print("[w] No groups can be turned into non-negative integers")
+
+        # since we might not introduce a side-channel to some groups, the
+        # introduced side-channel needs to be 0 on average
+        if self.verbose:
+            start_time = time.time()
+            print("[i] Starting to calculate median of groups")
+        median = statistics.median(groups)
+        if self.verbose:
+            print("[i] Calculating median done in {:.3}s".format(
+                  time.time() - start_time))
+
+        tmp_file = name_bin + ".tmp"
+        self._hamming_weight_report += ("Skillings-Mack test p-value after "
+             "introducing a systemic side-channel of:\n")
+
+        for mod_time in [10, 1, 0.1, 0.01]:
+            if self.verbose:
+                start_time = time.time()
+                print("[i] Starting file modification for {0}ns/bit side-channel".format(mod_time))
+            shutil.copyfile(name_bin, tmp_file)
+            for i in groups:
+                self._add_value_to_group(
+                    tmp_file, i, (i - median) * mod_time * 1e-9)
+            if self.verbose:
+                print("[i] File modified in {:.3}s".format(time.time() - start_time))
+            p_value = self.skillings_mack_test(tmp_file)
+            sm_p_values[mod_time] = p_value
+            self._hamming_weight_report += "\t{0}ns/bit: {1}\n".format(
+                mod_time, p_value)
+            if self.verbose:
+                print("[i] {0}ns/bit: {1}".format(mod_time, p_value))
+            os.remove(tmp_file)
+
+        return sm_p_values
 
     def _analyse_weight_pairs(self, pairs):
         out_dir = self.output
@@ -3051,24 +3163,16 @@ class Analysis(object):
         self._hamming_weight_report += "Skillings-Mack test p-value: {0}\n"\
             .format(skillings_mack_p_value)
 
-        most_common, pairs = self._split_data_to_pairwise(name_bin)
+        most_common, pairs, all_groups = self._split_data_to_pairwise(name_bin)
 
         sm_p_values = {}
+        sys_sm_p_values = {}
         if skillings_mack_p_value > 1e-5:
-            tmp_file = name_bin + ".tmp"
-            self._hamming_weight_report += "Skillings-Mack test p-value after "
-            self._hamming_weight_report += "introducing a side-channel of:\n"
+            sm_p_values = self._test_with_single_group_side_channel(
+                name_bin, most_common[0])
 
-            for time in [10, 1, 0.1]:
-                shutil.copyfile(name_bin, tmp_file)
-                self._add_value_to_group(tmp_file, most_common[0], time * 1e-9)
-                p_value = self.skillings_mack_test(tmp_file)
-                sm_p_values[time] = p_value
-                self._hamming_weight_report += "\t{0}ns: {1}\n".format(
-                    time, p_value)
-                if self.verbose:
-                    print("[i] {0}ns: {1}".format(time, p_value))
-                os.remove(tmp_file)
+            sys_sm_p_values = self._test_with_systemic_side_channel(
+                name_bin, all_groups)
 
         self._analyse_weight_pairs(pairs)
 
@@ -3080,6 +3184,11 @@ class Analysis(object):
                     print(("[i] Sample large enough to detect {0} ns "
                            "difference: {1}").format(
                                time, sm_p_values[time] < 1e-9))
+            if len(sys_sm_p_values.keys()) is not None:
+                for time in sys_sm_p_values:
+                    print(("[i] Sample large enough to detect {0} ns/bit "
+                           "difference: {1}").format(
+                               time, sys_sm_p_values[time] < 1e-9))
 
         if skillings_mack_p_value < self.alpha:
             return 1
