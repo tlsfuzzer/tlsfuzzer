@@ -12,6 +12,8 @@ except ImportError:
 
 from collections import defaultdict
 import os
+import shutil
+import tempfile
 from socket import inet_aton
 from os.path import join, dirname, abspath
 import hashlib
@@ -35,6 +37,15 @@ try:
     from kyber_py.ml_kem.ml_kem import ML_KEM
     from kyber_py.ml_kem.pkcs import ek_from_pem, dk_from_pem
     ml_kem_available = True
+except ImportError:
+    pass
+
+ml_dsa_available = False
+try:
+    from dilithium_py.ml_dsa.default_parameters import DEFAULT_PARAMETERS
+    from dilithium_py.ml_dsa.ml_dsa import ML_DSA
+    from dilithium_py.ml_dsa.pkcs import sk_from_pem, sk_to_pem
+    ml_dsa_available = True
 except ImportError:
     pass
 
@@ -281,7 +292,8 @@ class TestCommandLine(unittest.TestCase):
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
                     value_endianness="big", max_bit_size=None,
-                    ml_kem_keys=None)
+                    ml_kem_keys=None,
+                    ml_dsa_keys=None, ml_dsa_sigs=None, ml_dsa_msgs=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -321,7 +333,8 @@ class TestCommandLine(unittest.TestCase):
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
                     value_endianness="big", max_bit_size=None,
-                    ml_kem_keys=None)
+                    ml_kem_keys=None,
+                    ml_dsa_keys=None, ml_dsa_sigs=None, ml_dsa_msgs=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -360,7 +373,8 @@ class TestCommandLine(unittest.TestCase):
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
                     value_endianness="big", max_bit_size=None,
-                    ml_kem_keys=None)
+                    ml_kem_keys=None,
+                    ml_dsa_keys=None, ml_dsa_sigs=None, ml_dsa_msgs=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -396,7 +410,8 @@ class TestCommandLine(unittest.TestCase):
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
                     value_endianness="big", max_bit_size=None,
-                    ml_kem_keys=None)
+                    ml_kem_keys=None,
+                    ml_dsa_keys=None, ml_dsa_sigs=None, ml_dsa_msgs=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch(
@@ -433,7 +448,8 @@ class TestCommandLine(unittest.TestCase):
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
                     value_endianness="big", max_bit_size=None,
-                    ml_kem_keys=None)
+                    ml_kem_keys=None,
+                    ml_dsa_keys=None, ml_dsa_sigs=None, ml_dsa_msgs=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch('tlsfuzzer.extract.Log')
@@ -540,7 +556,8 @@ class TestCommandLine(unittest.TestCase):
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
                     value_endianness="big", max_bit_size=None,
-                    ml_kem_keys=None)
+                    ml_kem_keys=None,
+                    ml_dsa_keys=None, ml_dsa_sigs=None, ml_dsa_msgs=None)
                 mock_measurements.assert_not_called()
 
     @mock.patch('__main__.__builtins__.print')
@@ -614,7 +631,8 @@ class TestCommandLine(unittest.TestCase):
                     hash_func=hashlib.sha256, workers=None, verbose=False,
                     rsa_keys=priv_key, sig_format="DER", values=None,
                     value_size=None, value_endianness="big",
-                    max_bit_size=None, ml_kem_keys=None)
+                    max_bit_size=None, ml_kem_keys=None,
+                    ml_dsa_keys=None, ml_dsa_sigs=None, ml_dsa_msgs=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -657,7 +675,8 @@ class TestCommandLine(unittest.TestCase):
                     hash_func=hashlib.sha256, workers=None, verbose=False,
                     rsa_keys=None, sig_format="DER", values=None,
                     value_size=None, value_endianness="big",
-                    max_bit_size=None, ml_kem_keys=None)
+                    max_bit_size=None, ml_kem_keys=None,
+                    ml_dsa_keys=None, ml_dsa_sigs=None, ml_dsa_msgs=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -700,7 +719,8 @@ class TestCommandLine(unittest.TestCase):
                     hash_func=hashlib.sha256, workers=None, verbose=True,
                     rsa_keys=None, sig_format="DER", values=None,
                     value_size=None, value_endianness="big",
-                    max_bit_size=None, ml_kem_keys=None)
+                    max_bit_size=None, ml_kem_keys=None,
+                    ml_dsa_keys=None, ml_dsa_sigs=None, ml_dsa_msgs=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -745,7 +765,8 @@ class TestCommandLine(unittest.TestCase):
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
                     value_endianness="big", max_bit_size=None,
-                    ml_kem_keys=None)
+                    ml_kem_keys=None,
+                    ml_dsa_keys=None, ml_dsa_sigs=None, ml_dsa_msgs=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -790,7 +811,8 @@ class TestCommandLine(unittest.TestCase):
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
                     value_endianness="big", max_bit_size=None,
-                    ml_kem_keys=None)
+                    ml_kem_keys=None,
+                    ml_dsa_keys=None, ml_dsa_sigs=None, ml_dsa_msgs=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -834,7 +856,8 @@ class TestCommandLine(unittest.TestCase):
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
                     value_endianness="big", max_bit_size=None,
-                    ml_kem_keys=None)
+                    ml_kem_keys=None,
+                    ml_dsa_keys=None, ml_dsa_sigs=None, ml_dsa_msgs=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -879,7 +902,8 @@ class TestCommandLine(unittest.TestCase):
                     workers=workers, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
                     value_endianness="big", max_bit_size=None,
-                    ml_kem_keys=None)
+                    ml_kem_keys=None,
+                    ml_dsa_keys=None, ml_dsa_sigs=None, ml_dsa_msgs=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -923,7 +947,8 @@ class TestCommandLine(unittest.TestCase):
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
                     value_endianness="big", max_bit_size=None,
-                    ml_kem_keys=None)
+                    ml_kem_keys=None,
+                    ml_dsa_keys=None, ml_dsa_sigs=None, ml_dsa_msgs=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -971,7 +996,8 @@ class TestCommandLine(unittest.TestCase):
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="RAW", values=None, value_size=None,
                     value_endianness="big", max_bit_size=None,
-                    ml_kem_keys=None)
+                    ml_kem_keys=None,
+                    ml_dsa_keys=None, ml_dsa_sigs=None, ml_dsa_msgs=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -1087,7 +1113,8 @@ class TestCommandLine(unittest.TestCase):
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=raw_values, value_size=value_size,
                     value_endianness=value_endianness, max_bit_size=None,
-                    ml_kem_keys=None)
+                    ml_kem_keys=None,
+                    ml_dsa_keys=None, ml_dsa_sigs=None, ml_dsa_msgs=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -1132,7 +1159,8 @@ class TestCommandLine(unittest.TestCase):
                     workers=None, verbose=False, rsa_keys=None,
                     sig_format="DER", values=None, value_size=None,
                     value_endianness="big", max_bit_size=max_bit_size,
-                    ml_kem_keys=None)
+                    ml_kem_keys=None,
+                    ml_dsa_keys=None, ml_dsa_sigs=None, ml_dsa_msgs=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_not_called()
@@ -1174,12 +1202,82 @@ class TestCommandLine(unittest.TestCase):
                     hash_func=hashlib.sha256, workers=None, verbose=False,
                     rsa_keys=None, sig_format="DER", values=ciphertexts,
                     value_size=None, value_endianness="big",
-                    max_bit_size=None, ml_kem_keys=priv_key)
+                    max_bit_size=None, ml_kem_keys=priv_key,
+                    ml_dsa_keys=None, ml_dsa_sigs=None, ml_dsa_msgs=None)
                 mock_write.assert_not_called()
                 mock_write_pkt.assert_not_called()
                 mock_log.assert_called_once_with(log_file)
                 mock_process.assert_not_called()
                 mock_process_mlkem.assert_called_once_with()
+
+    @mock.patch('tlsfuzzer.extract.Extract.process_ml_dsa_signatures')
+    @mock.patch('tlsfuzzer.extract.Log')
+    @mock.patch('tlsfuzzer.extract.Extract._write_pkts')
+    @mock.patch('tlsfuzzer.extract.Extract._write_csv')
+    @mock.patch(
+        'tlsfuzzer.extract.Extract.process_and_create_multiple_csv_files'
+    )
+    @mock.patch('tlsfuzzer.extract.Extract.parse')
+    def test_ml_dsa_keys_options(self, mock_parse, mock_write, mock_process,
+                                 mock_write_pkt, mock_log, mock_process_mldsa):
+        output = "/tmp"
+        raw_times = "/tmp/times.csv"
+        sigs = "/tmp/sigs.bin"
+        msgs = "/tmp/msgs.bin"
+        priv_key = "/tmp/sk.pem"
+        args = ["extract.py",
+                "-o", output,
+                "--raw-times", raw_times,
+                "--ml-dsa-keys", priv_key,
+                "--ml-dsa-sigs", sigs,
+                "--ml-dsa-msgs", msgs]
+        mock_init = mock.Mock()
+        mock_init.return_value = None
+        with mock.patch('tlsfuzzer.extract.Extract.__init__', mock_init):
+            with mock.patch("sys.argv", args):
+                main()
+                mock_init.assert_called_once_with(
+                    mock.ANY, None, output, None, None,
+                    raw_times, None, binary=None, endian="little",
+                    no_quickack=False, delay=None, carriage_return=None,
+                    data=None, data_size=None, sigs=None,
+                    priv_key=None, key_type=None, frequency=None,
+                    hash_func=hashlib.sha256, workers=None, verbose=False,
+                    rsa_keys=None, sig_format="DER", values=None,
+                    value_size=None, value_endianness="big",
+                    max_bit_size=None, ml_kem_keys=None,
+                    ml_dsa_keys=priv_key, ml_dsa_sigs=sigs,
+                    ml_dsa_msgs=msgs)
+                mock_write.assert_not_called()
+                mock_write_pkt.assert_not_called()
+                mock_log.assert_not_called()
+                mock_process.assert_not_called()
+                mock_process_mldsa.assert_called_once_with()
+
+    def test_ml_dsa_requires_sigs_msgs_and_times(self):
+        args = [
+            "extract.py", "-o", "/tmp",
+            "--raw-times", "/tmp/times.csv",
+            "--ml-dsa-keys", "/tmp/sk.pem",
+        ]
+        with mock.patch("sys.argv", args):
+            with self.assertRaises(ValueError) as err:
+                main()
+
+        self.assertIn("ML-DSA intermediate extraction", str(err.exception))
+
+    def test_ml_dsa_requires_raw_times(self):
+        args = [
+            "extract.py", "-o", "/tmp",
+            "--ml-dsa-keys", "/tmp/sk.pem",
+            "--ml-dsa-sigs", "/tmp/sigs.bin",
+            "--ml-dsa-msgs", "/tmp/msgs.bin",
+        ]
+        with mock.patch("sys.argv", args):
+            with self.assertRaises(ValueError) as err:
+                main()
+
+        self.assertIn("ML-DSA intermediate extraction", str(err.exception))
 
 
 @unittest.skipIf(failed_import,
@@ -3456,6 +3554,437 @@ KhakWUXIrF660toSgpJE/OsDVUwDkKVzu0V6IN+25zQ65NxVLqyHdDdyuVDApvNo
         self.assertNotEqual(values['hd-c-c-prime'], 0)
         self.assertNotEqual(values['first-diff-c-c-prime'], -1)
         self.assertNotEqual(values['last-diff-c-c-prime'], -1)
+
+
+@unittest.skipIf(failed_import or not ml_dsa_available,
+                 "Could not import extraction or dilithium_py. "
+                 "Skipping related tests.")
+class TestMLDSA44IntermediatesExtractor(unittest.TestCase):
+    def setUp(self):
+        common_dir = "mldsa44_test_files"
+        key_path = join(dirname(abspath(__file__)), common_dir, "sk.pem")
+        with open(key_path, "r") as f:
+            self.sk_pem = f.read()
+        self.scheme, self.sk = sk_from_pem(self.sk_pem)[0:2]
+        self.assertEqual(len(self.sk), 2560)
+
+        self.msg = bytes(32)
+        self.sig = self.scheme.sign(self.sk, self.msg, deterministic=True)
+        self.assertEqual(len(self.sig), 2420)
+
+        self.expected_zero_msg = {
+            'bit-size-c-s1': 12993,
+            'bit-size-c-s2': 13183,
+            'bit-size-rho-prime': 509,
+            'bit-size-w': 22571,
+            'bit-size-w0': 16057,
+            'bit-size-y': 20040,
+            'c-s1-n-need-reduction': 499,
+            'c-s1-n-zero': 53,
+            'c-s2-n-need-reduction': 509,
+            'c-s2-n-zero': 44,
+            'hw-c-s1': 10585,
+            'hw-c-s2': 10733,
+            'hw-rho-prime': 261,
+            'hw-w': 11717,
+            'hw-w0': 8188,
+            'hw-y': 11776,
+            'rho-prime-n-zero': 0,
+            'w-n-above-low-bit-cutoff': 1016,
+            'w-n-fully-low-bit': 8,
+            'w-n-need-reduction': 525,
+            'w-n-zero': 0,
+            'y-n-above-low-bit-cutoff': 647,
+            'y-n-fully-low-bit': 377,
+            'y-n-need-reduction': 524,
+            'y-n-zero': 0,
+        }
+
+    def test_extract_intermediates(self):
+        extract = Extract()
+        values = extract._ml_dsa_sign_intermediates(
+            self.scheme, self.sk, self.sig, self.msg)
+
+        self.assertEqual(values, self.expected_zero_msg)
+
+    def test_compare_with_dilithium_py(self):
+        extract = Extract()
+        msg = bytes([5]) * 32
+        sig = self.scheme.sign(self.sk, msg, deterministic=True)
+        values = extract._ml_dsa_sign_intermediates(
+            self.scheme, self.sk, sig, msg)
+
+        self.assertEqual(values.keys(), self.expected_zero_msg.keys())
+
+    def test_reading_ml_dsa_from_file(self):
+        mock_file = mock.mock_open(read_data=self.sk_pem)()
+
+        extract = Extract()
+        _, key = extract._read_ml_dsa_key(mock_file)
+
+        self.assertEqual(self.sk, key)
+        self.assertEqual(len(key), 2560)
+
+    def test_reading_ml_dsa_from_file_with_whitespace(self):
+        mock_file = mock.mock_open(
+            read_data="\n \n" + self.sk_pem + "\n\t\n")()
+
+        extract = Extract()
+        _, key = extract._read_ml_dsa_key(mock_file)
+
+        self.assertEqual(self.sk, key)
+        self.assertEqual(len(key), 2560)
+
+    def test_reading_from_empty_file(self):
+        mock_file = mock.mock_open(read_data="\n")()
+
+        extract = Extract()
+        ret = extract._read_ml_dsa_key(mock_file)
+
+        self.assertIsNone(ret)
+
+    def test_reading_with_truncated_file(self):
+        mock_file = mock.mock_open(read_data=self.sk_pem[:-25])()
+
+        extract = Extract()
+        with self.assertRaises(ValueError) as err:
+            extract._read_ml_dsa_key(mock_file)
+
+        self.assertIn("Truncated", str(err.exception))
+
+    def test_reading_with_truncated_and_doubled_key(self):
+        mock_file = mock.mock_open(
+            read_data=self.sk_pem[:-25] +
+            "-----BEGIN PRIVATE KEY-----")()
+
+        extract = Extract()
+        with self.assertRaises(ValueError) as err:
+            extract._read_ml_dsa_key(mock_file)
+
+        exc = str(err.exception)
+        self.assertTrue(
+            "Inconsistent private key" in exc or "Truncated" in exc,
+            msg=exc)
+
+    def test_parse_pem_unknown_sk_size(self):
+        extract = Extract()
+        fake_ret = (None, b"\x00" * 128, None, None)
+        with mock.patch("dilithium_py.ml_dsa.pkcs.sk_from_pem",
+                        return_value=fake_ret) as m:
+            with self.assertRaises(ValueError) as err:
+                extract._parse_pem_ml_dsa_key("not-used")
+            m.assert_called_once_with("not-used")
+
+        self.assertIn("Unknown ML-DSA private key size", str(err.exception))
+
+    def test_iter_ml_dsa_vector_coeffs_m_by_1(self):
+        extract = Extract()
+        c_tilde, z, _h = self.scheme._unpack_sig(self.sig)
+        _, _, _, s1, _, _ = self.scheme._unpack_sk(self.sk)
+        c = self.scheme.R.sample_in_ball(c_tilde, self.scheme.tau)
+        c_hat = c.to_ntt()
+        s1_hat = s1.to_ntt()
+        c_s1 = s1_hat.scale(c_hat).from_ntt()
+        y = z - c_s1
+
+        self.assertEqual(y.dim()[1], 1)
+        vals = list(extract._iter_ml_dsa_vector_coeffs(y))
+        self.assertGreater(len(vals), 100)
+
+    def test_ml_dsa_vector_coeff_stats_without_alpha(self):
+        extract = Extract()
+        _, _, _, s1, s2, _ = self.scheme._unpack_sk(self.sk)
+        c_tilde, z, _h = self.scheme._unpack_sig(self.sig)
+        c = self.scheme.R.sample_in_ball(c_tilde, self.scheme.tau)
+        c_hat = c.to_ntt()
+        s2_hat = s2.to_ntt()
+        c_s2 = s2_hat.scale(c_hat).from_ntt()
+        q = s1.parent.ring.q
+
+        st = extract._ml_dsa_vector_coeff_stats(c_s2, q, alpha=None)
+        self.assertEqual(set(st.keys()), set(['n_zero', 'n_need_reduction']))
+
+    def test_iter_ml_dsa_vector_coeffs_bad_layout(self):
+        extract = Extract()
+
+        class _BadVector(object):
+            def dim(self):
+                return (2, 2)
+
+        with self.assertRaises(ValueError) as err:
+            list(extract._iter_ml_dsa_vector_coeffs(_BadVector()))
+
+        self.assertIn("Expected ML-DSA vector layout", str(err.exception))
+
+
+@unittest.skipIf(failed_import or not ml_dsa_available,
+                 "Could not import extraction or dilithium_py. "
+                 "Skipping related tests.")
+class TestMLDSA65IntermediatesExtractor(unittest.TestCase):
+    def setUp(self):
+        import random
+        random.seed(99999)
+        self.scheme = ML_DSA(DEFAULT_PARAMETERS['ML_DSA_65'])
+        self.pk, self.sk = self.scheme.keygen()
+        self.msg = b"m" * 32
+        self.sig = self.scheme.sign(self.sk, self.msg, deterministic=True)
+        self.assertEqual(len(self.sk), 4032)
+        self.assertEqual(len(self.sig), 3309)
+
+    def test_extract_intermediates_keys(self):
+        extract = Extract()
+        values = extract._ml_dsa_sign_intermediates(
+            self.scheme, self.sk, self.sig, self.msg)
+
+        self.assertEqual(
+            set(values.keys()),
+            set([
+                'hw-rho-prime', 'bit-size-rho-prime', 'rho-prime-n-zero',
+                'hw-y', 'bit-size-y', 'y-n-zero', 'y-n-need-reduction',
+                'y-n-fully-low-bit', 'y-n-above-low-bit-cutoff',
+                'hw-w', 'bit-size-w', 'w-n-zero', 'w-n-need-reduction',
+                'w-n-fully-low-bit', 'w-n-above-low-bit-cutoff',
+                'hw-c-s1', 'bit-size-c-s1', 'c-s1-n-zero',
+                'c-s1-n-need-reduction',
+                'hw-c-s2', 'bit-size-c-s2', 'c-s2-n-zero',
+                'c-s2-n-need-reduction',
+                'hw-w0', 'bit-size-w0',
+            ]))
+
+    def test_parse_pem_ml_dsa_65_round_trip(self):
+        pem = sk_to_pem(self.scheme, sk=self.sk)
+        if isinstance(pem, bytes):
+            pem = pem.decode("ascii")
+
+        extract = Extract()
+        scheme2, sk2 = extract._parse_pem_ml_dsa_key(pem)
+
+        self.assertEqual(len(sk2), 4032)
+        self.assertEqual(sk2, self.sk)
+
+
+@unittest.skipIf(failed_import or not ml_dsa_available,
+                 "Could not import extraction or dilithium_py. "
+                 "Skipping related tests.")
+class TestMLDSA87KeyParsing(unittest.TestCase):
+    def test_parse_pem_ml_dsa_87(self):
+        import random
+        random.seed(7)
+        scheme = ML_DSA(DEFAULT_PARAMETERS['ML_DSA_87'])
+        _, sk = scheme.keygen()
+        pem = sk_to_pem(scheme, sk=sk)
+        if isinstance(pem, bytes):
+            pem = pem.decode("ascii")
+
+        extract = Extract()
+        scheme2, sk2 = extract._parse_pem_ml_dsa_key(pem)
+
+        self.assertEqual(len(sk2), 4896)
+        self.assertEqual(sk2, sk)
+
+
+@unittest.skipIf(failed_import or not ml_dsa_available,
+                 "Could not import extraction or dilithium_py, skipping")
+class TestMLDSAFullExtraction(unittest.TestCase):
+    def setUp(self):
+        self.builtin_open = open
+        self.outputs = defaultdict(list)
+
+    def file_selector(self, *args, **kwargs):
+        name = args[0]
+        mode = args[1]
+
+        if "w" in mode or "a" in mode:
+            self.assertIn("/tmp", name)
+            r = mock.mock_open()(name, mode)
+            r.write.side_effect = lambda s: self.outputs[name].append(s)
+            return r
+        return self.builtin_open(*args, **kwargs)
+
+    @mock.patch('builtins.print')
+    def test_process_ml_dsa_signatures(self, mock_print):
+        common_dir = "mldsa44_test_files"
+        out_dir = "/tmp/a"
+        raw_times = join(dirname(abspath(__file__)), common_dir,
+                         "raw_times.csv")
+        key_file = join(dirname(abspath(__file__)), common_dir,
+                        "sk.pem")
+        sigs_file = join(dirname(abspath(__file__)), common_dir,
+                         "sigs.bin")
+        msgs_file = join(dirname(abspath(__file__)), common_dir,
+                         "msgs.bin")
+
+        extract = Extract(
+            None, output=out_dir, raw_times=raw_times,
+            ml_dsa_keys=key_file, ml_dsa_sigs=sigs_file,
+            ml_dsa_msgs=msgs_file)
+
+        with mock.patch('builtins.open', side_effect=self.file_selector):
+            extract.parse()
+            extract.process_ml_dsa_signatures()
+
+        expected = set(
+            join(out_dir, 'measurements-{0}.csv'.format(k)) for k in [
+                'hw-rho-prime', 'bit-size-rho-prime', 'rho-prime-n-zero',
+                'hw-y', 'bit-size-y', 'y-n-zero', 'y-n-need-reduction',
+                'y-n-fully-low-bit', 'y-n-above-low-bit-cutoff',
+                'hw-w', 'bit-size-w', 'w-n-zero', 'w-n-need-reduction',
+                'w-n-fully-low-bit', 'w-n-above-low-bit-cutoff',
+                'hw-c-s1', 'bit-size-c-s1', 'c-s1-n-zero',
+                'c-s1-n-need-reduction',
+                'hw-c-s2', 'bit-size-c-s2', 'c-s2-n-zero',
+                'c-s2-n-need-reduction',
+                'hw-w0', 'bit-size-w0',
+            ])
+        written = set(self.outputs.keys())
+        self.assertTrue(written.issubset(expected))
+        self.assertGreater(len(written), 15)
+
+        hw_y = join(out_dir, 'measurements-hw-y.csv')
+        self.assertGreater(len(self.outputs[hw_y]), 0)
+
+
+@unittest.skipIf(failed_import or not ml_dsa_available,
+                 "Could not import extraction or dilithium_py. "
+                 "Skipping related tests.")
+class TestMLDSAProcessSignatures(unittest.TestCase):
+    common_dir = "mldsa44_test_files"
+
+    def _fixture_dir(self):
+        return join(dirname(abspath(__file__)), self.common_dir)
+
+    def test_process_writes_real_output_directory(self):
+        base = self._fixture_dir()
+        with tempfile.TemporaryDirectory() as tmp:
+            out = join(tmp, "out")
+            os.mkdir(out)
+            for name in ("sk.pem", "raw_times.csv", "sigs.bin", "msgs.bin"):
+                shutil.copy(join(base, name), join(tmp, name))
+
+            extract = Extract(
+                None, output=out,
+                raw_times=join(tmp, "raw_times.csv"),
+                ml_dsa_keys=join(tmp, "sk.pem"),
+                ml_dsa_sigs=join(tmp, "sigs.bin"),
+                ml_dsa_msgs=join(tmp, "msgs.bin"),
+            )
+            extract.parse()
+            extract.process_ml_dsa_signatures()
+
+            hw_y = join(out, "measurements-hw-y.csv")
+            self.assertTrue(os.path.isfile(hw_y))
+            self.assertGreater(os.path.getsize(hw_y), 0)
+
+    def test_process_partial_signature_tail_ignored(self):
+        base = self._fixture_dir()
+        with tempfile.TemporaryDirectory() as tmp:
+            out = join(tmp, "out")
+            os.mkdir(out)
+            for name in ("sk.pem", "raw_times.csv", "msgs.bin"):
+                shutil.copy(join(base, name), join(tmp, name))
+            shutil.copy(join(base, "sigs.bin"), join(tmp, "sigs.bin"))
+            with open(join(tmp, "sigs.bin"), "ab") as sig_fp:
+                sig_fp.write(b"\x00\x01\x02")
+
+            extract = Extract(
+                None, output=out,
+                raw_times=join(tmp, "raw_times.csv"),
+                ml_dsa_keys=join(tmp, "sk.pem"),
+                ml_dsa_sigs=join(tmp, "sigs.bin"),
+                ml_dsa_msgs=join(tmp, "msgs.bin"),
+            )
+            extract.parse()
+            extract.process_ml_dsa_signatures()
+
+            self.assertTrue(os.path.isfile(join(out, "measurements-hw-y.csv")))
+
+    def test_process_short_message_stops(self):
+        base = self._fixture_dir()
+        with tempfile.TemporaryDirectory() as tmp:
+            out = join(tmp, "out")
+            os.mkdir(out)
+            shutil.copy(join(base, "sk.pem"), join(tmp, "sk.pem"))
+            with open(join(base, "sigs.bin"), "rb") as sig_fp:
+                one_sig = sig_fp.read(2420)
+            with open(join(tmp, "sigs.bin"), "wb") as sig_fp:
+                sig_fp.write(one_sig)
+            with open(join(tmp, "msgs.bin"), "wb") as msg_fp:
+                msg_fp.write(b"z" * 16)
+            with open(join(tmp, "raw_times.csv"), "w") as t_fp:
+                t_fp.write("raw times\n1.0\n")
+
+            extract = Extract(
+                None, output=out,
+                raw_times=join(tmp, "raw_times.csv"),
+                ml_dsa_keys=join(tmp, "sk.pem"),
+                ml_dsa_sigs=join(tmp, "sigs.bin"),
+                ml_dsa_msgs=join(tmp, "msgs.bin"),
+            )
+            extract.parse()
+            extract.process_ml_dsa_signatures()
+
+            self.assertTrue(os.path.isfile(join(out, "measurements-hw-y.csv")))
+
+    def test_process_verbose_enables_progress_thread(self):
+        base = self._fixture_dir()
+        with tempfile.TemporaryDirectory() as tmp:
+            out = join(tmp, "out")
+            os.mkdir(out)
+            for name in ("sk.pem", "raw_times.csv", "sigs.bin", "msgs.bin"):
+                shutil.copy(join(base, name), join(tmp, name))
+
+            extract = Extract(
+                None, output=out,
+                raw_times=join(tmp, "raw_times.csv"),
+                ml_dsa_keys=join(tmp, "sk.pem"),
+                ml_dsa_sigs=join(tmp, "sigs.bin"),
+                ml_dsa_msgs=join(tmp, "msgs.bin"),
+                verbose=True, delay=0.01,
+            )
+            with mock.patch("tlsfuzzer.extract.Thread") as mock_thread:
+                mock_thread.return_value = mock.MagicMock()
+                extract.parse()
+                extract.process_ml_dsa_signatures()
+
+                mock_thread.assert_called_once()
+                mock_thread.return_value.start.assert_called_once()
+                mock_thread.return_value.join.assert_called_once()
+
+    def test_process_nondefault_message_size(self):
+        base = self._fixture_dir()
+        with open(join(base, "sk.pem"), "r") as key_fp:
+            pem = key_fp.read()
+        scheme, sk = sk_from_pem(pem)[0:2]
+        msg_a = b"Q" * 64
+        msg_b = b"R" * 64
+        sig_a = scheme.sign(sk, msg_a, deterministic=True)
+        sig_b = scheme.sign(sk, msg_b, deterministic=True)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = join(tmp, "out")
+            os.mkdir(out)
+            shutil.copy(join(base, "sk.pem"), join(tmp, "sk.pem"))
+            with open(join(tmp, "sigs.bin"), "wb") as sig_fp:
+                sig_fp.write(sig_a + sig_b)
+            with open(join(tmp, "msgs.bin"), "wb") as msg_fp:
+                msg_fp.write(msg_a + msg_b)
+            with open(join(tmp, "raw_times.csv"), "w") as t_fp:
+                t_fp.write("raw times\n2.5e6\n3.0e6\n")
+
+            extract = Extract(
+                None, output=out,
+                raw_times=join(tmp, "raw_times.csv"),
+                ml_dsa_keys=join(tmp, "sk.pem"),
+                ml_dsa_sigs=join(tmp, "sigs.bin"),
+                ml_dsa_msgs=join(tmp, "msgs.bin"),
+                data_size=64,
+            )
+            extract.parse()
+            extract.process_ml_dsa_signatures()
+
+            hw_y = join(out, "measurements-hw-y.csv")
+            self.assertTrue(os.path.isfile(hw_y))
+            self.assertGreater(os.path.getsize(hw_y), 0)
 
 
 @unittest.skipIf(failed_import or not ml_kem_available,
